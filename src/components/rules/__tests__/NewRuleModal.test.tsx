@@ -36,6 +36,24 @@ function renderModal(draft: Omit<TransformRule, 'id'>, conflictLabel: string | n
 }
 
 describe('NewRuleModal', () => {
+  test('Cmd-Enter in any field saves a valid draft', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
+    fireEvent.keyDown(screen.getByLabelText('Label (optional note)'), {
+      key: 'Enter',
+      metaKey: true,
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  test('Cmd-Enter does not save what the Save button would refuse', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城' }, 'City suffix');
+    fireEvent.keyDown(screen.getByLabelText('Key (1-4 Chinese chars)'), {
+      key: 'Enter',
+      ctrlKey: true,
+    });
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   test('Save is disabled when the key is empty, even with no conflict', () => {
     renderModal({ ...EMPTY_DRAFT, key: '' }, null);
     expect(screen.getByText('Save')).toBeDisabled();
@@ -194,5 +212,100 @@ describe('NewRuleModal', () => {
     expect(setDraft).toHaveBeenCalledWith(
       expect.objectContaining({ key: '紫禁城', capitalizeExceptN: 3 })
     );
+  });
+});
+
+describe('NewRuleModal — A2 layout', () => {
+  const CITY_DRAFT: Omit<TransformRule, 'id'> = {
+    ...EMPTY_DRAFT,
+    key: '城',
+    relocate: true,
+    capitalizeExceptN: 1,
+  };
+  const DICTIONARIES = {
+    characters: { 长: 'trường', 安: 'an', 城: 'thành', 华: 'hoa', 山: 'sơn' },
+    properNouns: {
+      长安城: { translation: 'Trường An thành' },
+      华山: { translation: 'Hoa Sơn' },
+    },
+  };
+
+  test('previews each matching entry: its saved translation and the rule’s guess', () => {
+    render(
+      <NewRuleModal
+        draft={CITY_DRAFT}
+        setDraft={vi.fn()}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+        dictionaries={DICTIONARIES}
+      />
+    );
+    expect(screen.getByText('1 match')).toBeInTheDocument();
+    expect(screen.getByText('长安城')).toBeInTheDocument();
+    expect(screen.getByText('Trường An thành')).toBeInTheDocument();
+    expect(screen.getByText('thành Trường An')).toBeInTheDocument();
+    expect(screen.queryByText('华山')).not.toBeInTheDocument();
+  });
+
+  test('says so when nothing matches', () => {
+    render(
+      <NewRuleModal
+        draft={{ ...CITY_DRAFT, key: '宗' }}
+        setDraft={vi.fn()}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+        dictionaries={DICTIONARIES}
+      />
+    );
+    expect(screen.getByText(/No entries end with 宗/)).toBeInTheDocument();
+  });
+
+  test('shows no preview without dictionaries', () => {
+    renderModal(CITY_DRAFT);
+    expect(screen.queryByText(/Your entries this rule matches|No entries/)).toBeNull();
+  });
+
+  test('Escape cancels', () => {
+    renderModal(CITY_DRAFT);
+    fireEvent.keyDown(screen.getByLabelText('Key (1-4 Chinese chars)'), { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  test('with focus in the type row, digit 3 picks Location; re-picking keeps it', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...CITY_DRAFT, semanticType: 'character' }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.keyDown(screen.getByRole('radiogroup', { name: 'Semantic type' }), { key: '3' });
+    expect(setDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({ semanticType: 'location' })
+    );
+    fireEvent.click(screen.getByLabelText('Set Character for new rule'));
+    expect(setDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({ semanticType: 'character' })
+    );
+  });
+
+  test('the move pill names the end the words go to', () => {
+    const { rerender } = renderModal(CITY_DRAFT);
+    expect(screen.getByText('Move to front')).toBeInTheDocument();
+    rerender(
+      <NewRuleModal
+        draft={{ ...CITY_DRAFT, matchKind: 'prefix' }}
+        setDraft={vi.fn()}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    expect(screen.getByText('Move to end')).toBeInTheDocument();
   });
 });

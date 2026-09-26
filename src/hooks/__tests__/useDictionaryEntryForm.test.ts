@@ -295,6 +295,54 @@ describe('handleDictionaryChange', () => {
   });
 });
 
+// ─── selectDictionary (the quick-add shortlist switch) ────────────────────────
+
+describe('selectDictionary', () => {
+  beforeEach(stubEmptyClipboard);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('switches dictionary but keeps the typed source and translation', async () => {
+    const onDictionaryChange = vi.fn();
+    // One deps object for every render, as DictionaryContext's stable `dictionaries` is — a
+    // fresh object per render would re-run auto-populate on its own.
+    const deps = makeDeps({ initialSource: '你好', onDictionaryChange });
+    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'properNouns', deps));
+    await act(async () => {});
+    act(() => result.current.setTranslation('Edited By Hand'));
+
+    act(() => result.current.selectDictionary('properNouns-_Theme'));
+    await act(async () => {});
+
+    expect(result.current.activeDictionary).toBe('properNouns-_Theme');
+    expect(result.current.source).toBe('你好');
+    expect(result.current.translation).toBe('Edited By Hand');
+    expect(onDictionaryChange).toHaveBeenCalledWith('properNouns-_Theme');
+  });
+
+  it('re-asks the existing-entry notice for the new dictionary', async () => {
+    const dictionaries = {
+      characters: CHARACTERS_DICT,
+      'properNouns-_Theme': { 你好: { translation: 'Hello' } },
+    };
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns', makeDeps({ dictionaries }))
+    );
+    await act(async () => {});
+    act(() => {
+      result.current.handleSourceChange({
+        target: { value: '你好' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+    act(() => result.current.handleTranslationFocus());
+    expect(result.current.existingEntry?.isSelectedDictionary).toBe(false);
+
+    act(() => result.current.selectDictionary('properNouns-_Theme'));
+
+    expect(result.current.showExistingEntryNotification).toBe(true);
+    expect(result.current.existingEntry?.isSelectedDictionary).toBe(true);
+  });
+});
+
 // ─── Debounced validation ─────────────────────────────────────────────────────
 // Uses fake timers to control the 300ms debounce in handleSourceChange.
 

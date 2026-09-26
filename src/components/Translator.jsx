@@ -147,6 +147,7 @@ const Translator = ({ isActive = true }) => {
     quickAddDictionary,
     initialSource,
     quickAddView,
+    quickAddShortlist,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
@@ -1090,6 +1091,7 @@ const Translator = ({ isActive = true }) => {
             onClose={closeQuickAdd}
             selectedDictionary={quickAddDictionary}
             quickAddView={quickAddView}
+            shortlist={quickAddShortlist}
             onDictionaryChange={handleQuickAddDictionaryChange}
             initialSource={initialSource}
           />

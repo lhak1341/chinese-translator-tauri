@@ -1,6 +1,21 @@
-import { useState, useCallback } from 'react';
-import { quickAddTarget, quickAddMissMessage } from '../utils/dictionary/QuickAddTarget';
+import { useState, useCallback, useRef } from 'react';
+import {
+  quickAddTarget,
+  quickAddMissMessage,
+  quickAddShortlist,
+} from '../utils/dictionary/QuickAddTarget';
 import toast from '../utils/toast';
+
+const CLOSED = {
+  isOpen: false,
+  dictionaryId: 'properNouns',
+  source: '',
+  view: null,
+  shortlist: null,
+};
+
+/** The session's last shortlist pick per kind, shared by every surface. */
+const sharedShortlistMemory = new Map();
 
 /**
  * Quick Add modal state and handlers.
@@ -15,23 +30,45 @@ import toast from '../utils/toast';
  * open an Add over another surface's view. `dictionaries` (DictionaryContext state) is
  * injected, not stored — passed in by the caller for the Cmd-6 existence check.
  *
+ * Cmd-3 and Cmd-4 open with a **quick-add shortlist** (`quickAddShortlist`) the form can switch
+ * through, and open on the shortlist entry last picked for that key — `shortlistMemory`, keyed
+ * by shortlist kind. A pick is remembered when the form switches to a shortlist entry, by the
+ * toggle row, its keys, or the dropdown. A remembered pick that is no longer on the shortlist
+ * (its book's generics differ) falls back to the root dictionary. The default memory is
+ * module-level, so the Translator and the Reader share it for the session.
+ *
  * @param {{ [key: string]: unknown }} dictionaries - current DictionaryContext.dictionaries state
  * @param {() => Promise<import('../utils/dictionary/QuickAddTarget').QuickAddView | null>} loadView
+ * @param {Map<string, string>} [shortlistMemory] - last pick per shortlist kind; tests inject their own
  */
-export function useDictionaryModals(dictionaries, loadView) {
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    dictionaryId: 'properNouns',
-    source: '',
-    view: null,
-  });
+export function useDictionaryModals(
+  dictionaries,
+  loadView,
+  shortlistMemory = sharedShortlistMemory
+) {
+  const [modalState, setModalState] = useState(CLOSED);
+  // The open modal's shortlist, read by the change handler to decide what to remember.
+  const shortlistRef = useRef(null);
 
   const openQuickAdd = useCallback(
     async (dictionaryId, source = '') => {
       const view = await loadView();
-      setModalState({ isOpen: true, dictionaryId, source, view });
+      shortlistRef.current = null;
+      setModalState({ isOpen: true, dictionaryId, source, view, shortlist: null });
     },
     [loadView]
+  );
+
+  const openQuickAddShortlist = useCallback(
+    async (kind, source = '') => {
+      const view = await loadView();
+      const shortlist = quickAddShortlist(kind, view, dictionaries);
+      const remembered = shortlistMemory.get(kind);
+      const dictionaryId = shortlist.ids.includes(remembered) ? remembered : shortlist.ids[0];
+      shortlistRef.current = shortlist;
+      setModalState({ isOpen: true, dictionaryId, source, view, shortlist });
+    },
+    [dictionaries, loadView, shortlistMemory]
   );
 
   const openQuickAddCharacter = useCallback(
@@ -45,13 +82,13 @@ export function useDictionaryModals(dictionaries, loadView) {
   );
 
   const openQuickAddProperNoun = useCallback(
-    (source = '') => openQuickAdd('properNouns', source),
-    [openQuickAdd]
+    (source = '') => openQuickAddShortlist('properNoun', source),
+    [openQuickAddShortlist]
   );
 
   const openQuickAddPattern = useCallback(
-    (source = '') => openQuickAdd('patterns', source),
-    [openQuickAdd]
+    (source = '') => openQuickAddShortlist('structuralPattern', source),
+    [openQuickAddShortlist]
   );
 
   /**
@@ -72,7 +109,14 @@ export function useDictionaryModals(dictionaries, loadView) {
         toast.error(quickAddMissMessage(target));
         return;
       }
-      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, source, view });
+      shortlistRef.current = null;
+      setModalState({
+        isOpen: true,
+        dictionaryId: target.dictionaryId,
+        source,
+        view,
+        shortlist: null,
+      });
     },
     [dictionaries, loadView]
   );
@@ -88,12 +132,18 @@ export function useDictionaryModals(dictionaries, loadView) {
   );
 
   const closeQuickAdd = useCallback(() => {
-    setModalState({ isOpen: false, dictionaryId: 'properNouns', source: '', view: null });
+    shortlistRef.current = null;
+    setModalState(CLOSED);
   }, []);
 
-  const handleQuickAddDictionaryChange = useCallback((dictionaryId) => {
-    setModalState((prev) => ({ ...prev, dictionaryId }));
-  }, []);
+  const handleQuickAddDictionaryChange = useCallback(
+    (dictionaryId) => {
+      const shortlist = shortlistRef.current;
+      if (shortlist?.ids.includes(dictionaryId)) shortlistMemory.set(shortlist.kind, dictionaryId);
+      setModalState((prev) => ({ ...prev, dictionaryId }));
+    },
+    [shortlistMemory]
+  );
 
   return {
     modalState,
@@ -101,6 +151,7 @@ export function useDictionaryModals(dictionaries, loadView) {
     quickAddDictionary: modalState.dictionaryId,
     initialSource: modalState.source,
     quickAddView: modalState.view,
+    quickAddShortlist: modalState.shortlist,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,

@@ -178,7 +178,7 @@
 
 .modal {
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
   background-color: var(--surface-color, var(--background-color));
   border-radius: 10px;
   border: 1px solid var(--border-color);
@@ -189,66 +189,268 @@
   overflow: hidden;
 }
 
-/* Modal header/title match DictionaryEntry's modal exactly — same component
-   triggered from adjacent hotkeys (Cmd-1..6 vs Cmd-7) should look like one
-   family, not two unrelated forms. Named modalHeader/modalTitle — .header is
-   already taken by the page toolbar bar above. */
-.modalHeader {
-  composes: header from './DictionaryEntry.module.css';
-}
-
-.modalTitle {
-  composes: title from './DictionaryEntry.module.css';
-}
-
-.formBody {
-  composes: formContainer from './DictionaryEntry.module.css';
-}
-
-.formRow {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 1rem;
-}
-
-.formGroup {
+/* The new-rule form (NewRuleModal), in the Add form's layout — its footer, pills and type row
+   come from DictionaryEntry.module.css, so Cmd-1..6 and Cmd-7 read as one family. */
+.ruleBody {
+  padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  flex: 1;
+  gap: 12px;
 }
 
-.formGroup label {
-  font-size: 0.85rem;
-  font-weight: 400;
+.ruleLine,
+.ruleThen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ruleThen {
+  gap: 8px;
+}
+
+.matchSwitch {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matchSwitch button {
+  height: 28px;
+  min-height: auto;
+  padding: 0 11px;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--secondary-button-bg);
+  color: var(--text-muted, #6b7280);
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.matchSwitch button:first-child {
+  border-left: 0;
+}
+
+.matchSwitch button[aria-checked='true'] {
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.ruleKey {
+  font-family: var(--chinese-text-font, var(--ui-font));
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  width: 5.5em;
+  height: 40px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--border-color);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
+}
+
+.ruleKey:focus-visible {
+  outline: none;
+  border-bottom: 2px solid var(--primary-color);
+}
+
+.ruleLength {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.ruleLength input {
+  width: 3.4rem;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+.ruleThenLabel {
+  width: 2.4rem;
+  font-size: 0.8rem;
   color: var(--text-muted, #6b7280);
 }
 
-.formGroup input,
-.formGroup select {
-  padding: 0.5rem 0.75rem;
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  height: 28px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: var(--background-color);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.84rem;
+}
+
+.stepperText {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.stepper button {
+  width: 26px;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  border-radius: 0;
+  background: var(--secondary-button-bg);
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+}
+
+.stepper input {
+  width: 2.2rem;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
   color: var(--text-color);
-  box-sizing: border-box;
+  text-align: center;
+  font-weight: 600;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
-.formError {
-  color: var(--danger-button-text, #ef4444);
+.stepper input::-webkit-inner-spin-button,
+.stepper input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ruleReplace {
+  flex: 1;
+  min-width: 9rem;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-color);
+  color: var(--text-color);
+  font-size: 0.88rem;
+}
+
+.ruleReplace:focus-visible,
+.ruleLength input:focus-visible,
+.stepper input:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+/* What the rule matches, and the guess it would make for each. */
+.rulePreview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 16px 12px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.previewHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 0.8rem;
-  margin-top: -0.5rem;
-  margin-bottom: 1rem;
+  color: var(--text-muted, #6b7280);
 }
 
-.checkboxRow {
+.previewCols,
+.previewList li {
+  display: grid;
+  grid-template-columns: 4.8rem minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.previewCols {
+  font-size: 0.72rem;
+  color: var(--text-muted, #6b7280);
+  opacity: 0.8;
+}
+
+.previewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.previewList li {
+  font-size: 0.88rem;
+}
+
+.previewSource {
+  font-family: var(--chinese-text-font, var(--ui-font));
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewSaved,
+.previewGuess,
+.previewSame {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewSaved,
+.previewArrow,
+.previewSame {
+  color: var(--text-muted, #6b7280);
+}
+
+.previewGuess {
+  font-weight: 600;
+}
+
+.previewEmpty {
+  font-size: 0.84rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.ruleMeta {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
 }
 
-.modalActions {
-  composes: buttonContainer from './DictionaryEntry.module.css';
-  margin-top: 0.5rem;
+.ruleNote {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px dashed var(--border-color);
+  background: transparent;
+  color: var(--text-color);
+  font-size: 0.85rem;
+}
+
+.ruleNote:focus-visible {
+  outline: none;
+  border-bottom: 1px solid var(--primary-color);
 }

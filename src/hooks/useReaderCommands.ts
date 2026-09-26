@@ -4,7 +4,11 @@ import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
-import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
+import {
+  loadQuickAddConfig,
+  type QuickAddShortlist,
+  type QuickAddView,
+} from '../utils/dictionary/QuickAddTarget';
 import { readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
@@ -69,6 +73,8 @@ export interface ReaderCommands {
     initialSource: string;
     /** The quick-add view the open Add decided over — its dropdown's choices come from it. */
     view: QuickAddView | null;
+    /** Cmd-3/Cmd-4's quick-add shortlist, `null` for every other Add. */
+    shortlist: QuickAddShortlist | null;
     close: () => void;
     onDictionaryChange: (dictionaryId: string) => void;
   };
@@ -211,6 +217,7 @@ export function useReaderCommands({
       dictionary: modals.quickAddDictionary,
       initialSource: modals.initialSource,
       view: modals.quickAddView,
+      shortlist: modals.quickAddShortlist,
       close: modals.closeQuickAdd,
       onDictionaryChange: modals.handleQuickAddDictionaryChange,
     },

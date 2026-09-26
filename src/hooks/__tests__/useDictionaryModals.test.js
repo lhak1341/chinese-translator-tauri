@@ -298,3 +298,81 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     expect(result.current.showQuickAdd).toBe(true);
   });
 });
+
+// ── Cmd-3/Cmd-4 quick-add shortlist and its remembered pick ─────────────────────
+
+describe('useDictionaryModals — quick-add shortlist', () => {
+  const twoGenerics = () => ({
+    activeProperNouns: ['properNouns', 'properNouns-_A', 'properNouns-_B', 'properNouns-f_C'],
+    defaultQuickAddDictionary: 'properNouns-f_C',
+  });
+  const dictionaries = { 'patterns-_A': {}, 'patterns-_B': {}, 'patterns-f_C': {} };
+
+  test('Cmd-3 opens on root with the shortlist of root and active generics', async () => {
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
+    );
+    await act(() => result.current.openQuickAddProperNoun('名'));
+    expect(result.current.quickAddDictionary).toBe('properNouns');
+    expect(result.current.quickAddShortlist).toEqual({
+      kind: 'properNoun',
+      ids: ['properNouns', 'properNouns-_A', 'properNouns-_B'],
+    });
+  });
+
+  test('Cmd-4 opens with the patterns shortlist', async () => {
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
+    );
+    await act(() => result.current.openQuickAddPattern(''));
+    expect(result.current.quickAddShortlist).toEqual({
+      kind: 'structuralPattern',
+      ids: ['patterns', 'patterns-_A', 'patterns-_B'],
+    });
+  });
+
+  test('the next Cmd-3 opens on the last shortlist pick; Cmd-4 remembers separately', async () => {
+    const memory = new Map();
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
+    );
+    await act(() => result.current.openQuickAddProperNoun(''));
+    act(() => result.current.handleQuickAddDictionaryChange('properNouns-_B'));
+    act(() => result.current.closeQuickAdd());
+
+    await act(() => result.current.openQuickAddProperNoun(''));
+    expect(result.current.quickAddDictionary).toBe('properNouns-_B');
+
+    await act(() => result.current.openQuickAddPattern(''));
+    expect(result.current.quickAddDictionary).toBe('patterns');
+  });
+
+  test('a pick off the shortlist is not remembered', async () => {
+    const memory = new Map();
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
+    );
+    await act(() => result.current.openQuickAddProperNoun(''));
+    act(() => result.current.handleQuickAddDictionaryChange('phrases'));
+    expect(memory.size).toBe(0);
+  });
+
+  test('a remembered pick no longer active falls back to root', async () => {
+    const memory = new Map([['properNoun', 'properNouns-_Gone']]);
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
+    );
+    await act(() => result.current.openQuickAddProperNoun(''));
+    expect(result.current.quickAddDictionary).toBe('properNouns');
+  });
+
+  test('other openers carry no shortlist', async () => {
+    const { result } = renderHook(() =>
+      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
+    );
+    await act(() => result.current.openQuickAddCustomProperNoun(''));
+    expect(result.current.quickAddShortlist).toBeNull();
+    await act(() => result.current.openQuickAddPhrase(''));
+    expect(result.current.quickAddShortlist).toBeNull();
+  });
+});

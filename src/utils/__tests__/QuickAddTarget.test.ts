@@ -3,6 +3,7 @@ import {
   quickAddTarget,
   quickAddChoices,
   quickAddMissMessage,
+  quickAddShortlist,
   type QuickAddView,
 } from '../dictionary/QuickAddTarget';
 
@@ -191,5 +192,35 @@ describe('quickAddChoices', () => {
     const active = view(['properNouns-_Theme', 'properNouns-f_Novel']);
     const choices = quickAddChoices(active, ALL, 'phrases');
     expect(choices).toEqual(ALL.filter((id) => choices.includes(id)));
+  });
+});
+
+describe('quickAddShortlist — Cmd-3/Cmd-4', () => {
+  const active = view([
+    'properNouns-f_Novel',
+    'properNouns-_B',
+    'properNouns',
+    'properNouns-_A',
+    'properNouns-Custom',
+  ]);
+
+  test('Cmd-3: root first, then custom and generic by tier; fiction left out', () => {
+    expect(quickAddShortlist('properNoun', active, {})).toEqual({
+      kind: 'properNoun',
+      ids: ['properNouns', 'properNouns-Custom', 'properNouns-_A', 'properNouns-_B'],
+    });
+  });
+
+  test('Cmd-4: the patterns halves of the generic pairs; custom has none, a missing file drops', () => {
+    const dictionaries = { patterns: {}, 'patterns-_A': {}, 'patterns-f_Novel': {} };
+    expect(quickAddShortlist('structuralPattern', active, dictionaries)).toEqual({
+      kind: 'structuralPattern',
+      ids: ['patterns', 'patterns-_A'],
+    });
+  });
+
+  test('no view: root alone', () => {
+    expect(quickAddShortlist('properNoun', null, {}).ids).toEqual(['properNouns']);
+    expect(quickAddShortlist('structuralPattern', null, {}).ids).toEqual(['patterns']);
   });
 });

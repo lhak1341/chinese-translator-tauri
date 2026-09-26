@@ -9,6 +9,7 @@ import {
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
 import { isPatternsDict, isLookupTableDict } from '../../utils/dictionary';
+import { PATTERN_VARIABLE_COLORS } from '../../utils/text';
 
 interface SemanticTypePickerProps {
   semanticType: SemanticType | PatternSemanticTypeRef | '';
@@ -24,60 +25,99 @@ interface SemanticTypePickerProps {
 const supportsSemanticTypes = (activeDictionary: string): boolean =>
   !isLookupTableDict(activeDictionary);
 
+const REF_COLOR = '#8b5cf6';
+const NONE_COLOR = 'var(--text-muted, #6b7280)';
+
 /**
- * The radio/checkbox badge recipe shared by all 4 selectable-badge groups in this file (the
- * "None" option, canonical semantic types, `$X`/`$Y` variable refs, per-variable constraints)
- * — was hand-copied 4 times with identical role/aria-checked/tabIndex/onKeyDown wiring
- * (architecture review 2026-09-09, candidate #3 grilling). Local, not exported: zero callers
- * outside this file today, so this stays a private dedup rather than a cross-file seam (one
- * adapter is a hypothetical seam, two is real — `TableBuildingBlocks.tsx`'s `CheckboxCell`
- * doc comment states the same policy).
+ * Each badge row is one Tab stop (roving tabindex): Tab/Shift-Tab leave the row, and the
+ * arrow keys move focus between its badges without changing anything. Returns whether `e` was
+ * an arrow key it handled.
+ */
+function moveFocusByArrow(e: React.KeyboardEvent<HTMLElement>): boolean {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step === undefined || e.metaKey || e.ctrlKey || e.altKey) return false;
+  const badges = Array.from(
+    e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"], [role="checkbox"]')
+  );
+  const from = badges.indexOf(document.activeElement as HTMLElement);
+  if (from === -1) return false;
+  e.preventDefault();
+  badges[(from + step + badges.length) % badges.length].focus();
+  return true;
+}
+
+/** The digit an unmodified 0-9 key press types, else `null`. With focus anywhere in a badge
+ * row, that digit toggles the badge at its position (`data-hint` shows which). */
+function digitOf(e: React.KeyboardEvent): number | null {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return null;
+  return /^[0-9]$/.test(e.key) ? Number(e.key) : null;
+}
+
+/**
+ * The radio/checkbox badge every cell of the type grid is — was hand-copied 4 times with
+ * identical role/aria-checked/tabIndex/onKeyDown wiring (architecture review 2026-09-09,
+ * candidate #3 grilling). Local, not exported: zero callers outside this file today, so this
+ * stays a private dedup rather than a cross-file seam (one adapter is a hypothetical seam, two
+ * is real — `TableBuildingBlocks.tsx`'s `CheckboxCell` doc comment states the same policy).
  *
  * Deliberately NOT `TableBuildingBlocks.tsx`'s `BadgeChip`: that component's inactive state is
- * fixed gray (`#9ca3af`/`#d1d5db`) regardless of `activeColor` — every real `BadgeChip` caller
- * wants that. This component's 4 callers all want the opposite: a colored outline even when
- * inactive (`activeColor` is the inactive text/border color too, filled only when `checked`).
- * `disabled` (not on `BadgeChip` at all) drives the `isSaving`-gated opacity/cursor/tabIndex/
- * click-swallow every caller here needs. `dashed` is the `$X`/`$Y` block's one further
- * divergence — dashed border when unchecked, solid when checked; the other 3 callers leave it
- * at its default (always solid).
+ * fixed gray regardless of `activeColor`; here the color is the inactive outline too, filled
+ * only when `checked`. Three looks, one behavior: `badge` (a labelled chip — the Output row),
+ * `box` (an unlabelled tick box under a badge's column — the X/Y rows, named by `title`), and
+ * `any` (the X/Y rows' first cell: checked while no type is ticked). `dashed` marks the
+ * `$X`/`$Y` badges, whose type is inherited rather than chosen. `disabled` is the `isSaving`
+ * gate.
  */
 const AccessibleBadgeChip: React.FC<{
   role: 'radio' | 'checkbox';
+  variant?: 'badge' | 'box' | 'any';
   checked: boolean;
   activeColor: string;
   dashed?: boolean;
   disabled: boolean;
   onClick: () => void;
   title: string;
-  children: React.ReactNode;
-}> = ({ role, checked, activeColor, dashed = false, disabled, onClick, title, children }) => (
+  /** Accessible name; defaults to the text for badges and to `title` for boxes. */
+  ariaLabel?: string;
+  /** The digit key that toggles this badge, shown while its row has focus. */
+  hint: number;
+  /** Whether this badge is its row's one Tab stop (see `moveFocusByArrow`). */
+  tabStop: boolean;
+  children?: React.ReactNode;
+}> = ({
+  role,
+  variant = 'badge',
+  checked,
+  activeColor,
+  dashed = false,
+  disabled,
+  onClick,
+  title,
+  ariaLabel,
+  hint,
+  tabStop,
+  children,
+}) => (
   <span
     role={role}
     aria-checked={checked}
-    tabIndex={disabled ? -1 : 0}
+    aria-disabled={disabled || undefined}
+    aria-label={ariaLabel ?? (variant === 'box' ? title : undefined)}
+    aria-keyshortcuts={String(hint)}
+    data-hint={hint}
+    tabIndex={disabled || !tabStop ? -1 : 0}
     onClick={() => {
       if (!disabled) onClick();
     }}
     onKeyDown={(e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      // Cmd/Ctrl-Enter is the Add form's Save, not a toggle.
+      if ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey) || e.key === ' ') {
         e.preventDefault();
         if (!disabled) onClick();
       }
     }}
-    style={{
-      display: 'inline-block',
-      padding: '2px 6px',
-      fontSize: '0.7rem',
-      fontWeight: 600,
-      borderRadius: '4px',
-      cursor: disabled ? 'default' : 'pointer',
-      userSelect: 'none',
-      opacity: disabled ? 0.5 : 1,
-      background: checked ? activeColor : 'transparent',
-      color: checked ? 'white' : activeColor,
-      border: `1px ${!checked && dashed ? 'dashed' : 'solid'} ${activeColor}`,
-    }}
+    className={`${styles.typeCell} ${styles[variant]} ${checked ? styles.checked : ''} ${dashed ? styles.dashed : ''} ${disabled ? styles.cellDisabled : ''}`}
+    style={{ '--c': activeColor } as React.CSSProperties}
     title={title}
   >
     {children}
@@ -85,8 +125,11 @@ const AccessibleBadgeChip: React.FC<{
 );
 
 /**
- * Semantic type badge picker and per-variable type constraint toggles.
- * Renders null for dictionary types that don't support semantic metadata.
+ * The Add form's type grid. One row picks the entry's semantic type ("Output" for a pattern);
+ * a pattern also gets a row per variable in its source for what that variable accepts. Every
+ * row shares one set of columns, so the six type names appear once, on the first row. The
+ * first column means "no restriction" in every row — None for the type, any for a variable —
+ * and its digit is 0 everywhere. Renders null for dictionary kinds with no semantic metadata.
  */
 export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
   semanticType,
@@ -100,146 +143,232 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
   if (!supportsSemanticTypes(activeDictionary)) return null;
 
   const isPatterns = isPatternsDict(activeDictionary);
-  const activeVars = (['X', 'Y'] as const).filter((v) => source.includes(v));
+  const activeVars = isPatterns ? (['X', 'Y'] as const).filter((v) => source.includes(v)) : [];
+  const typeRefs = isPatterns
+    ? PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1]))
+    : [];
+  // Radio options in badge order, so each one's index is its digit key: 0 None, 1-6 the
+  // canonical types, then $X/$Y.
+  const radioOptions: (SemanticType | PatternSemanticTypeRef | '')[] = [
+    '',
+    ...SEMANTIC_TYPE_LIST,
+    ...typeRefs,
+  ];
+
+  // The row's Tab stop is the selected option — None when nothing (shown) is selected.
+  const radioTabStop = Math.max(0, radioOptions.indexOf(semanticType));
+
+  const handleRadioKey = (e: React.KeyboardEvent<HTMLElement>): void => {
+    if (moveFocusByArrow(e)) return;
+    const digit = digitOf(e);
+    const option = digit === null ? undefined : radioOptions[digit];
+    if (option === undefined) return;
+    e.preventDefault();
+    if (!isSaving) onSemanticTypeChange(semanticType === option ? '' : option);
+  };
+
+  const clearConstraint = (varName: string): void => {
+    const { [varName]: _, ...rest } = allowedVariableTypes;
+    onAllowedVariableTypesChange(rest);
+  };
+
+  const toggleConstraint = (varName: string, type: SemanticType): void => {
+    const current = allowedVariableTypes[varName] || [];
+    const next = current.includes(type) ? current.filter((t) => t !== type) : [...current, type];
+    if (next.length === 0) clearConstraint(varName);
+    else onAllowedVariableTypesChange({ ...allowedVariableTypes, [varName]: next });
+  };
+
+  // A variable row's Tab stop is its first ticked type, else "any".
+  const constraintTabStop = (varName: string): number =>
+    SEMANTIC_TYPE_LIST.findIndex((t) => allowedVariableTypes[varName]?.includes(t)) + 1;
+
+  const handleConstraintKey = (e: React.KeyboardEvent<HTMLElement>, varName: string): void => {
+    if (moveFocusByArrow(e)) return;
+    const digit = digitOf(e);
+    if (digit === null || digit > SEMANTIC_TYPE_LIST.length) return;
+    e.preventDefault();
+    if (isSaving) return;
+    if (digit === 0) clearConstraint(varName);
+    else toggleConstraint(varName, SEMANTIC_TYPE_LIST[digit - 1]);
+  };
+
+  // Every cell the same width — None, the six types, $X/$Y — so the chips line up as one
+  // even row instead of stretching to fill the form.
+  const columns = `3.9rem repeat(${radioOptions.length}, 2.6rem)`;
+
+  return (
+    <div className={styles.typeGrid} style={{ gridTemplateColumns: columns }}>
+      <span
+        className={styles.typeRowLabel}
+        title={isPatterns ? 'The type this pattern produces when reused elsewhere' : undefined}
+      >
+        {isPatterns ? 'Output' : 'Type'}
+      </span>
+      <div
+        role="radiogroup"
+        aria-label="Semantic type"
+        className={`${styles.typeRow} ${styles.digitGroup}`}
+        onKeyDown={handleRadioKey}
+      >
+        <AccessibleBadgeChip
+          role="radio"
+          checked={semanticType === ''}
+          activeColor={NONE_COLOR}
+          disabled={isSaving}
+          onClick={() => onSemanticTypeChange('')}
+          title="No semantic type"
+          hint={0}
+          tabStop={radioTabStop === 0}
+        >
+          None
+        </AccessibleBadgeChip>
+        {SEMANTIC_TYPE_LIST.map((type, i) => {
+          const isSelected = semanticType === type;
+          return (
+            <AccessibleBadgeChip
+              key={type}
+              role="radio"
+              checked={isSelected}
+              activeColor={SEMANTIC_TYPE_COLORS[type]}
+              disabled={isSaving}
+              onClick={() => onSemanticTypeChange(isSelected ? '' : type)}
+              title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
+              hint={i + 1}
+              tabStop={radioTabStop === i + 1}
+            >
+              {SEMANTIC_TYPE_ABBREVIATIONS[type]}
+            </AccessibleBadgeChip>
+          );
+        })}
+        {typeRefs.map((typeRef, i) => {
+          const isSelected = semanticType === typeRef;
+          const hint = SEMANTIC_TYPE_LIST.length + 1 + i;
+          return (
+            <AccessibleBadgeChip
+              key={typeRef}
+              role="radio"
+              checked={isSelected}
+              activeColor={REF_COLOR}
+              dashed
+              disabled={isSaving}
+              onClick={() => onSemanticTypeChange(isSelected ? '' : typeRef)}
+              title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${typeRef[1]}`}
+              hint={hint}
+              tabStop={radioTabStop === hint}
+            >
+              {typeRef}
+            </AccessibleBadgeChip>
+          );
+        })}
+      </div>
+
+      {activeVars.map((varName) => {
+        const allowed = allowedVariableTypes[varName] ?? [];
+        const stop = constraintTabStop(varName);
+        return (
+          <React.Fragment key={varName}>
+            <span className={styles.typeRowLabel}>
+              <b className={styles.typeRowVar} style={{ color: PATTERN_VARIABLE_COLORS[varName] }}>
+                {varName}
+              </b>{' '}
+              accepts
+            </span>
+            <div
+              role="group"
+              aria-label={`${varName} accepts`}
+              className={`${styles.typeRow} ${styles.digitGroup}`}
+              onKeyDown={(e) => handleConstraintKey(e, varName)}
+            >
+              <AccessibleBadgeChip
+                role="checkbox"
+                variant="any"
+                checked={allowed.length === 0}
+                activeColor={NONE_COLOR}
+                disabled={isSaving}
+                onClick={() => clearConstraint(varName)}
+                title={`${varName} accepts any type`}
+                hint={0}
+                tabStop={stop === 0}
+              >
+                any
+              </AccessibleBadgeChip>
+              {SEMANTIC_TYPE_LIST.map((type, i) => {
+                const isActive = allowed.includes(type);
+                return (
+                  <AccessibleBadgeChip
+                    key={type}
+                    role="checkbox"
+                    variant="box"
+                    checked={isActive}
+                    activeColor={SEMANTIC_TYPE_COLORS[type]}
+                    disabled={isSaving}
+                    onClick={() => toggleConstraint(varName, type)}
+                    title={`${isActive ? 'Remove' : 'Add'} ${SEMANTIC_TYPE_LABELS[type]} constraint for ${varName}`}
+                    hint={i + 1}
+                    tabStop={stop === i + 1}
+                  />
+                );
+              })}
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
+ * A type row for a field that must have a type — a Transform Rule's. The Add form's Output row
+ * without None, and picking the selected type again keeps it. Same badges and keys: one Tab
+ * stop, arrows move, 1-6 pick. Renders its label and its badges as two grid items, so it sits
+ * in a `typeGrid` whose columns the caller sets (`3.9rem repeat(6, 2.6rem)`).
+ *
+ * `rowLabel` names each badge "Set <Type> for <rowLabel>", as `SemanticTypeToggleCell` does.
+ */
+export const RequiredSemanticTypeRow: React.FC<{
+  value: SemanticType;
+  onChange: (type: SemanticType) => void;
+  rowLabel: string;
+  disabled?: boolean;
+}> = ({ value, onChange, rowLabel, disabled = false }) => {
+  const tabStop = Math.max(0, SEMANTIC_TYPE_LIST.indexOf(value));
+
+  const handleKey = (e: React.KeyboardEvent<HTMLElement>): void => {
+    if (moveFocusByArrow(e)) return;
+    const digit = digitOf(e);
+    const type = digit === null ? undefined : SEMANTIC_TYPE_LIST[digit - 1];
+    if (type === undefined) return;
+    e.preventDefault();
+    if (!disabled) onChange(type);
+  };
 
   return (
     <>
-      {/* Output semantic type badge picker */}
-      <div className={styles.formGroup}>
-        <label className={`${styles.label} ${styles.labelCentered}`}>
-          {isPatterns ? 'Output type' : 'Semantic Type'}
-        </label>
-        {isPatterns && (
-          <p
-            style={{
-              fontSize: '0.7rem',
-              color: 'var(--text-muted, #6b7280)',
-              margin: '0 0 0.4rem',
-              textAlign: 'center',
-            }}
-          >
-            Type produced when reused elsewhere. Blank = any type.
-          </p>
-        )}
-        <div
-          role="radiogroup"
-          aria-label="Semantic type"
-          style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'center' }}
-        >
-          {/* None option */}
+      <span className={styles.typeRowLabel}>Type</span>
+      <div
+        role="radiogroup"
+        aria-label="Semantic type"
+        className={`${styles.typeRow} ${styles.digitGroup}`}
+        onKeyDown={handleKey}
+      >
+        {SEMANTIC_TYPE_LIST.map((type, i) => (
           <AccessibleBadgeChip
+            key={type}
             role="radio"
-            checked={semanticType === ''}
-            activeColor="var(--text-muted, #6b7280)"
-            disabled={isSaving}
-            onClick={() => onSemanticTypeChange('')}
-            title="No semantic type"
+            checked={value === type}
+            activeColor={SEMANTIC_TYPE_COLORS[type]}
+            disabled={disabled}
+            onClick={() => onChange(type)}
+            title={SEMANTIC_TYPE_LABELS[type]}
+            ariaLabel={`Set ${SEMANTIC_TYPE_LABELS[type]} for ${rowLabel}`}
+            hint={i + 1}
+            tabStop={i === tabStop}
           >
-            None
+            {SEMANTIC_TYPE_ABBREVIATIONS[type]}
           </AccessibleBadgeChip>
-
-          {/* Canonical semantic type badges */}
-          {SEMANTIC_TYPE_LIST.map((type) => {
-            const isSelected = semanticType === type;
-            return (
-              <AccessibleBadgeChip
-                key={type}
-                role="radio"
-                checked={isSelected}
-                activeColor={SEMANTIC_TYPE_COLORS[type]}
-                disabled={isSaving}
-                onClick={() => onSemanticTypeChange(isSelected ? '' : type)}
-                title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
-              >
-                {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-              </AccessibleBadgeChip>
-            );
-          })}
-
-          {/* $X / $Y variable-ref badges — patterns only */}
-          {isPatterns &&
-            PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1])).map((typeRef) => {
-              const isSelected = semanticType === typeRef;
-              const varName = typeRef[1];
-              return (
-                <AccessibleBadgeChip
-                  key={typeRef}
-                  role="radio"
-                  checked={isSelected}
-                  activeColor="#8b5cf6"
-                  dashed
-                  disabled={isSaving}
-                  onClick={() => onSemanticTypeChange(isSelected ? '' : typeRef)}
-                  title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${varName}`}
-                >
-                  {typeRef}
-                </AccessibleBadgeChip>
-              );
-            })}
-        </div>
+        ))}
       </div>
-
-      {/* Per-variable type constraints — patterns only. Side by side when both
-          X and Y are present, so they read as a pair rather than two full-width
-          stacked rows. */}
-      {isPatterns && activeVars.length > 0 && (
-        <div className={styles.formGroupRow}>
-          {activeVars.map((varName) => (
-            <div className={styles.formGroup} key={varName}>
-              <label className={`${styles.label} ${styles.labelCentered}`}>
-                {varName} allowed types
-              </label>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '0.3rem',
-                  flexWrap: 'wrap',
-                  justifyContent: 'center',
-                }}
-              >
-                {SEMANTIC_TYPE_LIST.map((type) => {
-                  const isActive = (allowedVariableTypes[varName] || []).includes(type);
-                  const toggle = () => {
-                    const current = allowedVariableTypes[varName] || [];
-                    const next = isActive ? current.filter((t) => t !== type) : [...current, type];
-                    if (next.length === 0) {
-                      const { [varName]: _, ...rest } = allowedVariableTypes;
-                      onAllowedVariableTypesChange(rest);
-                    } else {
-                      onAllowedVariableTypesChange({ ...allowedVariableTypes, [varName]: next });
-                    }
-                  };
-                  return (
-                    <AccessibleBadgeChip
-                      key={type}
-                      role="checkbox"
-                      checked={isActive}
-                      activeColor={SEMANTIC_TYPE_COLORS[type]}
-                      disabled={isSaving}
-                      onClick={toggle}
-                      title={`${isActive ? 'Remove' : 'Add'} ${SEMANTIC_TYPE_LABELS[type]} constraint for ${varName}`}
-                    >
-                      {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-                    </AccessibleBadgeChip>
-                  );
-                })}
-              </div>
-              {!(allowedVariableTypes[varName]?.length > 0) && (
-                <div
-                  style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--text-muted)',
-                    marginTop: '0.25rem',
-                    textAlign: 'center',
-                  }}
-                >
-                  No constraint — matches any type
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </>
   );
 };

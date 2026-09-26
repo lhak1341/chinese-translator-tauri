@@ -212,6 +212,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
           conflictLabel={conflictLabel}
           onSave={save}
           onCancel={closeModal}
+          dictionaries={dictionaries}
         />
       )}
 

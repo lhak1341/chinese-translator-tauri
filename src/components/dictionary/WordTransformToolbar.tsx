@@ -17,6 +17,55 @@ interface WordTransformToolbarProps {
   disabled: boolean;
 }
 
+interface Transform {
+  /** One letter per word, capital or small, read left to right: `AAAa` capitalizes all but
+   * the last word. The move group reads `←N`, "last N words to the front". */
+  label: string;
+  /** The button's accessible name. The tooltip adds a preview of the result. */
+  description: string;
+  apply: (value: string) => string;
+}
+
+const CAPITALIZATION: Transform[] = [
+  { label: 'AAAA', description: 'Capitalize all words (Title Case)', apply: capitalizeAll },
+  {
+    label: 'AAAa',
+    description: 'Capitalize all words except the last one',
+    apply: capitalizeExceptLast,
+  },
+  {
+    label: 'AAaa',
+    description: 'Capitalize all words except the last two',
+    apply: capitalizeExceptLastTwo,
+  },
+  {
+    label: 'Aaaa',
+    description: 'Capitalize all words except the last three',
+    apply: capitalizeExceptLastThree,
+  },
+  { label: 'aaaa', description: 'Lowercase all words', apply: lowercaseAll },
+];
+
+const MOVE_TO_FRONT: Transform[] = [
+  { label: '←1', description: 'Move last word to beginning', apply: moveLastWordToBeginning },
+  {
+    label: '←2',
+    description: 'Move last 2 words to beginning',
+    apply: moveLastTwoWordsToBeginning,
+  },
+  {
+    label: '←3',
+    description: 'Move last 3 words to beginning',
+    apply: moveLastThreeWordsToBeginning,
+  },
+];
+
+/**
+ * The Add form's rewrite buttons, directly under the translation they change: capitalization
+ * and word order, as two segmented groups. Hovering a button previews its result in the
+ * tooltip. Out of the Tab order — they are mouse conveniences; the translation box is the
+ * keyboard's place.
+ */
 export function WordTransformToolbar({
   value,
   onChange,
@@ -25,95 +74,29 @@ export function WordTransformToolbar({
   const wordCount = value.trim().split(' ').length;
   const hasText = Boolean(value.trim());
 
-  return (
-    <div className={styles.utilityActions}>
-      <fieldset className={styles.utilityGroup}>
-        <legend className={styles.utilityGroupLegend}>Capitalize</legend>
-        <button
-          type="button"
-          onClick={() => onChange(capitalizeAll(value))}
-          disabled={disabled || !hasText}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Capitalize all words (Title Case)"
-        >
-          AAAA
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(capitalizeExceptLast(value))}
-          disabled={disabled || !hasText}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Capitalize all words except the last one"
-        >
-          ---a
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(capitalizeExceptLastTwo(value))}
-          disabled={disabled || !hasText}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Capitalize all words except the last two"
-        >
-          --aa
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(capitalizeExceptLastThree(value))}
-          disabled={disabled || !hasText}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Capitalize all words except the last three"
-        >
-          -aaa
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(lowercaseAll(value))}
-          disabled={disabled || !hasText}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Lowercase all words"
-        >
-          aaaa
-        </button>
-      </fieldset>
+  const button = (t: Transform, minWords: number, className: string): React.ReactElement => (
+    <button
+      key={t.label}
+      type="button"
+      onClick={() => onChange(t.apply(value))}
+      disabled={disabled || !hasText || wordCount < minWords}
+      tabIndex={-1}
+      className={`${styles.transformButton} ${className}`}
+      aria-label={t.description}
+      title={hasText ? `${t.description}: ${t.apply(value)}` : t.description}
+    >
+      {t.label}
+    </button>
+  );
 
-      <fieldset className={styles.utilityGroup}>
-        <legend className={styles.utilityGroupLegend}>Move to front</legend>
-        <button
-          type="button"
-          onClick={() => onChange(moveLastWordToBeginning(value))}
-          disabled={disabled || wordCount < 2}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Move last word to beginning"
-        >
-          ←1
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(moveLastTwoWordsToBeginning(value))}
-          disabled={disabled || wordCount < 3}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Move last 2 words to beginning"
-        >
-          ←2
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(moveLastThreeWordsToBeginning(value))}
-          disabled={disabled || wordCount < 4}
-          tabIndex={-1}
-          className={styles.utilityButton}
-          title="Move last 3 words to beginning"
-        >
-          ←3
-        </button>
-      </fieldset>
+  return (
+    <div className={styles.transforms}>
+      <div className={styles.transformGroup} role="group" aria-label="Capitalize">
+        {CAPITALIZATION.map((t) => button(t, 1, styles.caseButton))}
+      </div>
+      <div className={styles.transformGroup} role="group" aria-label="Move to front">
+        {MOVE_TO_FRONT.map((t, i) => button(t, i + 2, ''))}
+      </div>
     </div>
   );
 }

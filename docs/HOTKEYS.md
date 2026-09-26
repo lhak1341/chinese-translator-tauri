@@ -80,6 +80,24 @@ that's the rule's Key. With nothing selected it takes what is on the clipboard i
 selection is never copied to the clipboard, so what you had copied survives the key press.
 The Dictionary tab's Add button opens an empty form.
 
+Cmd/Ctrl+3 and Cmd/Ctrl+4 (and Cmd/Ctrl+Shift+N) open with a row of buttons in the form's
+header, beside the dictionary menu: the base dictionary plus every active generic (`_Theme`) dictionary —
+the proper-nouns ones for 3, their pattern halves for 4. Fiction is left out; 5 and 6 reach
+it. Inside the form, press the opening key again to step to the next button, or
+Option+1–9 to jump to one. Typed text is kept. The next Cmd/Ctrl+3 (or 4) opens on the
+last one you picked, while it is still active; this is remembered until the app quits.
+
+In any Add form (1–7), Cmd/Ctrl+Enter saves from any field — the same as clicking Save, so
+it does nothing while Save is disabled. In the dictionary Add form, Option+G replaces the
+translation with the word-by-word gloss shown under it.
+
+With focus on a semantic-type badge (Tab to it), a digit toggles the badge at that position —
+the digits show on the badges while focus is there. Semantic type: 0 None, 1 CHA, 2 CRE,
+3 LOC, 4 ORG, 5 CON, 6 OBJ, then 7 `$X` and 8 `$Y` on patterns. In a pattern's "X accepts" /
+"Y accepts" row, 1–6 tick the same six types for that variable and 0 clears it back to any. Each badge row is a single Tab
+stop — Tab/Shift+Tab move to the next or previous part of the form, and the arrow keys move
+between badges within a row.
+
 A selection in the Translator's Full Translation panel or the Reader's Translation panel is
 Vietnamese, so Add first maps it back to Chinese: it snaps to the whole units it touches and
 pre-fills the Chinese they cover in the source, gaps included. The Translation field

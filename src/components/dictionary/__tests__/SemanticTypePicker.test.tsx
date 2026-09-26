@@ -34,15 +34,17 @@ describe('SemanticTypePicker — visibility gate', () => {
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
   });
 
-  test('renders "Semantic Type" label for a non-patterns dictionary', () => {
+  test('labels the row "Type" for a non-patterns dictionary', () => {
     renderPicker({ activeDictionary: 'phrases' });
-    expect(screen.getByText('Semantic Type')).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
   });
 
-  test('renders "Output type" label and explanatory text for a patterns dictionary', () => {
+  test('labels the row "Output" for a patterns dictionary, explained on hover', () => {
     renderPicker({ activeDictionary: 'patterns' });
-    expect(screen.getByText('Output type')).toBeInTheDocument();
-    expect(screen.getByText(/Blank = any type/)).toBeInTheDocument();
+    expect(screen.getByText('Output')).toHaveAttribute(
+      'title',
+      'The type this pattern produces when reused elsewhere'
+    );
   });
 });
 
@@ -72,6 +74,33 @@ describe('SemanticTypePicker — semantic type badges', () => {
     onSemanticTypeChange.mockClear();
     fireEvent.keyDown(screen.getByText('OBJ'), { key: ' ' });
     expect(onSemanticTypeChange).toHaveBeenCalledWith('object');
+  });
+
+  test('Cmd/Ctrl-Enter is left to the Add form as Save — it does not toggle', () => {
+    const { onSemanticTypeChange } = renderPicker();
+    fireEvent.keyDown(screen.getByText('CON'), { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(screen.getByText('CON'), { key: 'Enter', ctrlKey: true });
+    expect(onSemanticTypeChange).not.toHaveBeenCalled();
+  });
+
+  test('with focus in the type group, digit N sets the Nth type, again clears; 0 is None', () => {
+    const { onSemanticTypeChange } = renderPicker();
+    const group = screen.getByRole('radiogroup', { name: 'Semantic type' });
+    fireEvent.keyDown(screen.getByText('LOC'), { key: '5' });
+    expect(onSemanticTypeChange).toHaveBeenLastCalledWith('concept');
+    fireEvent.keyDown(group, { key: '0' });
+    expect(onSemanticTypeChange).toHaveBeenLastCalledWith('');
+  });
+
+  test('digit of the already-selected type clears it; modified or out-of-range digits do nothing', () => {
+    const { onSemanticTypeChange } = renderPicker({ semanticType: 'character' });
+    const group = screen.getByRole('radiogroup', { name: 'Semantic type' });
+    fireEvent.keyDown(group, { key: '1' });
+    expect(onSemanticTypeChange).toHaveBeenLastCalledWith('');
+    onSemanticTypeChange.mockClear();
+    fireEvent.keyDown(group, { key: '2', metaKey: true });
+    fireEvent.keyDown(group, { key: '9' });
+    expect(onSemanticTypeChange).not.toHaveBeenCalled();
   });
 
   test('isSaving=true disables interaction — click does not dispatch', () => {
@@ -113,18 +142,40 @@ describe('SemanticTypePicker — $X/$Y variable-ref badges (patterns only)', () 
 describe('SemanticTypePicker — per-variable allowed-type constraints (patterns only)', () => {
   test('is not rendered for a non-patterns dictionary', () => {
     renderPicker({ activeDictionary: 'phrases', source: 'X的手上' });
-    expect(screen.queryByText(/X allowed types/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'X accepts' })).not.toBeInTheDocument();
   });
 
   test('renders a section per variable present in the source', () => {
     renderPicker({ activeDictionary: 'patterns', source: 'X和Y' });
-    expect(screen.getByText('X allowed types')).toBeInTheDocument();
-    expect(screen.getByText('Y allowed types')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'X accepts' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Y accepts' })).toBeInTheDocument();
   });
 
-  test('shows the "no constraints" hint when no types are toggled for a variable', () => {
+  test('"any" is checked while no type is ticked for a variable', () => {
     renderPicker({ activeDictionary: 'patterns', source: 'X的手上' });
-    expect(screen.getByText('No constraint — matches any type')).toBeInTheDocument();
+    expect(screen.getByTitle('X accepts any type')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('"any" is unchecked once a type is ticked, and clicking it clears the variable', () => {
+    const { onAllowedVariableTypesChange } = renderPicker({
+      activeDictionary: 'patterns',
+      source: 'X和Y',
+      allowedVariableTypes: { X: ['location'], Y: ['object'] },
+    });
+    const any = screen.getByTitle('X accepts any type');
+    expect(any).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(any);
+    expect(onAllowedVariableTypesChange).toHaveBeenCalledWith({ Y: ['object'] });
+  });
+
+  test('digit 0 in a variable row clears it back to any', () => {
+    const { onAllowedVariableTypesChange } = renderPicker({
+      activeDictionary: 'patterns',
+      source: 'X和Y',
+      allowedVariableTypes: { X: ['location'] },
+    });
+    fireEvent.keyDown(screen.getByRole('group', { name: 'X accepts' }), { key: '0' });
+    expect(onAllowedVariableTypesChange).toHaveBeenLastCalledWith({});
   });
 
   test('toggling a type ON adds it to that variable’s allowed list', () => {
@@ -155,5 +206,79 @@ describe('SemanticTypePicker — per-variable allowed-type constraints (patterns
     });
     fireEvent.click(screen.getByTitle('Remove Character constraint for X'));
     expect(onAllowedVariableTypesChange).toHaveBeenCalledWith({ X: ['location'] });
+  });
+});
+
+describe('SemanticTypePicker — digit keys in pattern groups', () => {
+  test('$X follows the six types as digit 7', () => {
+    const { onSemanticTypeChange } = renderPicker({ activeDictionary: 'patterns', source: 'X城' });
+    fireEvent.keyDown(screen.getByRole('radiogroup', { name: 'Semantic type' }), { key: '7' });
+    expect(onSemanticTypeChange).toHaveBeenLastCalledWith('$X');
+  });
+
+  test('in a variable constraint group, digit N toggles the Nth type for that variable', () => {
+    const { onAllowedVariableTypesChange } = renderPicker({
+      activeDictionary: 'patterns',
+      source: 'X和Y',
+      allowedVariableTypes: { Y: ['character'] },
+    });
+    fireEvent.keyDown(screen.getByRole('group', { name: 'X accepts' }), { key: '3' });
+    expect(onAllowedVariableTypesChange).toHaveBeenLastCalledWith({
+      Y: ['character'],
+      X: ['location'],
+    });
+    fireEvent.keyDown(screen.getByRole('group', { name: 'Y accepts' }), { key: '1' });
+    expect(onAllowedVariableTypesChange).toHaveBeenLastCalledWith({});
+  });
+
+  test('isSaving swallows digits without dispatching', () => {
+    const { onSemanticTypeChange } = renderPicker({ isSaving: true });
+    fireEvent.keyDown(screen.getByRole('radiogroup', { name: 'Semantic type' }), { key: '1' });
+    expect(onSemanticTypeChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('SemanticTypePicker — one Tab stop per group', () => {
+  const tabbable = () =>
+    screen
+      .getAllByRole('radio')
+      .concat(screen.queryAllByRole('checkbox'))
+      .filter((el) => el.tabIndex === 0);
+
+  test('the type group is one Tab stop: None when nothing is selected', () => {
+    renderPicker();
+    expect(tabbable().map((el) => el.textContent)).toEqual(['None']);
+  });
+
+  test('the Tab stop is the selected type', () => {
+    renderPicker({ semanticType: 'location' });
+    expect(tabbable().map((el) => el.textContent)).toEqual(['LOC']);
+  });
+
+  test('each constraint group adds one Tab stop: its first checked type, else "any"', () => {
+    renderPicker({
+      activeDictionary: 'patterns',
+      source: 'X和Y',
+      allowedVariableTypes: { Y: ['object', 'location'] },
+    });
+    const stops = tabbable();
+    expect(stops).toHaveLength(3);
+    expect(stops.map((el) => el.getAttribute('title'))).toEqual([
+      'No semantic type',
+      'X accepts any type',
+      'Remove Location constraint for Y',
+    ]);
+  });
+
+  test('arrow keys move focus within the group, wrapping, without selecting', () => {
+    const { onSemanticTypeChange } = renderPicker();
+    const none = screen.getByRole('radio', { name: 'None' });
+    none.focus();
+    fireEvent.keyDown(none, { key: 'ArrowRight' });
+    expect(document.activeElement).toHaveTextContent('CHA');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
+    expect(document.activeElement).toHaveTextContent('OBJ');
+    expect(onSemanticTypeChange).not.toHaveBeenCalled();
   });
 });

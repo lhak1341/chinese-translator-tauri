@@ -36,15 +36,17 @@ export type QuickAddTarget =
  * patterns half), so for it the order is fiction → generic. */
 const TIER_RANK = { fiction: 0, custom: 1, generic: 2 } as const;
 
+/** Orders non-root proper-nouns ids by `TIER_RANK`, alphabetically within a tier. */
+function byTier(a: string, b: string): number {
+  const rank =
+    TIER_RANK[tierOf(a) as keyof typeof TIER_RANK] - TIER_RANK[tierOf(b) as keyof typeof TIER_RANK];
+  return rank !== 0 ? rank : a.localeCompare(b);
+}
+
 function firstByTier(activeProperNouns: readonly string[]): string | undefined {
   return activeProperNouns
     .filter((id) => isProperNounsDict(id) && tierOf(id) !== 'root')
-    .sort((a, b) => {
-      const rank =
-        TIER_RANK[tierOf(a) as keyof typeof TIER_RANK] -
-        TIER_RANK[tierOf(b) as keyof typeof TIER_RANK];
-      return rank !== 0 ? rank : a.localeCompare(b);
-    })[0];
+    .sort(byTier)[0];
 }
 
 export function quickAddTarget(
@@ -98,6 +100,36 @@ export function quickAddChoices(
     if (isPairedPatternsId(id)) return active.includes(toProperNounsId(id));
     return !isProperNounsDict(id) || active.includes(id);
   });
+}
+
+/** The dictionaries a Cmd-3 or Cmd-4 Add can switch between without the dropdown. */
+export interface QuickAddShortlist {
+  kind: QuickAddKind;
+  ids: string[];
+}
+
+/**
+ * The **quick-add shortlist** for Cmd-3 (`properNoun`) and Cmd-4 (`structuralPattern`): the
+ * root dictionary first, then every active custom and generic proper-nouns dictionary, by
+ * tier. Fiction is left out — Cmd-5/Cmd-6 already reach it. For `structuralPattern` each entry
+ * is the patterns half, so a custom dictionary (no pair) drops out, and so does a pair whose
+ * patterns file is not loaded (the Cmd-6 `pairMissing` case). Decided over the same view as
+ * `quickAddChoices`, so every shortlist entry is also a dropdown choice.
+ */
+export function quickAddShortlist(
+  kind: QuickAddKind,
+  view: QuickAddView | null,
+  dictionaries: { [key: string]: unknown }
+): QuickAddShortlist {
+  const nonFiction = [...new Set(view?.activeProperNouns ?? [])]
+    .filter((id) => isProperNounsDict(id) && tierOf(id) !== 'root' && tierOf(id) !== 'fiction')
+    .sort(byTier);
+  if (kind === 'properNoun') return { kind, ids: ['properNouns', ...nonFiction] };
+  const patternsIds = nonFiction
+    .filter(hasPairedPatterns)
+    .map(toPatternsId)
+    .filter((id) => dictionaries[id] !== undefined);
+  return { kind, ids: ['patterns', ...patternsIds] };
 }
 
 /** What to tell the user when Cmd-6 has nowhere to go. */

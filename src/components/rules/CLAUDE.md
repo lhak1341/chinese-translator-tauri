@@ -31,6 +31,15 @@ widgets are legitimately different per field (a form checkbox vs. a compact tabl
 toggle chip, see below) and unifying rendering would trade locality for no real leverage
 gain at this fixed 2-surface, 9-field scope.
 
+**`NewRuleModal`'s visible text and its accessible names deliberately differ** (A2 redesign,
+2026-09-26). It shows plain wording — "Move to front", "Lowercase last N", "Only at N
+characters", "Ends with / Starts with" — but each control keeps the old field-label name
+("Relocate to opposite end", "Capitalize except N", "Total-length limit (optional)", "Match"),
+because `RuleFieldParity.test.tsx` and `RulesManager.test.tsx` find each field by that name in
+both surfaces. Rename a control's `aria-label` only together with those locators. Its preview
+(`findRuleMatchingEntries` + `applyRule` over `joinCharGloss`) shows the Add form's _guess_ for
+each matching source, not a rewrite of the saved entry — rules never touch saved entries.
+
 ## `TransformRule.relocate` — Renamed from `moveWords: number` 2026-08-24
 
 Was `moveWords: number` (values only ever `{0,1}` since 2026-08-15, but the type stayed

@@ -71,6 +71,9 @@ export interface DictionaryEntryFormState {
   sourceInputRef: RefObject<HTMLInputElement | null>;
   translationInputRef: RefObject<HTMLInputElement | null>;
   handleDictionaryChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  /** Switches to `dictionaryId` keeping what is typed — the quick-add shortlist's switch,
+   * between dictionaries of one kind. The dropdown (`handleDictionaryChange`) clears instead. */
+  selectDictionary: (dictionaryId: string) => void;
   handleSourceChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleTranslationFocus: () => void;
   handleDismissNotification: () => void;
@@ -124,6 +127,8 @@ export function useDictionaryEntryForm(
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const translationInputRef = useRef<HTMLInputElement>(null);
   const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
+  // Set by `selectDictionary` so the auto-populate effect skips the dictionary change it causes.
+  const keepFieldsRef = useRef(false);
   const [allDictionaryTypes, setAllDictionaryTypes] =
     useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [existingEntry, setExistingEntry] = useState<ExistingEntryData | null>(null);
@@ -245,6 +250,10 @@ export function useDictionaryEntryForm(
     };
 
     const handleAutoSetup = (): void => {
+      if (keepFieldsRef.current) {
+        keepFieldsRef.current = false;
+        return;
+      }
       try {
         if (!entry?.source && initialSource?.trim()) {
           populateSourceAndTranslation(initialSource.trim());
@@ -264,7 +273,7 @@ export function useDictionaryEntryForm(
   }, [activeDictionary, entry?.source, dictionaries, transformRules, initialSource]);
 
   const checkForExistingEntry = useCallback(
-    (sourceText: string): void => {
+    (sourceText: string, selectedId: string = activeDictionary): void => {
       try {
         if (!sourceText?.trim() || !dictionaries || Object.keys(dictionaries).length === 0) {
           setExistingEntry(null);
@@ -294,7 +303,7 @@ export function useDictionaryEntryForm(
               dictionaryName: dictionaryInfo?.label || dictionaryId,
               source: trimmedSource,
               translation: translationText as string,
-              isSelectedDictionary: dictionaryId === activeDictionary,
+              isSelectedDictionary: dictionaryId === selectedId,
             });
             setShowExistingEntryNotification(true);
             return;
@@ -322,6 +331,15 @@ export function useDictionaryEntryForm(
     setShowExistingEntryNotification(false);
     setShowCharacterValidation(false);
     setShowPatternValidation(false);
+  };
+
+  const selectDictionary = (dictionaryId: string): void => {
+    if (dictionaryId === activeDictionary) return;
+    keepFieldsRef.current = true;
+    setActiveDictionary(dictionaryId);
+    onDictionaryChange?.(dictionaryId);
+    // The notice says whether the match is in *this* dictionary — re-ask for the new one.
+    if (showExistingEntryNotification) checkForExistingEntry(source, dictionaryId);
   };
 
   const handleSourceChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -427,6 +445,7 @@ export function useDictionaryEntryForm(
     sourceInputRef,
     translationInputRef,
     handleDictionaryChange,
+    selectDictionary,
     handleSourceChange,
     handleTranslationFocus,
     handleDismissNotification,
