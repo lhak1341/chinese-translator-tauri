@@ -10,7 +10,11 @@ import {
   sanitizeDictionaryEntry,
   sortDictionaryEntries,
   canMoveBetween,
+  entryFields,
+  applyEntryPatch,
+  buildEntryMetadata,
 } from '../utils/dictionary';
+import type { EntryFields, EntryPatch } from '../utils/dictionary';
 import type {
   DictionaryData,
   DictionaryEntryValue,
@@ -44,7 +48,13 @@ type AddToHistory = (op: Omit<HistoryOperation, 'timestamp'>) => void;
 
 export type DictionaryCRUDAPI = Pick<
   DictionaryContextInterface,
-  'addEntry' | 'updateEntry' | 'deleteEntry' | 'bulkDeleteEntries' | 'moveEntry' | 'bulkMoveEntries'
+  | 'addEntry'
+  | 'updateEntry'
+  | 'patchEntry'
+  | 'deleteEntry'
+  | 'bulkDeleteEntries'
+  | 'moveEntry'
+  | 'bulkMoveEntries'
 >;
 
 // Sanitizes, validates, and builds the typed entry value for addEntry/updateEntry.
@@ -240,6 +250,28 @@ export function useDictionaryCRUD(
       }
     },
     [addToHistory, persistDictionaryMutation, invalidateEngine]
+  );
+
+  // The snapshot every field edit needs is taken here, from the one place holding the current
+  // value — not from the caller's props, which may lag the store — then handed to updateEntry.
+  const patchEntry = useCallback(
+    async (
+      dictionaryId: string,
+      source: string,
+      patch: EntryPatch | ((current: EntryFields) => EntryPatch)
+    ): Promise<void> => {
+      requireDictionaryExists(dictionariesRef, dictionaryId);
+      const value = dictionariesRef.current[dictionaryId][source];
+      if (value === undefined) {
+        const msg = `Entry '${source}' does not exist in '${dictionaryId}'`;
+        toast.error(msg);
+        throw new ValidationError(msg);
+      }
+      const current = entryFields(value);
+      const next = applyEntryPatch(current, typeof patch === 'function' ? patch(current) : patch);
+      await updateEntry(dictionaryId, source, source, next.translation, buildEntryMetadata(next));
+    },
+    [dictionariesRef, updateEntry]
   );
 
   const deleteEntry = useCallback(
@@ -472,5 +504,13 @@ export function useDictionaryCRUD(
     [addToHistory, commitMoveOp, invalidateEngine]
   );
 
-  return { addEntry, updateEntry, deleteEntry, bulkDeleteEntries, moveEntry, bulkMoveEntries };
+  return {
+    addEntry,
+    updateEntry,
+    patchEntry,
+    deleteEntry,
+    bulkDeleteEntries,
+    moveEntry,
+    bulkMoveEntries,
+  };
 }

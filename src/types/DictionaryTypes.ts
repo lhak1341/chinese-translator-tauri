@@ -3,6 +3,7 @@
  */
 
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
+import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -138,6 +139,19 @@ export interface DictionaryContextInterface {
     newSource: string,
     translation: string,
     metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
+  /**
+   * Change some fields of an existing entry, leaving the rest as stored. Reads the current
+   * value itself, so callers pass only what changes — never a snapshot of the other fields.
+   * The patch may be a function of the current fields (toggling one allowed variable type).
+   * An empty `semanticType`/`allowedVariableTypes` removes the key; a string value is written
+   * back as an object; a lookup table keeps only `translation`. Goes through `updateEntry`,
+   * so history, toasts and engine invalidation are the same. See `utils/dictionary/EntryValue.ts`.
+   */
+  patchEntry: (
+    dictionaryId: string,
+    source: string,
+    patch: EntryPatch | ((current: EntryFields) => EntryPatch)
   ) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;

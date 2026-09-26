@@ -139,7 +139,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   showDuplicatesMode = false,
   duplicateRows = [],
 }) => {
-  const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, isLoading } = useDictionary();
+  const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, patchEntry, isLoading } =
+    useDictionary();
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -228,6 +229,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   } = useEntryEditAndMove({
     dictionaries,
     updateEntry,
+    patchEntry,
     withScrollPreservation: scroll.withScrollPreservation,
   });
 

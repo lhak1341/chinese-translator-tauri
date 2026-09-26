@@ -161,14 +161,21 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries);
 
-  const { addEntry, updateEntry, deleteEntry, bulkDeleteEntries, moveEntry, bulkMoveEntries } =
-    useDictionaryCRUD(
-      dictionariesRef,
-      persistDictionaryMutation,
-      commitMoveOp,
-      addToHistory,
-      invalidateEngine
-    );
+  const {
+    addEntry,
+    updateEntry,
+    patchEntry,
+    deleteEntry,
+    bulkDeleteEntries,
+    moveEntry,
+    bulkMoveEntries,
+  } = useDictionaryCRUD(
+    dictionariesRef,
+    persistDictionaryMutation,
+    commitMoveOp,
+    addToHistory,
+    invalidateEngine
+  );
 
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
@@ -288,6 +295,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       loadError,
       addEntry,
       updateEntry,
+      patchEntry,
       deleteEntry,
       bulkDeleteEntries,
       moveEntry,
@@ -310,6 +318,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       loadError,
       addEntry,
       updateEntry,
+      patchEntry,
       deleteEntry,
       bulkDeleteEntries,
       moveEntry,

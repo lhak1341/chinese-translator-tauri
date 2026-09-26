@@ -16,6 +16,7 @@ function makeParams(overrides: Partial<Parameters<typeof useEntryEditAndMove>[0]
   return {
     dictionaries,
     updateEntry: vi.fn().mockResolvedValue(undefined),
+    patchEntry: vi.fn().mockResolvedValue(undefined),
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
       await fn();
     }),
@@ -159,6 +160,25 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
     });
 
     expect(withScrollPreservation).toHaveBeenCalledOnce();
+  });
+
+  it('patchEntryWithScrollPreservation passes the patch through inside withScrollPreservation', async () => {
+    const patchEntry = vi.fn().mockResolvedValue(undefined);
+    const withScrollPreservation = vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
+      await fn();
+    });
+    const { result } = renderHook(() =>
+      useEntryEditAndMove(makeParams({ patchEntry, withScrollPreservation }))
+    );
+
+    await act(async () => {
+      await result.current.patchEntryWithScrollPreservation(DICT_ID, SOURCE, {
+        semanticType: 'concept',
+      });
+    });
+
+    expect(withScrollPreservation).toHaveBeenCalledOnce();
+    expect(patchEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, { semanticType: 'concept' });
   });
 
   it('propagates updateEntry rejection', async () => {

@@ -43,6 +43,10 @@ vi.mock('../../utils/dictionary', async () => ({
   ...(await vi.importActual<typeof import('../../utils/dictionary/DictionaryIdClassifier')>(
     '../../utils/dictionary/DictionaryIdClassifier'
   )),
+  // Real entry-value helpers: patchEntry's merge is what is under test.
+  ...(await vi.importActual<typeof import('../../utils/dictionary/EntryValue')>(
+    '../../utils/dictionary/EntryValue'
+  )),
   sanitizeDictionaryEntry: vi.fn().mockImplementation((s: string, t: string) => ({
     source: s,
     translation: t,
@@ -227,6 +231,90 @@ describe('updateEntry — persist failure (I1 + I3)', () => {
       ).rejects.toThrow();
     });
     expect(addToHistory).not.toHaveBeenCalled();
+  });
+});
+
+// ─── patchEntry ───────────────────────────────────────────────────────────────
+
+describe('patchEntry', () => {
+  const PROPER_ID = 'properNouns';
+  const stored: DictionaryEntryValue = {
+    translation: 'Nam Kinh',
+    allowAsPatternVariable: true,
+    semanticType: 'location',
+    allowedVariableTypes: { X: ['character'] },
+  };
+  const written = (persist: ReturnType<typeof vi.fn>, source = SOURCE) =>
+    persist.mock.calls[0][2][source];
+
+  it('changes the patched field and keeps every other field as stored', async () => {
+    const { result, persist, addToHistory, invalidate } = makeHook({
+      [PROPER_ID]: { [SOURCE]: stored },
+    });
+    await act(async () => {
+      await result.current.patchEntry(PROPER_ID, SOURCE, { semanticType: 'organization' });
+    });
+    expect(written(persist)).toEqual({ ...stored, semanticType: 'organization' });
+    // It is an update: same history, same invalidation.
+    expect(addToHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: 'update', dictionaryId: PROPER_ID })
+    );
+    expect(invalidate).toHaveBeenCalledWith(PROPER_ID);
+  });
+
+  it('reads the current value, not a caller snapshot, when given an updater', async () => {
+    const { result, persist } = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    await act(async () => {
+      await result.current.patchEntry(PROPER_ID, SOURCE, (current) => ({
+        allowedVariableTypes: { ...current.allowedVariableTypes, Y: ['location'] },
+      }));
+    });
+    expect(written(persist).allowedVariableTypes).toEqual({ X: ['character'], Y: ['location'] });
+  });
+
+  it('an emptied field removes its key', async () => {
+    const { result, persist } = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    await act(async () => {
+      await result.current.patchEntry(PROPER_ID, SOURCE, {
+        semanticType: '',
+        allowedVariableTypes: {},
+      });
+    });
+    expect(written(persist)).toEqual({ translation: 'Nam Kinh', allowAsPatternVariable: true });
+  });
+
+  it('writes a legacy string value back as an object', async () => {
+    const { result, persist } = makeHook({ [DICT_ID]: { [SOURCE]: 'xin chào' } });
+    await act(async () => {
+      await result.current.patchEntry(DICT_ID, SOURCE, { semanticType: 'concept' });
+    });
+    expect(written(persist)).toEqual({
+      translation: 'xin chào',
+      allowAsPatternVariable: false,
+      semanticType: 'concept',
+    });
+  });
+
+  it('keeps only the translation for a lookup table', async () => {
+    const { result, persist } = makeHook({ [CHARS_ID]: { [SOURCE]: 'tốt' } });
+    await act(async () => {
+      await result.current.patchEntry(CHARS_ID, SOURCE, {
+        translation: 'hay',
+        semanticType: 'concept',
+      });
+    });
+    expect(written(persist)).toBe('hay');
+  });
+
+  it('throws ValidationError and writes nothing for an entry that does not exist', async () => {
+    const { result, persist } = makeHook({ [DICT_ID]: {} });
+    await act(async () => {
+      await expect(
+        result.current.patchEntry(DICT_ID, SOURCE, { translation: 'x' })
+      ).rejects.toThrow(`Entry '${SOURCE}' does not exist in '${DICT_ID}'`);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(persist).not.toHaveBeenCalled();
   });
 });
 

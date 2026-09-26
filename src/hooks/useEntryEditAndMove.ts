@@ -1,5 +1,10 @@
 import { useState, useCallback } from 'react';
-import type { EditingEntryData, MoveEntryData, DictionaryData } from '../types/DictionaryTypes';
+import type {
+  EditingEntryData,
+  MoveEntryData,
+  DictionaryData,
+  DictionaryContextInterface,
+} from '../types/DictionaryTypes';
 import type { ContextMenuEntry } from './useContextMenu';
 import { entryFields } from '../utils/dictionary';
 
@@ -12,6 +17,7 @@ interface UseEntryEditAndMoveParams {
     translation: string,
     metadata?: any
   ) => Promise<void>;
+  patchEntry: DictionaryContextInterface['patchEntry'];
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
 }
 
@@ -27,6 +33,7 @@ export interface UseEntryEditAndMoveResult {
     translation: string,
     metadata?: any
   ) => Promise<void>;
+  patchEntryWithScrollPreservation: DictionaryContextInterface['patchEntry'];
   onContextMenuEdit: (entry: ContextMenuEntry) => void;
   onContextMenuMove: (entry: ContextMenuEntry) => void;
   reset: () => void;
@@ -35,6 +42,7 @@ export interface UseEntryEditAndMoveResult {
 export function useEntryEditAndMove({
   dictionaries,
   updateEntry,
+  patchEntry,
   withScrollPreservation,
 }: UseEntryEditAndMoveParams): UseEntryEditAndMoveResult {
   const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
@@ -53,6 +61,13 @@ export function useEntryEditAndMove({
       );
     },
     [updateEntry, withScrollPreservation]
+  );
+
+  const patchEntryWithScrollPreservation = useCallback<DictionaryContextInterface['patchEntry']>(
+    async (dictionaryId, source, patch) => {
+      await withScrollPreservation(() => patchEntry(dictionaryId, source, patch));
+    },
+    [patchEntry, withScrollPreservation]
   );
 
   const onContextMenuEdit = useCallback(
@@ -93,6 +108,7 @@ export function useEntryEditAndMove({
     closeEdit,
     closeMove,
     updateEntryWithScrollPreservation,
+    patchEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,
     reset,

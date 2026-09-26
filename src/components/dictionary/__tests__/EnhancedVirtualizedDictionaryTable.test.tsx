@@ -22,15 +22,15 @@ import type { DictionaryData } from '../../../types/DictionaryTypes';
 import type { DuplicateRow } from '../../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
-const { dictionariesRef, isLoadingRef, deleteEntry, bulkDeleteEntries, updateEntry } = vi.hoisted(
-  () => ({
+const { dictionariesRef, isLoadingRef, deleteEntry, bulkDeleteEntries, updateEntry, patchEntry } =
+  vi.hoisted(() => ({
     dictionariesRef: { current: {} as Record<string, DictionaryData> },
     isLoadingRef: { current: false },
     deleteEntry: vi.fn().mockResolvedValue(undefined),
     bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 0, errors: [] }),
     updateEntry: vi.fn().mockResolvedValue(undefined),
-  })
-);
+    patchEntry: vi.fn().mockResolvedValue(undefined),
+  }));
 
 vi.mock('../DictionaryContext', () => ({
   useDictionary: () => ({
@@ -39,6 +39,7 @@ vi.mock('../DictionaryContext', () => ({
     deleteEntry,
     bulkDeleteEntries,
     updateEntry,
+    patchEntry,
   }),
 }));
 
