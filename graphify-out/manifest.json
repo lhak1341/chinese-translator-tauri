@@ -1060,8 +1060,8 @@
     "semantic_hash": "133940e0b3274d210f58bd894600b337"
   },
   "src/hooks/useDictionaryModals.js": {
-    "mtime": 1789622196.9907544,
-    "ast_hash": "4e8971a7e6c9c5f2924c4aab8453e29e",
+    "mtime": 1790389458.873065,
+    "ast_hash": "4d69e85b80ff47e9ce42801617647e65",
     "semantic_hash": ""
   },
   "src/hooks/usePersistSelectedDictionary.ts": {
@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790355053.571027,
-    "ast_hash": "e8227a9e06dbd92a81afb05d81f47aff",
+    "mtime": 1790389458.8736935,
+    "ast_hash": "9cd32f57babe03d6e417a84318ac610d",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790385995.6414158,
-    "ast_hash": "24f542717abd31f584f917beaec2bdbe",
+    "mtime": 1790389522.2091427,
+    "ast_hash": "2385fa025381f9a1adbf13dd60959759",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2072,11 +2072,6 @@
   "src/utils/dictionary/DictionaryReloadRegistry.ts": {
     "mtime": 1789621983.0059052,
     "ast_hash": "c20661aec4afea608c9517279c110fba",
-    "semantic_hash": ""
-  },
-  "src/utils/reader/BoundQuickAddTargets.ts": {
-    "mtime": 1789622184.5828955,
-    "ast_hash": "f0aabeb6fc04ed9895d1b81bd27de9cb",
     "semantic_hash": ""
   },
   "src/components/reader/CommandPalette.tsx": {
@@ -2180,8 +2175,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790355914.6761882,
-    "ast_hash": "442e83d09cba1e30d4302a0996573a6b",
+    "mtime": 1790389436.1324453,
+    "ast_hash": "dc7260e8faf6ff97838e2055ce8d75a6",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {
@@ -2217,6 +2212,11 @@
   "docs/adr/ADR-046-keep-bookreader-scroll-composition-and-refill-ref.md": {
     "mtime": 1790385924.1013894,
     "ast_hash": "c7cd6910fa340773ae476b5f5cd25753",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ReaderQuickAddTarget.ts": {
+    "mtime": 1790389522.2182643,
+    "ast_hash": "c92f00c869a94ab6ca64881285523eeb",
     "semantic_hash": ""
   }
 }
