@@ -10,10 +10,11 @@ import React, {
 import type { BookBinding } from '../types/ReaderTypes';
 import type { ProperNounsListResult } from '../types/ElectronTypes';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { callRustConfigWrite, loadAppConfig, saveAppConfig } from '../utils/appConfig';
+import { loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
-import { isFictionProperNounsId, toPatternsId } from '../utils/dictionary/DictionaryIdClassifier';
+import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
+import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
 import {
   activeProperNounsForBinding,
@@ -285,23 +286,19 @@ export function BookBindingProvider({
   );
 
   /**
-   * Create a fiction pair and load it. Not queued itself — both callers already run inside
-   * the queue, and queueing from within it would wait on itself. Fiction dictionaries and
-   * their paired patterns-f_* file are created atomically (ADR-027), so this cannot leave
-   * half a pair behind.
+   * Create a fiction pair, load it (`DictionaryPairs`), and refresh the fiction list. Not
+   * queued itself — both callers already run inside the queue, and queueing from within it
+   * would wait on itself. The pair is created atomically (ADR-027), so this cannot leave half
+   * a pair behind.
    */
   const createPair = useCallback(
     async (dictionaryId: string): Promise<ProperNounsListResult> => {
-      const result = await callRustConfigWrite(() =>
-        window.electronAPI.createFictionDictionaryPair(dictionaryId)
-      );
+      const result = await createDictionary(dictionaryId, { loadDictionary, removeDictionaryKey });
       if (!result.success) return result;
-      await loadDictionary(dictionaryId);
-      await loadDictionary(toPatternsId(dictionaryId));
       await refreshFictionDictionaries();
       return result;
     },
-    [loadDictionary, refreshFictionDictionaries]
+    [loadDictionary, refreshFictionDictionaries, removeDictionaryKey]
   );
 
   const createAndBind = useCallback(
@@ -341,9 +338,11 @@ export function BookBindingProvider({
   const renameFictionDictionary = useCallback(
     (oldId: string, newId: string): Promise<FictionRenameResult> =>
       enqueue(async () => {
-        const result = await callRustConfigWrite(() =>
-          window.electronAPI.renameProperNounsDictionary(oldId, newId)
-        );
+        // Moves both files and brings `dictionaries` along (`DictionaryPairs`).
+        const result = await renameDictionary(oldId, newId, {
+          loadDictionary,
+          removeDictionaryKey,
+        });
         if (!result.success) return { success: false, error: result.error, filesMoved: false };
 
         // Rust has moved both files and rewritten config; the records are ours. A failure
@@ -357,12 +356,6 @@ export function BookBindingProvider({
           recordsError = extractErrorMessage(cause);
         }
 
-        // Load each new id before dropping its old one, so `dictionaries` never briefly
-        // holds neither.
-        await loadDictionary(newId);
-        removeDictionaryKey(oldId);
-        await loadDictionary(toPatternsId(newId));
-        removeDictionaryKey(toPatternsId(oldId));
         await refreshFictionDictionaries();
 
         // No engine rebuild: config already names the new id, and the data is unchanged.
