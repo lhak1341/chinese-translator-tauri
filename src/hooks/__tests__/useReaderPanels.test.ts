@@ -73,8 +73,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function setup() {
-  const view = renderHook(() => useReaderPanels({ lineCount: 200, getLine: () => '一二三四五' }));
+function setup(requestRange: (start: number, end: number) => void = vi.fn()) {
+  const view = renderHook(() =>
+    useReaderPanels({ lineCount: 200, getLine: () => '一二三四五', requestRange })
+  );
   const elements = {
     translation: scrollElement(20_000, 400),
     original: scrollElement(8_000, 400),
@@ -148,6 +150,30 @@ describe('useReaderPanels', () => {
 
     expect(elements.translation.scrollTop).toBe(120);
     expect(elements.original.scrollTop).toBe(0);
+  });
+
+  it("requests the pages around the master's rendered rows, and again when they move", () => {
+    const rows = (first: number, last: number) =>
+      Array.from({ length: last - first + 1 }, (_, i) => ({
+        index: first + i,
+        start: (first + i) * 100,
+        size: 100,
+      }));
+    pool[0].getVirtualItems = () => rows(100, 130);
+    const requestRange = vi.fn();
+    const { view } = setup(requestRange);
+
+    // 600 lines of slack each way, end exclusive.
+    expect(requestRange).toHaveBeenLastCalledWith(-500, 731);
+
+    pool[0].getVirtualItems = () => rows(300, 320);
+    view.rerender();
+    expect(requestRange).toHaveBeenLastCalledWith(-300, 921);
+
+    // Same range, no new request: the effect keys on the two indices, not the row array.
+    const calls = requestRange.mock.calls.length;
+    view.rerender();
+    expect(requestRange).toHaveBeenCalledTimes(calls);
   });
 
   it('pages the master by most of a viewport, either way', () => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
@@ -42,16 +42,6 @@ interface BookReaderProps {
   onSwitchBook: (fileName: string) => void;
   onBack: () => void;
 }
-
-/**
- * Lines requested beyond the rendered range in each direction.
- *
- * A row that mounts before its text arrives is one placeholder line tall and grows to its
- * real wrapped height when the page lands — a visible shift. Fetching well ahead of the
- * rendered range means that only happens on the very first paint of a region, not on
- * every row during ordinary scrolling.
- */
-const PREFETCH_LINES = 600;
 
 /**
  * The three-panel reader: the Chinese source and its character-only gloss stacked on the
@@ -99,6 +89,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { master, followers, panels, pageBy, isBlankAt } = useReaderPanels({
     lineCount: book.lineCount,
     getLine,
+    requestRange,
   });
 
   /** Whether the windowed refill is translating, read live by the reload re-anchor. A ref
@@ -125,9 +116,8 @@ const BookReader: React.FC<BookReaderProps> = ({
     isRefilling,
   });
 
-  const virtualRows = panels.translation.rows;
-  const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
-  const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
+  // The engine is only asked while the Reader is the visible tab and the engine is up.
+  const canTranslate = isActive && enginePhase === 'ready';
 
   // Every engine call the Reader makes, serialized onto one queue — see `createReaderEngine`.
   const { translateChunk, translateGloss, translateOutlineBatch } = useReaderEngine();
@@ -144,7 +134,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     translateChunk,
     translateGloss,
     dictionaryVersion: engineVersion,
-    isEnabled: isActive && enginePhase === 'ready',
+    isEnabled: canTranslate,
   });
   isRefillingRef.current = isTranslating;
 
@@ -160,7 +150,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     anchor: { anchorLine, readLine, scrollToLine },
     translateBatch: translateOutlineBatch,
     dictionaryVersion: engineVersion,
-    isEnabled: isActive && enginePhase === 'ready' && !isTranslating,
+    isEnabled: canTranslate && !isTranslating,
   });
 
   const offer = useBindingOffer({ fingerprint: book.fingerprint, fileName: book.fileName });
@@ -194,15 +184,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     openBindingDialog: openDialog,
     onSwitchBook,
   });
-
-  // Fetch the pages covering what is about to be painted. Running after render (rather
-  // than inside it) keeps the fetch out of the render pass; the rows it fills in arrive
-  // as a state update on the next tick. The deps are the two indices, not the row array:
-  // the virtualizer returns a fresh array every render, so depending on it would re-run
-  // this on every render including the ones the fetched pages themselves cause.
-  useEffect(() => {
-    requestRange(firstIndex - PREFETCH_LINES, lastIndex + 1 + PREFETCH_LINES);
-  }, [firstIndex, lastIndex, requestRange]);
 
   const syncFollowers = panels.translation.onScroll;
   const handleScroll = useCallback((): void => {

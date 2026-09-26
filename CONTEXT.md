@@ -712,7 +712,7 @@ A **panel row** is one line as one panel renders it. A Vietnamese row whose tran
 
 _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous between the original and the gloss).
 
-**`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding and paging. It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.
+**`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding, paging, and fetching the book's pages around what the master is about to paint (`requestRange`, 600 lines of slack each way). It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.
 
 ### Reader Commands
 

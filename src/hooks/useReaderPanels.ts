@@ -21,10 +21,23 @@ const EM_PER_CHAR_CHARACTER_ONLY = 2.5;
 /** Space / Shift+Space move the master by this much of its viewport. */
 const PAGE_FRACTION = 0.9;
 
+/**
+ * Lines requested beyond the master's rendered range in each direction.
+ *
+ * A row that mounts before its text arrives is one placeholder line tall and grows to its
+ * real wrapped height when the page lands — a visible shift. Fetching well ahead of the
+ * rendered range means that only happens on the very first paint of a region, not on
+ * every row during ordinary scrolling.
+ */
+const PREFETCH_LINES = 600;
+
 export interface UseReaderPanelsOptions {
   lineCount: number;
   /** The book's line, or `undefined` while its page is in flight. Must be stable. */
   getLine: (index: number) => string | undefined;
+  /** Fetch the pages covering `[start, end)` — `useBookLines`'. The panels call it for
+   * what they are about to paint. Must be stable. */
+  requestRange: (start: number, end: number) => void;
 }
 
 /** What one `<ReaderPanel>` needs from the set — spread straight into it. */
@@ -71,7 +84,11 @@ export interface ReaderPanels {
  * panel is the scroll master; the Chinese source and the character-only gloss follow it,
  * line by line, and never drive.
  */
-export function useReaderPanels({ lineCount, getLine }: UseReaderPanelsOptions): ReaderPanels {
+export function useReaderPanels({
+  lineCount,
+  getLine,
+  requestRange,
+}: UseReaderPanelsOptions): ReaderPanels {
   // `getLine` is referentially stable and reads through a ref, so these are too — which is
   // what lets every panel's `estimateSize` stay stable across renders.
   const charCountAt = useCallback(
@@ -112,6 +129,19 @@ export function useReaderPanels({ lineCount, getLine }: UseReaderPanelsOptions):
   });
 
   const masterScrollRef = translation.scrollRef;
+
+  // Fetch the pages covering what the master is about to paint — the followers render the
+  // same lines, so its range is everyone's. Running after render (rather than inside it)
+  // keeps the fetch out of the render pass; the rows it fills in arrive as a state update
+  // on the next tick. The deps are the two indices, not the row array: the virtualizer
+  // returns a fresh array every render, so depending on it would re-run this on every
+  // render including the ones the fetched pages themselves cause.
+  const masterRows = translation.virtualizer.getVirtualItems();
+  const firstIndex = masterRows.length > 0 ? masterRows[0].index : 0;
+  const lastIndex = masterRows.length > 0 ? masterRows[masterRows.length - 1].index : 0;
+  useEffect(() => {
+    requestRange(firstIndex - PREFETCH_LINES, lastIndex + 1 + PREFETCH_LINES);
+  }, [firstIndex, lastIndex, requestRange]);
 
   const { onMasterScroll, onFollowerScroll, resync } = usePanelSync({
     master: translation,
@@ -179,7 +209,7 @@ export function useReaderPanels({ lineCount, getLine }: UseReaderPanelsOptions):
       translation: {
         scrollRef: masterScrollRef,
         virtualizer: translation.virtualizer,
-        rows: translation.virtualizer.getVirtualItems(),
+        rows: masterRows,
         totalSize: translationTotalSize,
         onScroll: onMasterScroll,
       },
