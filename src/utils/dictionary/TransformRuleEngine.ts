@@ -198,10 +198,6 @@ export function joinCharGloss(
     .join(' ');
 }
 
-/** Proper-noun targets title-case every guess they are offered — rough gloss or hint. */
-const isProperNounTarget = (targetDictionary: string): boolean =>
-  targetDictionary.includes('properNoun');
-
 /** Fallback Translation guess for a newly-populated Source when no Transform Rule
  * matches: title-cased for properNoun targets, all-lowercase otherwise. */
 export function generateRoughTranslation(
@@ -211,7 +207,7 @@ export function generateRoughTranslation(
 ): string {
   const gloss = joinCharGloss(dictionaries, sourceText);
   if (!gloss) return '';
-  if (isProperNounTarget(targetDictionary)) {
+  if (targetDictionary.includes('properNoun')) {
     return titleCaseWords(gloss);
   }
   return lowercaseAll(gloss);
@@ -219,20 +215,15 @@ export function generateRoughTranslation(
 
 /**
  * The initial Translation guess for a newly-populated Source: a matching Transform
- * Rule's guess when one exists for phrases/properNouns* targets, then `translationHint`
- * (the Vietnamese the Source was selected as — see `SelectionMapping.ts`), falling back to
- * `generateRoughTranslation` otherwise. A rule wins over the hint because the user wrote
- * it for exactly this suffix; the hint is only the engine's current output, so it is
- * title-cased for a proper-noun target like the rough guess is — the engine may have
- * rendered those words as common nouns. Other targets keep the hint's casing. Also returns
- * the matched rule's semanticType, if any, so the caller can stamp it.
+ * Rule's guess when one exists for phrases/properNouns* targets, falling back to
+ * `generateRoughTranslation` otherwise. Also returns the matched rule's semanticType,
+ * if any, so the caller can stamp it.
  */
 export function computeInitialTranslation(
   rules: TransformRule[],
   dictionaries: Record<string, DictionaryData>,
   sourceText: string,
-  targetDictionary: string,
-  translationHint?: string
+  targetDictionary: string
 ): { translation: string; matchedRule: TransformRule | null } {
   if (dictionarySupportsTransformRules(targetDictionary)) {
     const match = findBestMatch(rules, sourceText);
@@ -242,14 +233,6 @@ export function computeInitialTranslation(
         matchedRule: match,
       };
     }
-  }
-  // A blank hint is no hint: '' must fall through to the rough guess, so not `??`.
-  const hint = translationHint?.trim() ?? '';
-  if (hint !== '') {
-    return {
-      translation: isProperNounTarget(targetDictionary) ? titleCaseWords(hint) : hint,
-      matchedRule: null,
-    };
   }
   return {
     translation: generateRoughTranslation(dictionaries, sourceText, targetDictionary),

@@ -26,7 +26,7 @@ export interface SourceRun {
 }
 
 export type SelectionMapping =
-  | { kind: 'mapped'; source: string; translation: string }
+  | { kind: 'mapped'; source: string }
   | { kind: 'refused'; reason: string }
   /** Not a selection over translated units — the caller keeps the raw selected text. */
   | { kind: 'unmapped' };
@@ -45,7 +45,6 @@ export const CROSSES_LINE_REASON = 'Selection spans more than one line — selec
  */
 export function mapSelectedUnits(
   keys: readonly string[],
-  translation: string,
   runs: readonly SourceRun[],
   sourceText: string
 ): SelectionMapping {
@@ -62,38 +61,24 @@ export function mapSelectedUnits(
   if (span.includes('\n')) return { kind: 'refused', reason: CROSSES_LINE_REASON };
   const source = span.trim();
   if (!source) return UNMAPPED;
-  return { kind: 'mapped', source, translation: translation.trim() };
-}
-
-export interface TranslationSelection {
-  /** The unit elements the range touches, in document order. */
-  elements: HTMLElement[];
-  /** The text from the first touched unit's start to the last one's end. */
-  translation: string;
+  return { kind: 'mapped', source };
 }
 
 /**
- * The units a range touches inside `container`, snapped outward to whole units.
+ * The unit elements a range touches inside `container`, in document order — a unit only
+ * partly selected counts whole.
  *
  * Null when the range is not wholly inside the container, or touches no unit — both mean
  * "not a translation-panel selection", which the caller answers with the raw text. A unit
  * is an element carrying a non-negative `data-unit-index`; runs no unit produced carry -1
  * or no attribute at all.
  */
-export function readTranslationSelection(
-  range: Range,
-  container: HTMLElement
-): TranslationSelection | null {
+export function touchedUnits(range: Range, container: HTMLElement): HTMLElement[] | null {
   if (!container.contains(range.commonAncestorContainer)) return null;
   const elements = Array.from(container.querySelectorAll<HTMLElement>('[data-unit-index]')).filter(
     (element) => Number(element.dataset.unitIndex) >= 0 && range.intersectsNode(element)
   );
-  if (elements.length === 0) return null;
-
-  const snapped = document.createRange();
-  snapped.setStartBefore(elements[0]);
-  snapped.setEndAfter(elements[elements.length - 1]);
-  return { elements, translation: snapped.toString() };
+  return elements.length === 0 ? null : elements;
 }
 
 /**
@@ -107,13 +92,13 @@ export function mapTranslatorSelection(
   semanticArrays: SemanticArrays | null | undefined
 ): SelectionMapping {
   if (!container || !semanticArrays) return UNMAPPED;
-  const selected = readTranslationSelection(range, container);
+  const selected = touchedUnits(range, container);
   if (!selected) return UNMAPPED;
   const runs = precomputeOriginalSegments(originalText, semanticArrays)
     .filter((segment) => segment.unitIndex >= 0)
     .map((segment) => ({ key: String(segment.unitIndex), start: segment.start, end: segment.end }));
-  const keys = selected.elements.map((element) => element.dataset.unitIndex ?? '');
-  return mapSelectedUnits(keys, selected.translation, runs, originalText);
+  const keys = selected.map((element) => element.dataset.unitIndex ?? '');
+  return mapSelectedUnits(keys, runs, originalText);
 }
 
 /** A Reader row's Chinese, as its Original panel draws it. */
@@ -136,10 +121,10 @@ export function mapReaderSelection(
   originalRow: (index: number) => ReaderOriginalRow | undefined
 ): SelectionMapping {
   if (!container) return UNMAPPED;
-  const selected = readTranslationSelection(range, container);
+  const selected = touchedUnits(range, container);
   if (!selected) return UNMAPPED;
   const rows = new Set(
-    selected.elements.map((element) => element.closest<HTMLElement>('[data-index]')?.dataset.index)
+    selected.map((element) => element.closest<HTMLElement>('[data-index]')?.dataset.index)
   );
   if (rows.size > 1) return { kind: 'refused', reason: CROSSES_LINE_REASON };
   const [rowIndex] = rows;
@@ -152,10 +137,10 @@ export function mapReaderSelection(
       start: segment.lineStart,
       end: segment.lineStart + segment.text.length,
     }));
-  const keys = selected.elements.map((element) =>
+  const keys = selected.map((element) =>
     readerKey(element.dataset.chunkKey ?? '', element.dataset.unitIndex ?? '')
   );
-  return mapSelectedUnits(keys, selected.translation, runs, row.text);
+  return mapSelectedUnits(keys, runs, row.text);
 }
 
 const mappers = new Set<SelectionMapper>();

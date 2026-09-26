@@ -30,9 +30,8 @@ export type ReaderActionId = Extract<
 /**
  * One action. The Add family takes the text to pre-fill; every other action ignores it.
  * Where that text comes from is the route's business: the palette passes the selection it
- * captured on opening, a hotkey its own clipboard round trip — or, for a selection in the
- * Translation panel, the Chinese it maps to plus the selected Vietnamese as `translation`.
+ * captured on opening, a hotkey its own clipboard round trip.
  */
-export type ReaderAction = (text?: string, translation?: string) => void | Promise<void>;
+export type ReaderAction = (text?: string) => void | Promise<void>;
 
 export type ReaderActions = Record<ReaderActionId, ReaderAction>;

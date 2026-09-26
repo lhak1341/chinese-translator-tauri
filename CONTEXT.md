@@ -516,9 +516,9 @@ Rule: Cmd-5 takes the default if it is active, else the first active proper-noun
 
 ## Selection mapping
 
-Turning a selection in a translation panel — the Translator's Full Translation, the Reader's Translation panel — into the Chinese it came from, so the quick-add keys (Cmd-1..7) can take the Vietnamese as their starting point. The selection **snaps** to the whole units it touches; their **covering span** is the source text from the earliest unit's start to the latest unit's end, gaps included, because a dictionary entry is one contiguous run of Chinese however the translation reordered it. A span that crosses a line is **refused**. A selection over no unit is **unmapped** and the key keeps the raw text, as it does for a selection anywhere else.
+Turning a selection in a translation panel — the Translator's Full Translation, the Reader's Translation panel — into the Chinese it came from, so the quick-add keys (Cmd-1..7) can be pressed where the reader is actually looking. The selection **snaps** to the whole units it touches; their **covering span** is the source text from the earliest unit's start to the latest unit's end, gaps included, because a dictionary entry is one contiguous run of Chinese however the translation reordered it. A span that crosses a line is **refused**. A selection over no unit is **unmapped** and the key keeps the raw text, as it does for a selection anywhere else.
 
-The selected Vietnamese travels with the span as a **translation hint**: it pre-fills the Add form's Translation field — title-cased for a proper-noun dictionary, as the rough gloss guess is — unless a Transform Rule matches the Chinese, which wins because the user wrote it for that key.
+Only the Chinese travels. The selected Vietnamese is deliberately **not** used as the Translation guess: it is whatever phase won in the engine — often a phrase value, where a proper noun wants its per-character reading — so the Add form guesses as it always does, a matching Transform Rule first, then the character gloss.
 
 Each surface registers its own mapper (`useSelectionMapper`) rather than the hotkey registration holding one, because Cmd-7 belongs to the tab container, which knows no panel. `src/utils/highlighting/SelectionMapping.ts`.
 

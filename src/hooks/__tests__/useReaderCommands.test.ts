@@ -150,17 +150,9 @@ describe('useReaderCommands', () => {
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
 
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-f_TapDo', '萧炎', '');
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-f_TapDo', 'X之Y', '');
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-f_TapDo', '萧炎');
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-f_TapDo', 'X之Y');
     expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
-  });
-
-  it("carries a mapped selection's Vietnamese through to the Add", async () => {
-    const { view } = setup({ fictionDictionary: 'properNouns-f_TapDo' });
-
-    await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎', 'Tiêu Viêm'));
-
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-f_TapDo', '萧炎', 'Tiêu Viêm');
   });
 
   it("an unbound book's proper noun never lands in the fiction config still names", async () => {
@@ -170,7 +162,7 @@ describe('useReaderCommands', () => {
 
     // Config's own default is the previous novel's — stale for this book. The first active
     // non-fiction dictionary is the standing Configuration choice that still applies.
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-_Cultivation', '萧炎', '');
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-_Cultivation', '萧炎');
     expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
   });
 
@@ -179,7 +171,7 @@ describe('useReaderCommands', () => {
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
 
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-_Cultivation', 'X之Y', '');
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-_Cultivation', 'X之Y');
     expect(toast.error).not.toHaveBeenCalled();
   });
 

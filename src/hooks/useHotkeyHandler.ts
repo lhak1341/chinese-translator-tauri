@@ -18,16 +18,15 @@ export interface HotkeyHandlerOptions {
   canRedo?: boolean;
   onTabSwitch?: (tab: TabId) => void;
   /**
-   * The quick-add callbacks receive the selection as `text`. When it sat in a translation
-   * panel, `text` is the Chinese it maps to and `translation` the Vietnamese selected — see
-   * `utils/highlighting/SelectionMapping.ts`.
+   * The quick-add callbacks receive the selection as `text` — for a selection in a
+   * translation panel, the Chinese it maps to (`utils/highlighting/SelectionMapping.ts`).
    */
-  onQuickAddCharacter?: (text?: string, translation?: string) => void;
-  onQuickAddPhrase?: (text?: string, translation?: string) => void;
-  onQuickAddProperNoun?: (text?: string, translation?: string) => void;
-  onQuickAddPattern?: (text?: string, translation?: string) => void;
-  onQuickAddCustomProperNoun?: (text?: string, translation?: string) => Promise<void>;
-  onQuickAddCustomStructuralPattern?: (text?: string, translation?: string) => Promise<void>;
+  onQuickAddCharacter?: (text?: string) => void;
+  onQuickAddPhrase?: (text?: string) => void;
+  onQuickAddProperNoun?: (text?: string) => void;
+  onQuickAddPattern?: (text?: string) => void;
+  onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
+  onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onBindDictionaries?: () => void;
   onOpenCommandPalette?: () => void;
@@ -96,7 +95,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
 
     const handleQuickAdd = async (
       event: KeyboardEvent,
-      callback: ((text?: string, translation?: string) => void | Promise<void>) | undefined,
+      callback: ((text?: string) => void | Promise<void>) | undefined,
       label: string
     ): Promise<void> => {
       // Several handlers are registered at once (the tab container, the Translator, the
@@ -113,7 +112,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           return;
         }
         if (mapping.kind === 'mapped') {
-          await callback(mapping.source, mapping.translation);
+          await callback(mapping.source);
           return;
         }
         const copied = await copySelectedText();

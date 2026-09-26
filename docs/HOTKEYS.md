@@ -78,9 +78,9 @@ Cmd/Ctrl+7 that's the rule's Key.
 
 A selection in the Translator's Full Translation panel or the Reader's Translation panel is
 Vietnamese, so Add first maps it back to Chinese: it snaps to the whole units it touches and
-pre-fills the Chinese they cover in the source, gaps included. The selected Vietnamese
-pre-fills the Translation field — title-cased for a Proper Nouns
-dictionary (Cmd/Ctrl+3 and 5) — unless a Transform Rule matches the Chinese. A selection
+pre-fills the Chinese they cover in the source, gaps included. The Translation field
+is guessed from that Chinese as usual — a matching Transform Rule first, then the character
+gloss — never from the selected Vietnamese. A selection
 spanning more than one line is refused with a toast. See "Selection mapping" in `CONTEXT.md`.
 
 ---

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import {
   mapSelectedUnits,
-  readTranslationSelection,
+  touchedUnits,
   registerSelectionMapper,
   mapSelectionRange,
   mapTranslatorSelection,
@@ -22,30 +22,28 @@ const RUNS: SourceRun[] = [
 
 describe('mapSelectedUnits', () => {
   test('maps one unit to its Chinese', () => {
-    expect(mapSelectedUnits(['0'], 'Lâm Phong', RUNS, SOURCE)).toEqual({
+    expect(mapSelectedUnits(['0'], RUNS, SOURCE)).toEqual({
       kind: 'mapped',
       source: '林风',
-      translation: 'Lâm Phong',
     });
   });
 
   test('takes the covering span, in source order, whatever order the keys arrive in', () => {
     // A reordering pattern puts unit 2 before unit 0 in the Vietnamese.
-    expect(mapSelectedUnits(['2', '0'], 'Nam Kinh thành Lâm Phong', RUNS, SOURCE)).toEqual({
+    expect(mapSelectedUnits(['2', '0'], RUNS, SOURCE)).toEqual({
       kind: 'mapped',
       source: '林风走进南京城',
-      translation: 'Nam Kinh thành Lâm Phong',
     });
   });
 
   test('refuses a span that crosses a line break', () => {
-    const result = mapSelectedUnits(['2', '3'], 'x', RUNS, SOURCE);
+    const result = mapSelectedUnits(['2', '3'], RUNS, SOURCE);
     expect(result.kind).toBe('refused');
   });
 
   test('is unmapped when no key names a run', () => {
-    expect(mapSelectedUnits([], '', RUNS, SOURCE)).toEqual({ kind: 'unmapped' });
-    expect(mapSelectedUnits(['99'], 'x', RUNS, SOURCE)).toEqual({ kind: 'unmapped' });
+    expect(mapSelectedUnits([], RUNS, SOURCE)).toEqual({ kind: 'unmapped' });
+    expect(mapSelectedUnits(['99'], RUNS, SOURCE)).toEqual({ kind: 'unmapped' });
   });
 });
 
@@ -63,7 +61,7 @@ function select(startNode: Node, startOffset: number, endNode: Node, endOffset: 
   return range;
 }
 
-describe('readTranslationSelection', () => {
+describe('touchedUnits', () => {
   afterEach(() => {
     document.body.innerHTML = '';
   });
@@ -78,10 +76,7 @@ describe('readTranslationSelection', () => {
     const spans = container.querySelectorAll('span');
     // "Phong đi" — starts inside unit 0, ends inside unit 1.
     const range = select(spans[0].firstChild!, 4, spans[2].firstChild!, 2);
-    expect(readTranslationSelection(range, container)).toEqual({
-      elements: [spans[0], spans[2]],
-      translation: 'Lâm Phong đi vào',
-    });
+    expect(touchedUnits(range, container)).toEqual([spans[0], spans[2]]);
   });
 
   test('ignores runs no unit produced', () => {
@@ -90,21 +85,21 @@ describe('readTranslationSelection', () => {
     );
     const spans = container.querySelectorAll('span');
     const range = select(spans[0].firstChild!, 0, spans[1].firstChild!, 3);
-    expect(readTranslationSelection(range, container)?.elements).toEqual([spans[1]]);
+    expect(touchedUnits(range, container)).toEqual([spans[1]]);
   });
 
   test('is null when the selection is not inside the container', () => {
     const container = renderTranslation(HTML);
     const outside = renderTranslation('<span>elsewhere</span>');
     const range = select(outside.firstChild!.firstChild!, 0, outside.firstChild!.firstChild!, 4);
-    expect(readTranslationSelection(range, container)).toBeNull();
+    expect(touchedUnits(range, container)).toBeNull();
   });
 
   test('is null for a selection over no unit', () => {
     const container = renderTranslation(HTML);
     const gap = container.querySelectorAll('span')[5];
     const range = select(gap.firstChild!, 0, gap.firstChild!, 1);
-    expect(readTranslationSelection(range, container)).toBeNull();
+    expect(touchedUnits(range, container)).toBeNull();
   });
 });
 
@@ -122,12 +117,10 @@ describe('mapSelectionRange', () => {
     const unregisterB = registerSelectionMapper(() => ({
       kind: 'mapped',
       source: '林风',
-      translation: 'Lâm Phong',
     }));
     expect(mapSelectionRange(range())).toEqual({
       kind: 'mapped',
       source: '林风',
-      translation: 'Lâm Phong',
     });
     unregisterB();
     expect(mapSelectionRange(range())).toEqual({ kind: 'unmapped' });
@@ -178,7 +171,6 @@ describe('mapTranslatorSelection', () => {
     expect(mapTranslatorSelection(range, container, ORIGINAL, ARRAYS)).toEqual({
       kind: 'mapped',
       source: '走进南京城',
-      translation: 'đi vào Nam Kinh thành',
     });
   });
 
@@ -223,7 +215,6 @@ describe('mapReaderSelection', () => {
     expect(mapReaderSelection(range, container, originalRow)).toEqual({
       kind: 'mapped',
       source: '林风',
-      translation: 'Lâm Phong',
     });
   });
 

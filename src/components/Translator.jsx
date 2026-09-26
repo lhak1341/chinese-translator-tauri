@@ -145,7 +145,6 @@ const Translator = ({ isActive = true }) => {
     showQuickAdd,
     quickAddDictionary,
     clipboardText,
-    selectedTranslation,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
@@ -1091,7 +1090,6 @@ const Translator = ({ isActive = true }) => {
             allowDictionarySelection={true}
             onDictionaryChange={handleQuickAddDictionaryChange}
             initialSource={clipboardText}
-            initialTranslation={selectedTranslation}
           />
         </ModalErrorBoundary>
       )}
