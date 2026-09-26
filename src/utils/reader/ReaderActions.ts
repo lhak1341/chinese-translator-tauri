@@ -29,8 +29,8 @@ export type ReaderActionId = Extract<
 
 /**
  * One action. The Add family takes the text to pre-fill; every other action ignores it.
- * Where that text comes from is the route's business: the palette passes the selection it
- * captured on opening, a hotkey its own clipboard round trip.
+ * Both routes ask `resolveQuickAddSource` where that text comes from — the palette when it
+ * opens, a hotkey when pressed — so a row and its key start from the same text.
  */
 export type ReaderAction = (text?: string) => void | Promise<void>;
 

@@ -107,12 +107,14 @@ describe('useReaderCommands', () => {
     expect(setup().view.result.current.hotkeyProps.ownTab).toBe('reader');
   });
 
-  it('gives Add rows the selection captured when the palette opened', () => {
-    const selection = { toString: () => ' 萧炎 ' };
+  it('gives Add rows the selection captured when the palette opened', async () => {
+    const selection = { toString: () => ' 萧炎 ', rangeCount: 0 };
     vi.spyOn(window, 'getSelection').mockReturnValue(selection as unknown as Selection);
     const { view } = setup();
 
-    act(() => view.result.current.actions.openCommandPalette());
+    await act(async () => {
+      await view.result.current.actions.openCommandPalette();
+    });
     expect(view.result.current.palette.isOpen).toBe(true);
     // Focusing the palette's search collapses the document selection.
     selection.toString = () => '';

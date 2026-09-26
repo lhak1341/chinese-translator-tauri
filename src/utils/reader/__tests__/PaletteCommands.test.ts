@@ -29,7 +29,8 @@ function build(overrides: Partial<Parameters<typeof buildPaletteCommands>[0]> = 
     books,
     currentFileName: 'open.txt',
     actions: actions(),
-    selection: '',
+    source: { kind: 'source', text: '' },
+    onRefused: vi.fn(),
     onSwitchBook: vi.fn(),
     ...overrides,
   });
@@ -80,11 +81,30 @@ describe('buildPaletteCommands', () => {
     expect(onSwitchBook).toHaveBeenCalledWith('third.txt');
   });
 
-  it('hands an Add row the selection it was built with', () => {
+  it('hands an Add row the source it was built with', () => {
     const quickAddCharacter = vi.fn();
-    const commands = build({ actions: actions({ quickAddCharacter }), selection: '萧炎' });
+    const commands = build({
+      actions: actions({ quickAddCharacter }),
+      source: { kind: 'source', text: '萧炎' },
+    });
     commands.find((command) => command.id === 'add-character')?.run();
     expect(quickAddCharacter).toHaveBeenCalledWith('萧炎');
+  });
+
+  it('a refused source stops the Add rows, and only them', () => {
+    const quickAddCharacter = vi.fn();
+    const nextChapter = vi.fn();
+    const onRefused = vi.fn();
+    const commands = build({
+      actions: actions({ quickAddCharacter, nextChapter }),
+      source: { kind: 'refused', reason: 'two lines' },
+      onRefused,
+    });
+    commands.find((command) => command.id === 'add-character')?.run();
+    expect(onRefused).toHaveBeenCalledWith('two lines');
+    expect(quickAddCharacter).not.toHaveBeenCalled();
+    commands.find((command) => command.action === 'nextChapter')?.run();
+    expect(nextChapter).toHaveBeenCalledTimes(1);
   });
 
   it('names its action on every row but the book switches', () => {

@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
+import toast from '../utils/toast';
+import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
 import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { isBoundToFiction, readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
@@ -35,6 +37,8 @@ export const READER_HOTKEY_PROPS = {
   pageDown: 'onPageDown',
   pageUp: 'onPageUp',
 } as const satisfies Record<ReaderActionId, keyof HotkeyHandlerOptions | null>;
+
+const EMPTY_SOURCE: QuickAddSource = { kind: 'source', text: '' };
 
 export interface UseReaderCommandsOptions {
   books: readonly PaletteBook[];
@@ -86,10 +90,15 @@ export function useReaderCommands({
   onSwitchBook,
 }: UseReaderCommandsOptions): ReaderCommands {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  /** The reader's text selection as of the moment the palette opened. Captured there
-   * rather than read when an Add row runs: focusing the palette's search collapses the
-   * document selection, so by then the term the reader highlighted is gone. */
-  const [paletteSelection, setPaletteSelection] = useState('');
+  /** What the palette's Add rows start from, resolved as the palette opens — the same
+   * `resolveQuickAddSource` answer the Add keys get, so a Translation-panel selection gives
+   * its Chinese here too. Resolved there rather than when a row runs: focusing the palette's
+   * search collapses the document selection, so by then the term the reader highlighted is
+   * gone. */
+  const [paletteSource, setPaletteSource] = useState<QuickAddSource>(EMPTY_SOURCE);
+  // Only the latest opening's answer lands — a slow clipboard read from an earlier opening
+  // must not overwrite it.
+  const paletteRequestRef = useRef(0);
 
   // The add-entry family, reused: the same hook (and the same DictionaryEntry modal) the
   // Translator uses, so Cmd-1..6 resolve targets by the same rule here as there. What differs
@@ -119,7 +128,13 @@ export function useReaderCommands({
   } = modals;
 
   const openPalette = useCallback((): void => {
-    setPaletteSelection(window.getSelection()?.toString().trim() ?? '');
+    const request = ++paletteRequestRef.current;
+    setPaletteSource(EMPTY_SOURCE);
+    // The selection is read synchronously, before this returns and the search takes focus;
+    // only the clipboard fallback resolves later.
+    void resolveQuickAddSource().then((source) => {
+      if (paletteRequestRef.current === request) setPaletteSource(source);
+    });
     setIsPaletteOpen(true);
   }, []);
   const closePalette = useCallback((): void => setIsPaletteOpen(false), []);
@@ -181,10 +196,11 @@ export function useReaderCommands({
         books,
         currentFileName,
         actions,
-        selection: paletteSelection,
+        source: paletteSource,
+        onRefused: (reason) => toast.error(reason),
         onSwitchBook,
       }),
-    [actions, books, currentFileName, onSwitchBook, paletteSelection]
+    [actions, books, currentFileName, onSwitchBook, paletteSource]
   );
 
   return {

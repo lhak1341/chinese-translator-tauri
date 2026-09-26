@@ -526,7 +526,7 @@ Only the Chinese travels. The selected Vietnamese is deliberately **not** used a
 
 Each surface registers its own mapper (`useSelectionMapper`) rather than the hotkey registration holding one, because Cmd-7 belongs to the tab container, which knows no panel. `src/utils/highlighting/SelectionMapping.ts`.
 
-**What an Add starts from** is one question, `resolveQuickAddSource`, asked by every Add route: the mapped Chinese; else the refusal; else the plain selected text; else, with nothing selected, the clipboard. It reads the clipboard only in that last case and never writes it. The Add form itself never reads the clipboard — its `initialSource` is all it starts from, so a form opened by a button (the Dictionary tab's Add) opens empty. Until 2026-09-26 the hotkey copied a plain selection to the clipboard and read it back, and the form read the clipboard again when handed nothing, so Cmd-7 alone had no clipboard fallback.
+**What an Add starts from** is one question, `resolveQuickAddSource`, asked by every Add route: the mapped Chinese; else the refusal; else the plain selected text; else, with nothing selected, the clipboard. It reads the clipboard only in that last case and never writes it. The Add form itself never reads the clipboard — its `initialSource` is all it starts from, so a form opened by a button (the Dictionary tab's Add) opens empty. Until 2026-09-26 the hotkey copied a plain selection to the clipboard and read it back, and the form read the clipboard again when handed nothing, so Cmd-7 alone had no clipboard fallback. The Reader's palette asks it too, when it opens — until 2026-09-26 it captured the raw `toString()`, so a Translation-panel selection put Vietnamese into an Add's Source.
 
 ## SegmentedParagraphs
 
@@ -755,7 +755,7 @@ Everything the reader can ask the Reader to do: step a chapter, open the outline
 
 The one exception is a route the Reader does not own. Cmd+B (bind dictionaries) is registered by the tab container for every tab, so the Reader offers it in the palette but must not register the key a second time.
 
-An Add action takes the text to pre-fill, and each route supplies its own. The palette gives the selection it captured when it opened, because typing into the palette's search box clears the page selection. A hotkey gives its clipboard round trip.
+An Add action takes the text to pre-fill, and both routes get it from `resolveQuickAddSource` (see "Selection mapping"). The palette asks when it opens, because typing into the palette's search box clears the page selection; a refusal makes its Add rows toast instead of opening. A hotkey asks when pressed.
 
 **`src/hooks/useReaderCommands.ts`** holds the action record, the Add dialog, the palette, and the fiction Adds filed under the book's binding. **`src/utils/reader/PaletteCommands.ts`** is the palette's row table (label, shortcut hint, group, search keywords, action id), and **`ReaderActions.ts`** names the actions.
 

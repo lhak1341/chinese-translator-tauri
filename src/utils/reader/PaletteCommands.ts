@@ -1,4 +1,5 @@
 import type { ReaderActionId, ReaderActions } from './ReaderActions';
+import type { QuickAddSource } from '../highlighting/SelectionMapping';
 /**
  * The command palette's rows, as data.
  *
@@ -42,9 +43,12 @@ export interface BuildPaletteCommandsInput {
   currentFileName: string;
   /** The Reader's actions — see `useReaderCommands`. */
   actions: ReaderActions;
-  /** The reader's selection as of the moment the palette opened, handed to whichever Add
-   * row runs. Captured then, because focusing the palette's search collapses it. */
-  selection: string;
+  /** What an Add row starts from, resolved when the palette opened — the same answer the
+   * Add keys get (`resolveQuickAddSource`). Resolved then, because focusing the palette's
+   * search collapses the selection. */
+  source: QuickAddSource;
+  /** Called instead of an Add row's action when `source` is a refusal. */
+  onRefused: (reason: string) => void;
   onSwitchBook: (fileName: string) => void;
 }
 
@@ -144,12 +148,19 @@ export function buildPaletteCommands({
   books,
   currentFileName,
   actions,
-  selection,
+  source,
+  onRefused,
   onSwitchBook,
 }: BuildPaletteCommandsInput): PaletteCommand[] {
   const commands: PaletteCommand[] = ACTION_ROWS.map((row) => ({
     ...row,
-    run: () => void actions[row.action](selection),
+    run: () => {
+      if (row.group === 'Add entry' && source.kind === 'refused') {
+        onRefused(source.reason);
+        return;
+      }
+      void actions[row.action](source.kind === 'source' ? source.text : undefined);
+    },
   }));
 
   for (const book of books) {

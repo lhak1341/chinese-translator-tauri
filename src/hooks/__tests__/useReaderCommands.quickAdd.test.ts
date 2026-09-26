@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { quickAddChoices } from '../../utils/dictionary/QuickAddTarget';
+import { registerSelectionMapper } from '../../utils/highlighting/SelectionMapping';
 
 const dictionaries = vi.hoisted(() => ({
   properNouns: {},
@@ -125,5 +126,32 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
 
     expect(view.result.current.quickAdd.dictionary).toBe('patterns-_Cultivation');
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('a palette Add over a Translation-panel selection starts from its Chinese, like the key', async () => {
+    // The Reader's Translation panel holds Vietnamese; its mapper gives the Chinese back.
+    const text = document.createTextNode('Tiêu Viêm');
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, text.length);
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => 'Tiêu Viêm',
+      rangeCount: 1,
+      getRangeAt: () => range,
+    } as unknown as Selection);
+    const unregister = registerSelectionMapper(() => ({ kind: 'mapped', source: '萧炎' }));
+    const view = setup('properNouns-f_TapDo');
+
+    await act(async () => {
+      await view.result.current.actions.openCommandPalette();
+    });
+    await act(async () => {
+      view.result.current.paletteCommands
+        .find((command) => command.id === 'add-proper-noun')
+        ?.run();
+    });
+    unregister();
+
+    expect(view.result.current.quickAdd.initialSource).toBe('萧炎');
   });
 });
