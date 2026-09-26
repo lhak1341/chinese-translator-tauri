@@ -482,11 +482,15 @@ Entry point: `src/utils/appearanceConfig.ts`. Called from `useAppearanceSettings
 
 The state, mount-time load/migration effect, and CRUD/rename/quick-add handlers for the Configuration screen's proper-noun dictionary list — extracted so `ConfigurationManager.tsx` stays render-only, matching the hook-extraction pattern already applied throughout `src/components/dictionary/`.
 
-Owns: available/active dictionary lists, loading/error state, new-dictionary-modal and rename-mode state, default-quick-add-dictionary state, the mount effect (loads dictionaries, then migrates — creates any missing `patterns-f_*`/`patterns-_*` dict for a pre-existing fiction or generic proper-noun dict (ADR-027, ADR-048); migration failure is a silent `console.warn`, non-fatal by design, not surfaced to the user), and 6 handlers (`handleToggleDictionary`, `handleCreateDictionary`, `handleStartRename`, `handleCancelRename`, `handleConfirmRename`, `handleSetDefaultQuickAdd`).
+Owns: available/active dictionary lists, loading/error state, new-dictionary-modal and rename-mode state, default-quick-add-dictionary state, the mount effect (loads dictionaries, then runs `createMissingPatternHalves` from **Dictionary pair** — migration failure is a silent `logger.warn`, non-fatal by design, not surfaced to the user), and 6 handlers (`handleToggleDictionary`, `handleCreateDictionary`, `handleStartRename`, `handleCancelRename`, `handleConfirmRename`, `handleSetDefaultQuickAdd`).
 
 Calls `useDictionary()` internally rather than taking it as an injected param — single call site, unlike the `DictionaryProvider`-composed hooks in `src/components/dictionary/` (`useDictionaryCRUD`, `useDictionaryHistory`, etc.) which need injection to share state across composition. Raw `useState` setters are exposed directly for the 3 pure-UI-state fields (`showNewDictionaryModal`, `newDictionaryName`, `renameValue`) — no invariant to protect, so no action-wrapper ceremony.
 
 Entry point: `src/components/configuration/useDictionaryConfigManagement.ts`. Sole caller: `ConfigurationManager.tsx`.
+
+## Dictionary pair
+
+A fiction (`properNouns-f_X`) or generic (`properNouns-_X`) proper-nouns dictionary together with its patterns half (`patterns-f_X` / `patterns-_X`), coupled by name (ADR-027, ADR-048); a custom `properNouns-Foo` is a single file. Rust creates and renames a pair as one operation; `src/utils/dictionary/DictionaryPairs.ts` is the one place that also brings the app's in-memory `dictionaries` along: `createDictionary(id, ops)` (pair or single file by `hasPairedPatterns`, then loads every half), `renameDictionary(oldId, newId, ops)` (loads each new half before dropping its old one — which halves moved is decided by the old id, as Rust's cascade is), and `createMissingPatternHalves(ids, ops)` (the mount-time migration for dictionaries made before their tier was paired). `ops` is `DictionaryContext`'s `loadDictionary`/`removeDictionaryKey`, injected. Callers: the Configuration tab (generic and custom) and `BookBindingContext` (fiction, which adds its queue, book records and fiction-list refresh around the same calls). Before 2026-09-26 both callers re-derived the halves by hand.
 
 ## DictionaryListOrganizer
 

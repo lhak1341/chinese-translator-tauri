@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
-import { logger } from '../../utils/logger';
-import { loadAppConfig, saveAppConfig, callRustConfigWrite } from '../../utils/appConfig';
+import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { toProperNounsDictionaryId, isFictionProperNounsId } from '../../utils/dictionary';
 import {
-  toPatternsId,
-  toProperNounsDictionaryId,
-  isFictionProperNounsId,
-  hasPairedPatterns,
-} from '../../utils/dictionary';
+  createDictionary,
+  renameDictionary,
+  createMissingPatternHalves,
+} from '../../utils/dictionary/DictionaryPairs';
 import {
   sortDictionaries,
   categorizeDictionaries,
@@ -95,25 +94,9 @@ export function useDictionaryConfigManagement() {
         setActiveDictionaries(config.engine.activeProperNouns);
         setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
 
-        // Migration: create the missing patterns half for pre-existing fiction and generic
-        // proper-noun dicts (ADR-027, ADR-048)
-        try {
-          const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
-          const existingPatterns = new Set<string>(
-            patternsListResult.success
-              ? (patternsListResult.dictionaries as unknown as string[])
-              : []
-          );
-          for (const id of dictionaryIds.filter(hasPairedPatterns)) {
-            const patternsDictId = toPatternsId(id);
-            if (!existingPatterns.has(patternsDictId)) {
-              await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
-              await loadDictionary(patternsDictId);
-            }
-          }
-        } catch (migrationErr) {
-          logger.warn('Paired pattern dictionary migration failed (non-fatal):', migrationErr);
-        }
+        // Migration: pre-existing fiction and generic dictionaries get their missing patterns
+        // half (ADR-027, ADR-048). Non-fatal — see `createMissingPatternHalves`.
+        await createMissingPatternHalves(dictionaryIds, { loadDictionary });
       } catch (err) {
         setError(formatErrorMessage('Dictionary loading', err));
       } finally {
@@ -170,18 +153,12 @@ export function useDictionaryConfigManagement() {
     try {
       const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
-      // A fiction dictionary is a pair (ADR-027) that books can bind to, so the binding
-      // context creates and loads it. A generic dictionary is a pair too (ADR-048), but no
-      // book binds to it, so this tab creates it; a custom one is a single file.
-      const isFiction = isFictionProperNounsId(dictionaryId);
-      const isPaired = hasPairedPatterns(dictionaryId);
-      const result = isFiction
+      // A fiction dictionary is one books can bind to, so the binding context creates it
+      // (and refreshes its fiction list). Every other kind is created here. Either way the
+      // files and their in-memory halves come from `DictionaryPairs`.
+      const result = isFictionProperNounsId(dictionaryId)
         ? await createFictionDictionary(dictionaryId)
-        : await callRustConfigWrite(() =>
-            isPaired
-              ? window.electronAPI.createFictionDictionaryPair(dictionaryId)
-              : window.electronAPI.createProperNounsDictionary(dictionaryId)
-          );
+        : await createDictionary(dictionaryId, { loadDictionary, removeDictionaryKey });
 
       if (result.success) {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
@@ -191,11 +168,6 @@ export function useDictionaryConfigManagement() {
           setActiveDictionaries(result.dictionaries);
         }
         closeCreateModal();
-
-        if (!isFiction) {
-          await loadDictionary(dictionaryId);
-          if (isPaired) await loadDictionary(toPatternsId(dictionaryId));
-        }
       } else {
         throw new Error(result.error);
       }
@@ -234,21 +206,11 @@ export function useDictionaryConfigManagement() {
       if (isFictionProperNounsId(renamingDictionaryId)) {
         result = await renameFictionDictionary(renamingDictionaryId, newDictionaryId);
       } else {
-        const response = await callRustConfigWrite(() =>
-          window.electronAPI.renameProperNounsDictionary(renamingDictionaryId, newDictionaryId)
-        );
+        const response = await renameDictionary(renamingDictionaryId, newDictionaryId, {
+          loadDictionary,
+          removeDictionaryKey,
+        });
         result = { ...response, filesMoved: response.success };
-        if (response.success) {
-          // Load each new ID before dropping its old one, so `dictionaries` state never
-          // briefly has neither.
-          await loadDictionary(newDictionaryId);
-          removeDictionaryKey(renamingDictionaryId);
-          // Rust cascades the rename to a generic dictionary's patterns half (ADR-048).
-          if (hasPairedPatterns(renamingDictionaryId)) {
-            await loadDictionary(toPatternsId(newDictionaryId));
-            removeDictionaryKey(toPatternsId(renamingDictionaryId));
-          }
-        }
       }
 
       // A fiction rename can fail after the files already moved (the book records could
