@@ -14,13 +14,15 @@ import { activeProperNounsForBinding, quickAddTargetForBinding } from './Binding
  * book's dictionary. Asking it would file this novel's names under the last novel — the
  * silent wrong-dictionary failure the binding exists to stop.
  *
- * So a fiction answer from config is never used here. What config does still own is the
- * non-fiction default (`properNouns`, or a theme like `properNouns-_Cultivation`) — a
- * standing Configuration choice that is right for any book without a fiction dictionary.
+ * So a fiction answer from config is never used here. What config does still own, bound book
+ * or not, is everything non-fiction: the active root, custom and generic dictionaries (the
+ * Add dropdown offers them) and a non-fiction default (`properNouns`, or a theme like
+ * `properNouns-_Cultivation`) — a standing Configuration choice that is right for any book
+ * without a fiction dictionary.
  */
 
-/** Whether `bound` names a fiction dictionary — the only case that needs no config. */
-export function isBoundToFiction(bound: string | null): bound is string {
+/** Whether `bound` names a fiction dictionary. */
+function isBoundToFiction(bound: string | null): bound is string {
   // A binding can only ever name a fiction dictionary, but the record is read off disk and
   // repaired rather than trusted, so check rather than assume.
   return bound !== null && isFictionProperNounsId(bound);
@@ -32,8 +34,8 @@ export function isBoundToFiction(bound: string | null): bound is string {
  * fiction default come only from the binding; a stale fiction left in config never reaches the
  * rule. Feed the result to `quickAddTarget` (utils/dictionary/QuickAddTarget.ts).
  *
- * `config` may be `null` (not loaded, or not needed because the book is bound): the view is then
- * built from the binding alone.
+ * `config` may be `null` (it failed to load): the view is then built from the binding alone,
+ * which loses the non-fiction dictionaries — so callers read config for a bound book too.
  */
 export function readerQuickAddView(
   config: QuickAddView | null,

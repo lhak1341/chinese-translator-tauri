@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
 import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
-import { isBoundToFiction, readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
+import { readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActionId, ReaderActions } from '../utils/reader/ReaderActions';
@@ -108,13 +108,11 @@ export function useReaderCommands({
   const { dictionaries } = useDictionary();
   const boundFiction = fictionDictionary;
   const loadReaderView = useCallback(
-    async (): Promise<QuickAddView> =>
-      // A bound book needs nothing from config: the binding supplies the whole view. Config
-      // is read only for a book with no fiction dictionary, and only for its non-fiction default.
-      readerQuickAddView(
-        isBoundToFiction(boundFiction) ? null : await loadQuickAddConfig(),
-        boundFiction
-      ),
+    // Config is always read, bound book or not: it owns the non-fiction active dictionaries
+    // (root, custom, generic), which the Add dropdown offers. `readerQuickAddView` replaces
+    // only its fiction slice and fiction default with the binding's. Skipping config for a
+    // bound book (until 2026-09-26) dropped every generic dictionary from the dropdown.
+    async (): Promise<QuickAddView> => readerQuickAddView(await loadQuickAddConfig(), boundFiction),
     [boundFiction]
   );
   const modals = useDictionaryModals(dictionaries, loadReaderView);

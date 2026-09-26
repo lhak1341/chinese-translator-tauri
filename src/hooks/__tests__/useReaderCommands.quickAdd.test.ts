@@ -87,8 +87,6 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
     expect(view.result.current.quickAdd.dictionary).toBe('patterns-f_TapDo');
-    // A bound book needs nothing from config.
-    expect(appConfig.loadAppConfig).not.toHaveBeenCalled();
   });
 
   it.each(ADDS)(
@@ -103,6 +101,11 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
       const dropdown = dropdownOf(view.result.current.quickAdd);
       expect(dropdown).toContain('properNouns-f_TapDo');
       expect(dropdown).toContain('patterns-f_TapDo');
+      // The non-fiction dictionaries config keeps active stay offered: the binding replaces
+      // only the fiction slice.
+      expect(dropdown).toContain('properNouns');
+      expect(dropdown).toContain('properNouns-_Cultivation');
+      expect(dropdown).toContain('patterns-_Cultivation');
       expect(dropdown).not.toContain('properNouns-f_Previous');
       expect(dropdown).not.toContain('patterns-f_Previous');
     }
