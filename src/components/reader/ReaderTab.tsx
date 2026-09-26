@@ -3,16 +3,13 @@ import tauriAPI from '../../tauriAPI';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import type {
-  BookBinding,
-  ChapterOutlineSummary,
-  ChapterPatternId,
-  EncodingReport,
-  LibraryBook,
-  OpenBook,
-  ReadingPosition,
-} from '../../types/ReaderTypes';
-import { loadBookRecords, recordBookOpened } from '../../utils/reader/BookRecordsBackend';
+import type { BookRecord, EncodingReport, LibraryBook, OpenBook } from '../../types/ReaderTypes';
+import {
+  loadBookRecords,
+  recordBookOpened,
+  withBookRecordsLock,
+} from '../../utils/reader/BookRecordsBackend';
+import { emptyBookRecord } from '../../utils/reader/BookRecord';
 import {
   reconcileLibraryScan,
   type ShelfBook,
@@ -35,9 +32,10 @@ interface ReaderTabProps {
 interface OpenState {
   book: OpenBook;
   encoding: EncodingReport;
-  position: ReadingPosition | null;
-  chapterOutline: ChapterOutlineSummary | null;
-  manualChapterPattern: ChapterPatternId | null;
+  /** Its record as of the latest open or reopen. Not kept current while reading — the
+   * position and outline are written straight to disk from elsewhere — which is why a
+   * reopen re-reads it rather than trusting this copy. */
+  record: BookRecord;
 }
 
 /** A book that would not decode: its name plus the report explaining why. */
@@ -135,15 +133,15 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const openBook = useCallback(
     async (book: LibraryBook, encodingOverride?: string): Promise<void> => {
       // Returning to a book that is already decoded costs nothing — don't re-open it. Its
-      // record is re-read from the (already in-memory) cache rather than trusting the
-      // `open` state's own copy: `position`/`chapterOutline`/`manualChapterPattern` are
-      // all written straight to disk from elsewhere (scroll debounce, an outline
-      // override) without ever flowing back into this component's state, so the captured
-      // copy from the original open() call would otherwise be replayed stale.
+      // record is re-read rather than trusting the `open` state's own copy: the position
+      // and outline are written straight to disk from elsewhere (scroll debounce, an
+      // outline override) without ever flowing back into this component's state. Read
+      // under the lock: Back queued the final position write as the reader unmounted, and
+      // a reopen faster than that write would otherwise restore the position before it.
       if (!encodingOverride && open && open.book.fileName === book.fileName) {
         setEncodingChoice(null);
         try {
-          const { records } = await loadBookRecords();
+          const { records } = await withBookRecordsLock(loadBookRecords);
           const record = records[open.book.fingerprint];
           if (record) {
             // Re-announcing on a reopen is what makes returning to a book you had bound
@@ -151,16 +149,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             // no-op when the active list already matches, so a Back-then-forward costs
             // nothing.
             announceOpenBook(identityOf(open.book), record.binding);
-            setOpen((previous) =>
-              previous
-                ? {
-                    ...previous,
-                    position: record.position,
-                    chapterOutline: record.chapterOutline,
-                    manualChapterPattern: record.manualChapterPattern,
-                  }
-                : previous
-            );
+            setOpen((previous) => (previous ? { ...previous, record } : previous));
           }
         } catch (cause) {
           logger.error('Failed to refresh the book record on reopen:', cause);
@@ -190,12 +179,10 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         setEncodingChoice(null);
         // Refresh (or create) this book's observations now that its true line count and
         // encoding are known — preserves any existing reading position and chapter outline.
-        let position: ReadingPosition | null = null;
-        let chapterOutline: ChapterOutlineSummary | null = null;
-        let manualChapterPattern: ChapterPatternId | null = null;
-        let binding: BookBinding | null = null;
+        // A failed write leaves the record at "nothing known" rather than blocking the open.
+        let record: BookRecord = emptyBookRecord(result.book.fingerprint);
         try {
-          const record = await recordBookOpened(result.book.fingerprint, {
+          record = await recordBookOpened(result.book.fingerprint, {
             title: result.book.title,
             lastKnownPath: result.book.fileName,
             lineCount: result.book.lineCount,
@@ -203,26 +190,17 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             sizeBytes: result.book.sizeBytes,
             modifiedMs: book.modifiedMs,
           });
-          position = record.position;
-          chapterOutline = record.chapterOutline;
-          manualChapterPattern = record.manualChapterPattern;
-          binding = record.binding;
         } catch (cause) {
           logger.error('Failed to record the book as opened:', cause);
         }
-        // Outside that try on purpose. If the record read failed, the new book must still
-        // take authority: `binding` is then `null` ("never answered"), which applies the
+        // Outside that try on purpose. If the record write failed, the new book must still
+        // take authority: `record` is then `emptyBookRecord`, whose `binding` is `null`
+        // ("never answered"), which applies the
         // general dictionaries only and shows the offer. Leaving the *previous* book
         // authoritative instead would keep its `properNouns-f_*` active over this novel —
         // the silent wrong-dictionary failure the binding exists to prevent.
-        announceOpenBook(identityOf(result.book), binding);
-        setOpen({
-          book: result.book,
-          encoding: result.encoding,
-          position,
-          chapterOutline,
-          manualChapterPattern,
-        });
+        announceOpenBook(identityOf(result.book), record.binding);
+        setOpen({ book: result.book, encoding: result.encoding, record });
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
@@ -309,9 +287,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         <BookReader
           book={open.book}
           encoding={open.encoding}
-          initialPosition={open.position}
-          initialChapterOutline={open.chapterOutline}
-          initialManualChapterPattern={open.manualChapterPattern}
+          record={open.record}
           isActive={isActive}
           books={books}
           onSwitchBook={switchBook}

@@ -26,10 +26,23 @@ const appConfig = vi.hoisted(() => ({
 }));
 vi.mock('../../../utils/appConfig', () => appConfig);
 
-const bookRecordsBackend = vi.hoisted(() => ({
-  loadBookRecords: vi.fn(),
-  recordBookOpened: vi.fn(),
-}));
+const bookRecordsBackend = vi.hoisted(() => {
+  // A real serial queue, not a pass-through: the reopen path's ordering against a write
+  // already queued is part of what this suite pins down.
+  let queue: Promise<unknown> = Promise.resolve();
+  return {
+    loadBookRecords: vi.fn(),
+    recordBookOpened: vi.fn(),
+    withBookRecordsLock: <T,>(fn: () => Promise<T>): Promise<T> => {
+      const result = queue.then(fn, fn);
+      queue = result.then(
+        () => undefined,
+        () => undefined
+      );
+      return result;
+    },
+  };
+});
 vi.mock('../../../utils/reader/BookRecordsBackend', () => bookRecordsBackend);
 
 const reconcile = vi.hoisted(() => ({
@@ -59,16 +72,16 @@ vi.mock('../Bookshelf', () => ({
 vi.mock('../BookReader', () => ({
   default: ({
     book,
-    initialPosition,
+    record,
     onBack,
   }: {
     book: OpenBook;
-    initialPosition: unknown;
+    record: { position: unknown };
     onBack: () => void;
   }) => (
     <div>
       <span>reading:{book.fileName}</span>
-      <span>position:{JSON.stringify(initialPosition)}</span>
+      <span>position:{JSON.stringify(record.position)}</span>
       <button onClick={onBack}>back</button>
     </div>
   ),
@@ -107,7 +120,7 @@ beforeEach(() => {
   appConfig.loadAppConfig.mockResolvedValue({ reader: { libraryPath: null } });
   tauriAPI.scanLibrary.mockResolvedValue({ libraryPath: '/lib', books: [libraryBook] });
   reconcile.reconcileLibraryScan.mockResolvedValue({
-    shelfBooks: [{ ...libraryBook, fingerprint: 'fp-1', position: null, lineCount: 100 }],
+    shelfBooks: [{ ...libraryBook, fingerprint: 'fp-1' }],
     unavailableBooks: [],
   });
 });
@@ -175,6 +188,62 @@ describe('ReaderTab openBook', () => {
     expect(announceOpenBook).toHaveBeenLastCalledWith(
       { fingerprint: 'fp-1', fileName: 'novel.txt', title: 'novel' },
       { fictionDictionary: 'properNouns-f_Novel' }
+    );
+  });
+
+  it('reopen waits for a position write queued before it (Back flushes as the reader unmounts)', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      position: null,
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: null,
+    });
+    let records: Record<string, { position: unknown; binding: null }> = {
+      'fp-1': { position: { line: 1, fraction: 0 }, binding: null },
+    };
+    bookRecordsBackend.loadBookRecords.mockImplementation(async () => ({
+      records,
+      droppedCount: 0,
+    }));
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    await screen.findByText('reading:novel.txt');
+    fireEvent.click(screen.getByText('back'));
+
+    // The final position write, still in flight when the reader clicks the book again.
+    let landWrite: () => void = () => {};
+    void bookRecordsBackend.withBookRecordsLock(
+      () =>
+        new Promise<void>((resolve) => {
+          landWrite = () => {
+            records = { 'fp-1': { position: { line: 900, fraction: 0.25 }, binding: null } };
+            resolve();
+          };
+        })
+    );
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    landWrite();
+
+    await waitFor(() =>
+      expect(screen.getByText('position:{"line":900,"fraction":0.25}')).toBeInTheDocument()
+    );
+  });
+
+  it('a failed record write still opens the book, knowing nothing about it', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    bookRecordsBackend.recordBookOpened.mockRejectedValue(new Error('disk full'));
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+
+    await screen.findByText('reading:novel.txt');
+    expect(screen.getByText('position:null')).toBeInTheDocument();
+    // "Never answered", so the new book takes authority over the previous one's binding.
+    expect(announceOpenBook).toHaveBeenCalledWith(
+      { fingerprint: 'fp-1', fileName: 'novel.txt', title: 'novel' },
+      null
     );
   });
 

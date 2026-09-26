@@ -30,3 +30,9 @@ Do not split `openBook` into two named functions. Instead:
 ## Consequence
 
 Future architecture reviews should not re-flag `openBook`'s branch-based shape on sight. Reconsider only with new evidence — e.g. a second real caller that already knows which path applies and would benefit from calling it directly (none of the current four do), or the two branches growing enough independent complexity that reading them interleaved becomes genuinely hard (today's ~100 lines, two branches, one early return, isn't there). Absent that, `openBook` stays one function with an early-return branch, same shape as `useDictionaryEntryForm`'s wide-return-object precedent: comprehensible as written, and a split would relocate rather than remove its complexity.
+
+## Addendum (2026-09-26): the open book holds its whole record — decision unchanged
+
+Architecture review 2026-09-26, candidate #3, changed what `openBook` stores, not how it is shaped. `OpenState` now holds the book's whole `record: BookRecord` in place of three copied fields (`position`, `chapterOutline`, `manualChapterPattern`), and `BookReader` takes that one `record` prop. The reopen branch sets `{ ...previous, record }` rather than patching three fields, and reads with `withBookRecordsLock(loadBookRecords)`: Back queues the final position write as the reader unmounts, so an unlocked read could restore the position before it. A failed `recordBookOpened` falls back to `emptyBookRecord` instead of four `null` locals.
+
+`openBook` is still one function with an early-return branch, and there is still no shared `applyRecordToOpenState` helper — holding the whole record made one unnecessary, since both branches now set the same single field. The Context section above describes the reopen read as it was before this change.

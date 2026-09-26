@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
-import type {
-  ChapterOutlineSummary,
-  ChapterPatternId,
-  EncodingReport,
-  OpenBook,
-  ReadingPosition,
-} from '../../types/ReaderTypes';
+import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
 import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
@@ -36,13 +30,11 @@ import styles from '../../styles/Reader.module.css';
 interface BookReaderProps {
   book: OpenBook;
   encoding: EncodingReport;
-  /** Where this book was left off, or `null` if it's never been opened before. */
-  initialPosition: ReadingPosition | null;
-  /** This book's cached chapter outline at open time, or `null` if this fingerprint has
-   * never been elected before — see `useChapterOutline`. */
-  initialChapterOutline: ChapterOutlineSummary | null;
-  /** This book's persisted manual pattern override at open time, or `null`. */
-  initialManualChapterPattern: ChapterPatternId | null;
+  /** This book's record as of this open. Read once, at mount: where it was left off
+   * (`position`), and the outline to restore without re-running election
+   * (`chapterOutline`, `manualChapterPattern`). Later writes go straight to disk and never
+   * flow back in here — Back and reopen remounts with a freshly read record. */
+  record: BookRecord;
   /** Whether the Reader is the visible tab — see `useReadingAnchor`. */
   isActive: boolean;
   /** The whole shelf, so the palette can switch books without going back to it. The open
@@ -79,9 +71,7 @@ const PREFETCH_LINES = 600;
 const BookReader: React.FC<BookReaderProps> = ({
   book,
   encoding,
-  initialPosition,
-  initialChapterOutline,
-  initialManualChapterPattern,
+  record,
   isActive,
   books,
   onSwitchBook,
@@ -133,7 +123,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     scrollToLine,
   } = useReadingAnchor({
     fingerprint: book.fingerprint,
-    initialPosition,
+    initialPosition: record.position,
     isActive,
     engineVersion,
     master,
@@ -172,8 +162,8 @@ const BookReader: React.FC<BookReaderProps> = ({
   // never delays the text actually on screen.
   const chapters = useChapters({
     fingerprint: book.fingerprint,
-    cachedOutline: initialChapterOutline,
-    cachedManualPattern: initialManualChapterPattern,
+    cachedOutline: record.chapterOutline,
+    cachedManualPattern: record.manualChapterPattern,
     anchor: { anchorLine, readLine, scrollToLine },
     translateBatch: translateOutlineBatch,
     dictionaryVersion: engineVersion,
