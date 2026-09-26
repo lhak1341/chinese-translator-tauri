@@ -1,4 +1,4 @@
-import { toPatternsId, isFictionProperNounsId } from './DictionaryIdClassifier';
+import { tierOf, toPatternsId, isFictionProperNounsId } from './DictionaryIdClassifier';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 
 /**
@@ -12,7 +12,7 @@ export function resolveDefaultProperNounTarget(
   if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
     return defaultQuickAddDictionary;
   }
-  return activeProperNouns.filter((id) => id.startsWith('properNouns-')).sort()[0];
+  return activeProperNouns.filter((id) => tierOf(id) !== 'root').sort()[0];
 }
 
 /**

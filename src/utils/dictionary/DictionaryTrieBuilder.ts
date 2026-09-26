@@ -12,7 +12,7 @@
  */
 
 import { DictionaryTrie } from './DictionaryTrie.js';
-import { isFictionProperNounsId } from './DictionaryIdClassifier';
+import { isProperNounsDict, tierOf, isFictionProperNounsId } from './DictionaryIdClassifier';
 
 export interface TrieBuildResult {
   trie: DictionaryTrie;
@@ -30,8 +30,8 @@ export function resolveDictionaryPriority(
   priorities: Record<string, number>
 ): number {
   if (isFictionProperNounsId(dictionaryName)) return 1; // fiction-specific (highest)
-  if (dictionaryName.startsWith('properNouns-_')) return 2; // generic
-  return priorities[dictionaryName] ?? (dictionaryName.startsWith('properNouns') ? 3 : 10);
+  if (isProperNounsDict(dictionaryName) && tierOf(dictionaryName) === 'generic') return 2;
+  return priorities[dictionaryName] ?? (isProperNounsDict(dictionaryName) ? 3 : 10);
 }
 
 /**

@@ -1,4 +1,5 @@
 import {
+  isProperNounsDict,
   toPatternsId,
   isFictionProperNounsId,
   isFictionPatternsId,
@@ -16,7 +17,7 @@ export function filterDictionariesForEngine(
 ): Record<string, unknown> {
   const filtered: Record<string, unknown> = {};
   for (const [name, dict] of Object.entries(dictionaries)) {
-    if (!name.startsWith('properNouns') || activeProperNouns.includes(name)) {
+    if (!isProperNounsDict(name) || activeProperNouns.includes(name)) {
       filtered[name] = dict;
     }
   }

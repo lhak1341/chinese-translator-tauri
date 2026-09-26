@@ -1,3 +1,4 @@
+import { isPatternsDict } from './DictionaryIdClassifier';
 import { baseValidation } from './PersistTimeValidator';
 import { validatePatternVariables } from './PatternEntryRules';
 
@@ -51,7 +52,7 @@ export function validateDictionaryEntry(
     };
   }
 
-  if (dictionaryId.startsWith('patterns') && !isPatternValid(source, translation)) {
+  if (isPatternsDict(dictionaryId) && !isPatternValid(source, translation)) {
     return {
       valid: false,
       error:

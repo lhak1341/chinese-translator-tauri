@@ -22,6 +22,7 @@ import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
 import {
+  isProperNounsDict,
   findConflictingEntries,
   toProperNounsId,
   isFictionPatternsId,
@@ -294,7 +295,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     // Filter: show base dictionaries + active proper nouns + active fiction patterns only
     const filtered: DictionaryTypesCollection = {};
     for (const [id, type] of Object.entries(dictionaryTypes)) {
-      if (id.startsWith('properNouns')) {
+      if (isProperNounsDict(id)) {
         // Include only active proper nouns dictionaries
         if (activeDictionaries.includes(id)) {
           filtered[id] = type;

@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../utils/errors';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import {
+  isLookupTableDict,
   sanitizeDictionaryEntry,
   sortDictionaryEntries,
   canMoveBetween,
@@ -66,11 +67,7 @@ function prepareMutationEntry(
   // Complex-entry dicts (phrases, patterns, properNouns) use object format.
   // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
   let targetValue: string | DictionaryEntryValue = cleanTranslation;
-  if (
-    dictionaryId === 'phrases' ||
-    dictionaryId.startsWith('patterns') ||
-    dictionaryId.startsWith('properNouns')
-  ) {
+  if (!isLookupTableDict(dictionaryId)) {
     const entryValue: DictionaryEntryValue = {
       translation: cleanTranslation,
       allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,

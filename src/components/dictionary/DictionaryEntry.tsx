@@ -1,3 +1,4 @@
+import { isPatternsDict } from '../../utils/dictionary';
 import React from 'react';
 import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
@@ -171,7 +172,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               </div>
             )}
 
-            {form.showPatternValidation && form.activeDictionary.startsWith('patterns') && (
+            {form.showPatternValidation && isPatternsDict(form.activeDictionary) && (
               <div className={`${styles.notification} ${styles.notificationError}`}>
                 <div className={`${styles.notificationContent} ${styles.notificationTextError}`}>
                   <XCircle size={16} className={styles.notificationIcon} />
@@ -237,8 +238,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             />
           </div>
 
-          {(form.activeDictionary === 'phrases' ||
-            form.activeDictionary.startsWith('patterns')) && (
+          {(form.activeDictionary === 'phrases' || isPatternsDict(form.activeDictionary)) && (
             <div className={styles.formGroup}>
               <div className={styles.checkboxContainer}>
                 <input

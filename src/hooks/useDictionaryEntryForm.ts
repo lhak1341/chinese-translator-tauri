@@ -14,6 +14,9 @@ import type {
   ExistingEntryData,
 } from '../types/DictionaryTypes';
 import {
+  isPatternsDict,
+  isProperNounsDict,
+  isFictionPatternsId,
   isCharacterSourceValid,
   isPatternValid,
   validateDictionaryEntry,
@@ -108,7 +111,7 @@ export function useDictionaryEntryForm(
   );
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
     (typeof entry?.translation === 'object' ? entry.translation.semanticType : undefined) ??
-      (!entry && selectedDictionary.startsWith('properNouns') ? 'character' : '')
+      (!entry && isProperNounsDict(selectedDictionary) ? 'character' : '')
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
     (typeof entry?.translation === 'object' ? entry.translation.allowedVariableTypes : undefined) ??
@@ -175,11 +178,11 @@ export function useDictionaryEntryForm(
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
         if (isMounted) {
           const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
-            if (id.startsWith('patterns-')) {
+            if (isFictionPatternsId(id)) {
               // Show fiction pattern dict only if its paired fiction proper-nouns is active
               const pairedFiction = toProperNounsId(id);
               if (activeProperNouns.includes(pairedFiction)) acc[id] = info;
-            } else if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
+            } else if (!isProperNounsDict(id) || activeProperNouns.includes(id)) {
               acc[id] = info;
             }
             return acc;
@@ -213,7 +216,7 @@ export function useDictionaryEntryForm(
   const checkPatternValid = useCallback(
     (sourceText: string, translationText?: string): boolean => {
       const valid =
-        !activeDictionary.startsWith('patterns') || isPatternValid(sourceText, translationText);
+        !isPatternsDict(activeDictionary) || isPatternValid(sourceText, translationText);
       setShowPatternValidation(!valid);
       return valid;
     },

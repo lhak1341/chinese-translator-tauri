@@ -39,11 +39,10 @@ vi.mock('../../utils/dictionary/PersistTimeValidator', () => ({
   validatePersistEntry: vi.fn().mockReturnValue(null),
 }));
 vi.mock('../../utils/dictionary', async () => ({
-  canMoveBetween: (
-    await vi.importActual<typeof import('../../utils/dictionary/DictionaryIdClassifier')>(
-      '../../utils/dictionary/DictionaryIdClassifier'
-    )
-  ).canMoveBetween,
+  // Real classifier: pure, and the CRUD rules under test depend on it.
+  ...(await vi.importActual<typeof import('../../utils/dictionary/DictionaryIdClassifier')>(
+    '../../utils/dictionary/DictionaryIdClassifier'
+  )),
   sanitizeDictionaryEntry: vi.fn().mockImplementation((s: string, t: string) => ({
     source: s,
     translation: t,

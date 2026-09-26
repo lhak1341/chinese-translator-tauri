@@ -3,6 +3,8 @@
  * stable sort order, then a 3-way category split (Base / Generic / Fiction).
  */
 
+import { tierOf } from './DictionaryIdClassifier';
+
 export function sortDictionaries(dictionaries: string[]): string[] {
   return dictionaries.sort((a, b) => {
     if (a === 'properNouns') return -1;
@@ -23,16 +25,10 @@ export function categorizeDictionaries(dictionaries: string[]): CategorizedDicti
   const fiction: string[] = [];
 
   dictionaries.forEach((id) => {
-    const name = id.replace('properNouns-', '');
-    if (id === 'properNouns') {
-      base.push(id);
-    } else if (name.startsWith('f_')) {
-      fiction.push(id);
-    } else if (name.startsWith('_')) {
-      generic.push(id);
-    } else {
-      base.push(id);
-    }
+    const tier = tierOf(id);
+    if (tier === 'fiction') fiction.push(id);
+    else if (tier === 'generic') generic.push(id);
+    else base.push(id); // root + custom: the screen's "Base" group
   });
 
   return {

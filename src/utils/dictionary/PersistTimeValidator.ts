@@ -15,6 +15,7 @@
  * its type registry, keeping the logic in one place.
  */
 
+import { isPatternsDict, isProperNounsDict } from './DictionaryIdClassifier';
 import { validatePatternVariables } from './PatternEntryRules';
 
 export const MAX_ENTRY_LENGTH = 10000;
@@ -69,11 +70,11 @@ export const validatePersistEntry = (
   source: string,
   translation: string
 ): string | null => {
-  if (dictionaryId.startsWith('properNouns')) {
+  if (isProperNounsDict(dictionaryId)) {
     return baseValidation(source, translation);
   }
 
-  if (dictionaryId.startsWith('patterns-')) {
+  if (isPatternsDict(dictionaryId)) {
     return validatePatternEntry(source, translation);
   }
 

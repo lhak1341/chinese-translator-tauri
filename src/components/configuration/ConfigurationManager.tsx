@@ -1,6 +1,6 @@
 import React from 'react';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
-import { isFictionProperNounsId } from '../../utils/dictionary/DictionaryIdClassifier';
+import { tierOf, isFictionProperNounsId } from '../../utils/dictionary/DictionaryIdClassifier';
 import styles from '../../styles/ConfigurationManager.module.css';
 import { useDictionaryConfigManagement } from './useDictionaryConfigManagement';
 
@@ -45,7 +45,7 @@ const ConfigurationManager: React.FC = () => {
     const isRenaming = renamingDictionaryId === dictionaryId;
     const canRename = dictionaryId !== 'properNouns';
     const isDefaultQuickAdd = defaultQuickAddDictionary === dictionaryId;
-    const isCustomProperNoun = dictionaryId.startsWith('properNouns-');
+    const isNonRootProperNoun = tierOf(dictionaryId) !== 'root';
     // A fiction row reflects the open book's binding while one is open; it stays visible
     // and readable, it just isn't the place to change it. Generic and theme rows are
     // untouched by this.
@@ -112,7 +112,7 @@ const ConfigurationManager: React.FC = () => {
               {getDisplayName(dictionaryId)}
             </label>
             {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
-            {isChecked && isCustomProperNoun && (
+            {isChecked && isNonRootProperNoun && (
               <button
                 onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
                 className={`${styles.bookmarkButton} ${isDefaultQuickAdd ? styles.bookmarkButtonDefault : styles.bookmarkButtonInactive}`}

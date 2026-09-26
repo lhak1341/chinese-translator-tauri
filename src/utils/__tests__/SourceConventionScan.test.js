@@ -43,6 +43,15 @@ const DETECTORS = [
     clean: 'if (isPatternsDict(selectedDictionary)) return;',
   },
   {
+    name: 'hand-rolled dictionary-kind prefix check',
+    fix: 'use isPatternsDict(id) / isProperNounsDict(id) / tierOf(id) from utils/dictionary/DictionaryIdClassifier',
+    // `startsWith('patterns')` and `startsWith('patterns-')` answer different questions (root
+    // included or not) and read the same; 20 such checks in 4 spellings were migrated 2026-09-26.
+    pattern: /\.startsWith\(\s*(['"])(?:patterns|properNouns)(?!-f_)[^'"]*\1/,
+    violating: "if (id.startsWith('properNouns')) return;",
+    clean: 'if (isProperNounsDict(id)) return;',
+  },
+  {
     name: 'hand-rolled fiction-prefix check',
     fix: 'use isFictionProperNounsId(id) / isFictionPatternsId(id) from utils/dictionary/DictionaryIdClassifier',
     pattern: /\.startsWith\(\s*(['"])(?:properNouns-f_|patterns-f_)\1/,

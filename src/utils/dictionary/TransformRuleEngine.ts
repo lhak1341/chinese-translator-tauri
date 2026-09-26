@@ -3,6 +3,7 @@
  * dependency — see CONTEXT.md's "Transform Rule" glossary entry for the
  * full contract this implements.
  */
+import { isPhrasesDict, isProperNounsDict } from './DictionaryIdClassifier';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
@@ -30,7 +31,7 @@ export function ruleMatches(rule: TransformRule, source: string): boolean {
 /** Transform Rules apply to phrases/properNouns* entries only — not patterns*, whose
  * Source is a literal X/Y placeholder template rather than plain Chinese content. */
 export function dictionarySupportsTransformRules(dictionaryId: string): boolean {
-  return dictionaryId === 'phrases' || dictionaryId.startsWith('properNouns');
+  return isPhrasesDict(dictionaryId) || isProperNounsDict(dictionaryId);
 }
 
 /**

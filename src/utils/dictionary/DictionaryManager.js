@@ -25,6 +25,7 @@
  * } from '../types/DictionaryManagerTypes'
  */
 
+import { isProperNounsDict } from './DictionaryIdClassifier.js';
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
@@ -581,7 +582,7 @@ export class DictionaryManager {
 
     for (const [dictionaryName, dictionary] of Object.entries(dictionaryData)) {
       // Always load core dictionaries (not proper nouns)
-      if (!dictionaryName.startsWith('properNouns')) {
+      if (!isProperNounsDict(dictionaryName)) {
         filteredDictionaries[dictionaryName] = dictionary;
       }
       // Only load active proper noun dictionaries

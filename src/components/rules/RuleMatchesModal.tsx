@@ -1,3 +1,4 @@
+import { isProperNounsDict } from '../../utils/dictionary';
 import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import styles from '../../styles/RuleMatchesModal.module.css';
@@ -51,7 +52,7 @@ function VarBadge({
   active: boolean;
   onToggle: () => void;
 }) {
-  if (dictionaryId.startsWith('properNouns')) {
+  if (isProperNounsDict(dictionaryId)) {
     return (
       <span
         className={dictStyles.metadataBadge}
@@ -74,7 +75,7 @@ function MatchRow({
   updateEntry: OnUpdateEntry;
   onContextMenu: OnRowContextMenu;
 }) {
-  const isProperNoun = row.dictionaryId.startsWith('properNouns');
+  const isProperNoun = isProperNounsDict(row.dictionaryId);
 
   const commitTranslation = async (newTranslation: string): Promise<void> => {
     await updateEntry(row.dictionaryId, row.source, row.source, newTranslation, {

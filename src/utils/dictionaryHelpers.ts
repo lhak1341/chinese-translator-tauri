@@ -1,4 +1,9 @@
-import { isPatternsDict, isFictionPatternsId } from './dictionary/DictionaryIdClassifier';
+import {
+  isPatternsDict,
+  isProperNounsDict,
+  tierOf,
+  isFictionPatternsId,
+} from './dictionary/DictionaryIdClassifier';
 
 /**
  * Converts a dictionary ID to a human-readable label.
@@ -12,7 +17,7 @@ export function getDictionaryLabel(dictionaryId: string): string {
   if (dictionaryId === 'properNouns') {
     return 'Proper Nouns';
   }
-  if (dictionaryId.startsWith('properNouns-')) {
+  if (isProperNounsDict(dictionaryId) && tierOf(dictionaryId) !== 'root') {
     return dictionaryId.replace('properNouns-', '');
   }
   return dictionaryId.charAt(0).toUpperCase() + dictionaryId.slice(1);
@@ -33,7 +38,7 @@ export function getDictionaryDropdownLabel(dictionaryId: string): string {
   if (dictionaryId === 'properNouns') {
     return 'Proper Nouns (Base)';
   }
-  if (dictionaryId.startsWith('properNouns-')) {
+  if (isProperNounsDict(dictionaryId) && tierOf(dictionaryId) !== 'root') {
     return `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`;
   }
   if (isPatternsDict(dictionaryId)) {
