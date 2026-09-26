@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790360067.8260581,
-    "ast_hash": "22645faeaf611ac4550710e8b709d208",
+    "mtime": 1790384850.5132535,
+    "ast_hash": "f5122bd3dd9450a84ed570560af523f9",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1905,13 +1905,13 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790359570.7185411,
-    "ast_hash": "22c6ad66d410e22a7fc2b18576d1667c",
+    "mtime": 1790384949.2581725,
+    "ast_hash": "a898b363d6b7d7805a25ca0af2d0550e",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1789808188.3232374,
-    "ast_hash": "3046481ff368261907a66c7f29badd16",
+    "mtime": 1790384905.6378348,
+    "ast_hash": "d999ca3dff616912e87474493f792821",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790360084.6398087,
-    "ast_hash": "55f3f88965bd18b7d30c32a189c1d20a",
+    "mtime": 1790384977.1564627,
+    "ast_hash": "0703592abb7b1dd2258497e0ca7563c7",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
-    "mtime": 1790360142.5726533,
-    "ast_hash": "0973d89a3ca1e2c37a3f0ffb87f7b306",
+    "mtime": 1790384802.971048,
+    "ast_hash": "4c73a4a38818ff8d4a822f4ae426f831",
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1790360007.6589742,
-    "ast_hash": "95c26dd00698871e58e95d3b8d22ab22",
+    "mtime": 1790384802.9729395,
+    "ast_hash": "6f663fa894b109a2ba46967c19a0e7b3",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -2135,8 +2135,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-044-skip-splitting-openbook.md": {
-    "mtime": 1789827138.539275,
-    "ast_hash": "8c4fdc2e73b163aa32d4c289ab612309",
+    "mtime": 1790384999.2503698,
+    "ast_hash": "eb9f59de3619a52a1a92a1ccf26e44d3",
     "semantic_hash": ""
   },
   "src/hooks/useDeferredRetranslate.ts": {
@@ -2197,6 +2197,11 @@
   "src/utils/reader/BookRecord.ts": {
     "mtime": 1790360043.8434374,
     "ast_hash": "c47222f2bbe863b27b7e250f0a120dc9",
+    "semantic_hash": ""
+  },
+  "src/hooks/useBookRecords.ts": {
+    "mtime": 1790384905.6828728,
+    "ast_hash": "9a337f84b744043d5ad6e0b276866443",
     "semantic_hash": ""
   }
 }
