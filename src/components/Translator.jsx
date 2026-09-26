@@ -966,7 +966,7 @@ const Translator = ({ isActive = true }) => {
         onQuickAddCustomProperNoun={handleQuickAddCustomProperNoun}
         onQuickAddCustomStructuralPattern={handleQuickAddCustomStructuralPattern}
         onReloadDictionary={handleForceReload}
-        activeTab={isActive ? 'translator' : null}
+        ownTab="translator"
       />
 
       {showReadinessOverlay && (

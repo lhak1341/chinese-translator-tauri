@@ -47,7 +47,6 @@ import type { UseReaderCommandsOptions } from '../useReaderCommands';
 
 function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
   const options: UseReaderCommandsOptions = {
-    isActive: true,
     books: [
       { fileName: 'open.txt', title: 'Open' },
       { fileName: 'other.txt', title: 'Other' },
@@ -98,7 +97,8 @@ describe('useReaderCommands', () => {
     expect(hinted.length).toBeGreaterThan(0);
     for (const command of hinted) {
       const matched = matchHotkey(pressFor(command.hint as string), {
-        activeTab: 'reader',
+        visibleTab: 'reader',
+        ownTab: hotkeyProps.ownTab,
         isInputFocused: false,
       });
       expect(matched?.type).toBe(command.action);
@@ -120,9 +120,8 @@ describe('useReaderCommands', () => {
     expect(options.openBindingDialog).toHaveBeenCalledTimes(1);
   });
 
-  it('gates every hotkey on the Reader being the visible tab', () => {
-    expect(setup().view.result.current.hotkeyProps.activeTab).toBe('reader');
-    expect(setup({ isActive: false }).view.result.current.hotkeyProps.activeTab).toBeUndefined();
+  it('registers its hotkeys as the Reader, so they answer only while it shows', () => {
+    expect(setup().view.result.current.hotkeyProps.ownTab).toBe('reader');
   });
 
   it('gives Add rows the selection captured when the palette opened', () => {

@@ -7,16 +7,14 @@
 
 ## Global (any tab)
 
-| Shortcut               | Action                      |
-| ---------------------- | --------------------------- |
-| `Option/Alt + 1`       | Switch to Reader tab        |
-| `Option/Alt + 2`       | Switch to Translator tab    |
-| `Option/Alt + 3`       | Switch to Dictionary tab    |
-| `Option/Alt + 4`       | Switch to Rules tab         |
-| `Option/Alt + 5`       | Switch to Configuration tab |
-| `Option/Alt + 6`       | Switch to Appearance tab    |
-| `Cmd/Ctrl + Z`         | Undo                        |
-| `Cmd/Ctrl + Shift + Z` | Redo                        |
+| Shortcut         | Action                      |
+| ---------------- | --------------------------- |
+| `Option/Alt + 1` | Switch to Reader tab        |
+| `Option/Alt + 2` | Switch to Translator tab    |
+| `Option/Alt + 3` | Switch to Dictionary tab    |
+| `Option/Alt + 4` | Switch to Rules tab         |
+| `Option/Alt + 5` | Switch to Configuration tab |
+| `Option/Alt + 6` | Switch to Appearance tab    |
 
 Tab switching uses Option/Alt, not `Cmd/Ctrl + Shift + 1-6` — that combo collides with a
 default macOS shortcut.
@@ -51,8 +49,10 @@ shortcut it stands for — so it is also where those shortcuts are discovered. T
 row. The Add rows carry the text selected in the reading view at the moment the palette
 opened, since focusing its search collapses the selection.
 
-The Add shortcuts (`Cmd/Ctrl + 1`–`6`) work here too, unchanged; `Cmd/Ctrl + 7` (new
-Transform Rule) is the Translator's alone. Two of them already mean
+The Add shortcuts (`Cmd/Ctrl + 1`–`7`, and `Cmd/Ctrl + Shift + N`) work here too, unchanged,
+as does `Cmd/Ctrl + R`. `Cmd/Ctrl + Shift + V` does not: it fills the Translator's input,
+and a translation started from a hidden Translator would run beside the Reader's own. Two
+of the Add shortcuts already mean
 "the active fiction's dictionaries"; binding a book is what makes that phrase reliable
 instead of dependent on having remembered to change a setting in Configuration.
 
@@ -80,11 +80,16 @@ Cmd/Ctrl+7 that's the rule's Key.
 
 ## Dictionary tab
 
-| Shortcut       | Action                                                      |
-| -------------- | ----------------------------------------------------------- |
-| `Cmd/Ctrl + L` | Focus search input                                          |
-| `Cmd/Ctrl + 1` | Switch to Characters dictionary                             |
-| `Cmd/Ctrl + 2` | Switch to Phrases dictionary                                |
-| `Cmd/Ctrl + 3` | Switch to Proper Nouns dictionary                           |
-| `Cmd/Ctrl + 4` | Switch to Patterns dictionary                               |
-| `Cmd/Ctrl + 5` | Switch to default custom proper noun (set in Configuration) |
+| Shortcut               | Action                                                      |
+| ---------------------- | ----------------------------------------------------------- |
+| `Cmd/Ctrl + L`         | Focus search input                                          |
+| `Cmd/Ctrl + 1`         | Switch to Characters dictionary                             |
+| `Cmd/Ctrl + 2`         | Switch to Phrases dictionary                                |
+| `Cmd/Ctrl + 3`         | Switch to Proper Nouns dictionary                           |
+| `Cmd/Ctrl + 4`         | Switch to Patterns dictionary                               |
+| `Cmd/Ctrl + 5`         | Switch to default custom proper noun (set in Configuration) |
+| `Cmd/Ctrl + Z`         | Undo the last dictionary edit                               |
+| `Cmd/Ctrl + Shift + Z` | Redo                                                        |
+
+Undo and redo act on the app-wide edit history, quick-adds from the Translator and Reader
+included, but only here: this is the one tab that shows what was undone, or that it failed.

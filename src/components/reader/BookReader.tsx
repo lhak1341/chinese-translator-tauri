@@ -174,7 +174,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   }, []);
 
   const { actions, paletteCommands, hotkeyProps, palette, quickAdd } = useReaderCommands({
-    isActive,
     books,
     currentFileName: book.fileName,
     binding,

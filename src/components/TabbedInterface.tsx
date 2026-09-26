@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { Languages, Book, Settings, Palette, Wand2, BookOpen, LucideIcon } from 'lucide-react';
 import ReaderTab from './reader/ReaderTab';
 import Translator from './Translator';
@@ -9,6 +9,7 @@ import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
 import { useBookBinding } from './BookBindingContext';
+import { useVisibleTab } from './VisibleTabContext';
 import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
 import type { TabId } from '../types/ComponentTypes';
 import { useDictionary } from './dictionary/DictionaryContext';
@@ -55,7 +56,7 @@ const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
 };
 
 const TabbedInterface: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('reader');
+  const { visibleTab: activeTab, setVisibleTab: setActiveTab } = useVisibleTab();
   // The dialog lives in the Reader but its shortcut is registered here, with every other
   // global one — the binding context is what lets the two be in different places.
   const { openDialog: openBindingDialog } = useBookBinding();
@@ -131,7 +132,7 @@ const TabbedInterface: React.FC = () => {
     onFocusSearch: handleFocusSearch,
     onDictionaryTabHotkey: handleDictionaryTabHotkey,
     onOpenNewRule: handleOpenNewRule,
-    activeTab,
+    ownTab: 'app',
   });
 
   return (

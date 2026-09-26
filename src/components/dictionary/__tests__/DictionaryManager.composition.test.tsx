@@ -18,6 +18,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import React from 'react';
 import DictionaryManager from '../DictionaryManager';
+import { VisibleTabProvider } from '../../VisibleTabContext';
 import { loadAppConfig } from '../../../utils/appConfig';
 
 vi.mock('../../../utils/appConfig', () => ({
@@ -160,7 +161,7 @@ beforeEach(() => {
 
 describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition', () => {
   test('selecting a row lifts SelectionState to DictionaryManager, which renders bulk buttons', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
@@ -175,7 +176,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
 
   test('bulk-delete confirm flow calls bulkDeleteEntries and resets selection', async () => {
     bulkDeleteEntries.mockResolvedValue({ successCount: 1, errors: [] });
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     await act(async () => {
@@ -193,7 +194,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('bulk-move dialog opens with the lifted selection, and resets selection on success', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     await act(async () => {
@@ -211,7 +212,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('context menu -> Edit Entry opens the modal with the right entry', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     fireEvent.contextMenu(screen.getByText('你好'));
@@ -225,7 +226,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('context menu -> Move to... opens MoveDialog with a single-element entries array', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     fireEvent.contextMenu(screen.getByText('你好'));
@@ -239,7 +240,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('context menu -> Delete Entry needs a second click to confirm', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     fireEvent.contextMenu(screen.getByText('你好'));
@@ -255,7 +256,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('inline translation edit calls updateEntry with the new value', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     fireEvent.click(screen.getByText('Xin chào'));
@@ -276,7 +277,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('add-entry button opens DictionaryEntry in add mode (no entry prop)', async () => {
-    render(<DictionaryManager />);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Entry' }));
@@ -286,7 +287,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('switching dictionaries resets selection and closes the context menu (5-way reset effect)', async () => {
-    const { rerender } = render(<DictionaryManager />);
+    const { rerender } = render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     await act(async () => {
@@ -298,7 +299,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
 
     selectedDictionaryRef.current = 'properNouns-Other';
     await act(async () => {
-      rerender(<DictionaryManager />);
+      rerender(<DictionaryManager />, { wrapper: VisibleTabProvider });
     });
 
     await screen.findByText('Bye');

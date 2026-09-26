@@ -64,3 +64,17 @@ Keep `useHotkeyHandler` unchanged. Revisit if a third call site appears or if th
 - Hook: `src/hooks/useHotkeyHandler.ts`
 - Call sites: `TabbedInterface.tsx` (tab switching + dictionary shortcuts), `Translator.jsx` via `<HotkeyHandler>` (translator shortcuts)
 - CLAUDE.md: hotkey architecture note (two-call-site split is intentional)
+
+## Addendum (2026-09-26): the revisit trigger fired — answered with ownership, not a registry
+
+Both triggers under "When to Revisit" had fired. There were four call sites (`TabbedInterface.tsx`, `Translator.jsx`, `reader/BookReader.tsx`, `dictionary/DictionaryManager.tsx`), and a tab-conditional bug had surfaced. The rule for which tab may fire a key lived in three places: `matchHotkey`, the hook's `QUICK_ADD_TABS`/`NEW_RULE_TABS`, and whatever `activeTab` each caller chose to pass. `DictionaryManager` passed `'dictionary'` unconditionally while every tab stays mounted, so Cmd+Z on the Translator or Reader undid the last dictionary edit. Cmd+Shift+V had no tab rule at all, so on the Reader it started a translation in the hidden Translator — beside the Reader's engine queue, which only the tab gate keeps apart from the Translator's calls.
+
+The registry this ADR rejected is still rejected: its `when` predicates would have put the tab rule back at every call site. Instead:
+
+- `VisibleTabProvider` (`src/components/VisibleTabContext.tsx`) holds the visible tab, moved up from `TabbedInterface`'s local state. The hook reads it and throws without a provider; no caller passes it.
+- Each registration declares `ownTab: TabId | 'app'`.
+- `matchHotkey` receives `{ visibleTab, ownTab }` and owns every rule: a registration answers only while its owner is visible (or it is `'app'`), then each action's own tab rule applies. Undo/redo fire on the Dictionary tab only; Cmd+Shift+V on the Translator only. `QUICK_ADD_TABS`/`NEW_RULE_TABS` moved from the hook into the table.
+
+Ownership is also what keeps two registrations from both answering one key (Cmd+R on the Reader must reload once), which per-caller `activeTab` did implicitly by the hidden caller passing nothing. Pinned by the `ownership` rows in `HotkeyDispatchTable.test.ts` and the two-registration test in `useHotkeyHandler.test.ts`.
+
+Revisit a registry only if registrations start needing rules the table cannot express from `(key, visibleTab, ownTab, canUndo, canRedo)` alone.

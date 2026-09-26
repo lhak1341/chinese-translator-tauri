@@ -3,6 +3,7 @@ import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { EngineProvider } from './components/EngineContext';
 import { BookBindingProvider } from './components/BookBindingContext';
+import { VisibleTabProvider } from './components/VisibleTabContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
@@ -115,7 +116,9 @@ function AppContent() {
             binding is the authority on the fiction slice of activeProperNouns for every
             tab, not just the Reader — so it lives above the tab container too. */}
         <BookBindingProvider>
-          <TabbedInterface />
+          <VisibleTabProvider>
+            <TabbedInterface />
+          </VisibleTabProvider>
         </BookBindingProvider>
       </EngineProvider>
     </div>

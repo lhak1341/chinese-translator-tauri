@@ -48,7 +48,11 @@ Entry point: `src/utils/highlighting/UnitHighlightPredicate.ts`, barrel-exported
 
 ## HotkeyDispatchTable
 
-The pure dispatch table that maps (key + modifiers + app context) → `HotkeyAction | null`. No side effects, no React, no DOM. Input: a `KeyboardEvent`-shaped object (`key`, `metaKey`, `ctrlKey`, `shiftKey`) plus `MatchHotkeyContext` (`activeTab`, `canUndo`, `canRedo`, `isInputFocused`). Output: a discriminated union action tag, or `null` if no shortcut matches.
+The pure dispatch table that maps (key + modifiers + app context) → `HotkeyAction | null`. No side effects, no React, no DOM. Input: a `KeyboardEvent`-shaped object (`key`, `metaKey`, `ctrlKey`, `shiftKey`) plus `MatchHotkeyContext` (`visibleTab`, `ownTab`, `canUndo`, `canRedo`, `isInputFocused`). Output: a discriminated union action tag, or `null` if no shortcut matches.
+
+Two terms belong to it. The **visible tab** is the tab on screen, read from `VisibleTabProvider` — never inferred from a component being mounted, since every tab stays mounted. The **hotkey owner** (`ownTab`) is the tab a registration belongs to, or `'app'` for the tab container's own. Several registrations hear every key, so the table answers a registration only while its owner is the visible tab (an `'app'` one always), then applies each action's own tab rule against the visible tab. Every tab rule lives in the table, none in the hook or at call sites.
+
+_Avoid_: active tab (for the owner; it read as "the tab showing" at one call site and "my tab" at another, which is how Cmd+Z on the Reader came to undo a dictionary edit).
 
 Key normalisation: `event.key.toLowerCase()` is used throughout so `Cmd+Shift+Z` (browser yields `key='Z'`) and `Cmd+Z` (`key='z'`) both land in the same branch, discriminated by `shiftKey`. `Cmd+Shift+R` returns `null` (explicit `!shift` guard on `reloadDictionary`).
 

@@ -10,6 +10,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import React from 'react';
 import TabbedInterface from '../TabbedInterface';
+import { VisibleTabProvider } from '../VisibleTabContext';
 
 // vi.mock factories are hoisted above module-level const/let — mutable state they close over
 // must come from vi.hoisted(), not a plain top-level declaration (see src/utils/CLAUDE.md).
@@ -80,7 +81,7 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     );
     dictionariesRef.current = { 'patterns-f_Novel': {} };
 
-    render(<TabbedInterface />);
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     expect(hotkeyRef.current).not.toBeNull();
     await hotkeyRef.current!('6');
 
@@ -97,7 +98,7 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     );
     dictionariesRef.current = {}; // context hasn't been refreshed with the new patterns dict yet
 
-    render(<TabbedInterface />);
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('6');
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();
@@ -108,7 +109,7 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     (loadAppConfig as any).mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
     dictionariesRef.current = { 'patterns-f_Unrelated': {} };
 
-    render(<TabbedInterface />);
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('6');
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();
@@ -119,7 +120,7 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     (loadAppConfig as any).mockRejectedValue(new Error('disk read failed'));
     dictionariesRef.current = {};
 
-    render(<TabbedInterface />);
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('6');
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();

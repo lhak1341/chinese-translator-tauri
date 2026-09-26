@@ -44,9 +44,6 @@ export const READER_HOTKEY_PROPS = {
 } as const satisfies Record<ReaderActionId, keyof HotkeyHandlerOptions | null>;
 
 export interface UseReaderCommandsOptions {
-  /** Whether the Reader is the visible tab: every tab stays mounted, so this is what keeps
-   * a hidden Reader's keys from answering. */
-  isActive: boolean;
   books: readonly PaletteBook[];
   currentFileName: string;
   /** The open book's binding — where its fiction Adds are filed. */
@@ -82,7 +79,6 @@ export interface ReaderCommands {
  * both built, so a row and the key its hint names cannot run different code.
  */
 export function useReaderCommands({
-  isActive,
   books,
   currentFileName,
   binding,
@@ -196,15 +192,15 @@ export function useReaderCommands({
   );
 
   const hotkeyProps = useMemo<HotkeyHandlerOptions>(() => {
-    // `activeTab` is left unset while the Reader is in the background, exactly as the
-    // Translator does it: the tab identity is what keeps two registered handlers from both
+    // Whether the Reader is showing comes from `VisibleTabProvider`; the table answers
+    // this registration only then, which keeps it and the Translator's from both
     // answering the same key.
-    const props: Record<string, unknown> = { activeTab: isActive ? 'reader' : undefined };
+    const callbacks: Record<string, unknown> = {};
     for (const [id, prop] of Object.entries(READER_HOTKEY_PROPS)) {
-      if (prop !== null) props[prop] = actions[id as ReaderActionId];
+      if (prop !== null) callbacks[prop] = actions[id as ReaderActionId];
     }
-    return props as HotkeyHandlerOptions;
-  }, [actions, isActive]);
+    return { ...(callbacks as Partial<HotkeyHandlerOptions>), ownTab: 'reader' };
+  }, [actions]);
 
   const paletteCommands = useMemo(
     () =>

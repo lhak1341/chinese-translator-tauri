@@ -171,7 +171,8 @@ describe('hints match what the dispatch table actually does', () => {
       const command = hinted.find((candidate) => candidate.id === id);
       expect(
         matchHotkey(pressFor(command?.hint as string), {
-          activeTab: 'reader',
+          visibleTab: 'reader',
+          ownTab: 'app',
           isInputFocused: false,
         })
       ).toEqual({ type: command?.action });

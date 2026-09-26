@@ -326,7 +326,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     onRedo: handleRedo,
     canUndo,
     canRedo,
-    activeTab: 'dictionary',
+    ownTab: 'dictionary',
   });
 
   // Show loading state while dictionaries are being loaded

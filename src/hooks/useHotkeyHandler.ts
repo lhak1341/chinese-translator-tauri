@@ -1,29 +1,12 @@
 import { useEffect, useRef } from 'react';
 import type { TabId } from '../types/ComponentTypes';
+import { useVisibleTab } from '../components/VisibleTabContext';
 import { isEditableTarget } from '../utils/ui/EditableFocus';
 import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
-import type { HotkeyAction } from '../utils/ui/HotkeyDispatchTable';
+import type { HotkeyAction, HotkeyOwner } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
-
-/**
- * Tabs on which the add-entry shortcut family means "add a dictionary entry".
- *
- * `matchHotkey` only knows that Cmd-1..6 mean something else on the Dictionary tab; this
- * is what keeps them from firing on Rules/Configuration/Appearance, where the modal would
- * open behind a `visibility: hidden` panel. The Reader is on the list because it reuses
- * the same `DictionaryEntry` modal the Translator opens.
- */
-const QUICK_ADD_TABS: readonly TabId[] = ['translator', 'reader'];
-
-/** Cmd-7 opens the Rules tab's new-rule form. Reader reuses it same as Translator. */
-const NEW_RULE_TABS: readonly TabId[] = ['translator', 'reader'];
-
-/** A background tab passes no id at all, which is never allowed anywhere. */
-function isAllowedTab(tab: TabId | undefined, allowed: readonly TabId[]): boolean {
-  return tab !== undefined && allowed.includes(tab);
-}
 
 export interface HotkeyHandlerOptions {
   onTranslateFromClipboard?: () => void;
@@ -50,17 +33,21 @@ export interface HotkeyHandlerOptions {
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
   onOpenNewRule?: (text?: string) => void;
-  activeTab?: TabId;
+  /**
+   * The tab this registration belongs to, or `'app'` for the tab container's. Not whether
+   * it is showing: that comes from `VisibleTabProvider`, so no caller can get it wrong.
+   */
+  ownTab: HotkeyOwner;
 }
 
 /**
  * Hook that registers global keyboard shortcuts for the application.
  *
  * Keyboard Shortcuts:
- * - Option/Alt+1-5: Switch tabs (Translator/Dictionary/Rules/Configuration/Appearance)
- * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator and Reader tabs) / Switch dictionary (Dictionary tab)
+ * - Option/Alt+1-6: Switch tabs, in `TAB_ORDER` (Reader/Translator/Dictionary/Rules/Configuration/Appearance)
+ * - Cmd/Ctrl+1-6: Quick add to different dictionaries (Translator and Reader tabs) / Switch dictionary (Dictionary tab)
  * - Cmd/Ctrl+7: Switch to Rules tab and open the new-rule form, prefilled with the
- *   clipboard/selection text as the Key (Translator tab only, like the quick-add keys)
+ *   clipboard/selection text as the Key (Translator and Reader tabs, like the quick-add keys)
  * - Cmd/Ctrl+R: Reload dictionary (Translator and Reader tabs — one shared action)
  * - Cmd/Ctrl+B: Bind dictionaries for the open book (Reader tab only)
  * - Cmd/Ctrl+K: Open the command palette (Reader tab only)
@@ -68,12 +55,14 @@ export interface HotkeyHandlerOptions {
  * - `[` / `]`: Previous / next chapter (Reader tab only, no modifier)
  * - Space / Shift+Space: Page the reading panel down / up (Reader tab only, no modifier)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
- * - Cmd/Ctrl+Z: Undo
- * - Cmd/Ctrl+Shift+Z: Redo
- * - Cmd/Ctrl+Shift+V: Translate from clipboard
- * - Cmd/Ctrl+Shift+N: Quick add entry
+ * - Cmd/Ctrl+Z: Undo (Dictionary tab only)
+ * - Cmd/Ctrl+Shift+Z: Redo (Dictionary tab only)
+ * - Cmd/Ctrl+Shift+V: Translate from clipboard (Translator tab only)
+ * - Cmd/Ctrl+Shift+N: Quick add entry (Translator and Reader tabs)
  *
- * Dispatch logic lives in HotkeyDispatchTable.matchHotkey — testable as a pure function.
+ * Every tab rule, and which registration answers a key, lives in
+ * HotkeyDispatchTable.matchHotkey — testable as a pure function. This hook only listens,
+ * does the clipboard round trip, and calls the callback.
  */
 export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
   // Mirror the whole options object into a ref so frequently-updating props don't force
@@ -81,6 +70,9 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
   // anti-pattern). Read at key-press time, so capturing via ref at render time suffices.
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const { visibleTab } = useVisibleTab();
+  const visibleTabRef = useRef(visibleTab);
+  visibleTabRef.current = visibleTab;
 
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
@@ -99,10 +91,8 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
     const handleQuickAdd = async (
       event: KeyboardEvent,
       callback: ((text?: string) => void | Promise<void>) | undefined,
-      label: string,
-      allowedTabs: readonly TabId[] = QUICK_ADD_TABS
+      label: string
     ): Promise<void> => {
-      if (!isAllowedTab(optionsRef.current.activeTab, allowedTabs)) return;
       // Several handlers are registered at once (the tab container, the Translator, the
       // Reader) and only one of them wires any given action. Without this, the others
       // still run the clipboard round-trip below to feed a callback that isn't there.
@@ -126,11 +116,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           opts.onTabSwitch?.(action.tab);
           break;
         case 'quickAdd':
-          // Gated like the rest of the family. `matchHotkey` returns this for every tab,
-          // so without the check Cmd+Shift+N on Rules/Configuration opens the
-          // Translator's modal behind a hidden panel — and, now that the Reader
-          // registers the family too, would open both at once.
-          if (isAllowedTab(opts.activeTab, QUICK_ADD_TABS)) opts.onQuickAdd?.();
+          opts.onQuickAdd?.();
           break;
         case 'translateFromClipboard':
           opts.onTranslateFromClipboard?.();
@@ -194,7 +180,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           opts.onPageUp?.();
           break;
         case 'openNewRule':
-          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule', NEW_RULE_TABS);
+          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule');
           break;
       }
     };
@@ -205,7 +191,8 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
       // unhandled rejection. handleQuickAdd catches its own async errors.
       try {
         const action = matchHotkey(event, {
-          activeTab: optionsRef.current.activeTab,
+          visibleTab: visibleTabRef.current,
+          ownTab: optionsRef.current.ownTab,
           canUndo: optionsRef.current.canUndo,
           canRedo: optionsRef.current.canRedo,
           isInputFocused: isEditableTarget(event.target),

@@ -28,7 +28,8 @@ function altDigit(code: string) {
 
 const ctx = (overrides: Partial<MatchHotkeyContext> = {}): MatchHotkeyContext => ({
   isInputFocused: false,
-  activeTab: 'translator',
+  visibleTab: 'translator',
+  ownTab: 'app',
   canUndo: false,
   canRedo: false,
   ...overrides,
@@ -43,7 +44,7 @@ describe('matchHotkey guards', () => {
 
   it('returns null for a quick-add key while the Reader add-entry input has focus', () => {
     expect(
-      matchHotkey(key('1', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+      matchHotkey(key('1', { meta: true }), ctx({ visibleTab: 'reader', isInputFocused: true }))
     ).toBeNull();
   });
 
@@ -52,7 +53,9 @@ describe('matchHotkey guards', () => {
   });
 
   it('accepts ctrlKey as equivalent to metaKey', () => {
-    expect(matchHotkey(key('z', { ctrl: true }), ctx({ canUndo: true }))).toEqual({
+    expect(
+      matchHotkey(key('z', { ctrl: true }), ctx({ visibleTab: 'dictionary', canUndo: true }))
+    ).toEqual({
       type: 'undo',
     });
   });
@@ -93,7 +96,7 @@ describe('tab switch', () => {
     expect(
       matchHotkey(
         key('1', { alt: true, meta: true, code: 'Digit1' }),
-        ctx({ activeTab: 'dictionary' })
+        ctx({ visibleTab: 'dictionary' })
       )
     ).toEqual({ type: 'dictionaryTabHotkey', key: '1' });
   });
@@ -115,43 +118,93 @@ describe('quick add and clipboard', () => {
       type: 'translateFromClipboard',
     });
   });
+
+  it('Cmd+Shift+N on reader tab → quickAdd; on rules or dictionary → null', () => {
+    const n = key('n', { meta: true, shift: true });
+    expect(matchHotkey(n, ctx({ visibleTab: 'reader' }))).toEqual({ type: 'quickAdd' });
+    expect(matchHotkey(n, ctx({ visibleTab: 'rules' }))).toBeNull();
+    expect(matchHotkey(n, ctx({ visibleTab: 'dictionary' }))).toBeNull();
+  });
+
+  it('Cmd+Shift+V anywhere but the Translator → null', () => {
+    const v = key('v', { meta: true, shift: true });
+    for (const visibleTab of ['reader', 'dictionary', 'rules'] as const) {
+      expect(matchHotkey(v, ctx({ visibleTab }))).toBeNull();
+    }
+  });
+
+  it('Cmd-1..6 on rules, configuration or appearance → null (modal would open hidden)', () => {
+    for (const visibleTab of ['rules', 'configuration', 'appearance'] as const) {
+      for (const k of ['1', '2', '3', '4', '5', '6']) {
+        expect(matchHotkey(key(k, { meta: true }), ctx({ visibleTab }))).toBeNull();
+      }
+    }
+  });
 });
 
 // ─── Undo / Redo ──────────────────────────────────────────────────────────────
 
 describe('undo / redo', () => {
   it('Cmd+Z when canUndo → undo', () => {
-    expect(matchHotkey(key('z', { meta: true }), ctx({ canUndo: true }))).toEqual({
+    expect(
+      matchHotkey(key('z', { meta: true }), ctx({ visibleTab: 'dictionary', canUndo: true }))
+    ).toEqual({
       type: 'undo',
     });
   });
 
   it('Cmd+Z when !canUndo → null', () => {
-    expect(matchHotkey(key('z', { meta: true }), ctx({ canUndo: false }))).toBeNull();
+    expect(
+      matchHotkey(key('z', { meta: true }), ctx({ visibleTab: 'dictionary', canUndo: false }))
+    ).toBeNull();
   });
 
   it('Cmd+Shift+Z (key="Z") when canRedo → redo', () => {
     // Browser produces uppercase 'Z' when Shift is held
-    expect(matchHotkey(key('Z', { meta: true, shift: true }), ctx({ canRedo: true }))).toEqual({
+    expect(
+      matchHotkey(
+        key('Z', { meta: true, shift: true }),
+        ctx({ visibleTab: 'dictionary', canRedo: true })
+      )
+    ).toEqual({
       type: 'redo',
     });
   });
 
   it('Cmd+Shift+Z when !canRedo → null', () => {
-    expect(matchHotkey(key('Z', { meta: true, shift: true }), ctx({ canRedo: false }))).toBeNull();
+    expect(
+      matchHotkey(
+        key('Z', { meta: true, shift: true }),
+        ctx({ visibleTab: 'dictionary', canRedo: false })
+      )
+    ).toBeNull();
   });
 
   it('lowercase z also works for redo path (key="z" + shift)', () => {
-    expect(matchHotkey(key('z', { meta: true, shift: true }), ctx({ canRedo: true }))).toEqual({
+    expect(
+      matchHotkey(
+        key('z', { meta: true, shift: true }),
+        ctx({ visibleTab: 'dictionary', canRedo: true })
+      )
+    ).toEqual({
       type: 'redo',
     });
+  });
+
+  it('Cmd+Z / Cmd+Shift+Z off the Dictionary tab → null (the history is shown only there)', () => {
+    for (const visibleTab of ['translator', 'reader', 'rules'] as const) {
+      expect(matchHotkey(key('z', { meta: true }), ctx({ visibleTab, canUndo: true }))).toBeNull();
+      expect(
+        matchHotkey(key('z', { meta: true, shift: true }), ctx({ visibleTab, canRedo: true }))
+      ).toBeNull();
+    }
   });
 });
 
 // ─── Cmd+1-5: tab-sensitive dispatch ─────────────────────────────────────────
 
 describe('Cmd+1-5 on dictionary tab → dictionaryTabHotkey', () => {
-  const dictCtx = ctx({ activeTab: 'dictionary' });
+  const dictCtx = ctx({ visibleTab: 'dictionary' });
 
   it('Cmd+1 → dictionaryTabHotkey:1', () => {
     expect(matchHotkey(key('1', { meta: true }), dictCtx)).toEqual({
@@ -169,7 +222,7 @@ describe('Cmd+1-5 on dictionary tab → dictionaryTabHotkey', () => {
 });
 
 describe('Cmd+1-5 on translator tab → quickAdd variants', () => {
-  const transCtx = ctx({ activeTab: 'translator' });
+  const transCtx = ctx({ visibleTab: 'translator' });
 
   it('Cmd+1 → quickAddCharacter', () => {
     expect(matchHotkey(key('1', { meta: true }), transCtx)).toEqual({
@@ -202,15 +255,19 @@ describe('Cmd+1-5 on translator tab → quickAdd variants', () => {
 
 describe('openNewRule', () => {
   it('Cmd+7 on translator tab → openNewRule', () => {
-    expect(matchHotkey(key('7', { meta: true }), ctx({ activeTab: 'translator' }))).toEqual({
+    expect(matchHotkey(key('7', { meta: true }), ctx({ visibleTab: 'translator' }))).toEqual({
       type: 'openNewRule',
     });
   });
 
-  it('Cmd+7 on dictionary tab → openNewRule too (unlike 1-6, no per-tab meaning)', () => {
-    expect(matchHotkey(key('7', { meta: true }), ctx({ activeTab: 'dictionary' }))).toEqual({
+  it('Cmd+7 on reader tab → openNewRule (the Reader reuses the form)', () => {
+    expect(matchHotkey(key('7', { meta: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'openNewRule',
     });
+  });
+
+  it('Cmd+7 on dictionary tab → null', () => {
+    expect(matchHotkey(key('7', { meta: true }), ctx({ visibleTab: 'dictionary' }))).toBeNull();
   });
 });
 
@@ -218,13 +275,13 @@ describe('openNewRule', () => {
 
 describe('focusSearch', () => {
   it('Cmd+L on dictionary tab → focusSearch', () => {
-    expect(matchHotkey(key('l', { meta: true }), ctx({ activeTab: 'dictionary' }))).toEqual({
+    expect(matchHotkey(key('l', { meta: true }), ctx({ visibleTab: 'dictionary' }))).toEqual({
       type: 'focusSearch',
     });
   });
 
   it('Cmd+L on translator tab → null', () => {
-    expect(matchHotkey(key('l', { meta: true }), ctx({ activeTab: 'translator' }))).toBeNull();
+    expect(matchHotkey(key('l', { meta: true }), ctx({ visibleTab: 'translator' }))).toBeNull();
   });
 });
 
@@ -232,30 +289,30 @@ describe('focusSearch', () => {
 
 describe('reloadDictionary', () => {
   it('Cmd+R on translator tab → reloadDictionary', () => {
-    expect(matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'translator' }))).toEqual({
+    expect(matchHotkey(key('r', { meta: true }), ctx({ visibleTab: 'translator' }))).toEqual({
       type: 'reloadDictionary',
     });
   });
 
   it('Cmd+R on reader tab → reloadDictionary (the same action, not a Reader variant)', () => {
-    expect(matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key('r', { meta: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'reloadDictionary',
     });
   });
 
   it('Cmd+R on dictionary tab → null', () => {
-    expect(matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'dictionary' }))).toBeNull();
+    expect(matchHotkey(key('r', { meta: true }), ctx({ visibleTab: 'dictionary' }))).toBeNull();
   });
 
   it('Cmd+R on the reader tab while the add-entry input has focus → null', () => {
     expect(
-      matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+      matchHotkey(key('r', { meta: true }), ctx({ visibleTab: 'reader', isInputFocused: true }))
     ).toBeNull();
   });
 
   it('Cmd+Shift+R → null (shift guard prevents accidental reload)', () => {
     expect(
-      matchHotkey(key('R', { meta: true, shift: true }), ctx({ activeTab: 'translator' }))
+      matchHotkey(key('R', { meta: true, shift: true }), ctx({ visibleTab: 'translator' }))
     ).toBeNull();
   });
 });
@@ -264,23 +321,23 @@ describe('reloadDictionary', () => {
 
 describe('bindDictionaries', () => {
   it('Cmd+B on reader tab → bindDictionaries', () => {
-    expect(matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key('b', { meta: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'bindDictionaries',
     });
   });
 
   it('Cmd+B on translator tab → null (there is no open book to bind)', () => {
-    expect(matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'translator' }))).toBeNull();
+    expect(matchHotkey(key('b', { meta: true }), ctx({ visibleTab: 'translator' }))).toBeNull();
   });
 
   it('Cmd+B while a text input has focus → null', () => {
     expect(
-      matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+      matchHotkey(key('b', { meta: true }), ctx({ visibleTab: 'reader', isInputFocused: true }))
     ).toBeNull();
   });
 
   it('plain B → null (no modifier is the chapter-key convention, not this)', () => {
-    expect(matchHotkey(key('b'), ctx({ activeTab: 'reader' }))).toBeNull();
+    expect(matchHotkey(key('b'), ctx({ visibleTab: 'reader' }))).toBeNull();
   });
 });
 
@@ -288,44 +345,46 @@ describe('bindDictionaries', () => {
 
 describe('openCommandPalette', () => {
   it('Cmd+K on reader tab → openCommandPalette', () => {
-    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key('k', { meta: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'openCommandPalette',
     });
   });
 
   it('Cmd+K on translator tab → null (the palette is the Reader’s)', () => {
-    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'translator' }))).toBeNull();
+    expect(matchHotkey(key('k', { meta: true }), ctx({ visibleTab: 'translator' }))).toBeNull();
   });
 
-  it('Cmd+K with no tab (Reader in the background) → null', () => {
-    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: undefined }))).toBeNull();
+  it('Cmd+K from the Reader registration while the Translator shows → null', () => {
+    expect(
+      matchHotkey(key('k', { meta: true }), ctx({ visibleTab: 'translator', ownTab: 'reader' }))
+    ).toBeNull();
   });
 
   it('Cmd+K while the palette’s own search has focus → null', () => {
     expect(
-      matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+      matchHotkey(key('k', { meta: true }), ctx({ visibleTab: 'reader', isInputFocused: true }))
     ).toBeNull();
   });
 
   it('plain K → null', () => {
-    expect(matchHotkey(key('k'), ctx({ activeTab: 'reader' }))).toBeNull();
+    expect(matchHotkey(key('k'), ctx({ visibleTab: 'reader' }))).toBeNull();
   });
 });
 
 describe('openChapterOutline', () => {
   it('Cmd+G on reader tab → openChapterOutline', () => {
-    expect(matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key('g', { meta: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'openChapterOutline',
     });
   });
 
   it('Cmd+G on dictionary tab → null', () => {
-    expect(matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'dictionary' }))).toBeNull();
+    expect(matchHotkey(key('g', { meta: true }), ctx({ visibleTab: 'dictionary' }))).toBeNull();
   });
 
   it('Cmd+G while a text input has focus → null', () => {
     expect(
-      matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+      matchHotkey(key('g', { meta: true }), ctx({ visibleTab: 'reader', isInputFocused: true }))
     ).toBeNull();
   });
 });
@@ -334,25 +393,25 @@ describe('openChapterOutline', () => {
 
 describe('chapter stepping', () => {
   it('[ on reader tab → previousChapter', () => {
-    expect(matchHotkey(key('['), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key('['), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'previousChapter',
     });
   });
 
   it('] on reader tab → nextChapter', () => {
-    expect(matchHotkey(key(']'), ctx({ activeTab: 'reader' }))).toEqual({ type: 'nextChapter' });
+    expect(matchHotkey(key(']'), ctx({ visibleTab: 'reader' }))).toEqual({ type: 'nextChapter' });
   });
 
   it('[ on translator tab → null (a book open in the background stays put)', () => {
-    expect(matchHotkey(key('['), ctx({ activeTab: 'translator' }))).toBeNull();
+    expect(matchHotkey(key('['), ctx({ visibleTab: 'translator' }))).toBeNull();
   });
 
-  it('[ with no tab at all → null', () => {
-    expect(matchHotkey(key('['), ctx({ activeTab: undefined }))).toBeNull();
+  it('[ from the Reader registration while the Translator shows → null', () => {
+    expect(matchHotkey(key('['), ctx({ visibleTab: 'translator', ownTab: 'reader' }))).toBeNull();
   });
 
   it('[ while a text input has focus → null (typing a literal bracket)', () => {
-    expect(matchHotkey(key('['), ctx({ activeTab: 'reader', isInputFocused: true }))).toBeNull();
+    expect(matchHotkey(key('['), ctx({ visibleTab: 'reader', isInputFocused: true }))).toBeNull();
   });
 
   it.each([
@@ -361,11 +420,11 @@ describe('chapter stepping', () => {
     ['shift', { shift: true }],
     ['alt', { alt: true }],
   ])('[ with %s held → null', (_name, modifier) => {
-    expect(matchHotkey(key('[', modifier), ctx({ activeTab: 'reader' }))).toBeNull();
+    expect(matchHotkey(key('[', modifier), ctx({ visibleTab: 'reader' }))).toBeNull();
   });
 
   it('any other unmodified key on the reader → null', () => {
-    expect(matchHotkey(key('a'), ctx({ activeTab: 'reader' }))).toBeNull();
+    expect(matchHotkey(key('a'), ctx({ visibleTab: 'reader' }))).toBeNull();
   });
 });
 
@@ -373,25 +432,25 @@ describe('chapter stepping', () => {
 
 describe('paging', () => {
   it('Space on reader tab → pageDown', () => {
-    expect(matchHotkey(key(' '), ctx({ activeTab: 'reader' }))).toEqual({ type: 'pageDown' });
+    expect(matchHotkey(key(' '), ctx({ visibleTab: 'reader' }))).toEqual({ type: 'pageDown' });
   });
 
   it('Shift+Space on reader tab → pageUp', () => {
-    expect(matchHotkey(key(' ', { shift: true }), ctx({ activeTab: 'reader' }))).toEqual({
+    expect(matchHotkey(key(' ', { shift: true }), ctx({ visibleTab: 'reader' }))).toEqual({
       type: 'pageUp',
     });
   });
 
   it('Space on translator tab → null (nothing there scrolls this way)', () => {
-    expect(matchHotkey(key(' '), ctx({ activeTab: 'translator' }))).toBeNull();
+    expect(matchHotkey(key(' '), ctx({ visibleTab: 'translator' }))).toBeNull();
   });
 
-  it('Space with no tab at all → null', () => {
-    expect(matchHotkey(key(' '), ctx({ activeTab: undefined }))).toBeNull();
+  it('Space from the Reader registration while the Translator shows → null', () => {
+    expect(matchHotkey(key(' '), ctx({ visibleTab: 'translator', ownTab: 'reader' }))).toBeNull();
   });
 
   it('Space while a text input has focus → null (typing a literal space)', () => {
-    expect(matchHotkey(key(' '), ctx({ activeTab: 'reader', isInputFocused: true }))).toBeNull();
+    expect(matchHotkey(key(' '), ctx({ visibleTab: 'reader', isInputFocused: true }))).toBeNull();
   });
 
   it.each([
@@ -399,6 +458,57 @@ describe('paging', () => {
     ['ctrl', { ctrl: true }],
     ['alt', { alt: true }],
   ])('Space with %s held → null', (_name, modifier) => {
-    expect(matchHotkey(key(' ', modifier), ctx({ activeTab: 'reader' }))).toBeNull();
+    expect(matchHotkey(key(' ', modifier), ctx({ visibleTab: 'reader' }))).toBeNull();
+  });
+});
+
+// ─── Ownership: the visible tab against the registration's own tab ───────────
+//
+// Every tab stays mounted, so several registrations hear every key. Each declares the
+// tab it belongs to; the table answers only the one whose tab is showing (or the
+// app-level one). These rows are the bugs that per-caller `activeTab` let through.
+
+describe('ownership', () => {
+  const own = (
+    visibleTab: MatchHotkeyContext['visibleTab'],
+    ownTab: MatchHotkeyContext['ownTab']
+  ) => ctx({ visibleTab, ownTab, canUndo: true, canRedo: true });
+
+  it('Cmd+Z with the Reader showing does not undo the dictionary', () => {
+    expect(matchHotkey(key('z', { meta: true }), own('reader', 'dictionary'))).toBeNull();
+  });
+
+  it('Cmd+Shift+Z with the Translator showing does not redo the dictionary', () => {
+    expect(
+      matchHotkey(key('z', { meta: true, shift: true }), own('translator', 'dictionary'))
+    ).toBeNull();
+  });
+
+  it('Cmd+Shift+V with the Reader showing does not translate in the hidden Translator', () => {
+    expect(
+      matchHotkey(key('v', { meta: true, shift: true }), own('reader', 'translator'))
+    ).toBeNull();
+  });
+
+  it('Cmd+R with the Reader showing reloads for the Reader only, not the Translator too', () => {
+    expect(matchHotkey(key('r', { meta: true }), own('reader', 'reader'))).toEqual({
+      type: 'reloadDictionary',
+    });
+    expect(matchHotkey(key('r', { meta: true }), own('reader', 'translator'))).toBeNull();
+  });
+
+  it("a tab's registration answers nothing while another tab shows", () => {
+    expect(matchHotkey(key('1', { meta: true }), own('reader', 'translator'))).toBeNull();
+    expect(matchHotkey(key('l', { meta: true }), own('translator', 'dictionary'))).toBeNull();
+    expect(matchHotkey(key('['), own('translator', 'reader'))).toBeNull();
+  });
+
+  it('the app-level registration answers whichever tab shows', () => {
+    expect(matchHotkey(key('l', { meta: true }), own('dictionary', 'app'))).toEqual({
+      type: 'focusSearch',
+    });
+    expect(matchHotkey(key('b', { meta: true }), own('reader', 'app'))).toEqual({
+      type: 'bindDictionaries',
+    });
   });
 });
