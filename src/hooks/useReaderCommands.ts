@@ -62,7 +62,7 @@ export interface ReaderCommands {
   quickAdd: {
     isOpen: boolean;
     dictionary: string;
-    initialText: string;
+    initialSource: string;
     /** The quick-add view the open Add decided over — its dropdown's choices come from it. */
     view: QuickAddView | null;
     close: () => void;
@@ -195,7 +195,7 @@ export function useReaderCommands({
     quickAdd: {
       isOpen: modals.showQuickAdd,
       dictionary: modals.quickAddDictionary,
-      initialText: modals.clipboardText,
+      initialSource: modals.initialSource,
       view: modals.quickAddView,
       close: modals.closeQuickAdd,
       onDictionaryChange: modals.handleQuickAddDictionaryChange,

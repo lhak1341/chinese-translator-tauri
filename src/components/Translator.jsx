@@ -145,7 +145,7 @@ const Translator = ({ isActive = true }) => {
   const {
     showQuickAdd,
     quickAddDictionary,
-    clipboardText,
+    initialSource,
     quickAddView,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
@@ -1091,7 +1091,7 @@ const Translator = ({ isActive = true }) => {
             selectedDictionary={quickAddDictionary}
             quickAddView={quickAddView}
             onDictionaryChange={handleQuickAddDictionaryChange}
-            initialSource={clipboardText}
+            initialSource={initialSource}
           />
         </ModalErrorBoundary>
       )}

@@ -354,7 +354,7 @@ const BookReader: React.FC<BookReaderProps> = ({
             selectedDictionary={quickAdd.dictionary}
             quickAddView={quickAdd.view}
             onDictionaryChange={quickAdd.onDictionaryChange}
-            initialSource={quickAdd.initialText}
+            initialSource={quickAdd.initialSource}
           />
         </ModalErrorBoundary>
       )}

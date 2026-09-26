@@ -48,7 +48,7 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     await act(() => result.current[method]('clip text'));
     expect(result.current.showQuickAdd).toBe(true);
     expect(result.current.quickAddDictionary).toBe(expectedId);
-    expect(result.current.clipboardText).toBe('clip text');
+    expect(result.current.initialSource).toBe('clip text');
   });
 
   test.each([
@@ -94,7 +94,7 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     act(() => result.current.closeQuickAdd());
     expect(result.current.showQuickAdd).toBe(false);
     expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.clipboardText).toBe('');
+    expect(result.current.initialSource).toBe('');
     expect(result.current.quickAddView).toBeNull();
   });
 
@@ -103,7 +103,7 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     await act(() => result.current.openQuickAddCharacter('keep me'));
     act(() => result.current.handleQuickAddDictionaryChange('phrases'));
     expect(result.current.quickAddDictionary).toBe('phrases');
-    expect(result.current.clipboardText).toBe('keep me');
+    expect(result.current.initialSource).toBe('keep me');
   });
 });
 
@@ -122,7 +122,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
     expect(result.current.quickAddDictionary).toBe('properNouns-B');
-    expect(result.current.clipboardText).toBe('clip');
+    expect(result.current.initialSource).toBe('clip');
     expect(result.current.showQuickAdd).toBe(true);
   });
 
@@ -188,7 +188,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
     // Regression guard for the batching bug: dictionaryId and text must both be
     // correct after the single atomic setModalState call, not left in a partial state.
     expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.clipboardText).toBe('clip text');
+    expect(result.current.initialSource).toBe('clip text');
     expect(result.current.showQuickAdd).toBe(true);
   });
 });

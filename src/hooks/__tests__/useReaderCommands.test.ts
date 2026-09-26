@@ -6,7 +6,7 @@ import type { HotkeyHandlerOptions } from '../useHotkeyHandler';
 const modals = {
   showQuickAdd: false,
   quickAddDictionary: 'properNouns',
-  clipboardText: '',
+  initialSource: '',
   openQuickAddCharacter: vi.fn(),
   openQuickAddPhrase: vi.fn(),
   openQuickAddProperNoun: vi.fn(),

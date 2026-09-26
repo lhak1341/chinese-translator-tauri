@@ -82,7 +82,7 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
 
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
     expect(view.result.current.quickAdd.dictionary).toBe('properNouns-f_TapDo');
-    expect(view.result.current.quickAdd.initialText).toBe('萧炎');
+    expect(view.result.current.quickAdd.initialSource).toBe('萧炎');
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
     expect(view.result.current.quickAdd.dictionary).toBe('patterns-f_TapDo');

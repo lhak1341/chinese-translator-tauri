@@ -22,35 +22,35 @@ export function useDictionaryModals(dictionaries, loadView) {
   const [modalState, setModalState] = useState({
     isOpen: false,
     dictionaryId: 'properNouns',
-    text: '',
+    source: '',
     view: null,
   });
 
   const openQuickAdd = useCallback(
-    async (dictionaryId, text = '') => {
+    async (dictionaryId, source = '') => {
       const view = await loadView();
-      setModalState({ isOpen: true, dictionaryId, text, view });
+      setModalState({ isOpen: true, dictionaryId, source, view });
     },
     [loadView]
   );
 
   const openQuickAddCharacter = useCallback(
-    (text = '') => openQuickAdd('characters', text),
+    (source = '') => openQuickAdd('characters', source),
     [openQuickAdd]
   );
 
   const openQuickAddPhrase = useCallback(
-    (text = '') => openQuickAdd('phrases', text),
+    (source = '') => openQuickAdd('phrases', source),
     [openQuickAdd]
   );
 
   const openQuickAddProperNoun = useCallback(
-    (text = '') => openQuickAdd('properNouns', text),
+    (source = '') => openQuickAdd('properNouns', source),
     [openQuickAdd]
   );
 
   const openQuickAddPattern = useCallback(
-    (text = '') => openQuickAdd('patterns', text),
+    (source = '') => openQuickAdd('patterns', source),
     [openQuickAdd]
   );
 
@@ -61,34 +61,34 @@ export function useDictionaryModals(dictionaries, loadView) {
    * fresh value automatically. Only Cmd-6 can miss (`pairMissing`); Cmd-5 always opens.
    *
    * CRITICAL FIX (2026-01-20): Set ALL modal state atomically after determining
-   * the dictionary — avoids the React batching issue where clipboardText is set
+   * the dictionary — avoids the React batching issue where the source is set
    * before the dictionary is resolved, leaving empty dialog fields for Cmd-5.
    */
   const openQuickAddTarget = useCallback(
-    async (kind, text = '') => {
+    async (kind, source = '') => {
       const view = await loadView();
       const target = quickAddTarget(kind, view, dictionaries);
       if (target.kind === 'none') {
         toast.error(quickAddMissMessage(target));
         return;
       }
-      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text, view });
+      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, source, view });
     },
     [dictionaries, loadView]
   );
 
   const openQuickAddCustomProperNoun = useCallback(
-    (text = '') => openQuickAddTarget('properNoun', text),
+    (source = '') => openQuickAddTarget('properNoun', source),
     [openQuickAddTarget]
   );
 
   const openQuickAddCustomStructuralPattern = useCallback(
-    (text = '') => openQuickAddTarget('structuralPattern', text),
+    (source = '') => openQuickAddTarget('structuralPattern', source),
     [openQuickAddTarget]
   );
 
   const closeQuickAdd = useCallback(() => {
-    setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '', view: null });
+    setModalState({ isOpen: false, dictionaryId: 'properNouns', source: '', view: null });
   }, []);
 
   const handleQuickAddDictionaryChange = useCallback((dictionaryId) => {
@@ -99,7 +99,7 @@ export function useDictionaryModals(dictionaries, loadView) {
     modalState,
     showQuickAdd: modalState.isOpen,
     quickAddDictionary: modalState.dictionaryId,
-    clipboardText: modalState.text,
+    initialSource: modalState.source,
     quickAddView: modalState.view,
     openQuickAddCharacter,
     openQuickAddPhrase,
