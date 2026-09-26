@@ -1105,8 +1105,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790424839.385594,
-    "ast_hash": "52a6e1901d09ae48f3f4d859eecfdb95",
+    "mtime": 1790426787.3050895,
+    "ast_hash": "b4389433cd5226d769743b263947728e",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1525,8 +1525,8 @@
     "semantic_hash": ""
   },
   "src/components/configuration/useDictionaryConfigManagement.ts": {
-    "mtime": 1790414936.5359101,
-    "ast_hash": "4d43856c8da7b638a8419f4da62898d3",
+    "mtime": 1790426738.4223993,
+    "ast_hash": "2bfd9262515342af53de725831f29f31",
     "semantic_hash": ""
   },
   "src/components/rules/EditableCell.tsx": {
@@ -2025,8 +2025,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingContext.tsx": {
-    "mtime": 1790406719.7216585,
-    "ast_hash": "a2b15419e49cf0cf2cd559961287f9aa",
+    "mtime": 1790426874.6376915,
+    "ast_hash": "d6ebc2cf351ff9d39493ebdef451e7a8",
     "semantic_hash": ""
   },
   "src/components/reader/BindingBanner.tsx": {
@@ -2247,6 +2247,11 @@
   "src/utils/dictionary/EntryValue.ts": {
     "mtime": 1790424452.350403,
     "ast_hash": "21853faebfc609f006860bd5f22be8b9",
+    "semantic_hash": ""
+  },
+  "src/utils/dictionary/DictionaryPairs.ts": {
+    "mtime": 1790426737.7924595,
+    "ast_hash": "82d799862cff4bef86523a339954d8b7",
     "semantic_hash": ""
   }
 }
