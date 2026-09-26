@@ -9,6 +9,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDictionaryModals } from '../useDictionaryModals';
+import { loadQuickAddConfig } from '../../utils/dictionary/QuickAddTarget';
 
 vi.mock('../../utils/appConfig', () => ({
   loadAppConfig: vi.fn(),
@@ -43,7 +44,7 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     ['openQuickAddProperNoun', 'properNouns'],
     ['openQuickAddPattern', 'patterns'],
   ])('%s opens the modal with dictionaryId=%s', async (method, expectedId) => {
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(() => result.current[method]('clip text'));
     expect(result.current.showQuickAdd).toBe(true);
     expect(result.current.quickAddDictionary).toBe(expectedId);
@@ -61,7 +62,9 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({ activeProperNouns: ['properNouns-f_Novel'], defaultQuickAddDictionary: null })
     );
-    const { result } = renderHook(() => useDictionaryModals({ 'patterns-f_Novel': {} }));
+    const { result } = renderHook(() =>
+      useDictionaryModals({ 'patterns-f_Novel': {} }, loadQuickAddConfig)
+    );
     await act(() => result.current[method]('clip'));
     expect(result.current.quickAddView).toEqual({
       activeProperNouns: ['properNouns-f_Novel'],
@@ -69,8 +72,24 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     });
   });
 
+  test('every opener asks the injected loadView, once, and decides over what it returns', async () => {
+    // The surface's view, not config: loadView is the seam the Reader plugs its binding into.
+    const loadView = vi.fn(async () => ({
+      activeProperNouns: ['properNouns-f_Bound'],
+      defaultQuickAddDictionary: 'properNouns-f_Bound',
+    }));
+    const { result } = renderHook(() => useDictionaryModals({ 'patterns-f_Bound': {} }, loadView));
+    await act(() => result.current.openQuickAddCustomProperNoun('clip'));
+    expect(loadView).toHaveBeenCalledTimes(1);
+    expect(result.current.quickAddDictionary).toBe('properNouns-f_Bound');
+    await act(() => result.current.openQuickAddPhrase('clip'));
+    expect(loadView).toHaveBeenCalledTimes(2);
+    expect(result.current.quickAddView?.activeProperNouns).toEqual(['properNouns-f_Bound']);
+    expect(loadAppConfig).not.toHaveBeenCalled();
+  });
+
   test('closeQuickAdd resets to the default closed state', async () => {
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(() => result.current.openQuickAddCharacter('x'));
     act(() => result.current.closeQuickAdd());
     expect(result.current.showQuickAdd).toBe(false);
@@ -80,7 +99,7 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
   });
 
   test('handleQuickAddDictionaryChange swaps only dictionaryId, preserving text', async () => {
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(() => result.current.openQuickAddCharacter('keep me'));
     act(() => result.current.handleQuickAddDictionaryChange('phrases'));
     expect(result.current.quickAddDictionary).toBe('phrases');
@@ -98,7 +117,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         defaultQuickAddDictionary: 'properNouns-B',
       })
     );
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
@@ -114,7 +133,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         defaultQuickAddDictionary: 'properNouns-Stale',
       })
     );
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
@@ -132,7 +151,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         ],
       })
     );
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
@@ -143,7 +162,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({ activeProperNouns: ['properNouns', 'properNouns-Zed', 'properNouns-Amy'] })
     );
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
@@ -152,7 +171,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
 
   test('falls back to properNouns when no custom dictionaries exist', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
@@ -162,7 +181,7 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
 
   test('config load failure falls back to properNouns but still opens the modal (CRITICAL FIX 2026-01-20)', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip text');
     });
@@ -190,7 +209,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     const dictionaries = { 'patterns-f_Novel': {} };
-    const { result } = renderHook(() => useDictionaryModals(dictionaries));
+    const { result } = renderHook(() => useDictionaryModals(dictionaries, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -207,7 +226,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     const dictionaries = { 'patterns-f_Amy': {} };
-    const { result } = renderHook(() => useDictionaryModals(dictionaries));
+    const { result } = renderHook(() => useDictionaryModals(dictionaries, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -216,7 +235,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
 
   test('opens root patterns when no paired proper-noun dictionary is active', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }));
+    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -233,7 +252,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     // f_Novel's pattern dict was never created (or context hasn't been refreshed yet)
-    const { result } = renderHook(() => useDictionaryModals({}));
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -251,7 +270,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     const { result, rerender } = renderHook(
-      ({ dictionaries }) => useDictionaryModals(dictionaries),
+      ({ dictionaries }) => useDictionaryModals(dictionaries, loadQuickAddConfig),
       {
         initialProps: { dictionaries: {} },
       }
@@ -271,7 +290,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
 
   test('config load failure decides with no config: opens root patterns', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }));
+    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }, loadQuickAddConfig));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });

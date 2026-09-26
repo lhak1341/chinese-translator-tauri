@@ -8,6 +8,7 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { registerDictionaryReload } from '../utils/dictionary';
+import { loadQuickAddConfig } from '../utils/dictionary/QuickAddTarget';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
 import ModalErrorBoundary from './ModalErrorBoundary';
@@ -154,7 +155,7 @@ const Translator = ({ isActive = true }) => {
     openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
     closeQuickAdd,
     handleQuickAddDictionaryChange,
-  } = useDictionaryModals(dictionaries);
+  } = useDictionaryModals(dictionaries, loadQuickAddConfig);
 
   const [inputText, setInputText] = useState('');
   const {

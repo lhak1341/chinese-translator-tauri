@@ -3,8 +3,9 @@ import type { QuickAddView } from '../dictionary/QuickAddTarget';
 import { activeProperNounsForBinding, quickAddTargetForBinding } from './BindingActivation';
 
 /**
- * Where the Reader's two fiction Adds go: a proper noun (Cmd-5) and a structural pattern
- * (Cmd-6). Answered from the open book's binding, never from the fiction entries in config.
+ * Where the Reader's two fiction Adds go — a proper noun (Cmd-5) and a structural pattern
+ * (Cmd-6) — and which dictionaries every Reader Add's dropdown offers (`quickAddChoices`).
+ * Answered from the open book's binding, never from the fiction entries in config.
  *
  * The Translator has no book, so its Cmd-5/Cmd-6 ask config what the active fiction is.
  * The Reader must not: the fiction slice of config is a value the Reader itself wrote on

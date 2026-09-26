@@ -2,14 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
-import toast from '../utils/toast';
-import {
-  quickAddTarget,
-  quickAddMissMessage,
-  loadQuickAddConfig,
-  type QuickAddKind,
-  type QuickAddView,
-} from '../utils/dictionary/QuickAddTarget';
+import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { isBoundToFiction, readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
@@ -99,46 +92,31 @@ export function useReaderCommands({
   const [paletteSelection, setPaletteSelection] = useState('');
 
   // The add-entry family, reused: the same hook (and the same DictionaryEntry modal) the
-  // Translator uses, so Cmd-1..6 resolve the same targets here as there — including the
-  // two that mean "the active fiction's dictionaries", which the open book's binding is
-  // what makes reliable.
+  // Translator uses, so Cmd-1..6 resolve targets by the same rule here as there. What differs
+  // is the quick-add view they decide over: the Reader's comes from the open book's binding,
+  // never from the fiction entries in config — see `readerQuickAddView` for why. Every Add
+  // loads it, Cmd-1..4 included, because their dropdown offers the view's dictionaries too.
   const { dictionaries } = useDictionary();
-  const modals = useDictionaryModals(dictionaries);
+  const boundFiction = fictionDictionary;
+  const loadReaderView = useCallback(
+    async (): Promise<QuickAddView> =>
+      // A bound book needs nothing from config: the binding supplies the whole view. Config
+      // is read only for a book with no fiction dictionary, and only for its non-fiction default.
+      readerQuickAddView(
+        isBoundToFiction(boundFiction) ? null : await loadQuickAddConfig(),
+        boundFiction
+      ),
+    [boundFiction]
+  );
+  const modals = useDictionaryModals(dictionaries, loadReaderView);
   const {
-    openQuickAdd,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,
     openQuickAddPattern,
+    openQuickAddCustomProperNoun,
+    openQuickAddCustomStructuralPattern,
   } = modals;
-
-  // The two Adds that mean "the active fiction's dictionaries" are answered from the open
-  // book's binding, never from the fiction entries in config — see `readerQuickAddView` for
-  // why. Config is read only for a book with no fiction dictionary, and only for its
-  // non-fiction default.
-  const boundFiction = fictionDictionary;
-  const addToFiction = useCallback(
-    async (kind: QuickAddKind, text?: string): Promise<void> => {
-      // A bound book needs nothing from config: the binding supplies the whole view.
-      const config = isBoundToFiction(boundFiction) ? null : await loadQuickAddConfig();
-      const view = readerQuickAddView(config, boundFiction);
-      const target = quickAddTarget(kind, view, dictionaries);
-      if (target.kind === 'none') {
-        toast.error(quickAddMissMessage(target));
-        return;
-      }
-      await openQuickAdd(target.dictionaryId, text ?? '');
-    },
-    [boundFiction, dictionaries, openQuickAdd]
-  );
-  const addFictionProperNoun = useCallback(
-    (text?: string): Promise<void> => addToFiction('properNoun', text),
-    [addToFiction]
-  );
-  const addFictionStructuralPattern = useCallback(
-    (text?: string): Promise<void> => addToFiction('structuralPattern', text),
-    [addToFiction]
-  );
 
   const openPalette = useCallback((): void => {
     setPaletteSelection(window.getSelection()?.toString().trim() ?? '');
@@ -165,20 +143,20 @@ export function useReaderCommands({
       quickAddPhrase: openQuickAddPhrase,
       quickAddProperNoun: openQuickAddProperNoun,
       quickAddPattern: openQuickAddPattern,
-      quickAddCustomProperNoun: addFictionProperNoun,
-      quickAddCustomStructuralPattern: addFictionStructuralPattern,
+      quickAddCustomProperNoun: openQuickAddCustomProperNoun,
+      quickAddCustomStructuralPattern: openQuickAddCustomStructuralPattern,
       openCommandPalette: openPalette,
       pageDown: () => pageBy(1),
       pageUp: () => pageBy(-1),
     }),
     [
-      addFictionProperNoun,
-      addFictionStructuralPattern,
       goToChapter,
       openBindingDialog,
       openOutline,
       openPalette,
       openQuickAddCharacter,
+      openQuickAddCustomProperNoun,
+      openQuickAddCustomStructuralPattern,
       openQuickAddPattern,
       openQuickAddPhrase,
       openQuickAddProperNoun,

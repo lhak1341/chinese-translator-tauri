@@ -7,7 +7,6 @@ const modals = {
   showQuickAdd: false,
   quickAddDictionary: 'properNouns',
   clipboardText: '',
-  openQuickAdd: vi.fn(),
   openQuickAddCharacter: vi.fn(),
   openQuickAddPhrase: vi.fn(),
   openQuickAddProperNoun: vi.fn(),
@@ -20,31 +19,11 @@ const modals = {
 
 vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({
-    dictionaries: {
-      'properNouns-f_TapDo': {},
-      'patterns-f_TapDo': {},
-      'patterns-_Cultivation': {},
-    },
-  }),
+  useDictionary: () => ({ dictionaries: {} }),
 }));
 vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),
 }));
-
-// Config as a failed binding apply leaves it: still pointing at the previous novel.
-const appConfig = vi.hoisted(() => ({
-  loadAppConfig: vi.fn(async () => ({
-    ui: { defaultQuickAddDictionary: 'properNouns-f_Previous' },
-    engine: {
-      activeProperNouns: ['properNouns', 'properNouns-_Cultivation', 'properNouns-f_Previous'],
-    },
-  })),
-}));
-vi.mock('../../utils/appConfig', () => appConfig);
-
-const toast = vi.hoisted(() => ({ error: vi.fn() }));
-vi.mock('../../utils/toast', () => ({ default: toast }));
 
 import { READER_HOTKEY_PROPS, useReaderCommands } from '../useReaderCommands';
 import type { UseReaderCommandsOptions } from '../useReaderCommands';
@@ -142,37 +121,6 @@ describe('useReaderCommands', () => {
       view.result.current.paletteCommands.find((command) => command.id === 'add-character')?.run()
     );
     expect(modals.openQuickAddCharacter).toHaveBeenCalledWith('萧炎');
-  });
-
-  it("files a fiction Add under the book's own binding", async () => {
-    const { view } = setup({ fictionDictionary: 'properNouns-f_TapDo' });
-
-    await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
-    await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
-
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-f_TapDo', '萧炎');
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-f_TapDo', 'X之Y');
-    expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
-  });
-
-  it("an unbound book's proper noun never lands in the fiction config still names", async () => {
-    const { view } = setup({ fictionDictionary: null });
-
-    await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
-
-    // Config's own default is the previous novel's — stale for this book. The first active
-    // non-fiction dictionary is the standing Configuration choice that still applies.
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-_Cultivation', '萧炎');
-    expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
-  });
-
-  it("an unbound book's structural pattern goes to the generic pair, like its proper noun", async () => {
-    const { view } = setup({ fictionDictionary: null });
-
-    await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
-
-    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-_Cultivation', 'X之Y');
-    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('steps chapters and pages through the functions it was given', () => {
