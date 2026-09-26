@@ -145,6 +145,7 @@ const Translator = ({ isActive = true }) => {
     showQuickAdd,
     quickAddDictionary,
     clipboardText,
+    quickAddView,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
@@ -1087,7 +1088,7 @@ const Translator = ({ isActive = true }) => {
           <DictionaryEntry
             onClose={closeQuickAdd}
             selectedDictionary={quickAddDictionary}
-            allowDictionarySelection={true}
+            quickAddView={quickAddView}
             onDictionaryChange={handleQuickAddDictionaryChange}
             initialSource={clipboardText}
           />

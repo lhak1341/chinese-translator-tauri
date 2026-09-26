@@ -42,26 +42,46 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     ['openQuickAddPhrase', 'phrases'],
     ['openQuickAddProperNoun', 'properNouns'],
     ['openQuickAddPattern', 'patterns'],
-  ])('%s opens the modal with dictionaryId=%s', (method, expectedId) => {
+  ])('%s opens the modal with dictionaryId=%s', async (method, expectedId) => {
     const { result } = renderHook(() => useDictionaryModals());
-    act(() => result.current[method]('clip text'));
+    await act(() => result.current[method]('clip text'));
     expect(result.current.showQuickAdd).toBe(true);
     expect(result.current.quickAddDictionary).toBe(expectedId);
     expect(result.current.clipboardText).toBe('clip text');
   });
 
-  test('closeQuickAdd resets to the default closed state', () => {
+  test.each([
+    'openQuickAddCharacter',
+    'openQuickAddPhrase',
+    'openQuickAddProperNoun',
+    'openQuickAddPattern',
+    'openQuickAddCustomProperNoun',
+    'openQuickAddCustomStructuralPattern',
+  ])('%s stores the quick-add view it opened over, for the dropdown', async (method) => {
+    loadAppConfig.mockResolvedValue(
+      makeConfig({ activeProperNouns: ['properNouns-f_Novel'], defaultQuickAddDictionary: null })
+    );
+    const { result } = renderHook(() => useDictionaryModals({ 'patterns-f_Novel': {} }));
+    await act(() => result.current[method]('clip'));
+    expect(result.current.quickAddView).toEqual({
+      activeProperNouns: ['properNouns-f_Novel'],
+      defaultQuickAddDictionary: null,
+    });
+  });
+
+  test('closeQuickAdd resets to the default closed state', async () => {
     const { result } = renderHook(() => useDictionaryModals());
-    act(() => result.current.openQuickAddCharacter('x'));
+    await act(() => result.current.openQuickAddCharacter('x'));
     act(() => result.current.closeQuickAdd());
     expect(result.current.showQuickAdd).toBe(false);
     expect(result.current.quickAddDictionary).toBe('properNouns');
     expect(result.current.clipboardText).toBe('');
+    expect(result.current.quickAddView).toBeNull();
   });
 
-  test('handleQuickAddDictionaryChange swaps only dictionaryId, preserving text', () => {
+  test('handleQuickAddDictionaryChange swaps only dictionaryId, preserving text', async () => {
     const { result } = renderHook(() => useDictionaryModals());
-    act(() => result.current.openQuickAddCharacter('keep me'));
+    await act(() => result.current.openQuickAddCharacter('keep me'));
     act(() => result.current.handleQuickAddDictionaryChange('phrases'));
     expect(result.current.quickAddDictionary).toBe('phrases');
     expect(result.current.clipboardText).toBe('keep me');

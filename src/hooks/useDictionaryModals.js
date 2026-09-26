@@ -9,10 +9,11 @@ import toast from '../utils/toast';
 /**
  * Quick Add modal state and handlers.
  *
- * Pure UI concern — owns modal open/close state only.
- * activeProperNouns is NOT stored here; use activeProperNounsFromConfig
- * from useTranslatorEngine directly in callers. `dictionaries` (DictionaryContext state) is
- * likewise injected, not stored — passed in by the caller for the Cmd-6 existence check.
+ * Owns the modal's open/close state, and the quick-add view each open decided over: every
+ * opener loads the view once and stores it with the target, so the form's dropdown
+ * (`quickAddChoices`) reads the same view the target came from. `dictionaries`
+ * (DictionaryContext state) is injected, not stored — passed in by the caller for the Cmd-6
+ * existence check.
  *
  * @param {{ [key: string]: unknown }} dictionaries - current DictionaryContext.dictionaries state
  */
@@ -21,10 +22,12 @@ export function useDictionaryModals(dictionaries) {
     isOpen: false,
     dictionaryId: 'properNouns',
     text: '',
+    view: null,
   });
 
-  const openQuickAdd = useCallback((dictionaryId, text = '') => {
-    setModalState({ isOpen: true, dictionaryId, text });
+  const openQuickAdd = useCallback(async (dictionaryId, text = '') => {
+    const view = await loadQuickAddConfig();
+    setModalState({ isOpen: true, dictionaryId, text, view });
   }, []);
 
   const openQuickAddCharacter = useCallback(
@@ -63,7 +66,7 @@ export function useDictionaryModals(dictionaries) {
     const target = quickAddTarget('properNoun', view, {});
     // Cmd-5 always resolves (falls back to 'properNouns'); the 'none' arm is Cmd-6 only.
     const dictionaryId = target.kind === 'open' ? target.dictionaryId : 'properNouns';
-    setModalState({ isOpen: true, dictionaryId, text });
+    setModalState({ isOpen: true, dictionaryId, text, view });
   }, []);
 
   const openQuickAddCustomStructuralPattern = useCallback(
@@ -74,13 +77,13 @@ export function useDictionaryModals(dictionaries) {
         toast.error(quickAddMissMessage(target));
         return;
       }
-      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text });
+      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text, view });
     },
     [dictionaries]
   );
 
   const closeQuickAdd = useCallback(() => {
-    setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '' });
+    setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '', view: null });
   }, []);
 
   const handleQuickAddDictionaryChange = useCallback((dictionaryId) => {
@@ -96,6 +99,7 @@ export function useDictionaryModals(dictionaries) {
     showQuickAdd: modalState.isOpen,
     quickAddDictionary: modalState.dictionaryId,
     clipboardText: modalState.text,
+    quickAddView: modalState.view,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,

@@ -1,6 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import {
   quickAddTarget,
+  quickAddChoices,
   quickAddMissMessage,
   type QuickAddView,
 } from '../dictionary/QuickAddTarget';
@@ -131,5 +132,64 @@ describe('quickAddMissMessage', () => {
     expect(
       quickAddMissMessage({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-_X' })
     ).toBe('The structural pattern dictionary patterns-_X is missing');
+  });
+});
+
+describe('quickAddChoices', () => {
+  const ALL = [
+    'characters',
+    'phrases',
+    'patterns',
+    'properNouns',
+    'properNouns-Mine',
+    'properNouns-f_Novel',
+    'patterns-f_Novel',
+    'properNouns-f_Previous',
+    'patterns-f_Previous',
+    'properNouns-_Theme',
+    'patterns-_Theme',
+  ];
+
+  test('offers every non-proper-noun kind, and proper nouns only while the view has them active', () => {
+    expect(quickAddChoices(view(['properNouns-Mine']), ALL, 'phrases')).toEqual([
+      'characters',
+      'phrases',
+      'patterns',
+      'properNouns-Mine',
+    ]);
+  });
+
+  test('offers a paired patterns dictionary only while its proper-nouns half is active', () => {
+    const choices = quickAddChoices(
+      view(['properNouns-f_Novel', 'properNouns-_Theme']),
+      ALL,
+      'phrases'
+    );
+    expect(choices).toContain('patterns-f_Novel');
+    expect(choices).toContain('patterns-_Theme');
+    expect(choices).not.toContain('patterns-f_Previous');
+  });
+
+  test('never offers a fiction the view does not name, whatever else config holds', () => {
+    // The Reader's view names only the bound book; the previous novel must not appear.
+    const choices = quickAddChoices(
+      view(['properNouns', 'properNouns-f_Novel']),
+      ALL,
+      'properNouns-f_Novel'
+    );
+    expect(choices).not.toContain('properNouns-f_Previous');
+    expect(choices).not.toContain('patterns-f_Previous');
+  });
+
+  test('always offers the dictionary the form opened on, even over an empty view', () => {
+    // Cmd-5 over a failed config load targets root properNouns, which no view lists active.
+    expect(quickAddChoices(null, ALL, 'properNouns')).toContain('properNouns');
+    expect(quickAddChoices(view([]), ALL, 'patterns-f_Novel')).toContain('patterns-f_Novel');
+  });
+
+  test('keeps the order it was given', () => {
+    const active = view(['properNouns-_Theme', 'properNouns-f_Novel']);
+    const choices = quickAddChoices(active, ALL, 'phrases');
+    expect(choices).toEqual(ALL.filter((id) => choices.includes(id)));
   });
 });

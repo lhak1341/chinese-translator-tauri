@@ -7,6 +7,7 @@ import type { EditingEntryData } from '../../types/DictionaryTypes';
 import { SemanticTypePicker } from './SemanticTypePicker';
 import { WordTransformToolbar } from './WordTransformToolbar';
 import { useDictionaryEntryForm } from '../../hooks/useDictionaryEntryForm';
+import type { QuickAddView } from '../../utils/dictionary/QuickAddTarget';
 
 interface DictionaryEntryProps {
   /** Entry to edit (undefined for new entry) */
@@ -15,8 +16,9 @@ interface DictionaryEntryProps {
   onClose: () => void;
   /** Currently selected dictionary ID */
   selectedDictionary: string;
-  /** Whether to show dictionary selection dropdown */
-  allowDictionarySelection?: boolean;
+  /** The quick-add view the opening surface decided its target over. Pass it (even `null`)
+   * to offer a dictionary dropdown of that view's quick-add choices; omit it for none. */
+  quickAddView?: QuickAddView | null;
   /** Callback when dictionary selection changes */
   onDictionaryChange?: (dictionaryId: string) => void;
   /** Initial source text (pre-populated from clipboard via keyboard shortcut) */
@@ -27,9 +29,9 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   entry,
   onClose,
   selectedDictionary,
-  allowDictionarySelection = false,
   onDictionaryChange,
   initialSource,
+  quickAddView,
 }) => {
   const { updateEntry, addEntry, dictionaries } = useDictionary();
   const form = useDictionaryEntryForm(entry, selectedDictionary, {
@@ -38,6 +40,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     dictionaries,
     initialSource,
     onDictionaryChange,
+    quickAddView,
   });
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -64,7 +67,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
         </div>
 
         <form onSubmit={handleFormSubmit} className={styles.formContainer}>
-          {allowDictionarySelection && (
+          {quickAddView !== undefined && (
             <div className={styles.formGroup}>
               <label htmlFor="entry-dictionary" className={styles.label}>
                 Dictionary

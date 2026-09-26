@@ -352,7 +352,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           <DictionaryEntry
             onClose={quickAdd.close}
             selectedDictionary={quickAdd.dictionary}
-            allowDictionarySelection={true}
+            quickAddView={quickAdd.view}
             onDictionaryChange={quickAdd.onDictionaryChange}
             initialSource={quickAdd.initialText}
           />

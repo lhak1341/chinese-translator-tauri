@@ -8,6 +8,7 @@ import {
   quickAddMissMessage,
   loadQuickAddConfig,
   type QuickAddKind,
+  type QuickAddView,
 } from '../utils/dictionary/QuickAddTarget';
 import { isBoundToFiction, readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
@@ -69,6 +70,8 @@ export interface ReaderCommands {
     isOpen: boolean;
     dictionary: string;
     initialText: string;
+    /** The quick-add view the open Add decided over — its dropdown's choices come from it. */
+    view: QuickAddView | null;
     close: () => void;
     onDictionaryChange: (dictionaryId: string) => void;
   };
@@ -124,7 +127,7 @@ export function useReaderCommands({
         toast.error(quickAddMissMessage(target));
         return;
       }
-      openQuickAdd(target.dictionaryId, text ?? '');
+      await openQuickAdd(target.dictionaryId, text ?? '');
     },
     [boundFiction, dictionaries, openQuickAdd]
   );
@@ -215,6 +218,7 @@ export function useReaderCommands({
       isOpen: modals.showQuickAdd,
       dictionary: modals.quickAddDictionary,
       initialText: modals.clipboardText,
+      view: modals.quickAddView,
       close: modals.closeQuickAdd,
       onDictionaryChange: modals.handleQuickAddDictionaryChange,
     },

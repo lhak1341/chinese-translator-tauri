@@ -4,6 +4,8 @@ import { useDictionaryEntryForm } from '../useDictionaryEntryForm';
 import type { DictionaryEntryFormDeps } from '../useDictionaryEntryForm';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import React from 'react';
+import { loadAppConfig } from '../../utils/appConfig';
+import { getDictionaryTypes } from '../../components/dictionary/DictionaryTypes';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -645,12 +647,34 @@ describe('availableDictionaries', () => {
   beforeEach(stubEmptyClipboard);
   afterEach(() => vi.unstubAllGlobals());
 
-  it('includes properNouns-Novel from getDictionaryTypes after mount', async () => {
-    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
-    await waitFor(() =>
-      expect(result.current.availableDictionaries.some(([id]) => id === 'properNouns-Novel')).toBe(
-        true
-      )
+  const ids = (form: { availableDictionaries: [string, unknown][] }): string[] =>
+    form.availableDictionaries.map(([id]) => id);
+
+  it('offers the quick-add choices of the view it was given', async () => {
+    const quickAddView = {
+      activeProperNouns: ['properNouns-Novel'],
+      defaultQuickAddDictionary: null,
+    };
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'phrases', makeDeps({ quickAddView }))
     );
+    await waitFor(() => expect(ids(result.current)).toContain('properNouns-Novel'));
+  });
+
+  it('never offers a proper-nouns dictionary its view does not name, even if config does', async () => {
+    // Config (mocked above) names properNouns-Novel; the Reader's view does not.
+    const quickAddView = { activeProperNouns: [], defaultQuickAddDictionary: null };
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'phrases', makeDeps({ quickAddView }))
+    );
+    await waitFor(() => expect(ids(result.current)).toContain('phrases'));
+    expect(ids(result.current)).not.toContain('properNouns-Novel');
+    expect(loadAppConfig).not.toHaveBeenCalled();
+  });
+
+  it('offers no dropdown without a view', async () => {
+    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
+    await waitFor(() => expect(getDictionaryTypes).toHaveBeenCalled());
+    expect(result.current.availableDictionaries).toEqual([]);
   });
 });

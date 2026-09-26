@@ -4,7 +4,6 @@ import type { RefObject } from 'react';
 import { DICTIONARY_TYPES, getDictionaryTypes } from '../components/dictionary/DictionaryTypes';
 import type { DictionaryTypesCollection } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
-import { loadAppConfig } from '../utils/appConfig';
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
 import type {
   DictionaryData,
@@ -16,13 +15,12 @@ import type {
 import {
   isPatternsDict,
   isProperNounsDict,
-  isPairedPatternsId,
   isCharacterSourceValid,
   isPatternValid,
   validateDictionaryEntry,
-  toProperNounsId,
   buildEntryMetadata,
 } from '../utils/dictionary';
+import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
 import {
   generateRoughTranslation,
@@ -46,6 +44,10 @@ export interface DictionaryEntryFormDeps {
   dictionaries: { [key: string]: DictionaryData };
   initialSource?: string;
   onDictionaryChange?: (dict: string) => void;
+  /** The quick-add view the opening surface decided its target over. Present — even `null`,
+   * a config that failed to load — means the form offers a dictionary dropdown, filled with
+   * `quickAddChoices` over this same view; absent means no dropdown. */
+  quickAddView?: QuickAddView | null;
 }
 
 export interface DictionaryEntryFormState {
@@ -93,7 +95,8 @@ export function useDictionaryEntryForm(
   selectedDictionary: string,
   deps: DictionaryEntryFormDeps
 ): DictionaryEntryFormState {
-  const { updateEntry, addEntry, dictionaries, initialSource, onDictionaryChange } = deps;
+  const { updateEntry, addEntry, dictionaries, initialSource, onDictionaryChange, quickAddView } =
+    deps;
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const [source, setSource] = useState<string>(entry?.source ?? '');
@@ -119,7 +122,8 @@ export function useDictionaryEntryForm(
   );
   const [error, setError] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [activeProperNouns, setActiveProperNouns] = useState<string[]>([]);
+  // The dictionary the form opened on, fixed at mount — always a quick-add choice.
+  const [openedDictionary] = useState<string>(selectedDictionary);
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const translationInputRef = useRef<HTMLInputElement>(null);
   const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
@@ -155,40 +159,14 @@ export function useDictionaryEntryForm(
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadActiveProperNouns = async (): Promise<void> => {
-      try {
-        const config = await loadAppConfig();
-        if (isMounted) setActiveProperNouns(config.engine.activeProperNouns);
-      } catch (err) {
-        if (isMounted) logger.error('Failed to load active proper nouns:', err);
-      }
-    };
-    loadActiveProperNouns();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
+  // Every dictionary's label, unfiltered: the existing-entry notice names whichever
+  // dictionary holds the match, and the dropdown filters these by the quick-add view.
   useEffect(() => {
     let isMounted = true;
     const loadAllDictionaries = async (): Promise<void> => {
       try {
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
-        if (isMounted) {
-          const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
-            if (isPairedPatternsId(id)) {
-              // Show a paired pattern dict only if its proper-nouns half is active
-              const pairedFiction = toProperNounsId(id);
-              if (activeProperNouns.includes(pairedFiction)) acc[id] = info;
-            } else if (!isProperNounsDict(id) || activeProperNouns.includes(id)) {
-              acc[id] = info;
-            }
-            return acc;
-          }, {} as DictionaryTypesCollection);
-          setAllDictionaryTypes(filteredTypes);
-        }
+        if (isMounted) setAllDictionaryTypes(types);
       } catch (err) {
         if (isMounted) logger.error('Failed to load dictionary types:', err);
       }
@@ -197,11 +175,17 @@ export function useDictionaryEntryForm(
     return () => {
       isMounted = false;
     };
-  }, [activeProperNouns]);
+  }, []);
 
+  const offersDropdown = quickAddView !== undefined;
   const availableDictionaries = useMemo(
-    () => Object.entries(allDictionaryTypes),
-    [allDictionaryTypes]
+    () =>
+      offersDropdown
+        ? quickAddChoices(quickAddView, Object.keys(allDictionaryTypes), openedDictionary).map(
+            (id): [string, DictionaryTypesCollection[string]] => [id, allDictionaryTypes[id]]
+          )
+        : [],
+    [offersDropdown, quickAddView, allDictionaryTypes, openedDictionary]
   );
 
   const validateCharacterEntry = useCallback(

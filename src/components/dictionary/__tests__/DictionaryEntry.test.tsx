@@ -93,18 +93,14 @@ describe('DictionaryEntry — title', () => {
 });
 
 describe('DictionaryEntry — dictionary selector', () => {
-  test('is hidden by default (allowDictionarySelection=false)', () => {
+  test('is hidden when no quick-add view is given', () => {
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
     expect(screen.queryByLabelText('Dictionary')).not.toBeInTheDocument();
   });
 
-  test('renders with availableDictionaries options when allowDictionarySelection=true', () => {
+  test('renders availableDictionaries options when a quick-add view is given, even a null one', () => {
     render(
-      <DictionaryEntry
-        onClose={vi.fn()}
-        selectedDictionary="properNouns"
-        allowDictionarySelection
-      />
+      <DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" quickAddView={null} />
     );
     const select = screen.getByLabelText('Dictionary') as HTMLSelectElement;
     expect(select).toBeInTheDocument();
@@ -113,11 +109,7 @@ describe('DictionaryEntry — dictionary selector', () => {
 
   test('dropdown change dispatches to handleDictionaryChange', () => {
     render(
-      <DictionaryEntry
-        onClose={vi.fn()}
-        selectedDictionary="properNouns"
-        allowDictionarySelection
-      />
+      <DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" quickAddView={null} />
     );
     fireEvent.change(screen.getByLabelText('Dictionary'), { target: { value: 'phrases' } });
     expect(formStateRef.current.handleDictionaryChange).toHaveBeenCalled();

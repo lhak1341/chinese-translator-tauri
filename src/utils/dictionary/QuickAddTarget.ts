@@ -1,8 +1,10 @@
 import {
   hasPairedPatterns,
+  isPairedPatternsId,
   isProperNounsDict,
   tierOf,
   toPatternsId,
+  toProperNounsId,
 } from './DictionaryIdClassifier';
 import { loadAppConfig } from '../appConfig';
 import { logger } from '../logger';
@@ -74,6 +76,28 @@ export function quickAddTarget(
   return dictionaries[patternsId] !== undefined
     ? { kind: 'open', dictionaryId: patternsId }
     : { kind: 'none', reason: 'pairMissing', patternsId };
+}
+
+/**
+ * The **quick-add choices**: which of `dictionaryIds` the Add form's dropdown offers, decided
+ * over the same view as the target, so the dropdown can never offer a dictionary the target
+ * rule would not consider active (the Reader's stale-config case). A proper-nouns dictionary
+ * is a choice while the view has it active, a paired patterns dictionary while its
+ * proper-nouns half is, and every other kind always. `opened` — the dictionary the form
+ * opened on — is always a choice, so a fallback target (root `properNouns` over an empty
+ * view) is never missing from its own dropdown. Keeps `dictionaryIds`' order.
+ */
+export function quickAddChoices(
+  view: QuickAddView | null,
+  dictionaryIds: readonly string[],
+  opened: string
+): string[] {
+  const active = view?.activeProperNouns ?? [];
+  return dictionaryIds.filter((id) => {
+    if (id === opened) return true;
+    if (isPairedPatternsId(id)) return active.includes(toProperNounsId(id));
+    return !isProperNounsDict(id) || active.includes(id);
+  });
 }
 
 /** What to tell the user when Cmd-6 has nowhere to go. */
