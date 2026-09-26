@@ -102,7 +102,9 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     await hotkeyRef.current!('6');
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith('No structural patterns dictionary for active fiction');
+    expect(toastError).toHaveBeenCalledWith(
+      "The active fiction's structural pattern dictionary (patterns-f_Novel) is missing"
+    );
   });
 
   test('toasts when no fiction proper-noun dictionary is active at all', async () => {
@@ -116,7 +118,7 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     expect(toastError).toHaveBeenCalledWith('No structural patterns dictionary for active fiction');
   });
 
-  test('config load failure is a silent no-op (no crash, no toast)', async () => {
+  test('config load failure decides with no config: no fiction, so a toast and no switch', async () => {
     (loadAppConfig as any).mockRejectedValue(new Error('disk read failed'));
     dictionariesRef.current = {};
 
@@ -124,6 +126,28 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
     await hotkeyRef.current!('6');
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith('No structural patterns dictionary for active fiction');
+  });
+});
+
+describe('TabbedInterface — Cmd-5 (proper noun quick nav)', () => {
+  test('switches to the default when it is active', async () => {
+    (loadAppConfig as any).mockResolvedValue(
+      makeConfig({
+        activeProperNouns: ['properNouns', 'properNouns-_Theme'],
+        defaultQuickAddDictionary: 'properNouns-_Theme',
+      })
+    );
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
+    await hotkeyRef.current!('5');
+    expect(setSelectedDictionary).toHaveBeenCalledWith('properNouns-_Theme');
+  });
+
+  test('with nothing usable, switches to the root proper-nouns table (same answer as the Translator)', async () => {
+    (loadAppConfig as any).mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
+    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
+    await hotkeyRef.current!('5');
+    expect(setSelectedDictionary).toHaveBeenCalledWith('properNouns');
     expect(toastError).not.toHaveBeenCalled();
   });
 });

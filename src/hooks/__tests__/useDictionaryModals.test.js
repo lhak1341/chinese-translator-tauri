@@ -101,6 +101,24 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
     expect(result.current.quickAddDictionary).toBe('properNouns-Amy');
   });
 
+  test('without a usable default, prefers fiction over custom over generic (not ASCII order)', async () => {
+    loadAppConfig.mockResolvedValue(
+      makeConfig({
+        activeProperNouns: [
+          'properNouns',
+          'properNouns-_Theme',
+          'properNouns-Mine',
+          'properNouns-f_Novel',
+        ],
+      })
+    );
+    const { result } = renderHook(() => useDictionaryModals());
+    await act(async () => {
+      await result.current.openQuickAddCustomProperNoun('clip');
+    });
+    expect(result.current.quickAddDictionary).toBe('properNouns-f_Novel');
+  });
+
   test('picks the alphabetically-first custom dictionary when no default is set', async () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({ activeProperNouns: ['properNouns', 'properNouns-Zed', 'properNouns-Amy'] })
@@ -201,7 +219,9 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
     expect(result.current.showQuickAdd).toBe(false);
-    expect(toast.error).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(
+      "The active fiction's structural pattern dictionary (patterns-f_Novel) is missing"
+    );
   });
 
   test('re-resolves against the latest dictionaries value on re-render (no stale closure)', async () => {
@@ -230,7 +250,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     expect(result.current.showQuickAdd).toBe(true);
   });
 
-  test('config load failure resets selection to null, toasts, and does not open the modal', async () => {
+  test('config load failure decides with no config: toasts and does not open the modal', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
     const { result } = renderHook(() => useDictionaryModals({}));
     await act(async () => {

@@ -13,11 +13,11 @@ import { useVisibleTab } from './VisibleTabContext';
 import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
 import type { TabId } from '../types/ComponentTypes';
 import { useDictionary } from './dictionary/DictionaryContext';
-import { loadAppConfig } from '../utils/appConfig';
 import {
-  resolveDefaultProperNounTarget,
-  resolveAndVerifyStructuralPatternTarget,
-} from '../utils/dictionary';
+  quickAddTarget,
+  quickAddMissMessage,
+  loadQuickAddConfig,
+} from '../utils/dictionary/QuickAddTarget';
 import styles from '../styles/TabbedInterface.module.css';
 
 /**
@@ -91,36 +91,15 @@ const TabbedInterface: React.FC = () => {
         setSelectedDictionary(DICTIONARY_HOTKEY_MAP[key]);
         return;
       }
-      if (key === '5') {
-        try {
-          const config = await loadAppConfig();
-          const target = resolveDefaultProperNounTarget(
-            config.ui.defaultQuickAddDictionary,
-            config.engine.activeProperNouns
-          );
-          if (target) setSelectedDictionary(target);
-        } catch {
-          // no-op if config unavailable
+      if (key === '5' || key === '6') {
+        const kind = key === '5' ? 'properNoun' : 'structuralPattern';
+        const target = quickAddTarget(kind, await loadQuickAddConfig(), dictionaries);
+        if (target.kind === 'open') {
+          setSelectedDictionary(target.dictionaryId);
+        } else {
+          const { default: toast } = await import('../utils/toast');
+          toast.error(quickAddMissMessage(target, 'translator'));
         }
-      }
-      if (key === '6') {
-        try {
-          const config = await loadAppConfig();
-          const target = resolveAndVerifyStructuralPatternTarget(
-            config.ui.defaultQuickAddDictionary,
-            config.engine.activeProperNouns,
-            dictionaries
-          );
-          if (target) {
-            setSelectedDictionary(target);
-          } else {
-            const { default: toast } = await import('../utils/toast');
-            toast.error('No structural patterns dictionary for active fiction');
-          }
-        } catch {
-          // no-op if config unavailable
-        }
-        return;
       }
     },
     [setSelectedDictionary, dictionaries]

@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
-import { logger } from '../utils/logger';
-import { loadAppConfig } from '../utils/appConfig';
 import {
-  resolveDefaultProperNounTarget,
-  resolveAndVerifyStructuralPatternTarget,
-} from '../utils/dictionary';
+  quickAddTarget,
+  quickAddMissMessage,
+  loadQuickAddConfig,
+} from '../utils/dictionary/QuickAddTarget';
 import toast from '../utils/toast';
 
 /**
@@ -51,53 +50,31 @@ export function useDictionaryModals(dictionaries) {
   /**
    * Open Quick Add for a custom proper noun dictionary (Cmd-5).
    *
-   * Reads activeProperNouns and defaultQuickAddDictionary from loadAppConfig()
-   * at call time — both come from the same cached config read so they're always
-   * consistent. After a force reload, invalidateAppConfig() has been called so
-   * the next open picks up the fresh value automatically.
+   * Target chosen by `quickAddTarget` (utils/dictionary/QuickAddTarget.ts) over config read at
+   * call time via `loadQuickAddConfig`. After a force reload, invalidateAppConfig() has been
+   * called so the next open picks up the fresh value automatically.
    *
    * CRITICAL FIX (2026-01-20): Set ALL modal state atomically after determining
    * the dictionary — avoids the React batching issue where clipboardText is set
    * before the dictionary is resolved, leaving empty dialog fields for Cmd-5.
    */
   const openQuickAddCustomProperNoun = useCallback(async (text = '') => {
-    let selectedDictionary = 'properNouns';
-
-    try {
-      const config = await loadAppConfig();
-      const resolved = resolveDefaultProperNounTarget(
-        config.ui.defaultQuickAddDictionary,
-        config.engine.activeProperNouns
-      );
-      if (resolved) selectedDictionary = resolved;
-    } catch (error) {
-      logger.error('Error loading default Cmd-5 dictionary:', error);
-    }
-
-    setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
+    const view = await loadQuickAddConfig();
+    const target = quickAddTarget('properNoun', view, {});
+    // Cmd-5 always resolves (falls back to 'properNouns'); the 'none' arm is Cmd-6 only.
+    const dictionaryId = target.kind === 'open' ? target.dictionaryId : 'properNouns';
+    setModalState({ isOpen: true, dictionaryId, text });
   }, []);
 
   const openQuickAddCustomStructuralPattern = useCallback(
     async (text = '') => {
-      let selectedDictionary = null;
-
-      try {
-        const config = await loadAppConfig();
-        selectedDictionary = resolveAndVerifyStructuralPatternTarget(
-          config.ui.defaultQuickAddDictionary,
-          config.engine.activeProperNouns,
-          dictionaries
-        );
-      } catch (error) {
-        logger.error('Error resolving Cmd-6 structural pattern dictionary:', error);
-        selectedDictionary = null;
-      }
-
-      if (!selectedDictionary) {
-        toast.error('No structural patterns dictionary for active fiction');
+      const view = await loadQuickAddConfig();
+      const target = quickAddTarget('structuralPattern', view, dictionaries);
+      if (target.kind === 'none') {
+        toast.error(quickAddMissMessage(target, 'translator'));
         return;
       }
-      setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
+      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text });
     },
     [dictionaries]
   );
