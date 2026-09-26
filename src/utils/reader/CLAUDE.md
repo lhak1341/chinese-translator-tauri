@@ -65,6 +65,10 @@ The measurement resync (`resync()` on any panel's total size changing) cannot fi
 
 **Unmeasured rows are estimated per index, never by a fixed height.** `estimateRowSize` scales the line's Chinese character count by the panel's own `emPerChar` and biases it slightly upward. A fixed skeleton height fails differently in kind, not degree: its error is systematic, so long lines are underestimated every time and the error accumulates monotonically down the document instead of cancelling.
 
+## Records read after a write must read under the lock
+
+Writes to `books.json` run later, on `withBookRecordsLock`; `loadBookRecords()` returns the cache as it is now. So a read that must see a write already queued has to go through the lock itself: `withBookRecordsLock(loadBookRecords)`. Example: Back queues the final position flush in `BookReader`'s unmount cleanup (`ReadingAnchor.close()`), and `ReaderTab`'s reopen branch reads under the lock so a fast reopen doesn't restore the position from before it (pinned by `ReaderTab.openBook.test.tsx`). A view that just wants to _stay_ current subscribes instead (`useBookRecords`).
+
 ## The binding is the authority; the config keys it writes are a cache
 
 `BookBindingContext` applies a binding by writing `engine.activeProperNouns` and `ui.defaultQuickAddDictionary`, then reinitializing — and it is allowed to fail that write and carry on, because a book that will not bind must still be readable. So anything in Reader context needing "the active fiction's dictionaries" reads `binding`, not those keys: the config route is a longer path to the same answer through a value the Reader itself wrote, and after a failed apply it still names the _previous_ book. `ReaderQuickAddTarget.ts` is that resolution for the add-entry bar's Cmd-5/Cmd-6 targets, and it never falls back to the Translator's config-driven resolvers: those answered "no fiction here" from config too, so until 2026-09-26 an unbound (or "none") book whose apply had failed filed its names under the previous novel's dictionaries. For a book with no fiction dictionary it reads only config's _non-fiction_ default for Cmd-5, and reports Cmd-6 as having no target.
