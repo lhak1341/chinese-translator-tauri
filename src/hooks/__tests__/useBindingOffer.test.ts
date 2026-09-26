@@ -6,6 +6,8 @@ import type { BookBinding } from '../../types/ReaderTypes';
 const bindingState = vi.hoisted(() => ({
   binding: null as BookBinding | null,
   fictionDictionaries: [] as string[],
+  applyError: null as string | null,
+  isDialogOpen: false,
 }));
 vi.mock('../../components/BookBindingContext', () => ({
   useBookBinding: () => bindingState,
@@ -19,6 +21,8 @@ const BOOK: UseBindingOfferOptions = {
 beforeEach(() => {
   bindingState.binding = null;
   bindingState.fictionDictionaries = [];
+  bindingState.applyError = null;
+  bindingState.isDialogOpen = false;
 });
 
 describe('useBindingOffer', () => {
@@ -66,5 +70,22 @@ describe('useBindingOffer', () => {
     bindingState.fictionDictionaries = ['properNouns-f_TapDo'];
     rerender();
     expect(result.current.suggestion.exists).toBe(true);
+  });
+
+  it('surfaces a failed apply while the dialog is closed — the only other place it shows', () => {
+    bindingState.binding = { fictionDictionary: 'properNouns-f_TapDo' };
+    bindingState.applyError = 'config write failed';
+    const { result, rerender } = renderHook(() => useBindingOffer(BOOK));
+    expect(result.current.applyError).toBe('config write failed');
+
+    // The dialog shows the same error itself; saying it twice is noise.
+    bindingState.isDialogOpen = true;
+    rerender();
+    expect(result.current.applyError).toBeNull();
+  });
+
+  it('has no apply error when the last apply succeeded', () => {
+    const { result } = renderHook(() => useBindingOffer(BOOK));
+    expect(result.current.applyError).toBeNull();
   });
 });

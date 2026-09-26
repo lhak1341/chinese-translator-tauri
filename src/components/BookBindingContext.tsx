@@ -45,7 +45,14 @@ export interface BookBindingContextValue {
   isBookOpen: boolean;
   isDialogOpen: boolean;
   isApplying: boolean;
+  /** The last binding operation's failure, for the dialog: a refused name, a failed save,
+   * or a failed apply. */
   error: string | null;
+  /** Set only when *applying* an answer failed — the config write or the engine rebuild —
+   * so the engine may still hold another book's fiction dictionary. Cleared by the next
+   * successful apply. Narrower than `error` on purpose: this one is safe to show outside
+   * the dialog, because whenever it is set the dictionaries really did not switch. */
+  applyError: string | null;
   openDialog: () => void;
   closeDialog: () => void;
   /** Called by the Reader once a book is open and its record has been read. Applies the
@@ -94,6 +101,7 @@ export function BookBindingProvider({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   // Read at call time, never closed over: `dictionaries` changes identity on every
   // dictionary edit, and re-creating `bind`/`announceOpenBook` on each of those would
@@ -136,7 +144,7 @@ export function BookBindingProvider({
    * no change at all. A quick-add default that moved on its own is a config write with no
    * engine consequence — the engine never reads that key.
    */
-  const applyAnswer = useCallback(
+  const writeAnswer = useCallback(
     async (bound: string | null): Promise<void> => {
       const config = await loadAppConfig();
       const nextActive = activeProperNounsForBinding(config.engine.activeProperNouns, bound);
@@ -157,6 +165,21 @@ export function BookBindingProvider({
       });
     },
     [reinitializeEngine]
+  );
+
+  /** `writeAnswer`, recording whether the dictionaries actually switched — see
+   * `applyError`. Rethrows, so each caller still reports the failure its own way. */
+  const applyAnswer = useCallback(
+    async (bound: string | null): Promise<void> => {
+      try {
+        await writeAnswer(bound);
+        setApplyError(null);
+      } catch (cause) {
+        setApplyError(extractErrorMessage(cause));
+        throw cause;
+      }
+    },
+    [writeAnswer]
   );
 
   const announceOpenBook = useCallback(
@@ -274,6 +297,7 @@ export function BookBindingProvider({
       isDialogOpen,
       isApplying,
       error,
+      applyError,
       openDialog,
       closeDialog,
       announceOpenBook,
@@ -288,6 +312,7 @@ export function BookBindingProvider({
       isDialogOpen,
       isApplying,
       error,
+      applyError,
       openDialog,
       closeDialog,
       announceOpenBook,

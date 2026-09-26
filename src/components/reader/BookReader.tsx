@@ -294,6 +294,17 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
       )}
 
+      {offer.applyError && (
+        <div className={styles.error}>
+          <AlertCircle size={15} />
+          This book&apos;s dictionaries were not applied — translations may still use the previous
+          book&apos;s names. {offer.applyError}
+          <button onClick={openDialog} className={styles.secondaryButton}>
+            Choose dictionaries
+          </button>
+        </div>
+      )}
+
       <div className={styles.readerBody}>
         <div className={styles.readerReference}>
           <ReaderPanel

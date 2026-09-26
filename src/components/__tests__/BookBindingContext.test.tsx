@@ -256,6 +256,42 @@ describe('creating a dictionary from the dialog', () => {
 
     expect(createFictionDictionaryPair).not.toHaveBeenCalled();
     expect(result.current.error).toContain('卡徒');
+    // A refused name is a dialog message, not a failed apply: nothing changed.
+    expect(result.current.applyError).toBeNull();
+  });
+});
+
+describe('a failed apply', () => {
+  test('on open, it is reported as an apply error, and a later successful bind clears it', async () => {
+    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    config.engine.activeProperNouns = ['properNouns', 'properNouns-f_TruTien'];
+    const { result } = setup();
+
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.applyError).toBe('engine exploded'));
+
+    config.engine.activeProperNouns = ['properNouns'];
+    await act(async () => {
+      await result.current.bind('properNouns-f_TruTien');
+    });
+    expect(result.current.applyError).toBeNull();
+  });
+
+  test('a failed save of the answer is not an apply error: the engine was never touched', async () => {
+    setBookBinding.mockRejectedValueOnce(new Error('disk full'));
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, null);
+    });
+
+    await act(async () => {
+      await result.current.bind('properNouns-f_TapDo');
+    });
+
+    expect(result.current.error).toBe('disk full');
+    expect(result.current.applyError).toBeNull();
   });
 });
 

@@ -20,6 +20,14 @@ export interface BindingOffer {
   dismiss: () => void;
   /** The binding button's text: the bound dictionary, the answer "none", or the prompt. */
   buttonLabel: string;
+  /**
+   * Why the book's dictionaries are not what its binding says, while the dialog is closed.
+   * Applying a binding may fail and reading carries on (a book that will not bind must
+   * still be readable), so the engine may still hold the previous book's fiction
+   * dictionary — the reader has to be told. The dialog shows the same error itself, so
+   * this is `null` while it is open.
+   */
+  applyError: string | null;
 }
 
 /**
@@ -33,7 +41,7 @@ export interface BindingOffer {
  * silently hide it for the next.
  */
 export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOptions): BindingOffer {
-  const { binding, fictionDictionaries } = useBookBinding();
+  const { binding, fictionDictionaries, applyError, isDialogOpen } = useBookBinding();
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
 
   const suggestion = useMemo(
@@ -58,5 +66,6 @@ export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOption
     isBannerVisible: isUnbound && dismissedFor !== fingerprint,
     dismiss,
     buttonLabel,
+    applyError: isDialogOpen ? null : applyError,
   };
 }
