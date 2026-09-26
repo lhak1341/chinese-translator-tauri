@@ -184,6 +184,23 @@ export function BookBindingProvider({
     [applyAnswer, enqueue]
   );
 
+  /**
+   * The tail every answer shares, in the order that matters: persist first, so a failed
+   * write never leaves the engine applying an answer the record doesn't hold; then apply;
+   * and only once both landed, clear the error and close the dialog.
+   */
+  const persistAndApply = useCallback(
+    async (book: OpenBookIdentity, fictionDictionary: string | null): Promise<void> => {
+      const next: BookBinding = { fictionDictionary };
+      await setBookBinding(book.fingerprint, next);
+      setBinding(next);
+      await applyAnswer(fictionDictionary);
+      setError(null);
+      setIsDialogOpen(false);
+    },
+    [applyAnswer]
+  );
+
   const bind = useCallback(
     (fictionDictionary: string | null): Promise<void> =>
       enqueue(async () => {
@@ -191,12 +208,7 @@ export function BookBindingProvider({
         if (!book) return;
         setIsApplying(true);
         try {
-          const next: BookBinding = { fictionDictionary };
-          await setBookBinding(book.fingerprint, next);
-          setBinding(next);
-          await applyAnswer(fictionDictionary);
-          setError(null);
-          setIsDialogOpen(false);
+          await persistAndApply(book, fictionDictionary);
         } catch (cause) {
           logger.error('Failed to bind dictionaries to the book:', cause);
           setError(extractErrorMessage(cause));
@@ -204,7 +216,7 @@ export function BookBindingProvider({
           setIsApplying(false);
         }
       }),
-    [applyAnswer, enqueue]
+    [enqueue, persistAndApply]
   );
 
   const createAndBind = useCallback(
@@ -233,13 +245,7 @@ export function BookBindingProvider({
           await loadDictionary(dictionaryId);
           await loadDictionary(toPatternsId(dictionaryId));
           await refreshFictionDictionaries();
-
-          const next: BookBinding = { fictionDictionary: dictionaryId };
-          await setBookBinding(book.fingerprint, next);
-          setBinding(next);
-          await applyAnswer(dictionaryId);
-          setError(null);
-          setIsDialogOpen(false);
+          await persistAndApply(book, dictionaryId);
         } catch (cause) {
           logger.error('Failed to create and bind a fiction dictionary:', cause);
           setError(extractErrorMessage(cause));
@@ -247,7 +253,7 @@ export function BookBindingProvider({
           setIsApplying(false);
         }
       }),
-    [applyAnswer, enqueue, loadDictionary, refreshFictionDictionaries]
+    [enqueue, loadDictionary, persistAndApply, refreshFictionDictionaries]
   );
 
   // Only meaningful with a book open: the dialog renders inside `BookReader`, so setting

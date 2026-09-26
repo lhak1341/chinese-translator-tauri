@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
@@ -14,11 +14,8 @@ import { useChapters } from '../../hooks/useChapters';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { useReaderCommands } from '../../hooks/useReaderCommands';
-import {
-  fictionDisplayName,
-  suggestFictionDictionary,
-} from '../../utils/reader/FictionDictionarySuggestion';
 import { useBookBinding } from '../BookBindingContext';
+import { useBindingOffer } from '../../hooks/useBindingOffer';
 import BindingBanner from './BindingBanner';
 import BindingDialog from './BindingDialog';
 import ChapterPanel from './ChapterPanel';
@@ -85,10 +82,6 @@ const BookReader: React.FC<BookReaderProps> = ({
    * jump-to-chapter shortcut opens it ready to type; the chapter-strip button opens it
    * for the eye, leaving the keyboard where it was. */
   const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
-  // Dismissal is session-local on purpose: it is not an answer, so nothing is persisted
-  // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
-  // book does not silently hide it for the next.
-  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const { enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
   const {
@@ -170,14 +163,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: isActive && enginePhase === 'ready' && !isTranslating,
   });
 
-  const suggestion = useMemo(
-    () => suggestFictionDictionary(book.fileName, fictionDictionaries),
-    [book.fileName, fictionDictionaries]
-  );
-  // `binding === null` is "never answered". `{ fictionDictionary: null }` is the answer
-  // "none", and must not re-offer — collapsing the two is how this asks forever.
-  const isUnbound = binding === null;
-  const showBanner = isUnbound && dismissedFor !== book.fingerprint;
+  const offer = useBindingOffer({ fingerprint: book.fingerprint, fileName: book.fileName });
 
   // Clamped for the last line's rounding, not for anything the anchor itself can produce.
   const readingProgressPercent =
@@ -242,11 +228,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           title="Dictionaries for this book"
         >
           <BookMarked size={14} />
-          {binding?.fictionDictionary
-            ? fictionDisplayName(binding.fictionDictionary)
-            : isUnbound
-              ? 'Bind dictionaries'
-              : 'No fiction dictionary'}
+          {offer.buttonLabel}
         </button>
         <span className={styles.readerMeta}>
           {book.lineCount.toLocaleString()} lines · {encoding.label}
@@ -316,11 +298,11 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
       </div>
 
-      {showBanner && (
+      {offer.isBannerVisible && (
         <BindingBanner
-          suggestedDictionary={suggestion.dictionaryId}
+          suggestedDictionary={offer.suggestion.dictionaryId}
           onChoose={openDialog}
-          onDismiss={() => setDismissedFor(book.fingerprint)}
+          onDismiss={offer.dismiss}
         />
       )}
 
@@ -382,7 +364,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           bookTitle={book.title}
           fileName={book.fileName}
           fictionDictionaries={fictionDictionaries}
-          suggestion={suggestion}
+          suggestion={offer.suggestion}
           currentBinding={binding}
           isApplying={isBindingApplying}
           error={bindingError}
