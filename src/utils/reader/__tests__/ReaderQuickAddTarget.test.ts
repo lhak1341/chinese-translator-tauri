@@ -1,5 +1,28 @@
-import { describe, expect, it } from 'vitest';
-import { readerQuickAddTarget, type QuickAddConfig } from '../ReaderQuickAddTarget';
+import { describe, expect, it, vi } from 'vitest';
+import { readerQuickAddView } from '../ReaderQuickAddTarget';
+import {
+  quickAddTarget,
+  quickAddMissMessage,
+  type QuickAddKind,
+  type QuickAddView as QuickAddConfig,
+} from '../../dictionary/QuickAddTarget';
+
+vi.mock('../../appConfig', () => ({ loadAppConfig: vi.fn() }));
+
+/** What `useReaderCommands` does: the Reader's view, the shared rule, the Reader's wording.
+ * The cases below predate the shared rule and are kept verbatim as the Reader rule's
+ * regression net. */
+function readerQuickAddTarget(
+  kind: QuickAddKind,
+  bound: string | null,
+  dictionaries: { [key: string]: unknown },
+  config: QuickAddConfig | null
+) {
+  const target = quickAddTarget(kind, readerQuickAddView(config, bound), dictionaries);
+  return target.kind === 'open'
+    ? target
+    : { kind: 'none', message: quickAddMissMessage(target, 'reader') };
+}
 
 const loaded = {
   properNouns: {},

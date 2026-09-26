@@ -2,14 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
-import { loadAppConfig } from '../utils/appConfig';
 import toast from '../utils/toast';
 import {
-  isBoundToFiction,
-  readerQuickAddTarget,
-  type QuickAddConfig,
-  type ReaderQuickAddKind,
-} from '../utils/reader/ReaderQuickAddTarget';
+  quickAddTarget,
+  quickAddMissMessage,
+  loadQuickAddConfig,
+  type QuickAddKind,
+} from '../utils/dictionary/QuickAddTarget';
+import { isBoundToFiction, readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActionId, ReaderActions } from '../utils/reader/ReaderActions';
@@ -110,27 +110,18 @@ export function useReaderCommands({
   } = modals;
 
   // The two Adds that mean "the active fiction's dictionaries" are answered from the open
-  // book's binding, never from the fiction entries in config — see `readerQuickAddTarget`
-  // for why. Config is read only for a book with no fiction dictionary, and only for its
+  // book's binding, never from the fiction entries in config — see `readerQuickAddView` for
+  // why. Config is read only for a book with no fiction dictionary, and only for its
   // non-fiction default.
   const boundFiction = fictionDictionary;
   const addToFiction = useCallback(
-    async (kind: ReaderQuickAddKind, text?: string): Promise<void> => {
-      let config: QuickAddConfig | null = null;
-      if (!isBoundToFiction(boundFiction)) {
-        try {
-          const loaded = await loadAppConfig();
-          config = {
-            defaultQuickAddDictionary: loaded.ui.defaultQuickAddDictionary ?? null,
-            activeProperNouns: loaded.engine.activeProperNouns,
-          };
-        } catch (cause) {
-          logger.error('Failed to load config for a Reader quick-add:', cause);
-        }
-      }
-      const target = readerQuickAddTarget(kind, boundFiction, dictionaries, config);
+    async (kind: QuickAddKind, text?: string): Promise<void> => {
+      // A bound book needs nothing from config: the binding supplies the whole view.
+      const config = isBoundToFiction(boundFiction) ? null : await loadQuickAddConfig();
+      const view = readerQuickAddView(config, boundFiction);
+      const target = quickAddTarget(kind, view, dictionaries);
       if (target.kind === 'none') {
-        toast.error(target.message);
+        toast.error(quickAddMissMessage(target, 'reader'));
         return;
       }
       openQuickAdd(target.dictionaryId, text ?? '');

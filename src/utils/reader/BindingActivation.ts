@@ -34,7 +34,7 @@ export function activeProperNounsForBinding(
  * Binding a fiction dictionary points quick-add at it — that is the setting the reader
  * would otherwise have to remember to change per book. Binding *nothing* only clears a
  * default that pointed at some fiction dictionary (it would now be inactive, and
- * `resolveDefaultProperNounTarget` would silently fall through to an arbitrary one); a
+ * `quickAddTarget` would fall through to its tier order instead); a
  * generic or theme default is a standing choice and is left alone.
  */
 export function quickAddTargetForBinding(

@@ -1,5 +1,6 @@
-import { isFictionProperNounsId, toPatternsId } from '../dictionary/DictionaryIdClassifier';
-import { resolveDefaultProperNounTarget } from '../dictionary/QuickAddTargetResolver';
+import { isFictionProperNounsId } from '../dictionary/DictionaryIdClassifier';
+import type { QuickAddView } from '../dictionary/QuickAddTarget';
+import { activeProperNounsForBinding, quickAddTargetForBinding } from './BindingActivation';
 
 /**
  * Where the Reader's two fiction Adds go: a proper noun (Cmd-5) and a structural pattern
@@ -17,17 +18,6 @@ import { resolveDefaultProperNounTarget } from '../dictionary/QuickAddTargetReso
  * standing Configuration choice that is right for any book without a fiction dictionary.
  */
 
-export type ReaderQuickAddKind = 'properNoun' | 'structuralPattern';
-
-/** The slice of app config the unbound case reads. `null` when it could not be loaded. */
-export interface QuickAddConfig {
-  defaultQuickAddDictionary: string | null;
-  activeProperNouns: string[];
-}
-
-export type ReaderQuickAddTarget =
-  { kind: 'open'; dictionaryId: string } | { kind: 'none'; message: string };
-
 /** Whether `bound` names a fiction dictionary — the only case that needs no config. */
 export function isBoundToFiction(bound: string | null): bound is string {
   // A binding can only ever name a fiction dictionary, but the record is read off disk and
@@ -35,37 +25,25 @@ export function isBoundToFiction(bound: string | null): bound is string {
   return bound !== null && isFictionProperNounsId(bound);
 }
 
-export function readerQuickAddTarget(
-  kind: ReaderQuickAddKind,
-  bound: string | null,
-  dictionaries: { [key: string]: unknown },
-  config: QuickAddConfig | null
-): ReaderQuickAddTarget {
-  if (isBoundToFiction(bound)) {
-    if (kind === 'properNoun') return { kind: 'open', dictionaryId: bound };
-    // The pair is created atomically (ADR-027), so a missing patterns file means someone
-    // deleted half a pair by hand — a repair to report, not something to bind.
-    const patterns = toPatternsId(bound);
-    return dictionaries[patterns] !== undefined
-      ? { kind: 'open', dictionaryId: patterns }
-      : {
-          kind: 'none',
-          message: `This book's structural pattern dictionary (${patterns}) is missing`,
-        };
-  }
-
-  // No fiction dictionary for this book: unbound, answered "none", or a corrupt binding.
-  if (kind === 'structuralPattern') {
-    // Config's structural-pattern route can only ever name a fiction `patterns-f_*`.
-    return {
-      kind: 'none',
-      message: 'This book has no structural pattern dictionary — bind one with Cmd+B',
-    };
-  }
-  const nonFiction = config?.activeProperNouns.filter((id) => !isFictionProperNounsId(id)) ?? [];
-  const resolved = resolveDefaultProperNounTarget(
-    config?.defaultQuickAddDictionary ?? null,
-    nonFiction
-  );
-  return { kind: 'open', dictionaryId: resolved ?? 'properNouns' };
+/**
+ * The quick-add view the Reader decides from: config as the open book's binding implies it —
+ * the same arithmetic `BookBindingContext` writes into config on bind. The fiction slice and a
+ * fiction default come only from the binding; a stale fiction left in config never reaches the
+ * rule. Feed the result to `quickAddTarget` (utils/dictionary/QuickAddTarget.ts).
+ *
+ * `config` may be `null` (not loaded, or not needed because the book is bound): the view is then
+ * built from the binding alone.
+ */
+export function readerQuickAddView(
+  config: QuickAddView | null,
+  bound: string | null
+): QuickAddView {
+  const fiction = isBoundToFiction(bound) ? bound : null;
+  return {
+    defaultQuickAddDictionary: quickAddTargetForBinding(
+      fiction,
+      config?.defaultQuickAddDictionary ?? null
+    ),
+    activeProperNouns: activeProperNounsForBinding(config?.activeProperNouns ?? [], fiction),
+  };
 }

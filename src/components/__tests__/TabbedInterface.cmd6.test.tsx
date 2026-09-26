@@ -1,9 +1,9 @@
 /**
  * Cmd-6 dispatch coverage for TabbedInterface — previously untested (architecture review
  * 2026-07-17). Exercises handleDictionaryTabHotkey's key==='6' branch: resolve + verify the
- * structural-pattern target against DictionaryContext state via resolveAndVerifyStructuralPatternTarget,
+ * structural-pattern target against DictionaryContext state via quickAddTarget,
  * switch dictionary on success, toast on failure. Uses the REAL resolver (not mocked) so this test
- * also guards the TabbedInterface <-> QuickAddTargetResolver integration.
+ * also guards the TabbedInterface <-> QuickAddTarget integration.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';

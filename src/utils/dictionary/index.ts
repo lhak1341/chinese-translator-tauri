@@ -87,13 +87,6 @@ export {
   hasSemanticTypeColumn,
 } from './DictionaryIdClassifier';
 
-// --- Quick Add target resolution (Cmd-5 / Cmd-6) ---
-export {
-  resolveDefaultProperNounTarget,
-  resolveStructuralPatternQuickAddTarget,
-  resolveAndVerifyStructuralPatternTarget,
-} from './QuickAddTargetResolver';
-
 // --- Dictionary reload (one action, triggered from the Translator or the Reader) ---
 export { registerDictionaryReload, requestDictionaryReload } from './DictionaryReloadRegistry';
 
