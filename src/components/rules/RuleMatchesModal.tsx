@@ -10,24 +10,20 @@ import { ControlledEditableCell } from './EditableCell';
 import EntryContextMenu from '../dictionary/EntryContextMenu';
 import MoveDialog from '../dictionary/MoveDialog';
 import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
-import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
+import { logger } from '../../utils/logger';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
-import type { DictionaryData } from '../../types/DictionaryTypes';
+import type { DictionaryData, DictionaryContextInterface } from '../../types/DictionaryTypes';
 
-type OnUpdateEntry = (
-  dictionaryId: string,
-  oldSource: string,
-  newSource: string,
-  translation: string,
-  metadata?: Record<string, unknown>
-) => Promise<void>;
+type PatchEntry = DictionaryContextInterface['patchEntry'];
 
 interface RuleMatchesModalProps {
   rule: TransformRule;
   dictionaries: Record<string, DictionaryData>;
-  updateEntry: OnUpdateEntry;
+  /** The Dictionary tab's own `patchEntry`: each inline edit changes one field, and the rest
+   * of the entry is read from the store, not from this row. */
+  patchEntry: PatchEntry;
   /** Right-click → Delete. Same `deleteEntry` the Dictionary tab uses (it owns the toast). */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   onClose: () => void;
@@ -68,35 +64,24 @@ function VarBadge({
 
 function MatchRow({
   row,
-  updateEntry,
+  patchEntry,
   onContextMenu,
 }: {
   row: RuleMatchEntry;
-  updateEntry: OnUpdateEntry;
+  patchEntry: PatchEntry;
   onContextMenu: OnRowContextMenu;
 }) {
   const isProperNoun = isProperNounsDict(row.dictionaryId);
 
-  const commitTranslation = async (newTranslation: string): Promise<void> => {
-    await updateEntry(row.dictionaryId, row.source, row.source, newTranslation, {
-      allowAsPatternVariable: row.allowAsPatternVariable,
-      ...(row.semanticType && { semanticType: row.semanticType }),
-      ...(Object.keys(row.allowedVariableTypes).length > 0 && {
-        allowedVariableTypes: row.allowedVariableTypes,
-      }),
-    });
+  const translEdit = useInlineFieldEdit(row.translation, (translation) =>
+    patchEntry(row.dictionaryId, row.source, { translation })
+  );
+  // patchEntry toasts its own failures; the catch only keeps the rejection handled.
+  const patch = (fields: Parameters<PatchEntry>[2]): void => {
+    patchEntry(row.dictionaryId, row.source, fields).catch((error: unknown) =>
+      logger.error('Failed to update entry:', error)
+    );
   };
-  const translEdit = useInlineFieldEdit(row.translation, commitTranslation);
-
-  const { handleCheckboxChange, handleSetSemanticType } = useEntryMetadataEdit({
-    source: row.source,
-    translationText: row.translation,
-    semanticType: row.semanticType,
-    allowedVariableTypes: row.allowedVariableTypes,
-    allowAsPatternVariable: row.allowAsPatternVariable,
-    selectedDictionary: row.dictionaryId,
-    onUpdateEntry: updateEntry,
-  });
 
   // Matches Dictionary's own phrases-row rule: Semantic is only settable once VAR is on
   // (for phrases). properNouns rows show it unconditionally, same as Dictionary's own.
@@ -123,9 +108,7 @@ function MatchRow({
             <VarBadge
               dictionaryId={row.dictionaryId}
               active={row.allowAsPatternVariable}
-              onToggle={() =>
-                handleCheckboxChange('allowAsPatternVariable', !row.allowAsPatternVariable)
-              }
+              onToggle={() => patch({ allowAsPatternVariable: !row.allowAsPatternVariable })}
             />
           </div>
         )}
@@ -134,7 +117,7 @@ function MatchRow({
         {showSemantic ? (
           <SemanticTypeToggleCell
             activeType={row.semanticType}
-            onSelect={handleSetSemanticType}
+            onSelect={(semanticType) => patch({ semanticType })}
             width="100%"
           />
         ) : null}
@@ -153,11 +136,11 @@ function MatchRow({
  * dictionaries it applies to — same table shape as Dictionary's phrases table (Source /
  * Translation+VAR / Semantic), plus a Dictionary column (like Dictionary's own Find
  * Duplicates view). Translation/VAR/Semantic are live-editable, wired to the same
- * updateEntry the Dictionary tab itself uses. */
+ * patchEntry the Dictionary tab itself uses. */
 const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
   rule,
   dictionaries,
-  updateEntry,
+  patchEntry,
   deleteEntry,
   onClose,
 }) => {
@@ -214,7 +197,7 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
                 <MatchRow
                   key={`${row.dictionaryId}::${row.source}`}
                   row={row}
-                  updateEntry={updateEntry}
+                  patchEntry={patchEntry}
                   onContextMenu={contextMenuApi.handleContextMenu}
                 />
               ))}

@@ -41,7 +41,7 @@ const EMPTY_DRAFT: Omit<TransformRule, 'id'> = {
 const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const { rules, isLoading, checkConflict, addRule, updateRule, deleteRule, toggleEnabled } =
     useTransformRules();
-  const { dictionaries, updateEntry, deleteEntry } = useDictionary();
+  const { dictionaries, patchEntry, deleteEntry } = useDictionary();
   const [draft, setDraft] = useState<Omit<TransformRule, 'id'> | null>(null);
   const [viewingMatches, setViewingMatches] = useState<TransformRule | null>(null);
 
@@ -219,7 +219,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
         <RuleMatchesModal
           rule={viewingMatches}
           dictionaries={dictionaries}
-          updateEntry={updateEntry}
+          patchEntry={patchEntry}
           deleteEntry={deleteEntry}
           onClose={() => setViewingMatches(null)}
         />

@@ -126,11 +126,9 @@ export function findConflict(
   );
 }
 
-/** A dictionary entry matching a Transform Rule's preview, with its full metadata —
- * not just the display fields — so the matches view can edit Translation/VAR/Semantic
- * in place without accidentally clobbering fields it doesn't surface (e.g.
- * allowedVariableTypes) on save. See `useEntryMetadataEdit`'s snapshot-before-patch
- * invariant, which this shape exists to feed correctly. */
+/** A dictionary entry matching a Transform Rule's preview, with its full metadata for
+ * display. Its inline edits go through `patchEntry`, which reads the stored entry itself,
+ * so a field this shape does not carry is never clobbered on save. */
 export interface RuleMatchEntry {
   source: string;
   translation: string;

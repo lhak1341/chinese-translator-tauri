@@ -17,14 +17,14 @@ vi.mock('../../../utils/dictionary/TransformRuleBackend', () => ({
 
 vi.mock('../../../utils/toast', () => ({ default: { error: vi.fn() } }));
 
-const mockUpdateEntry = vi.fn().mockResolvedValue(undefined);
+const mockPatchEntry = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../../dictionary/DictionaryContext', () => ({
   useDictionary: () => ({
     dictionaries: {
       phrases: { 南京城: { translation: 'Nam Kinh Thanh' } },
     },
-    updateEntry: mockUpdateEntry,
+    patchEntry: mockPatchEntry,
   }),
 }));
 

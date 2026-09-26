@@ -11,7 +11,6 @@ import {
   isPhrasesDict,
   isProperNounsDict,
   isLookupTableDict,
-  buildEntryMetadata,
 } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
@@ -223,6 +222,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     closeEdit,
     closeMove,
     updateEntryWithScrollPreservation,
+    patchEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,
     reset: resetEditAndMove,
@@ -267,30 +267,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const showPatternFilter = isPatternsDict(selectedDictionary);
   const showVariableFilter = isPhrasesDict(selectedDictionary); // phrases only; patterns use showPatternFilter
   const showSemanticTypeFilter = !isLookupTableDict(selectedDictionary);
-  // Duplicate view's Semantic column: same metadata rebuild as useEntryMetadataEdit's
-  // handleSetSemanticType, but keyed by the row's own dictionary.
+  // Duplicate view's Semantic column — keyed by the row's own dictionary.
   const handleSetDuplicateSemanticType = useCallback(
     (row: DuplicateRow, type: string): void => {
-      const value = dictionaries[row.dictionaryId]?.[row.source];
-      if (value === undefined || typeof value === 'string') return;
-      const metadata: Record<string, unknown> = {
-        ...buildEntryMetadata({
-          allowAsPatternVariable: value.allowAsPatternVariable === true,
-          semanticType: value.semanticType ?? '',
-          allowedVariableTypes: value.allowedVariableTypes ?? {},
-        }),
-      };
-      if (type) metadata.semanticType = type;
-      else delete metadata.semanticType;
-      void updateEntryWithScrollPreservation(
-        row.dictionaryId,
-        row.source,
-        row.source,
-        value.translation,
-        metadata
-      ).catch((error: unknown) => logger.error('Failed to set semantic type:', error));
+      patchEntryWithScrollPreservation(row.dictionaryId, row.source, { semanticType: type }).catch(
+        (error: unknown) => logger.error('Failed to set semantic type:', error)
+      );
     },
-    [dictionaries, updateEntryWithScrollPreservation]
+    [patchEntryWithScrollPreservation]
   );
 
   const headerColumns = useMemo(() => getHeaderColumns(selectedDictionary), [selectedDictionary]);
@@ -622,6 +606,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       isSelected={selectedEntries.has(source)}
                       selectedDictionary={selectedDictionary}
                       onUpdateEntry={updateEntryWithScrollPreservation}
+                      onPatchEntry={patchEntryWithScrollPreservation}
                       onSelectEntry={handleSelectEntry}
                       onContextMenu={handleContextMenu}
                     />

@@ -258,7 +258,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     expect(deleteEntry).toHaveBeenCalledWith('properNouns-Test', '你好');
   });
 
-  test('inline translation edit calls updateEntry with the new value', async () => {
+  test('inline translation edit patches the translation', async () => {
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
@@ -270,13 +270,9 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
       fireEvent.blur(input);
     });
 
-    expect(updateEntry).toHaveBeenCalledWith(
-      'properNouns-Test',
-      '你好',
-      '你好',
-      'Xin chào mới',
-      expect.any(Object)
-    );
+    expect(patchEntry).toHaveBeenCalledWith('properNouns-Test', '你好', {
+      translation: 'Xin chào mới',
+    });
   });
 
   test('add-entry button opens DictionaryEntry in add mode (no entry prop)', async () => {

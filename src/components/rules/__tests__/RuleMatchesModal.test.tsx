@@ -62,76 +62,39 @@ function getRowForSource(source: string): HTMLElement {
 }
 
 function renderModal(overrides: Partial<React.ComponentProps<typeof RuleMatchesModal>> = {}) {
-  const updateEntry = vi.fn().mockResolvedValue(undefined);
+  const patchEntry = vi.fn().mockResolvedValue(undefined);
   const deleteEntry = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
   render(
     <RuleMatchesModal
       rule={RULE}
       dictionaries={DICTIONARIES}
-      updateEntry={updateEntry}
+      patchEntry={patchEntry}
       deleteEntry={deleteEntry}
       onClose={onClose}
       {...overrides}
     />
   );
-  return { updateEntry, deleteEntry, onClose };
+  return { patchEntry, deleteEntry, onClose };
 }
 
-describe('RuleMatchesModal — commitTranslation metadata merge', () => {
-  test('entry with no metadata: merges allowAsPatternVariable only', async () => {
-    const { updateEntry } = renderModal();
-
-    fireEvent.click(screen.getByText('Nam Kinh Thanh'));
-    const input = screen.getByLabelText('Translation for 南京城');
-    fireEvent.change(input, { target: { value: 'Nam Kinh Thanh moi' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith(
-      'properNouns-f_test',
-      '南京城',
-      '南京城',
-      'Nam Kinh Thanh moi',
-      { allowAsPatternVariable: false }
-    );
-  });
-
-  test('entry with allowAsPatternVariable + semanticType: merges both, omits allowedVariableTypes', async () => {
-    const { updateEntry } = renderModal();
-
-    fireEvent.click(screen.getByText('hoang thanh'));
-    const input = screen.getByLabelText('Translation for 皇城');
-    fireEvent.change(input, { target: { value: 'hoang thanh moi' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith('phrases', '皇城', '皇城', 'hoang thanh moi', {
-      allowAsPatternVariable: true,
-      semanticType: 'concept',
-    });
-  });
-
-  test('entry with allowAsPatternVariable + semanticType + allowedVariableTypes: merges all three', async () => {
-    const { updateEntry } = renderModal();
+describe('RuleMatchesModal — translation edit', () => {
+  test('patches only the translation; the store supplies the rest of the entry', async () => {
+    const { patchEntry } = renderModal();
 
     fireEvent.click(screen.getByText('dai thanh'));
     const input = screen.getByLabelText('Translation for 大城');
     fireEvent.change(input, { target: { value: 'dai thanh moi' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith('phrases', '大城', '大城', 'dai thanh moi', {
-      allowAsPatternVariable: true,
-      semanticType: 'location',
-      allowedVariableTypes: { X: ['character'] },
-    });
+    await vi.waitFor(() => expect(patchEntry).toHaveBeenCalledTimes(1));
+    expect(patchEntry).toHaveBeenCalledWith('phrases', '大城', { translation: 'dai thanh moi' });
   });
 });
 
 describe('RuleMatchesModal — VAR badge', () => {
-  test('properNouns entry: renders non-clickable "✓ VAR", clicking it does not call updateEntry', () => {
-    const { updateEntry } = renderModal();
+  test('properNouns entry: renders non-clickable "✓ VAR", clicking it does not call patchEntry', () => {
+    const { patchEntry } = renderModal();
     const row = getRowForSource('南京城');
 
     const badge = within(row).getByText('✓ VAR');
@@ -141,39 +104,27 @@ describe('RuleMatchesModal — VAR badge', () => {
     );
     fireEvent.click(badge);
 
-    expect(updateEntry).not.toHaveBeenCalled();
+    expect(patchEntry).not.toHaveBeenCalled();
   });
 
   test('phrases entry with allowAsPatternVariable=true: renders active clickable badge', async () => {
-    const { updateEntry } = renderModal();
+    const { patchEntry } = renderModal();
     const row = getRowForSource('皇城');
 
     fireEvent.click(within(row).getByText('✓ VAR'));
 
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith(
-      'phrases',
-      '皇城',
-      '皇城',
-      'hoang thanh',
-      expect.objectContaining({ allowAsPatternVariable: false })
-    );
+    await vi.waitFor(() => expect(patchEntry).toHaveBeenCalledTimes(1));
+    expect(patchEntry).toHaveBeenCalledWith('phrases', '皇城', { allowAsPatternVariable: false });
   });
 
   test('phrases entry with allowAsPatternVariable=false: renders inactive clickable badge, toggles on', async () => {
-    const { updateEntry } = renderModal();
+    const { patchEntry } = renderModal();
     const row = getRowForSource('小城');
 
     fireEvent.click(within(row).getByText('VAR'));
 
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith(
-      'phrases',
-      '小城',
-      '小城',
-      'tieu thanh',
-      expect.objectContaining({ allowAsPatternVariable: true })
-    );
+    await vi.waitFor(() => expect(patchEntry).toHaveBeenCalledTimes(1));
+    expect(patchEntry).toHaveBeenCalledWith('phrases', '小城', { allowAsPatternVariable: true });
   });
 });
 
@@ -199,20 +150,16 @@ describe('RuleMatchesModal — showSemantic conditional', () => {
 });
 
 describe('RuleMatchesModal — Semantic toggle wiring', () => {
-  test('selecting a semantic type calls updateEntry', async () => {
-    const { updateEntry } = renderModal();
+  test('selecting a semantic type patches only semanticType', async () => {
+    const { patchEntry } = renderModal();
     const row = getRowForSource('南京城');
 
     fireEvent.click(within(row).getByTitle('Set as location'));
 
-    await vi.waitFor(() => expect(updateEntry).toHaveBeenCalledTimes(1));
-    expect(updateEntry).toHaveBeenCalledWith(
-      'properNouns-f_test',
-      '南京城',
-      '南京城',
-      'Nam Kinh Thanh',
-      expect.objectContaining({ semanticType: 'location' })
-    );
+    await vi.waitFor(() => expect(patchEntry).toHaveBeenCalledTimes(1));
+    expect(patchEntry).toHaveBeenCalledWith('properNouns-f_test', '南京城', {
+      semanticType: 'location',
+    });
   });
 });
 

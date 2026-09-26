@@ -5,17 +5,18 @@ import {
   isProperNounsDict,
   buildEntryMetadata,
   entryFields,
+  toggleVariableType,
 } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
-import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
+import { logger } from '../../utils/logger';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
   SEMANTIC_TYPE_LIST,
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
-import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
+import type { DictionaryEntryValue, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { highlightPatternVariables } from '../../utils/text';
 import {
@@ -109,6 +110,7 @@ export interface VirtualRowProps {
   translation: DictionaryEntryValue;
   isSelected: boolean;
   selectedDictionary: string;
+  /** Only for a source rename, which re-keys the entry; every other edit is `onPatchEntry`. */
   onUpdateEntry: (
     dictionaryId: string,
     oldSource: string,
@@ -116,6 +118,8 @@ export interface VirtualRowProps {
     translation: string,
     metadata?: any
   ) => Promise<void>;
+  /** Changes some fields of this entry; the rest is read from the store, not these props. */
+  onPatchEntry: DictionaryContextInterface['patchEntry'];
   onSelectEntry: (source: string, isSelected: boolean) => void;
   onContextMenu: (
     e: React.MouseEvent,
@@ -132,6 +136,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     isSelected,
     selectedDictionary,
     onUpdateEntry,
+    onPatchEntry,
     onSelectEntry,
     onContextMenu,
   }) => {
@@ -156,26 +161,23 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       );
     });
 
-    const translEdit = useInlineFieldEdit(translationText, async (newTranslation) => {
-      await onUpdateEntry(
-        selectedDictionary,
-        source,
-        source,
-        newTranslation,
-        buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes })
-      );
-    });
+    const translEdit = useInlineFieldEdit(translationText, (newTranslation) =>
+      onPatchEntry(selectedDictionary, source, { translation: newTranslation })
+    );
 
-    const { handleCheckboxChange, handleToggleVariableType, handleSetSemanticType } =
-      useEntryMetadataEdit({
-        source,
-        translationText,
-        semanticType,
-        allowedVariableTypes,
-        allowAsPatternVariable,
-        selectedDictionary,
-        onUpdateEntry,
-      });
+    // onPatchEntry toasts its own failures; the catch only keeps the rejection handled.
+    const patch = (fields: Parameters<VirtualRowProps['onPatchEntry']>[2]): void => {
+      onPatchEntry(selectedDictionary, source, fields).catch((error: unknown) =>
+        logger.error('Failed to update entry:', error)
+      );
+    };
+    const setAllowAsPatternVariable = (value: boolean): void =>
+      patch({ allowAsPatternVariable: value });
+    const handleSetSemanticType = (value: string): void => patch({ semanticType: value });
+    const handleToggleVariableType = (varName: string, type: string): void =>
+      patch((current) => ({
+        allowedVariableTypes: toggleVariableType(current.allowedVariableTypes, varName, type),
+      }));
 
     // Patterns layout — see EnhancedVirtualizedDictionaryTable.module.css's "Column widths"
     // comment block for the full column-by-column layout this shares with the header.
@@ -206,9 +208,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
                 <MetadataBadge
                   type="variable"
                   active={allowAsPatternVariable}
-                  onClick={() =>
-                    handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                  }
+                  onClick={() => setAllowAsPatternVariable(!allowAsPatternVariable)}
                 />
               </div>
             )}
@@ -271,9 +271,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
                 <MetadataBadge
                   type="variable"
                   active={allowAsPatternVariable}
-                  onClick={() =>
-                    handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                  }
+                  onClick={() => setAllowAsPatternVariable(!allowAsPatternVariable)}
                 />
               </div>
             )}

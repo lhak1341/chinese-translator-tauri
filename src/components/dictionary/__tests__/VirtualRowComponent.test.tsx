@@ -25,18 +25,6 @@ vi.mock('../../../hooks/useInlineFieldEdit', () => ({
   },
 }));
 
-const handleCheckboxChange = vi.fn();
-const handleToggleVariableType = vi.fn();
-const handleSetSemanticType = vi.fn();
-
-vi.mock('../../../hooks/useEntryMetadataEdit', () => ({
-  useEntryMetadataEdit: () => ({
-    handleCheckboxChange,
-    handleToggleVariableType,
-    handleSetSemanticType,
-  }),
-}));
-
 function makeProps(overrides: Partial<VirtualRowProps> = {}) {
   return {
     source: 'X的Y',
@@ -44,6 +32,7 @@ function makeProps(overrides: Partial<VirtualRowProps> = {}) {
     isSelected: false,
     selectedDictionary: 'patterns',
     onUpdateEntry: vi.fn().mockResolvedValue(undefined),
+    onPatchEntry: vi.fn().mockResolvedValue(undefined),
     onSelectEntry: vi.fn(),
     onContextMenu: vi.fn(),
     ...overrides,
@@ -168,29 +157,9 @@ describe('VirtualRowComponent', () => {
     });
   });
 
-  describe('buildEntryMetadata via captured onCommit', () => {
-    it('includes allowAsPatternVariable for a patterns dictionary entry', async () => {
-      const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
-      render(
-        <VirtualRowComponent
-          {...makeProps({
-            selectedDictionary: 'patterns',
-            source: 'X很好',
-            translation: { translation: 'của X', allowAsPatternVariable: true },
-            onUpdateEntry,
-          })}
-        />
-      );
-
-      await translationOnCommit()('của X mới');
-
-      expect(onUpdateEntry).toHaveBeenCalledWith('patterns', 'X很好', 'X很好', 'của X mới', {
-        allowAsPatternVariable: true,
-      });
-    });
-
-    it('includes semanticType and allowedVariableTypes only when non-empty', async () => {
-      const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
+  describe('translation edit patches only the translation', () => {
+    it('sends no snapshot of the other fields — patchEntry reads them from the store', async () => {
+      const onPatchEntry = vi.fn().mockResolvedValue(undefined);
       render(
         <VirtualRowComponent
           {...makeProps({
@@ -202,20 +171,18 @@ describe('VirtualRowComponent', () => {
               semanticType: 'character',
               allowedVariableTypes: { X: ['character'] },
             },
-            onUpdateEntry,
+            onPatchEntry,
           })}
         />
       );
 
       await translationOnCommit()('của X mới');
 
-      expect(onUpdateEntry).toHaveBeenCalledWith('patterns', 'X很好', 'X很好', 'của X mới', {
-        allowAsPatternVariable: true,
-        semanticType: 'character',
-        allowedVariableTypes: { X: ['character'] },
-      });
+      expect(onPatchEntry).toHaveBeenCalledWith('patterns', 'X很好', { translation: 'của X mới' });
     });
+  });
 
+  describe('source rename carries the metadata through buildEntryMetadata', () => {
     it('sends the base metadata shape for a plain dictionary like characters — prepareMutationEntry (useDictionaryCRUD.ts) discards it into a plain string regardless, so no dict-type gate is needed here', async () => {
       const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
       render(
@@ -321,19 +288,42 @@ describe('VirtualRowComponent', () => {
       );
     });
 
-    it('calls handleCheckboxChange when the VAR badge is clicked', () => {
+    it('patches allowAsPatternVariable when the VAR badge is clicked', () => {
+      const onPatchEntry = vi.fn().mockResolvedValue(undefined);
       render(
         <VirtualRowComponent
           {...makeProps({
             selectedDictionary: 'phrases',
             source: '你好',
             translation: { translation: 'xin chào', allowAsPatternVariable: false },
+            onPatchEntry,
           })}
         />
       );
 
       fireEvent.click(screen.getByTitle('Click to allow as variable'));
-      expect(handleCheckboxChange).toHaveBeenCalledWith('allowAsPatternVariable', true);
+      expect(onPatchEntry).toHaveBeenCalledWith('phrases', '你好', {
+        allowAsPatternVariable: true,
+      });
+    });
+
+    it('patches semanticType when a Semantic chip is chosen', () => {
+      const onPatchEntry = vi.fn().mockResolvedValue(undefined);
+      render(
+        <VirtualRowComponent
+          {...makeProps({
+            selectedDictionary: 'properNouns',
+            source: '孔宣',
+            translation: { translation: 'Khong Tuyen' },
+            onPatchEntry,
+          })}
+        />
+      );
+
+      fireEvent.click(screen.getByTitle('Set as location'));
+      expect(onPatchEntry).toHaveBeenCalledWith('properNouns', '孔宣', {
+        semanticType: 'location',
+      });
     });
   });
 });
