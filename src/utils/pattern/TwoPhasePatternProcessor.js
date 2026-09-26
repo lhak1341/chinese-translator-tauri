@@ -2,7 +2,7 @@ import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
-import { buildPatternVariableCache, buildTypeFilter } from './PatternVariableCache.js';
+import { buildPatternVariableCache } from './PatternVariableCache.js';
 
 /**
  * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
@@ -128,7 +128,7 @@ class TwoPhasePatternProcessor {
 
     // Shared stages 1–4 (proper nouns, phrases, full-text scan).
     // resolveType: metadata?.semanticType if present; phrase source defaults to 'concept';
-    // proper noun sources default to null (force-include — all proper nouns are valid variables).
+    // proper noun sources default to null (untyped — the matcher reads it as 'unknown').
     const cache = buildPatternVariableCache(
       tokens,
       {
@@ -146,7 +146,6 @@ class TwoPhasePatternProcessor {
     // Runs after shared stages so it wins over stage-1 proper-noun entries for the same word.
     // These come from a prior translation pass where a pattern match set token.patternSemanticType,
     // letting subsequent WASM processing use them as typed variables in constrained patterns.
-    const shouldInclude1b = buildTypeFilter(this.processedPatterns);
     for (const token of tokens) {
       if (
         token.translated &&
@@ -156,13 +155,11 @@ class TwoPhasePatternProcessor {
           token.translationSource === 'hierarchical_patterns' ||
           token.translationSource === 'hierarchical_patterns_composite')
       ) {
-        if (shouldInclude1b(token.patternSemanticType)) {
-          cache[token.value] = {
-            translation: token.translated,
-            source: token.translationSource,
-            type: token.patternSemanticType,
-          };
-        }
+        cache[token.value] = {
+          translation: token.translated,
+          source: token.translationSource,
+          type: token.patternSemanticType,
+        };
       }
     }
 

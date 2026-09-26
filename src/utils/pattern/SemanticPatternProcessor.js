@@ -36,8 +36,7 @@ import { NUMBER_VARIABLE, NUMBER_VARIABLE_TYPE } from './NumberVariable.js';
  * 'unknown'), and no list means any type.
  *
  * `#`'s rule lives here rather than as `{ '#': ['number'] }` in the pattern's metadata, as
- * Rust stores it, because buildTypeFilter (PatternVariableCache.js) reads any declared list
- * as "this whole pattern is constrained" and would then drop the entries X needs.
+ * Rust stores it; the two are equivalent (Rust's parser overwrites any declared `#` list).
  *
  * @param {{ metadata?: { allowedVariableTypes?: Object.<string, string[]> | null } }} pattern
  * @param {string} varName

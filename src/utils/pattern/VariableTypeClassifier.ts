@@ -8,7 +8,7 @@ import type { SemanticType } from '../../constants/SemanticTypes';
  *
  * Internal discriminators are NOT canonical SemanticType values:
  *   - 'proper_noun'    — generic proper noun without explicit type; TwoPhasePatternProcessor
- *                        maps this to null (always include). See TwoPhasePatternProcessor.shouldInclude().
+ *                        maps this to null (untyped, read as 'unknown' by the WASM matcher).
  *   - 'character_unit' — individual hanzi from character dictionary, not a named character;
  *                        intentionally fails 'character' allowedVariableTypes constraints.
  *   - 'unknown'        — no type information available; fails all typed constraints.

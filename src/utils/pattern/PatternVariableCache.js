@@ -12,61 +12,6 @@
 import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
 
 /**
- * Build the shouldInclude type filter from a pattern list.
- *
- * Filtering by requiredTypes is only correct when ALL patterns are constrained — any
- * unconstrained pattern accepts any type, so filtering would silently exclude entries it needs.
- * Guard: if (!requiredTypes || hasUnconstrainedPatterns) always include.
- *
- * @param {Array} patterns - Parsed pattern array (each may have metadata.allowedVariableTypes)
- * @returns {(entryType: string|null|undefined) => boolean}
- */
-export function buildTypeFilter(patterns) {
-  let requiredTypes = null;
-  let hasUnconstrainedPatterns = false;
-  for (const pattern of patterns) {
-    if (pattern.metadata?.allowedVariableTypes) {
-      if (!requiredTypes) requiredTypes = new Set();
-      for (const types of Object.values(pattern.metadata.allowedVariableTypes)) {
-        for (const t of types) {
-          requiredTypes.add(t);
-        }
-      }
-    } else {
-      hasUnconstrainedPatterns = true;
-    }
-  }
-  return (entryType) => {
-    if (!requiredTypes || hasUnconstrainedPatterns) return true;
-    if (entryType == null) return true;
-    return requiredTypes.has(entryType);
-  };
-}
-
-/**
- * Build the variable cache shared by both PatternProcessor adapters.
- *
- * Four lookup stages run in order; each stage can overwrite earlier entries:
- *   1. Already-translated proper noun tokens (from prior phases)
- *   2. Phrase entries with allowAsPatternVariable flag (single + multi-token up to 6)
- *   3. Proper noun single-token dictionary lookups
- *   4. Full-text scan for multi-character proper nouns
- *
- * resolveType: (source, word, metadata) => string | null
- *   Return null to force-include (bypasses requiredTypes filtering — used by TwoPhase
- *   to always admit proper_noun-typed entries regardless of pattern constraints).
- *   Return a type string to filter through the allowedVariableTypes guard normally.
- *
- * initialCache: seed entries that stages 1–4 may overwrite (used for Phase A results
- * in Semantic and for step-1b pattern-translated tokens in TwoPhase).
- *
- * @param {Array} tokens
- * @param {{ activeProperNouns: string[], dictionaryManager: object, patterns: Array }} options
- * @param {(source: string, word: string, metadata: object) => string|null} resolveType
- * @param {Object} [initialCache]
- * @returns {Object.<string, {translation: string, source: string, type: string|null}>}
- */
-/**
  * Last stage: numeral spans for `#` patterns, when any pattern uses `#`. After the
  * dictionary stages, and never overwriting, so a dictionary entry for the same text wins.
  * Both matchers let a `number` entry fill only `#` (matcher.rs::is_variable_type_allowed,
@@ -82,23 +27,45 @@ function withNumberVariables(tokens, cache, patterns) {
   return cache;
 }
 
+/**
+ * Build the variable cache shared by both PatternProcessor adapters.
+ *
+ * Four lookup stages run in order; each stage can overwrite earlier entries:
+ *   1. Already-translated proper noun tokens (from prior phases)
+ *   2. Phrase entries with allowAsPatternVariable flag (single + multi-token up to 6)
+ *   3. Proper noun single-token dictionary lookups
+ *   4. Full-text scan for multi-character proper nouns
+ *
+ * resolveType: (source, word, metadata) => string | null
+ *   The entry's semantic type, or null for untyped (both matchers read that as
+ *   'unknown'). Every entry is kept whatever its type: which variable it may fill is
+ *   decided at match time (matcher.rs::is_variable_type_allowed and its JS mirror).
+ *   A pattern-level prefilter on declared types (buildTypeFilter) was deleted
+ *   2026-09-26 — it never engaged, and would have dropped entries once it did.
+ *
+ * initialCache: seed entries that stages 1–4 may overwrite (used for Phase A results
+ * in Semantic and for step-1b pattern-translated tokens in TwoPhase).
+ *
+ * @param {Array} tokens
+ * @param {{ activeProperNouns: string[], dictionaryManager: object, patterns: Array }} options
+ * @param {(source: string, word: string, metadata: object) => string|null} resolveType
+ * @param {Object} [initialCache]
+ * @returns {Object.<string, {translation: string, source: string, type: string|null}>}
+ */
 export function buildPatternVariableCache(tokens, options, resolveType, initialCache = {}) {
   const { activeProperNouns = [], dictionaryManager, patterns = [] } = options;
   const cache = { ...initialCache };
   const actualProperNounDictionaries = activeProperNouns.filter((d) => d !== 'phrases');
-  const shouldInclude = buildTypeFilter(patterns);
 
   // Stage 1: Already-translated proper noun tokens (from prior pipeline phases)
   for (const token of tokens) {
     if (token.translated && token.translationSource?.includes('properNoun')) {
       const entryType = resolveType(token.translationSource, token.value, token.metadata);
-      if (shouldInclude(entryType)) {
-        cache[token.value] = {
-          translation: token.translated,
-          source: token.translationSource,
-          type: entryType,
-        };
-      }
+      cache[token.value] = {
+        translation: token.translated,
+        source: token.translationSource,
+        type: entryType,
+      };
     }
   }
 
@@ -126,13 +93,11 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
       combinedText += tv;
       if (node.isEndOfWord && node.metadata?.allowAsPatternVariable) {
         const entryType = resolveType('phrases_pattern_variable', combinedText, node.metadata);
-        if (shouldInclude(entryType)) {
-          cache[combinedText] = {
-            translation: node.translation,
-            source: 'phrases_pattern_variable',
-            type: entryType,
-          };
-        }
+        cache[combinedText] = {
+          translation: node.translation,
+          source: 'phrases_pattern_variable',
+          type: entryType,
+        };
       }
     }
   }
@@ -147,13 +112,11 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
         token.value,
         properNounResult.metadata
       );
-      if (shouldInclude(entryType)) {
-        cache[token.value] = {
-          translation: properNounResult.translation,
-          source: properNounResult.dictionary + '_pattern_variable',
-          type: entryType,
-        };
-      }
+      cache[token.value] = {
+        translation: properNounResult.translation,
+        source: properNounResult.dictionary + '_pattern_variable',
+        type: entryType,
+      };
     }
   }
 
@@ -178,13 +141,11 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
         match.word,
         match.metadata
       );
-      if (shouldInclude(entryType)) {
-        cache[match.word] = {
-          translation: match.translation,
-          source: match.dictionary + '_pattern_variable',
-          type: entryType,
-        };
-      }
+      cache[match.word] = {
+        translation: match.translation,
+        source: match.dictionary + '_pattern_variable',
+        type: entryType,
+      };
     }
   }
 
