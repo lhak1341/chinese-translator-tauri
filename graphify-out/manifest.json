@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790385445.5270762,
-    "ast_hash": "e919c2989f7141c2e69fab9f18067686",
+    "mtime": 1790385924.6867354,
+    "ast_hash": "9373ca8387c101b564a33fc0458bf847",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1225,8 +1225,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1789827138.5722365,
-    "ast_hash": "7f97e84a2eea09bed5a2959c21363540",
+    "mtime": 1790385997.509793,
+    "ast_hash": "c3589d586d0aff1c8dc5d5981a4e4dba",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790385380.14756,
-    "ast_hash": "89e549e86ffd6ce9a891bae36c8e974a",
+    "mtime": 1790385896.5047073,
+    "ast_hash": "12a4962cc6df135cca9b49230a1fd088",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790360067.8244038,
-    "ast_hash": "14ec5edb3325a7cd350a142c6a877b50",
+    "mtime": 1790385995.6414158,
+    "ast_hash": "24f542717abd31f584f917beaec2bdbe",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2175,8 +2175,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanels.ts": {
-    "mtime": 1790355075.2669423,
-    "ast_hash": "0fdced411480815f39abcd1c302b0bfe",
+    "mtime": 1790385896.5039861,
+    "ast_hash": "b40082f6035b48fbe16f342fb0c57843",
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
@@ -2212,6 +2212,11 @@
   "docs/adr/ADR-045-skip-shared-chapter-structure-override.md": {
     "mtime": 1790385445.5261183,
     "ast_hash": "2018fb6ac635feedd395353ec871d187",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-046-keep-bookreader-scroll-composition-and-refill-ref.md": {
+    "mtime": 1790385924.1013894,
+    "ast_hash": "c7cd6910fa340773ae476b5f5cd25753",
     "semantic_hash": ""
   }
 }
