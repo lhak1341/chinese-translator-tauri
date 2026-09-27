@@ -708,6 +708,8 @@ Tests are inline `#[cfg(test)]`, and the corpus is the fixture: the real library
 
 `ReaderTab.tsx` owns the view state and the library path (`config.reader.libraryPath`, `null` meaning "let Rust resolve the default"). `Bookshelf.tsx` lists the folder; `BookReader.tsx` is the virtualized reading panel; `EncodingPrompt.tsx` replaces the text — not a banner over it — when `status: 'needsEncoding'` comes back.
 
+**One `BookReader` instance per open book.** `ReaderTab` keys it by fingerprint, so a switch from the palette remounts it exactly as Back and a shelf click do, and nothing one book left behind — measured row heights, the scroll offset, a cache keyed by line range — reaches the next. The hooks under it treat `fingerprint` as fixed and have no book-change branch; state that must outlive a book lives in `ReaderTab` (ADR-050).
+
 **`useBookLines(fingerprint, lineCount)`** (`src/hooks/useBookLines.ts`) is the windowed line cache: 500-line pages fetched around the viewport, dropped once more than `PAGE_KEEP_RADIUS` pages away, so memory tracks the window rather than the distance read. `getLine` returns `undefined` for a line whose page is still in flight — distinct from `''`, which is a real blank line. Line numbers are the file's own, blanks included, because reading position is a raw file line number (see "Book Records" below).
 
 Virtualization is `@tanstack/react-virtual` (ADR-042), not the in-repo `useVirtualScrollRange` — see that ADR for why the existing hook could not be extended.
@@ -781,7 +783,7 @@ The Reader's three calls on the shared engine: a chunk of book text, its charact
 
 The queue belongs to the Reader alone. The Translator's calls are kept apart from it by the tab gate, not by the queue. This leaves one accepted gap: a Reader call already in flight when the tab switches.
 
-**`src/utils/reader/ReaderEngine.ts`**'s `createReaderEngine(getEngine)` holds all of it, and `useReaderEngine` hands it to `BookReader`. It is also the only producer of the `EngineCall<T>` brand that the fill hooks require.
+**`src/utils/reader/ReaderEngine.ts`**'s `createReaderEngine(getEngine)` holds all of it. `useReaderEngine` builds it once in `ReaderTab`, which never unmounts, and hands it to each `BookReader` as its `engine` prop, so a call still in flight from the previous book is ahead of the next book's calls on the same queue. It is also the only producer of the `EngineCall<T>` brand that the fill hooks require.
 
 ### Dictionary Binding
 
