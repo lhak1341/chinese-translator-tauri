@@ -12,7 +12,8 @@
 //! median. Median gap is the granularity signal: chapters land at tens-to-low-hundreds of
 //! lines, volumes at low thousands — so among evenly-spaced candidates, the finest-grained
 //! one wins. This rule (and the pattern list below) was derived from a prototype run
-//! against the whole 23-book reader corpus and is pinned there by `tests::corpus`.
+//! against the reader corpus when it held 23 books, and is pinned against the whole
+//! corpus (33 books as of 2026-09-27) by `tests::corpus`.
 //!
 //! Two simpler rules were tried and both fail — see `tests::naive_rules_fail`, which pins
 //! the specific book that defeats each one. Both failures have the same root cause: a book
@@ -398,8 +399,8 @@ mod tests {
 
     // ── Corpus ────────────────────────────────────────────────────────────────
     //
-    // Mirrors `book_loader`'s corpus access: the real 23-book library is the fixture the
-    // election rule was derived against, so it is also what pins it. Skippable/overridable
+    // Mirrors `book_loader`'s corpus access: the real library is the fixture the election
+    // rule was derived against, so it is also what pins it. Skippable/overridable
     // the same way.
 
     fn corpus_dir() -> Option<PathBuf> {
@@ -454,8 +455,9 @@ mod tests {
     }
 
     /// The pattern a human reading each book would call its "chapter" — derived from the
-    /// same prototype run that produced the election rule above. `Section` for the three
-    /// books that use "第...节" as their actual chapter marker rather than "第...章".
+    /// same prototype run that produced the election rule above, and confirmed book by
+    /// book when the corpus grew to 33 (2026-09-27). `Section` for the four books that use
+    /// "第...节" as their actual chapter marker rather than "第...章".
     ///
     /// Matched on the Chinese half of the title only, never the Vietnamese half: macOS
     /// normalizes a directory listing's file names to NFD (diacritics decomposed), so a
@@ -467,8 +469,12 @@ mod tests {
             PatternId::Section // Bất bại chiến thần 不败战神
         } else if file_name.contains('卡') && file_name.contains('徒') {
             PatternId::Section // Tạp đồ 卡徒
-        } else if file_name.contains('修') && file_name.contains('真') {
+        } else if file_name.contains('修') && file_name.contains('世') && file_name.contains('界') {
+            // Not `修` + `真` alone: `Tu chân liêu thiên quần 修真聊天群` shares both and is
+            // a "第...章" book.
             PatternId::Section // Tu chân thế giới 修真世界
+        } else if file_name.contains('唐') && file_name.contains('砖') {
+            PatternId::Section // Đường chuyên 唐砖
         } else {
             PatternId::Chapter
         }
@@ -480,7 +486,7 @@ mod tests {
         if books.is_empty() {
             return;
         }
-        assert_eq!(books.len(), 23, "corpus size changed — update the expectations");
+        assert_eq!(books.len(), 33, "corpus size changed — update the expectations");
 
         for path in books {
             let file_name = path.file_name().unwrap().to_string_lossy().to_string();

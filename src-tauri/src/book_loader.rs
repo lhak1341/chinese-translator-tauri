@@ -698,7 +698,7 @@ mod tests {
         if books.is_empty() {
             return;
         }
-        assert_eq!(books.len(), 23, "corpus size changed — update the expectations");
+        assert_eq!(books.len(), 33, "corpus size changed — update the expectations");
 
         for path in books {
             let bytes = std::fs::read(&path).expect("corpus file is readable");
