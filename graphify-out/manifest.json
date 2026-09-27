@@ -1105,8 +1105,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790522187.4710987,
-    "ast_hash": "5c24b6809befbe2068224a0d859547a4",
+    "mtime": 1790524980.3415072,
+    "ast_hash": "04eccd432b402bc26703f3b567ae0dfb",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1145,8 +1145,8 @@
     "semantic_hash": ""
   },
   "docs/HOTKEYS.md": {
-    "mtime": 1790433484.4245539,
-    "ast_hash": "69f8c5aabe30ccc8e8108eeb3db47411",
+    "mtime": 1790524989.9509137,
+    "ast_hash": "a10e9741dd694cb4a11f618ff3385490",
     "semantic_hash": ""
   },
   "docs/adr/ADR-026-skip-useDictionaryCRUD-move-to-hooks.md": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790519879.9552243,
-    "ast_hash": "e76c1d1933cd7e3e6e73d7b74f5452d5",
+    "mtime": 1790524483.8400738,
+    "ast_hash": "ce3ea9607eceb5f88d2ac55a4615551e",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1900,13 +1900,13 @@
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
-    "mtime": 1789574062.793686,
-    "ast_hash": "fbb049091329be6fb46837c905b6df47",
+    "mtime": 1790524904.6259086,
+    "ast_hash": "0926aaa4457e135d31f34c22e6644ef0",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790519602.2942657,
-    "ast_hash": "41e83aa3fe870e61ca7c126bd907cd03",
+    "mtime": 1790524904.6253686,
+    "ast_hash": "bf827bccc743914c68d6e10c93ba9843",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1790360067.8252482,
-    "ast_hash": "bc5f660896a16df273fa0ab0ee88d94b",
+    "mtime": 1790524904.6248062,
+    "ast_hash": "da80900948eed6ba5f332bfcc699c178",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -2065,8 +2065,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PaletteCommands.ts": {
-    "mtime": 1790423845.2246628,
-    "ast_hash": "2fb41a197d8c03198c0b3ad1eeffb141",
+    "mtime": 1790524904.626338,
+    "ast_hash": "b24810b4234d2444d836782c0f91c7da",
     "semantic_hash": ""
   },
   "src/hooks/useAppearanceVersion.ts": {
@@ -2160,8 +2160,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790430155.0494988,
-    "ast_hash": "f4b398f30b61e79010b01b4cfa4db2f0",
+    "mtime": 1790524483.8407366,
+    "ast_hash": "f90dd61c63db768eb7420e16fea4ce52",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {
@@ -2175,8 +2175,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecord.ts": {
-    "mtime": 1790360043.8434374,
-    "ast_hash": "c47222f2bbe863b27b7e250f0a120dc9",
+    "mtime": 1790524869.6938999,
+    "ast_hash": "01e770f05f1243ab38a77ac2fef570f8",
     "semantic_hash": ""
   },
   "src/hooks/useBookRecords.ts": {
