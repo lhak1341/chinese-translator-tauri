@@ -1895,8 +1895,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1790523624.4137712,
-    "ast_hash": "5b26d4a6474b59924818c521db24025a",
+    "mtime": 1790524031.3684506,
+    "ast_hash": "591a7b5cfeab96a9bd70555719687a06",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
@@ -1965,13 +1965,13 @@
     "semantic_hash": ""
   },
   "src/hooks/useChapterOutline.ts": {
-    "mtime": 1790519838.2964106,
-    "ast_hash": "1cff71af09230907d4c06e6384fe4a64",
+    "mtime": 1790524039.7779222,
+    "ast_hash": "676bba830c9d44fae84d243c72b9995b",
     "semantic_hash": ""
   },
   "src/utils/reader/ChapterNavigation.ts": {
-    "mtime": 1789797900.570371,
-    "ast_hash": "49e519a43fdf86fef001ad9b87dead4c",
+    "mtime": 1790524031.3675199,
+    "ast_hash": "88efd47104dbb92f4f0d4623a3071b1f",
     "semantic_hash": ""
   },
   "src/utils/ui/EditableFocus.ts": {
@@ -2050,8 +2050,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/FictionDictionarySuggestion.ts": {
-    "mtime": 1789621245.584668,
-    "ast_hash": "4ef47e1ca70aac9ce73c748a18be82b7",
+    "mtime": 1790523961.5223715,
+    "ast_hash": "107a67e26ef455035a6df926fc6d469c",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryReloadRegistry.ts": {
@@ -2185,8 +2185,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useBindingOffer.ts": {
-    "mtime": 1790519879.9545722,
-    "ast_hash": "eb2387c0742d99a98bcf952633565898",
+    "mtime": 1790523975.391588,
+    "ast_hash": "63a88b262d907632c63033030f0a1e78",
     "semantic_hash": ""
   },
   "docs/adr/ADR-045-skip-shared-chapter-structure-override.md": {
