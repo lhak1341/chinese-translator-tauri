@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useBookBinding } from '../components/BookBindingContext';
 import {
+  bindingLabel,
   fictionDisplayName,
   suggestFictionDictionary,
   type FictionSuggestion,
@@ -59,11 +60,7 @@ export function useBindingOffer({ fileName }: UseBindingOfferOptions): BindingOf
 
   const buttonLabel = missingFictionDictionary
     ? `${fictionDisplayName(missingFictionDictionary)} (missing)`
-    : binding?.fictionDictionary
-      ? fictionDisplayName(binding.fictionDictionary)
-      : isUnbound
-        ? 'Bind dictionaries'
-        : 'No fiction dictionary';
+    : bindingLabel(binding, 'Bind dictionaries');
 
   return {
     suggestion,

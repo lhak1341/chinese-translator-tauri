@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  bindingLabel,
   deriveFictionSlug,
   suggestFictionDictionary,
   fictionDisplayName,
@@ -177,5 +178,23 @@ describe('fictionDisplayName', () => {
 
   test('leaves an id that is not a fiction one alone', () => {
     expect(fictionDisplayName('properNouns')).toBe('properNouns');
+  });
+});
+
+describe('bindingLabel', () => {
+  test('names a bound fiction dictionary without its prefix', () => {
+    expect(bindingLabel({ fictionDictionary: 'properNouns-f_TapDo' }, 'Not bound')).toBe('TapDo');
+  });
+
+  test('the answer "none" is an answer, whatever the caller calls "never asked"', () => {
+    expect(bindingLabel({ fictionDictionary: null }, 'Not bound')).toBe('No fiction dictionary');
+    expect(bindingLabel({ fictionDictionary: null }, 'Bind dictionaries')).toBe(
+      'No fiction dictionary'
+    );
+  });
+
+  test("never answered reads as the caller's own text", () => {
+    expect(bindingLabel(null, 'Not bound')).toBe('Not bound');
+    expect(bindingLabel(null, 'Bind dictionaries')).toBe('Bind dictionaries');
   });
 });

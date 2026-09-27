@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
 import { useBookRecords } from '../../hooks/useBookRecords';
-import { fictionDisplayName } from '../../utils/reader/FictionDictionarySuggestion';
+import { bindingLabel } from '../../utils/reader/FictionDictionarySuggestion';
 import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
 import { SearchFilterHeader } from '../SearchFilterHeader';
@@ -74,15 +74,10 @@ function formatProgress(record: BookRecord | undefined): string {
   return 'In progress';
 }
 
-/** The fiction dictionary a book is bound to, by display name. "No fiction dictionary"
- * is an answer, so it reads differently from a book never asked (`binding: null`), the
- * same distinction the Reader's binding button draws. */
+/** The fiction dictionary a book is bound to — see `bindingLabel`. A book the shelf has
+ * no record for was never asked either. */
 function formatBinding(record: BookRecord | undefined): string {
-  const binding = record?.binding;
-  if (!binding) return 'Not bound';
-  return binding.fictionDictionary
-    ? fictionDisplayName(binding.fictionDictionary)
-    : 'No fiction dictionary';
+  return bindingLabel(record?.binding ?? null, 'Not bound');
 }
 
 /** How many chapters the book's outline has: the hit count of the pattern in effect,

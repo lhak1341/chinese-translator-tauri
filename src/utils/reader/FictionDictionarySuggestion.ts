@@ -15,6 +15,7 @@
  */
 
 import { FICTION_PROPER_NOUNS_PREFIX as FICTION_PREFIX } from '../dictionary/DictionaryIdClassifier';
+import type { BookBinding } from '../../types/ReaderTypes';
 
 /**
  * Vietnamese with its diacritics removed. Two steps, because Vietnamese needs both:
@@ -76,6 +77,20 @@ export function fictionDisplayName(dictionaryId: string): string {
   return dictionaryId.startsWith(FICTION_PREFIX)
     ? dictionaryId.slice(FICTION_PREFIX.length)
     : dictionaryId;
+}
+
+/**
+ * A book's binding in words: the bound dictionary's display name, or "No fiction
+ * dictionary" for the answer "none". `binding: null` means the book was never asked, and
+ * reads as `unanswered` — each caller words that its own way ("Bind dictionaries" on the
+ * Reader's button is a prompt; "Not bound" on the shelf is a fact). The two answers stay
+ * distinct from it on purpose (CONTEXT.md, "Dictionary Binding").
+ */
+export function bindingLabel(binding: BookBinding | null, unanswered: string): string {
+  if (!binding) return unanswered;
+  return binding.fictionDictionary
+    ? fictionDisplayName(binding.fictionDictionary)
+    : 'No fiction dictionary';
 }
 
 /**
