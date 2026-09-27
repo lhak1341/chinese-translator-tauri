@@ -17,6 +17,7 @@ import {
 } from '../../utils/reader/ReconcileLibrary';
 import { useBookBinding } from '../BookBindingContext';
 import type { OpenBookIdentity } from '../BookBindingContext';
+import { useReaderEngine } from '../../hooks/useReaderEngine';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
 import EncodingPrompt from './EncodingPrompt';
@@ -69,6 +70,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
   const { announceOpenBook } = useBookBinding();
+  // The Reader's engine queue lives here, above every `BookReader` instance — see
+  // `useReaderEngine`.
+  const readerEngine = useReaderEngine();
 
   const scan = useCallback(async (path: string | null): Promise<void> => {
     setIsScanning(true);
@@ -289,6 +293,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           encoding={open.encoding}
           record={open.record}
           isActive={isActive}
+          engine={readerEngine}
           books={books}
           onSwitchBook={switchBook}
           onBack={backToShelf}

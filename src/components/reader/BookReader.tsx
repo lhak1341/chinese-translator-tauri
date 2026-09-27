@@ -6,7 +6,6 @@ import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
-import { useReaderEngine } from '../../hooks/useReaderEngine';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
@@ -23,6 +22,7 @@ import BindingDialog from './BindingDialog';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { PaletteBook } from '../../utils/reader/PaletteCommands';
+import type { ReaderEngineCalls } from '../../utils/reader/ReaderEngine';
 import ReaderPanel from './ReaderPanel';
 import styles from '../../styles/Reader.module.css';
 
@@ -36,6 +36,9 @@ interface BookReaderProps {
   record: BookRecord;
   /** Whether the Reader is the visible tab — see `useReadingAnchor`. */
   isActive: boolean;
+  /** Every engine call the Reader makes, serialized onto one queue — see
+   * `createReaderEngine`. Owned by `ReaderTab` so the queue outlives this component. */
+  engine: ReaderEngineCalls;
   /** The whole shelf, so the palette can switch books without going back to it. The open
    * book is in here too; the palette drops its own row. */
   books: readonly PaletteBook[];
@@ -62,6 +65,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   encoding,
   record,
   isActive,
+  engine,
   books,
   onSwitchBook,
   onBack,
@@ -122,8 +126,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   // The engine is only asked while the Reader is the visible tab and the engine is up.
   const canTranslate = isActive && enginePhase === 'ready';
 
-  // Every engine call the Reader makes, serialized onto one queue — see `createReaderEngine`.
-  const { translateChunk, translateGloss, translateOutlineBatch } = useReaderEngine();
+  const { translateChunk, translateGloss, translateOutlineBatch } = engine;
 
   const { getRow, contentVersion, isTranslating } = useWindowedTranslation({
     fingerprint: book.fingerprint,

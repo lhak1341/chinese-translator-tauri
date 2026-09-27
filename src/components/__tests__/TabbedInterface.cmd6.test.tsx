@@ -55,6 +55,7 @@ vi.mock('../Translator', () => ({ default: () => <div /> }));
 vi.mock('../dictionary/DictionaryManager', () => ({ default: () => <div /> }));
 vi.mock('../configuration/ConfigurationManager', () => ({ default: () => <div /> }));
 vi.mock('../appearance/AppearanceManager', () => ({ default: () => <div /> }));
+vi.mock('../reader/ReaderTab', () => ({ default: () => <div /> }));
 
 import { loadAppConfig } from '../../utils/appConfig';
 

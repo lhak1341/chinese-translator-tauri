@@ -55,6 +55,14 @@ vi.mock('../../BookBindingContext', () => ({
   useBookBinding: () => ({ announceOpenBook }),
 }));
 
+// The real hook needs `EngineProvider`; the queue itself is `createReaderEngine`'s to test.
+const readerEngine = vi.hoisted(() => ({
+  translateChunk: vi.fn(),
+  translateGloss: vi.fn(),
+  translateOutlineBatch: vi.fn(),
+}));
+vi.mock('../../../hooks/useReaderEngine', () => ({ useReaderEngine: () => readerEngine }));
+
 // Stubs stand in for the three heavy children: real Bookshelf/BookReader/EncodingPrompt
 // pull in virtualizers and engine context this suite has no reason to set up. Each exposes
 // just enough to drive `openBook`'s branches and observe what state it produced.
