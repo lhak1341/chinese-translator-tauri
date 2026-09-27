@@ -90,7 +90,6 @@ export function useChapters({
   const current = currentIndex >= 0 ? headers[currentIndex] : null;
 
   const { getTranslatedTitle, isTranslating: isTranslatingTitles } = useOutlineTranslations({
-    fingerprint,
     headers,
     priorityLine: current?.line ?? -1,
     translateBatch,

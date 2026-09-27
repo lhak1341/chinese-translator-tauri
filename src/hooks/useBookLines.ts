@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import tauriAPI from '../tauriAPI';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -23,7 +23,7 @@ export interface BookLineWindow {
   /** The line's text, or `undefined` while its page is still in flight. */
   getLine: (index: number) => string | undefined;
   /**
-   * Bumped every time a page lands (or the book changes).
+   * Bumped every time a page lands.
    *
    * `getLine` is referentially stable and reads through a ref, so nothing downstream can
    * tell from its identity that new lines exist. Anything that plans work over line text —
@@ -44,26 +44,16 @@ export interface BookLineWindow {
  * held in a plain `Map`, and dropped once the reader is far enough away. Line numbers are
  * the file's own, blank lines included — the backend deliberately does not compact them,
  * so index N here is line N there.
+ *
+ * One book per instance: `BookReader` is keyed by fingerprint, so a different book is a
+ * fresh hook with empty pages, and a response from the previous book lands in an
+ * unmounted one.
  */
 export function useBookLines(fingerprint: string | null, lineCount: number): BookLineWindow {
   const pagesRef = useRef<Map<number, string[]>>(new Map());
   const inFlightRef = useRef<Set<number>>(new Set());
   const [linesVersion, setLinesVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // A new book means the old pages are meaningless — and, because pages are keyed by
-  // index alone, actively wrong if they survived.
-  useEffect(() => {
-    pagesRef.current = new Map();
-    inFlightRef.current = new Set();
-    setError(null);
-    setLinesVersion((n) => n + 1);
-  }, [fingerprint]);
-
-  // Read inside the fetch callback rather than closing over the render's value — the
-  // fingerprint that matters is the one current when the response lands.
-  const fingerprintRef = useRef(fingerprint);
-  fingerprintRef.current = fingerprint;
 
   const fetchPage = useCallback(
     async (page: number): Promise<void> => {
@@ -74,9 +64,6 @@ export function useBookLines(fingerprint: string | null, lineCount: number): Boo
       const end = Math.min(start + LINES_PER_PAGE, lineCount);
       try {
         const result = await tauriAPI.readBookLines(fingerprint, start, end);
-        // The fingerprint may have changed while this was in flight — splicing one
-        // novel's lines into another's is exactly what that check prevents.
-        if (fingerprint !== fingerprintRef.current) return;
         pagesRef.current.set(page, result.lines);
         setError(null);
         setLinesVersion((n) => n + 1);

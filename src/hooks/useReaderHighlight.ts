@@ -8,19 +8,21 @@ import type { ReaderHighlight } from '../components/reader/ReaderPanel';
  * translation, so lighting the Vietnamese lights the Chinese it came from with no mapping
  * step in between — which is the whole reason the panels key off a chunk key plus an index
  * rather than off text positions.
+ *
+ * One book per instance: `BookReader` is keyed by fingerprint, so a highlight never
+ * outlives its book.
  */
-export function useReaderHighlight(
-  fingerprint: string,
-  engineVersion: number
-): { highlight: ReaderHighlight | null; toggleHighlight: (next: ReaderHighlight) => void } {
+export function useReaderHighlight(engineVersion: number): {
+  highlight: ReaderHighlight | null;
+  toggleHighlight: (next: ReaderHighlight) => void;
+} {
   const [highlight, setHighlight] = useState<ReaderHighlight | null>(null);
 
-  // A chunk key is a line range, so the same key names a different passage in another book
-  // and different Vietnamese after a dictionary reload. Neither is a highlight worth
-  // keeping, and both would otherwise light an unrelated word.
+  // A chunk key is a line range, and the same range holds different Vietnamese after a
+  // dictionary reload — a highlight kept across one would light an unrelated word.
   useEffect(() => {
     setHighlight(null);
-  }, [fingerprint, engineVersion]);
+  }, [engineVersion]);
 
   /** Click a run to light it, click it again to clear — same gesture in every panel. */
   const toggleHighlight = useCallback((next: ReaderHighlight): void => {

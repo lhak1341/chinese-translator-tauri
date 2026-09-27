@@ -7,7 +7,6 @@ import {
 } from '../utils/reader/FictionDictionarySuggestion';
 
 export interface UseBindingOfferOptions {
-  fingerprint: string;
   fileName: string;
 }
 
@@ -39,13 +38,13 @@ export interface BindingOffer {
  * View state, so it lives with the reading view rather than in `BookBindingContext`, which
  * owns persisting and applying an answer app-wide. Dismissal in particular is not an
  * answer — nothing is written, and it lasts as long as this reading view does, so Back and
- * reopen offers again. Keyed by fingerprint so dismissing it for one book does not
- * silently hide it for the next.
+ * reopen offers again. One book per instance (`BookReader` is keyed by fingerprint), so
+ * dismissing it for one book never hides it for the next.
  */
-export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOptions): BindingOffer {
+export function useBindingOffer({ fileName }: UseBindingOfferOptions): BindingOffer {
   const { binding, missingFictionDictionary, fictionDictionaries, applyError, isDialogOpen } =
     useBookBinding();
-  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const suggestion = useMemo(
     () => suggestFictionDictionary(fileName, fictionDictionaries),
@@ -56,7 +55,7 @@ export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOption
   // "none", and must not re-offer — collapsing the two is how this asks forever.
   const isUnbound = binding === null;
 
-  const dismiss = useCallback((): void => setDismissedFor(fingerprint), [fingerprint]);
+  const dismiss = useCallback((): void => setIsDismissed(true), []);
 
   const buttonLabel = missingFictionDictionary
     ? `${fictionDisplayName(missingFictionDictionary)} (missing)`
@@ -68,8 +67,7 @@ export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOption
 
   return {
     suggestion,
-    isBannerVisible:
-      (isUnbound || missingFictionDictionary !== null) && dismissedFor !== fingerprint,
+    isBannerVisible: (isUnbound || missingFictionDictionary !== null) && !isDismissed,
     missingDictionary: missingFictionDictionary,
     dismiss,
     buttonLabel,

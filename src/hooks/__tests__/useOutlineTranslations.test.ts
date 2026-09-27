@@ -18,7 +18,6 @@ describe('useOutlineTranslations', () => {
 
     const { result } = renderHook(() =>
       useOutlineTranslations({
-        fingerprint: 'book-1',
         headers,
         priorityLine: 100,
         translateBatch,
@@ -43,7 +42,6 @@ describe('useOutlineTranslations', () => {
     const { result, rerender } = renderHook(
       (props: { dictionaryVersion: number }) =>
         useOutlineTranslations({
-          fingerprint: 'book-1',
           headers,
           priorityLine: 0,
           translateBatch,
@@ -71,29 +69,6 @@ describe('useOutlineTranslations', () => {
     await waitFor(() => expect(result.current.getTranslatedTitle(0)).toBe('Chào lại'));
   });
 
-  it('a different fingerprint clears titles that belong to the other book', async () => {
-    const headers: ChapterHeader[] = [{ line: 0, title: 'Chapter One' }];
-    const translateBatch = vi.fn().mockResolvedValue('Xin chao');
-
-    const { result, rerender } = renderHook(
-      (props: { fingerprint: string }) =>
-        useOutlineTranslations({
-          fingerprint: props.fingerprint,
-          headers,
-          priorityLine: 0,
-          translateBatch,
-          dictionaryVersion: 0,
-          isEnabled: true,
-        }),
-      { initialProps: { fingerprint: 'book-1' } }
-    );
-
-    await waitFor(() => expect(result.current.getTranslatedTitle(0)).toBe('Xin chao'));
-
-    rerender({ fingerprint: 'book-2' });
-    expect(result.current.getTranslatedTitle(0)).toBeUndefined();
-  });
-
   it('a failed batch is isolated: the rest of the outline still translates', async () => {
     const headers: ChapterHeader[] = [
       { line: 0, title: '字'.repeat(500) }, // forces its own batch (BATCH_TARGET_CHARS = 500)
@@ -109,7 +84,6 @@ describe('useOutlineTranslations', () => {
 
     const { result } = renderHook(() =>
       useOutlineTranslations({
-        fingerprint: 'book-1',
         headers,
         priorityLine: 0,
         translateBatch,
@@ -156,7 +130,6 @@ describe('useOutlineTranslations', () => {
       const { result, rerender } = renderHook(
         (props: { priorityLine: number }) =>
           useOutlineTranslations({
-            fingerprint: 'book-1',
             headers,
             priorityLine: props.priorityLine,
             translateBatch,
@@ -181,7 +154,6 @@ describe('useOutlineTranslations', () => {
       const { result, rerender } = renderHook(
         (props: { isEnabled: boolean }) =>
           useOutlineTranslations({
-            fingerprint: 'book-1',
             headers,
             priorityLine: 0,
             translateBatch,
@@ -200,27 +172,27 @@ describe('useOutlineTranslations', () => {
       expect(translateBatch).toHaveBeenCalledTimes(1);
     });
 
-    it('a different book mid-batch (abandoned) discards the landed result', async () => {
+    it('unmounting mid-batch lets nothing further reach the engine', async () => {
+      // A book switch is an unmount (BookReader is keyed by fingerprint), and the engine
+      // queue outlives it: any batch the old book sent after this would wait ahead of the
+      // new book's own text.
       const { translateBatch, answer } = deferredEngine();
-      const { result, rerender } = renderHook(
-        (props: { fingerprint: string; isEnabled: boolean }) =>
-          useOutlineTranslations({
-            fingerprint: props.fingerprint,
-            headers,
-            priorityLine: 0,
-            translateBatch,
-            dictionaryVersion: 0,
-            isEnabled: props.isEnabled,
-          }),
-        { initialProps: { fingerprint: 'book-1', isEnabled: true } }
+      const { unmount } = renderHook(() =>
+        useOutlineTranslations({
+          headers,
+          priorityLine: 0,
+          translateBatch,
+          dictionaryVersion: 0,
+          isEnabled: true,
+        })
       );
 
       await waitFor(() => expect(translateBatch).toHaveBeenCalledTimes(1));
-      rerender({ fingerprint: 'book-2', isEnabled: false });
+      unmount();
       answer(0);
 
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(result.current.getTranslatedTitle(0)).toBeUndefined();
+      expect(translateBatch).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -230,7 +202,6 @@ describe('useOutlineTranslations', () => {
 
     renderHook(() =>
       useOutlineTranslations({
-        fingerprint: 'book-1',
         headers,
         priorityLine: 0,
         translateBatch,

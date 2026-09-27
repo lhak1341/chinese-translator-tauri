@@ -8,8 +8,6 @@ import { logger } from '../utils/logger';
 const BATCH_TARGET_CHARS = 500;
 
 export interface UseOutlineTranslationsOptions {
-  /** The open book. A change means every cached title belongs to a different novel. */
-  fingerprint: string;
   headers: ChapterHeader[];
   /** The line of the chapter currently on screen, or `-1`. Missing titles nearest this
    * line translate first, so the one place a title is visible outside the panel — the
@@ -89,20 +87,21 @@ function assembleBatch(batch: ChapterHeader[], translatedText: string): Map<numb
  * invalidation rule applies: a dictionary reload must not leave stale titles behind. The
  * resemblance is surface-level, not shared depth: call arity (one engine call here, two in
  * `fillPlan`), cache shape (a plain `Map`, no eviction, vs `TranslationChunkCache`'s LRU),
- * and effect topology (book-change and fill-scheduling share one effect here, split in two
- * there) all genuinely differ — a shared primitive was deliberately rejected, see
+ * and effect topology all genuinely differ — a shared primitive was deliberately rejected, see
  * ADR-043.
  *
  * It does share `fillPlan`'s two staleness signals, for the same reason. **Stale** — any
  * re-run of the effect: a new priority, a page of headers, `isEnabled` turning false —
  * stops the loop before its *next* batch, but a batch already sent still lands. Only
- * **abandoned** — a different book or dictionary version since the batch was sent —
- * discards a result, because only then is it wrong rather than merely unprioritized.
+ * **abandoned** — a different dictionary version since the batch was sent — discards a
+ * result, because only then is it wrong rather than merely unprioritized.
  * Checking one generation counter after the `await` (what this did until 2026-09-26)
  * threw away a finished engine call on every re-plan; a single effect is no protection.
+ *
+ * One book per instance: `BookReader` is keyed by fingerprint, so the cache never holds
+ * another novel's titles, and the book never needs to be an input here.
  */
 export function useOutlineTranslations({
-  fingerprint,
   headers,
   priorityLine,
   translateBatch,
@@ -116,18 +115,14 @@ export function useOutlineTranslations({
    * shown meanwhile. Clearing the map on a reload instead — which is what this did — turned
    * every chapter title, and the chapter-strip button the reader is looking at, back into
    * Chinese until the whole list had been re-translated.
-   *
-   * A different book *is* cleared: those titles belong to another novel, and showing them
-   * would be wrong rather than merely out of date.
    */
   const cacheRef = useRef<Map<number, { title: string; version: number }>>(new Map());
   /** Line → the dictionary version a sent-but-unanswered batch is translating it against.
    * A re-plan skips these rather than asking the engine for the same titles twice. */
   const inFlightRef = useRef<Map<number, number>>(new Map());
-  const fingerprintRef = useRef(fingerprint);
   /** Read after an `await`, so it must reflect the latest render, not the latest effect. */
-  const latestRef = useRef({ fingerprint, dictionaryVersion });
-  latestRef.current = { fingerprint, dictionaryVersion };
+  const latestDictionaryVersionRef = useRef(dictionaryVersion);
+  latestDictionaryVersionRef.current = dictionaryVersion;
   /** Bumped on every effect run: a loop whose generation is behind is stale. */
   const generationRef = useRef(0);
   /** The generation of the loop that owns `isTranslating`, or `null` when none is running. */
@@ -135,13 +130,16 @@ export function useOutlineTranslations({
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
 
+  // Stop a running loop when the reader goes away — on Back, and on every book switch,
+  // since each book is its own instance. Without this the old book's remaining batches
+  // keep going onto the Reader's shared engine queue, ahead of the new book's text.
   useEffect(() => {
-    if (fingerprintRef.current !== fingerprint) {
-      fingerprintRef.current = fingerprint;
-      cacheRef.current = new Map();
-      inFlightRef.current = new Map();
-    }
+    return () => {
+      generationRef.current += 1;
+    };
+  }, []);
 
+  useEffect(() => {
     // Before the early returns: `isEnabled` turning false must stop a running loop too.
     const generation = (generationRef.current += 1);
     if (!isEnabled || headers.length === 0) return;
@@ -158,9 +156,7 @@ export function useOutlineTranslations({
     );
     const batches = packBatches(ordered);
     const isStale = () => generationRef.current !== generation;
-    const isAbandoned = () =>
-      latestRef.current.fingerprint !== fingerprint ||
-      latestRef.current.dictionaryVersion !== dictionaryVersion;
+    const isAbandoned = () => latestDictionaryVersionRef.current !== dictionaryVersion;
 
     runningRef.current = generation;
     setIsTranslating(true);
@@ -205,7 +201,7 @@ export function useOutlineTranslations({
         setIsTranslating(false);
       }
     })();
-  }, [fingerprint, dictionaryVersion, headers, priorityLine, isEnabled, translateBatch]);
+  }, [dictionaryVersion, headers, priorityLine, isEnabled, translateBatch]);
 
   const getTranslatedTitle = useCallback(
     // Stale or current, a title is shown: the alternative on a reload is Chinese.

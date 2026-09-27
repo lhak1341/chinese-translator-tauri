@@ -15,7 +15,6 @@ vi.mock('../../components/BookBindingContext', () => ({
 }));
 
 const BOOK: UseBindingOfferOptions = {
-  fingerprint: 'fp1',
   fileName: 'Tạp đồ 杂图.txt',
 };
 
@@ -60,18 +59,12 @@ describe('useBindingOffer', () => {
     expect(result.current.isBannerVisible).toBe(false);
   });
 
-  it('dismissing hides the banner for this book only, without answering', () => {
-    const { result, rerender } = renderHook(
-      (props: UseBindingOfferOptions) => useBindingOffer(props),
-      { initialProps: BOOK }
-    );
+  it('dismissing hides the banner without answering', () => {
+    const { result } = renderHook(() => useBindingOffer(BOOK));
 
     act(() => result.current.dismiss());
     expect(result.current.isBannerVisible).toBe(false);
     expect(result.current.buttonLabel).toBe('Bind dictionaries');
-
-    rerender({ fingerprint: 'fp2', fileName: 'Other 别的.txt' });
-    expect(result.current.isBannerVisible).toBe(true);
   });
 
   it('suggests from the file name, and says whether that dictionary already exists', () => {

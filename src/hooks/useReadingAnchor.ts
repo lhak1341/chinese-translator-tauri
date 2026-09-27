@@ -48,7 +48,8 @@ export function useReadingAnchor({
 
   const snapshot = useSyncExternalStore(anchor.subscribe, anchor.getSnapshot);
 
-  // Read only when the book changes: the position a book opened with is the one to restore.
+  // Read only on open: the position a book opened with is the one to restore. `fingerprint`
+  // is fixed per instance (`BookReader` is keyed by it), so this runs once per book.
   const initialPositionRef = useRef(initialPosition);
   initialPositionRef.current = initialPosition;
   useEffect(() => {

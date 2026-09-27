@@ -22,8 +22,6 @@ import { logger } from '../utils/logger';
 export type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
 
 export interface UseWindowedTranslationOptions {
-  /** The open book. A change means every cached chunk belongs to a different novel. */
-  fingerprint: string | null;
   lineCount: number;
   /** Topmost line touching the viewport — the same anchor the reading position uses. */
   anchorLine: number;
@@ -68,8 +66,7 @@ export interface WindowedTranslation {
     characterOnly: (index: number) => PanelRow;
   };
   /**
-   * Changes whenever any row's content does — a page landing, a chunk landing, an eviction,
-   * a book switch.
+   * Changes whenever any row's content does — a page landing, a chunk landing, an eviction.
    *
    * The getters above read through refs and never change identity, which is what lets the
    * panels' `estimateSize` stay stable — but it means a memoized panel cannot tell from
@@ -115,12 +112,14 @@ function vietnameseRow(
  * and the generation counter, drives `fillPlan` inside an effect, and folds landed chunks
  * back into per-line strings/segments for render (`rebuild`).
  *
+ * One book per instance: `BookReader` is keyed by fingerprint, so the cache never holds
+ * another book's chunks, and the book never needs to be an input here.
+ *
  * Nothing here is written to disk, and nothing is translated ahead of the fetch band:
  * translating a screenful takes a fraction of a second against a reader who spends tens of
  * seconds on it.
  */
 export function useWindowedTranslation({
-  fingerprint,
   lineCount,
   anchorLine,
   viewportLines,
@@ -140,7 +139,8 @@ export function useWindowedTranslation({
   const originalSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
   const characterOnlySegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
   const generationRef = useRef(0);
-  // Bumps only when the cache itself stops being trustworthy — a book switch or unmount —
+  // Bumps only when the cache itself stops being trustworthy — on unmount, which is also
+  // what a book switch is —
   // never on an ordinary re-plan (anchor move, page landing, resize). Separate from
   // `generationRef` on purpose: see `fillPlan`'s doc comment for the bug conflating them
   // caused (a chunk's gloss silently abandoned by an anchor move, orphaned forever since
@@ -178,20 +178,8 @@ export function useWindowedTranslation({
     forceRender((n) => n + 1);
   }, []);
 
-  // A different book means every cached chunk is keyed by a line range in another file.
-  useEffect(() => {
-    generationRef.current += 1;
-    bookGenerationRef.current += 1;
-    cacheRef.current.clear();
-    linesRef.current = new Map();
-    characterOnlyRef.current = new Map();
-    translatedSegmentsRef.current = new Map();
-    originalSegmentsRef.current = new Map();
-    characterOnlySegmentsRef.current = new Map();
-    forceRender((n) => n + 1);
-  }, [fingerprint]);
-
-  // Abandon any fill still running when the panel goes away.
+  // Abandon any fill still running when the panel goes away. The chunk in flight still
+  // resolves after unmount, and must not be folded into anything.
   useEffect(() => {
     return () => {
       generationRef.current += 1;
@@ -212,7 +200,7 @@ export function useWindowedTranslation({
     // ordinary re-plan; skipping a not-yet-started chunk here is free.
     const isStale = (): boolean => generationRef.current !== generation;
     // "Has the cache itself stopped being trustworthy?" — checked after each of a started
-    // chunk's two awaits. True only on a book switch or unmount, never an ordinary
+    // chunk's two awaits. True only on unmount (a book switch included), never an ordinary
     // re-plan — see `fillPlan`'s doc comment for why conflating this with `isStale` is a
     // bug already shipped once. `dictionaryVersion` belongs here too: a reload must not
     // let a chunk's result land against dictionaries no longer in force, same as before.
@@ -256,9 +244,6 @@ export function useWindowedTranslation({
   }, [
     anchorLine,
     dictionaryVersion,
-    // Not read in the body — the book-change effect above owns the cache reset. Listed so
-    // a fill is re-planned for the new book even if nothing else in this list moved.
-    fingerprint,
     getLine,
     isEnabled,
     lineCount,

@@ -46,6 +46,9 @@ export interface ChapterOutlineState {
  * book) — it runs only when `cachedOutline` is `null`, i.e. this fingerprint has never
  * been elected before. Every other case fetches headers for one pattern only, which is
  * cheap enough to do on every open.
+ *
+ * One book per instance: `BookReader` is keyed by fingerprint, so the resolve below runs
+ * once, on mount, and `fingerprint` never changes under it.
  */
 export function useChapterOutline({
   fingerprint,
@@ -65,10 +68,8 @@ export function useChapterOutline({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // "Latest ref" pattern: `setOverride` is a stable callback (empty dep array) but must
-  // always act against the current book and its current elected pattern.
-  const fingerprintRef = useRef(fingerprint);
-  fingerprintRef.current = fingerprint;
+  // "Latest ref" pattern: `setOverride` is a stable callback but must always act against
+  // the current elected pattern.
   const electedPatternRef = useRef(electedPattern);
   electedPatternRef.current = electedPattern;
 
@@ -83,12 +84,6 @@ export function useChapterOutline({
   // fetch headers for whichever pattern (override or election) already applies to it.
   useEffect(() => {
     const requestId = (requestIdRef.current += 1);
-    setIsLoading(true);
-    setError(null);
-    setHeaders([]);
-    setCandidates(cachedOutline?.candidates ?? []);
-    setElectedPattern(cachedOutline?.pattern ?? null);
-    setManualPatternState(cachedManualPattern);
 
     void (async () => {
       try {
@@ -135,40 +130,42 @@ export function useChapterOutline({
       }
     })();
 
-    // cachedOutline/cachedManualPattern are read only at the moment a book opens — the
-    // effect re-runs on a new book (fingerprint change), never because the cache values
-    // themselves changed identity.
+    // cachedOutline/cachedManualPattern are read only at the moment a book opens, and
+    // `fingerprint` is fixed for this instance — the effect never re-runs because the cache
+    // values themselves changed identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fingerprint]);
 
-  const setOverride = useCallback((pattern: ChapterPatternId | null): void => {
-    const targetFingerprint = fingerprintRef.current;
-    const requestId = (requestIdRef.current += 1);
-    setManualPatternState(pattern);
-    setIsLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const effectivePattern = pattern ?? electedPatternRef.current;
-        const nextHeaders = effectivePattern
-          ? await tauriAPI.chapterHeadersForPattern(targetFingerprint, effectivePattern)
-          : [];
-        if (requestIdRef.current !== requestId) return;
-        setHeaders(nextHeaders);
-      } catch (cause) {
-        if (requestIdRef.current !== requestId) return;
-        logger.error('Failed to load headers for the chosen pattern:', cause);
-        setError(extractErrorMessage(cause));
-      } finally {
-        if (requestIdRef.current === requestId) setIsLoading(false);
-      }
-      try {
-        await setManualChapterPattern(targetFingerprint, pattern);
-      } catch (cause) {
-        logger.error('Failed to persist the chapter pattern override:', cause);
-      }
-    })();
-  }, []);
+  const setOverride = useCallback(
+    (pattern: ChapterPatternId | null): void => {
+      const requestId = (requestIdRef.current += 1);
+      setManualPatternState(pattern);
+      setIsLoading(true);
+      setError(null);
+      void (async () => {
+        try {
+          const effectivePattern = pattern ?? electedPatternRef.current;
+          const nextHeaders = effectivePattern
+            ? await tauriAPI.chapterHeadersForPattern(fingerprint, effectivePattern)
+            : [];
+          if (requestIdRef.current !== requestId) return;
+          setHeaders(nextHeaders);
+        } catch (cause) {
+          if (requestIdRef.current !== requestId) return;
+          logger.error('Failed to load headers for the chosen pattern:', cause);
+          setError(extractErrorMessage(cause));
+        } finally {
+          if (requestIdRef.current === requestId) setIsLoading(false);
+        }
+        try {
+          await setManualChapterPattern(fingerprint, pattern);
+        } catch (cause) {
+          logger.error('Failed to persist the chapter pattern override:', cause);
+        }
+      })();
+    },
+    [fingerprint]
+  );
 
   return {
     headers,

@@ -81,7 +81,7 @@ const BookReader: React.FC<BookReaderProps> = ({
    * for the eye, leaving the keyboard where it was. */
   const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
   const { enginePhase, engineVersion } = useEngine();
-  const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
+  const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
   const {
     binding,
     boundFictionDictionary,
@@ -131,7 +131,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { translateChunk, translateGloss, translateOutlineBatch } = engine;
 
   const { getRow, contentVersion, isTranslating } = useWindowedTranslation({
-    fingerprint: book.fingerprint,
     lineCount: book.lineCount,
     anchorLine,
     viewportLines,
@@ -166,7 +165,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: canTranslate && !isTranslating,
   });
 
-  const offer = useBindingOffer({ fingerprint: book.fingerprint, fileName: book.fileName });
+  const offer = useBindingOffer({ fileName: book.fileName });
 
   // Clamped for the last line's rounding, not for anything the anchor itself can produce.
   const readingProgressPercent =

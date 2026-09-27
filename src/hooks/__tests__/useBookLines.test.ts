@@ -106,21 +106,6 @@ describe('useBookLines', () => {
     expect(readBookLines).not.toHaveBeenCalled();
   });
 
-  it('discards every page when a different book opens', async () => {
-    const { result, rerender } = renderHook(
-      ({ fingerprint }) => useBookLines(fingerprint, LINE_COUNT),
-      { initialProps: { fingerprint: 'fp-1' } }
-    );
-
-    act(() => result.current.requestRange(0, 10));
-    await waitFor(() => expect(result.current.getLine(1)).toBe('line 1'));
-
-    // Pages are keyed by line index alone, so a surviving page would be another novel's
-    // text under this novel's line numbers.
-    rerender({ fingerprint: 'fp-2' });
-    expect(result.current.getLine(1)).toBeUndefined();
-  });
-
   it('surfaces a failed read instead of leaving the rows silently blank', async () => {
     readBookLines.mockRejectedValueOnce(new Error('No book is open'));
     const { result } = renderHook(() => useBookLines('fp-1', LINE_COUNT));

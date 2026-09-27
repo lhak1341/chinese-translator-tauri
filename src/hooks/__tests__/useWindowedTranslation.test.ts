@@ -14,16 +14,16 @@ import type { ChunkTranslationResult, GlossResult } from '../useWindowedTranslat
  * The extraction changed two behaviors on purpose, both reflected below:
  * - a chunk error no longer aborts the rest of the plan — it is logged and skipped, the
  *   loop continues. There is no more `error` field on the hook's return value.
- * - a book switch mid-fill can no longer let a stale chunk from the old book land in the
- *   new book's cache — `isAbandoned()` (book-identity-scoped) is checked after every
- *   `await`, not only before.
+ * - an unmount mid-fill can no longer let a stale chunk land — `isAbandoned()` is checked
+ *   after every `await`, not only before. A book switch is an unmount: `BookReader` is
+ *   keyed by fingerprint, so this hook never sees a second book.
  *
- * A same-day bug, fixed later: the first attempt at the book-switch fix used the same
+ * A same-day bug, fixed later: the first attempt at that fix used the same
  * signal (`generationRef`, bumped on every ordinary re-plan) for both the loop-top check
  * and the post-`await` check. That abandoned a chunk's own gloss on an ordinary anchor
  * move, and since the chunk's translation was already cached as `isFresh`, its gloss was
  * never retried — the reference panel showed Chinese for that chunk forever, no error
- * logged. `isStale` (ordinary re-plan) and `isAbandoned` (book switch/unmount only) are
+ * logged. `isStale` (ordinary re-plan) and `isAbandoned` (unmount only) are
  * now two separate signals for exactly this reason — see the last test below and
  * `WindowedTranslationFill.ts`'s doc comment.
  */
@@ -77,7 +77,6 @@ describe('useWindowedTranslation (characterization)', () => {
 
     const { result } = renderHook(() =>
       useWindowedTranslation({
-        fingerprint: 'book-1',
         lineCount: lines.length,
         anchorLine: 2,
         viewportLines: 3,
@@ -109,7 +108,6 @@ describe('useWindowedTranslation (characterization)', () => {
     const { result, rerender } = renderHook(
       (props: { linesVersion: number }) =>
         useWindowedTranslation({
-          fingerprint: 'book-1',
           lineCount: lines.length,
           anchorLine: 0,
           viewportLines: 3,
@@ -150,7 +148,6 @@ describe('useWindowedTranslation (characterization)', () => {
     const { result, rerender } = renderHook(
       (props: { dictionaryVersion: number }) =>
         useWindowedTranslation({
-          fingerprint: 'book-1',
           lineCount: lines.length,
           anchorLine: 0,
           viewportLines: 1,
@@ -191,7 +188,6 @@ describe('useWindowedTranslation (characterization)', () => {
 
     renderHook(() =>
       useWindowedTranslation({
-        fingerprint: 'book-1',
         lineCount: lines.length,
         anchorLine: 0,
         viewportLines: 1,
@@ -223,7 +219,6 @@ describe('useWindowedTranslation (characterization)', () => {
 
     const { unmount } = renderHook(() =>
       useWindowedTranslation({
-        fingerprint: 'book-1',
         lineCount: lines.length,
         anchorLine: 0,
         viewportLines: 1,
@@ -260,7 +255,6 @@ describe('useWindowedTranslation (characterization)', () => {
     const { result, rerender } = renderHook(
       (props: { anchorLine: number }) =>
         useWindowedTranslation({
-          fingerprint: 'book-1',
           lineCount: lines.length,
           anchorLine: props.anchorLine,
           viewportLines: 1,
@@ -306,7 +300,6 @@ describe('useWindowedTranslation (characterization)', () => {
 
     const { result } = renderHook(() =>
       useWindowedTranslation({
-        fingerprint: 'book-1',
         lineCount: lines.length,
         // Anchor nearest line 2 ('再见'), so it is attempted first and fails — its failure
         // must not block line 0 ('你好') from still being translated.
@@ -344,7 +337,6 @@ describe('useWindowedTranslation — panel rows', () => {
     return renderHook(
       (props: { linesVersion: number }) =>
         useWindowedTranslation({
-          fingerprint: 'book-1',
           lineCount: lines.length,
           anchorLine: 0,
           viewportLines: lines.length,
@@ -412,7 +404,6 @@ describe('useWindowedTranslation — panel rows', () => {
     })) as unknown as Parameters<typeof useWindowedTranslation>[0]['translateChunk'];
     const { result } = renderHook(() =>
       useWindowedTranslation({
-        fingerprint: 'book-1',
         lineCount: 1,
         anchorLine: 0,
         viewportLines: 1,
