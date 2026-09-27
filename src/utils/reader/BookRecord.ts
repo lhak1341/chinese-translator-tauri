@@ -51,6 +51,13 @@ export function emptyBookRecord(fingerprint: string): BookRecord {
  * reader's answers are re-applied from `existing` last, so an `observed` object wider
  * than its type (structural typing allows it) still cannot overwrite one.
  *
+ * One observation depends on another: `chapterOutline` was elected over the text as
+ * decoded, so an open that reports a different `encodingLabel` drops it, and the next
+ * outline load elects again over the new text. Same bytes means the same fingerprint, so
+ * nothing else would notice that the text election read is gone (issue #32: reopening a
+ * mis-detected book would otherwise keep chapters matched in mojibake). The reader's
+ * `manualChapterPattern` is an answer, not an observation, and stays.
+ *
  * `existing` must be this fingerprint's record, or `undefined` for a book never seen.
  */
 export function refreshBookRecord(
@@ -64,5 +71,16 @@ export function refreshBookRecord(
     manualChapterPattern: (existing ?? base).manualChapterPattern,
     binding: (existing ?? base).binding,
   };
-  return { ...base, ...existing, ...observed, ...answers, fingerprint };
+  const isRedecoded =
+    existing !== undefined &&
+    observed.encodingLabel !== undefined &&
+    observed.encodingLabel !== existing.encodingLabel;
+  return {
+    ...base,
+    ...existing,
+    ...(isRedecoded ? { chapterOutline: null } : {}),
+    ...observed,
+    ...answers,
+    fingerprint,
+  };
 }

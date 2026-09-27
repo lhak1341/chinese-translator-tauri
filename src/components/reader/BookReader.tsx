@@ -47,6 +47,8 @@ interface BookReaderProps {
   /** Open another book by file name — the shelf's own open path, so the book arrives with
    * its binding applied exactly as it would from a click on the shelf. */
   onSwitchBook: (fileName: string) => void;
+  /** Show the encoding choice for this book, to reopen it decoded differently. */
+  onReopenWithEncoding: () => void;
   onBack: () => void;
 }
 
@@ -70,6 +72,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   engine,
   books,
   onSwitchBook,
+  onReopenWithEncoding,
   onBack,
 }) => {
   const { getLine, linesVersion, requestRange, error } = useBookLines(
@@ -194,6 +197,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     pageBy,
     openBindingDialog: openDialog,
     onSwitchBook,
+    onReopenWithEncoding,
   });
 
   const syncFollowers = panels.translation.onScroll;

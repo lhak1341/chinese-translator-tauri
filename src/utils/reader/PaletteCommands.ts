@@ -18,14 +18,15 @@ export interface PaletteCommand {
   id: string;
   label: string;
   /** The direct shortcut for this action, if it has one. Rows without a binding — the
-   * per-book switch rows — leave it unset rather than showing an empty hint. */
+   * book rows — leave it unset rather than showing an empty hint. */
   hint?: string;
   group: PaletteGroup;
   /** Extra words this row matches on: what a reader might type when the label is not the
    * word they have in mind ("toc" for the chapter outline). */
   keywords?: readonly string[];
-  /** The action this row runs — the same one its hotkey runs. Unset on the per-book switch
-   * rows, which are the palette's own. */
+  /** The action this row runs — the same one its hotkey runs. Unset on the book rows
+   * (switching books, reopening with another encoding), which are the palette's own: an
+   * action id is a hotkey action type, and these have no key. */
   action?: ReaderActionId;
   run: () => void;
 }
@@ -50,6 +51,8 @@ export interface BuildPaletteCommandsInput {
   /** Called instead of an Add row's action when `source` is a refusal. */
   onRefused: (reason: string) => void;
   onSwitchBook: (fileName: string) => void;
+  /** Show the encoding choice for the open book, to reopen it decoded differently. */
+  onReopenWithEncoding: () => void;
 }
 
 /** The palette's action rows, in display order. */
@@ -151,6 +154,7 @@ export function buildPaletteCommands({
   source,
   onRefused,
   onSwitchBook,
+  onReopenWithEncoding,
 }: BuildPaletteCommandsInput): PaletteCommand[] {
   const commands: PaletteCommand[] = ACTION_ROWS.map((row) => ({
     ...row,
@@ -162,6 +166,16 @@ export function buildPaletteCommands({
       void actions[row.action](source.kind === 'source' ? source.text : undefined);
     },
   }));
+
+  // For a book that decoded with confidence but wrongly — see `ReaderTab`'s
+  // `reopenWithEncoding`.
+  commands.push({
+    id: 'reopen-with-encoding',
+    label: 'Reopen with a different encoding…',
+    group: 'Books',
+    keywords: ['encoding', 'charset', 'mojibake', 'gbk', 'utf-8', 'big5'],
+    run: onReopenWithEncoding,
+  });
 
   for (const book of books) {
     if (book.fileName === currentFileName) continue;

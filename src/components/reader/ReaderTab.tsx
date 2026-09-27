@@ -3,7 +3,13 @@ import tauriAPI from '../../tauriAPI';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import type { BookRecord, EncodingReport, LibraryBook, OpenBook } from '../../types/ReaderTypes';
+import type {
+  BookRecord,
+  EncodingChoiceTrigger,
+  EncodingReport,
+  LibraryBook,
+  OpenBook,
+} from '../../types/ReaderTypes';
 import {
   loadBookRecords,
   recordBookOpened,
@@ -39,11 +45,13 @@ interface OpenState {
   record: BookRecord;
 }
 
-/** A book that would not decode: its name plus the report explaining why. */
+/** A book waiting on the reader's choice of encoding: its name plus the report to choose
+ * from. */
 interface EncodingChoiceState {
   fileName: string;
   title: string;
   report: EncodingReport;
+  trigger: EncodingChoiceTrigger;
 }
 
 /** The slice of an open book that `announceOpenBook` needs — same shape whether the book
@@ -175,6 +183,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             fileName: book.fileName,
             title: book.title,
             report: result.encoding,
+            trigger: 'uncertain',
           });
           setOpen(null);
           setIsReading(true);
@@ -227,6 +236,21 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     [books, encodingChoice, openBook]
   );
 
+  /** For a book that opened on a confident but wrong guess — the low-confidence prompt is
+   * the only other way to choose, and a confident guess never reaches it. Shows the same
+   * choice over the open book's own report; choosing reopens it through `chooseEncoding`.
+   * The prompt replaces the reader, so `BookReader` unmounts and flushes the position
+   * before the new decode's record is read. */
+  const reopenWithEncoding = useCallback((): void => {
+    if (!open) return;
+    setEncodingChoice({
+      fileName: open.book.fileName,
+      title: open.book.title,
+      report: open.encoding,
+      trigger: 'chosen',
+    });
+  }, [open]);
+
   const changeFolder = useCallback(async (): Promise<void> => {
     try {
       const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
@@ -278,6 +302,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         <EncodingPrompt
           title={encodingChoice.title}
           report={encodingChoice.report}
+          trigger={encodingChoice.trigger}
           onChoose={chooseEncoding}
           onBack={backToShelf}
         />
@@ -301,6 +326,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           engine={readerEngine}
           books={books}
           onSwitchBook={switchBook}
+          onReopenWithEncoding={reopenWithEncoding}
           onBack={backToShelf}
         />
       </div>

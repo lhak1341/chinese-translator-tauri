@@ -57,6 +57,7 @@ export interface UseReaderCommandsOptions {
   pageBy: (direction: 1 | -1) => void;
   openBindingDialog: () => void;
   onSwitchBook: (fileName: string) => void;
+  onReopenWithEncoding: () => void;
 }
 
 export interface ReaderCommands {
@@ -94,6 +95,7 @@ export function useReaderCommands({
   pageBy,
   openBindingDialog,
   onSwitchBook,
+  onReopenWithEncoding,
 }: UseReaderCommandsOptions): ReaderCommands {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   /** What the palette's Add rows start from, resolved as the palette opens — the same
@@ -203,8 +205,9 @@ export function useReaderCommands({
         source: paletteSource,
         onRefused: (reason) => toast.error(reason),
         onSwitchBook,
+        onReopenWithEncoding,
       }),
-    [actions, books, currentFileName, onSwitchBook, paletteSource]
+    [actions, books, currentFileName, onReopenWithEncoding, onSwitchBook, paletteSource]
   );
 
   return {

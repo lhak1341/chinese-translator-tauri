@@ -44,8 +44,8 @@ browser's own scroll-the-focused-element behavior, which loses track of the pane
 virtualized row holding focus scrolls out of the DOM.
 
 The command palette offers every action in this section except opening itself, plus
-switching books and the Add shortcuts below, and each of its rows shows the direct
-shortcut it stands for — so it is also where those shortcuts are discovered. Typing filters; Escape closes; Enter runs the highlighted
+switching books, reopening the open book with a different encoding (no shortcut), and the
+Add shortcuts below, and each of its rows shows the direct shortcut it stands for — so it is also where those shortcuts are discovered. Typing filters; Escape closes; Enter runs the highlighted
 row. The Add rows start from what the Add shortcuts would at the moment the palette opened
 (focusing its search collapses the selection): a Translation-panel selection's Chinese, any
 other selection's text, else the clipboard. A selection the shortcut would refuse makes the

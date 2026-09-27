@@ -1,7 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ReaderTab from '../ReaderTab';
-import type { LibraryBook, OpenBook, EncodingReport } from '../../../types/ReaderTypes';
+import type {
+  EncodingChoiceTrigger,
+  EncodingReport,
+  LibraryBook,
+  OpenBook,
+} from '../../../types/ReaderTypes';
 
 /**
  * Characterization suite for `ReaderTab`'s `openBook` — first-ever coverage of this
@@ -88,12 +93,14 @@ vi.mock('../BookReader', async () => {
       engine,
       onBack,
       onSwitchBook,
+      onReopenWithEncoding,
     }: {
       book: OpenBook;
       record: { position: unknown };
       engine: unknown;
       onBack: () => void;
       onSwitchBook: (fileName: string) => void;
+      onReopenWithEncoding: () => void;
     }) => {
       // Mount-only on purpose: a re-render with a new book must not look like a mount.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,13 +111,31 @@ vi.mock('../BookReader', async () => {
           <span>position:{JSON.stringify(record.position)}</span>
           <button onClick={onBack}>back</button>
           <button onClick={() => onSwitchBook('other.txt')}>switch:other.txt</button>
+          <button onClick={onReopenWithEncoding}>reopen-encoding</button>
         </div>
       );
     },
   };
 });
 vi.mock('../EncodingPrompt', () => ({
-  default: () => <div>needs-encoding</div>,
+  default: ({
+    trigger,
+    report,
+    onChoose,
+    onBack,
+  }: {
+    trigger: EncodingChoiceTrigger;
+    report: EncodingReport;
+    onChoose: (label: string) => void;
+    onBack: () => void;
+  }) => (
+    <div>
+      <span>{trigger === 'chosen' ? 'choose-encoding' : 'needs-encoding'}</span>
+      <span>current:{report.label}</span>
+      <button onClick={() => onChoose('Big5')}>choose:Big5</button>
+      <button onClick={onBack}>prompt-back</button>
+    </div>
+  ),
 }));
 
 const libraryBook: LibraryBook = {
@@ -348,6 +373,63 @@ describe('ReaderTab openBook', () => {
     // The queue outlives the reader, so a call still in flight from the first book is
     // ahead of the second book's calls on the same queue.
     expect(readerMounts[1].engine).toBe(readerMounts[0].engine);
+  });
+
+  it('reopening with another encoding asks, then decodes the same file with the choice', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    const record = {
+      position: { line: 70, fraction: 0 },
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: { fictionDictionary: 'properNouns-f_Novel' },
+    };
+    bookRecordsBackend.recordBookOpened.mockResolvedValue(record);
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    fireEvent.click(await screen.findByText('reopen-encoding'));
+
+    // The choice replaces the reader, as the low-confidence prompt does, and says what
+    // the book is decoded with now.
+    expect(await screen.findByText('choose-encoding')).toBeInTheDocument();
+    expect(screen.getByText('current:UTF-8')).toBeInTheDocument();
+    expect(screen.queryByText('reading:novel.txt')).not.toBeInTheDocument();
+
+    tauriAPI.openBook.mockResolvedValue({
+      status: 'opened',
+      encoding: { ...encoding, label: 'Big5', overridden: true },
+      book: openedBook,
+    });
+    fireEvent.click(screen.getByText('choose:Big5'));
+
+    await screen.findByText('reading:novel.txt');
+    expect(tauriAPI.openBook).toHaveBeenLastCalledWith('novel.txt', null, 'Big5');
+    // Same bytes, same fingerprint: the record the reader comes back to is this book's own,
+    // position and binding included.
+    expect(bookRecordsBackend.recordBookOpened).toHaveBeenLastCalledWith(
+      'fp-1',
+      expect.objectContaining({ encodingLabel: 'Big5' })
+    );
+    expect(screen.getByText('position:{"line":70,"fraction":0}')).toBeInTheDocument();
+    expect(readerMounts.map((mount) => mount.fingerprint)).toEqual(['fp-1', 'fp-1']);
+  });
+
+  it('Back from the encoding choice goes to the shelf, leaving the book as it was', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      position: null,
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: null,
+    });
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    fireEvent.click(await screen.findByText('reopen-encoding'));
+    fireEvent.click(await screen.findByText('prompt-back'));
+
+    expect(await screen.findByText('open:novel.txt')).toBeInTheDocument();
+    expect(tauriAPI.openBook).toHaveBeenCalledTimes(1);
   });
 
   it('a thrown open error surfaces on the shelf rather than switching to reading', async () => {

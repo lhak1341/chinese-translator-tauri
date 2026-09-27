@@ -23,6 +23,11 @@ export interface LibraryScan {
 
 export type EncodingConfidence = 'high' | 'medium' | 'low';
 
+/** Why a book's encoding is the reader's to choose: detection could not establish one
+ * (`'uncertain'`, so the book would not open), or the reader asked to reopen a book that
+ * did open (`'chosen'`, from the palette). */
+export type EncodingChoiceTrigger = 'uncertain' | 'chosen';
+
 export interface EncodingReport {
   /** The encoding the book was (or would be) decoded with. */
   label: string;

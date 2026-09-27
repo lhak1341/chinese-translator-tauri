@@ -49,6 +49,33 @@ describe('refreshBookRecord', () => {
     for (const field of READER_ANSWER_FIELDS) expect(record[field]).toEqual(existing[field]);
   });
 
+  test('a different decode drops the outline elected from the old one', () => {
+    // Same bytes, same fingerprint, but the text election ran over is gone: the headers
+    // it matched were read through another encoding, and may have been mojibake.
+    const outline = {
+      pattern: 'chapter' as const,
+      candidates: [{ pattern: 'chapter' as const, hitCount: 12, medianGap: 50, regularity: 1 }],
+    };
+    const existing = makeBookRecord({
+      encodingLabel: 'GBK',
+      chapterOutline: outline,
+      manualChapterPattern: 'volume',
+    });
+
+    const reopened = refreshBookRecord(existing, 'fp1', { encodingLabel: 'Big5' });
+    expect(reopened.chapterOutline).toBeNull();
+    // The reader's override is an answer, not an observation of the text: it stays.
+    expect(reopened.manualChapterPattern).toBe('volume');
+
+    expect(refreshBookRecord(existing, 'fp1', { encodingLabel: 'GBK' }).chapterOutline).toEqual(
+      outline
+    );
+    // An observation that says nothing about the encoding (a scan) keeps it too.
+    expect(refreshBookRecord(existing, 'fp1', { title: 'Renamed' }).chapterOutline).toEqual(
+      outline
+    );
+  });
+
   test('the fingerprint argument is the identity, whatever the inputs carry', () => {
     const record = refreshBookRecord(makeBookRecord({ fingerprint: 'other' }), 'fp1', {});
     expect(record.fingerprint).toBe('fp1');

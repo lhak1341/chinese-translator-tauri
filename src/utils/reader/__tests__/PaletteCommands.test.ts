@@ -32,6 +32,7 @@ function build(overrides: Partial<Parameters<typeof buildPaletteCommands>[0]> = 
     source: { kind: 'source', text: '' },
     onRefused: vi.fn(),
     onSwitchBook: vi.fn(),
+    onReopenWithEncoding: vi.fn(),
     ...overrides,
   });
 }
@@ -67,8 +68,8 @@ describe('buildPaletteCommands', () => {
 
   it('leaves the open book out of the switch-book rows', () => {
     const commands = build();
-    const bookIds = commands.filter((c) => c.group === 'Books').map((c) => c.id);
-    expect(bookIds).toEqual(['switch-book:other.txt', 'switch-book:third.txt']);
+    const switchIds = commands.filter((c) => c.id.startsWith('switch-book:')).map((c) => c.id);
+    expect(switchIds).toEqual(['switch-book:other.txt', 'switch-book:third.txt']);
   });
 
   it('runs the action the row names', () => {
@@ -107,7 +108,21 @@ describe('buildPaletteCommands', () => {
     expect(nextChapter).toHaveBeenCalledTimes(1);
   });
 
-  it('names its action on every row but the book switches', () => {
+  it('offers reopening the open book with another encoding, as a row of its own', () => {
+    // Its own row, not a named action: an action id is a hotkey action type, and this has
+    // no key. It acts on the open book, so it sits with the book rows.
+    const onReopenWithEncoding = vi.fn();
+    const row = build({ books: [], onReopenWithEncoding }).find(
+      (command) => command.id === 'reopen-with-encoding'
+    );
+    expect(row?.group).toBe('Books');
+    expect(row?.hint).toBeUndefined();
+    expect(row?.action).toBeUndefined();
+    row?.run();
+    expect(onReopenWithEncoding).toHaveBeenCalledTimes(1);
+  });
+
+  it('names its action on every row but the book rows', () => {
     const commands = build();
     for (const command of commands) {
       if (command.group === 'Books') expect(command.action).toBeUndefined();
@@ -117,7 +132,7 @@ describe('buildPaletteCommands', () => {
 
   it('builds without books — a shelf of one still offers every other action', () => {
     const commands = build({ books: [] });
-    expect(commands.some((command) => command.group === 'Books')).toBe(false);
+    expect(commands.some((command) => command.id.startsWith('switch-book:'))).toBe(false);
     expect(commands.length).toBeGreaterThan(0);
   });
 });
@@ -156,7 +171,8 @@ describe('filterPaletteCommands', () => {
 
   it('matches on the group name, so a group is browsable by typing it', () => {
     const matched = filterPaletteCommands(commands, 'books');
-    expect(matched.length).toBe(2);
+    // The two switch rows plus reopening the open book.
+    expect(matched.length).toBe(3);
     expect(matched.every((command) => command.group === 'Books')).toBe(true);
   });
 });
