@@ -3,6 +3,7 @@ import tauriAPI from '../tauriAPI';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import { setChapterOutline, setManualChapterPattern } from '../utils/reader/BookRecordsBackend';
+import { patternInEffect } from '../utils/reader/ChapterNavigation';
 import type {
   ChapterHeader,
   ChapterOutlineSummary,
@@ -99,7 +100,7 @@ export function useChapterOutline({
           nextElected = outline.elected;
           // The election call already returns the winner's headers — reuse them instead
           // of a second round trip when there's no override pointing somewhere else.
-          if ((cachedManualPattern ?? outline.elected) === outline.elected) {
+          if (patternInEffect(cachedManualPattern, outline.elected) === outline.elected) {
             nextHeaders = outline.headers;
           }
           try {
@@ -112,7 +113,7 @@ export function useChapterOutline({
           }
         }
 
-        const effectivePattern = cachedManualPattern ?? nextElected;
+        const effectivePattern = patternInEffect(cachedManualPattern, nextElected);
         nextHeaders ??= effectivePattern
           ? await tauriAPI.chapterHeadersForPattern(fingerprint, effectivePattern)
           : [];
@@ -144,7 +145,7 @@ export function useChapterOutline({
       setError(null);
       void (async () => {
         try {
-          const effectivePattern = pattern ?? electedPatternRef.current;
+          const effectivePattern = patternInEffect(pattern, electedPatternRef.current);
           const nextHeaders = effectivePattern
             ? await tauriAPI.chapterHeadersForPattern(fingerprint, effectivePattern)
             : [];
@@ -170,7 +171,7 @@ export function useChapterOutline({
   return {
     headers,
     candidates,
-    activePattern: manualPattern ?? electedPattern,
+    activePattern: patternInEffect(manualPattern, electedPattern),
     isOverridden: manualPattern !== null,
     isLoading,
     error,

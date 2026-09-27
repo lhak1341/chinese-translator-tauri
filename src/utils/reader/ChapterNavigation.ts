@@ -1,4 +1,17 @@
-import type { ChapterHeader } from '../../types/ReaderTypes';
+import type { ChapterHeader, ChapterPatternId } from '../../types/ReaderTypes';
+
+/**
+ * The chapter pattern a book's outline is built from: the reader's override when there is
+ * one, else election's answer. `null` for neither — no outline, which is not an empty one.
+ * The override never overwrites the elected pattern, so clearing it falls back to
+ * election without re-running it.
+ */
+export function patternInEffect(
+  manualPattern: ChapterPatternId | null,
+  electedPattern: ChapterPatternId | null
+): ChapterPatternId | null {
+  return manualPattern ?? electedPattern;
+}
 
 /**
  * Index of the last header whose line is `<= line`, or `-1` when `line` precedes every

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { currentChapterIndex, stepChapter } from '../ChapterNavigation';
+import { currentChapterIndex, patternInEffect, stepChapter } from '../ChapterNavigation';
 import type { ChapterHeader } from '../../../types/ReaderTypes';
 
 function headersAt(...lines: number[]): ChapterHeader[] {
@@ -71,5 +71,19 @@ describe('stepChapter', () => {
   test('an empty header list always returns null', () => {
     expect(stepChapter([], 10, 1)).toBeNull();
     expect(stepChapter([], 10, -1)).toBeNull();
+  });
+});
+
+describe('patternInEffect', () => {
+  test("the reader's override wins over election", () => {
+    expect(patternInEffect('volume', 'chapter')).toBe('volume');
+  });
+
+  test('without an override, election decides', () => {
+    expect(patternInEffect(null, 'chapter')).toBe('chapter');
+  });
+
+  test('neither means no outline at all', () => {
+    expect(patternInEffect(null, null)).toBeNull();
   });
 });

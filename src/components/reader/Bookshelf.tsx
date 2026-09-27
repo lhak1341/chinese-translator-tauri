@@ -11,6 +11,7 @@ import {
 import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
 import { useBookRecords } from '../../hooks/useBookRecords';
 import { bindingLabel } from '../../utils/reader/FictionDictionarySuggestion';
+import { patternInEffect } from '../../utils/reader/ChapterNavigation';
 import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
 import { SearchFilterHeader } from '../SearchFilterHeader';
@@ -86,7 +87,7 @@ function formatBinding(record: BookRecord | undefined): string {
 function formatChapterCount(record: BookRecord | undefined): string | null {
   const outline = record?.chapterOutline;
   if (!outline) return null;
-  const pattern = record.manualChapterPattern ?? outline.pattern;
+  const pattern = patternInEffect(record.manualChapterPattern, outline.pattern);
   const count = outline.candidates.find((candidate) => candidate.pattern === pattern)?.hitCount;
   if (count === undefined) return null;
   return `${count.toLocaleString()} ${count === 1 ? 'chapter' : 'chapters'}`;
