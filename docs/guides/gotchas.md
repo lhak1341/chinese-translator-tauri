@@ -210,7 +210,7 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 **`logger.warn`/`logger.error` always reach `console`** regardless of `NODE_ENV`, while `logger.log`/`.info`/`.debug`/`.group` are dev-only no-ops in the test env. Mock the logger module in any test exercising a warning or error path, or console output gets noisy.
 
-**Singleton-exported classes** (`adaptiveChunker`, `parallelDictionaryLoader`) — construct a fresh `new ClassName()` per test. The singleton accumulates history, stats, and caches across tests.
+**Module-level state survives between tests in one file** — a singleton-exported class (`adaptiveChunker`, `parallelDictionaryLoader`: construct a fresh `new ClassName()` per test) or a module cache (`BookRecordsBackend`: `loadBookRecords` returns the first seed until `invalidateBookRecords()`, so re-seeding without it silently tests the old records).
 
 ### WASM wrapper tests
 
