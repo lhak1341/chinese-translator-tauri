@@ -77,23 +77,38 @@ vi.mock('../Bookshelf', () => ({
     </div>
   ),
 }));
-vi.mock('../BookReader', () => ({
-  default: ({
-    book,
-    record,
-    onBack,
-  }: {
-    book: OpenBook;
-    record: { position: unknown };
-    onBack: () => void;
-  }) => (
-    <div>
-      <span>reading:{book.fileName}</span>
-      <span>position:{JSON.stringify(record.position)}</span>
-      <button onClick={onBack}>back</button>
-    </div>
-  ),
-}));
+/** Every `BookReader` mount, in order: the book it mounted for and the engine it got. */
+const readerMounts = vi.hoisted(() => [] as { fingerprint: string; engine: unknown }[]);
+vi.mock('../BookReader', async () => {
+  const { useEffect } = await import('react');
+  return {
+    default: ({
+      book,
+      record,
+      engine,
+      onBack,
+      onSwitchBook,
+    }: {
+      book: OpenBook;
+      record: { position: unknown };
+      engine: unknown;
+      onBack: () => void;
+      onSwitchBook: (fileName: string) => void;
+    }) => {
+      // Mount-only on purpose: a re-render with a new book must not look like a mount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      useEffect(() => void readerMounts.push({ fingerprint: book.fingerprint, engine }), []);
+      return (
+        <div>
+          <span>reading:{book.fileName}</span>
+          <span>position:{JSON.stringify(record.position)}</span>
+          <button onClick={onBack}>back</button>
+          <button onClick={() => onSwitchBook('other.txt')}>switch:other.txt</button>
+        </div>
+      );
+    },
+  };
+});
 vi.mock('../EncodingPrompt', () => ({
   default: () => <div>needs-encoding</div>,
 }));
@@ -125,6 +140,7 @@ const openedBook: OpenBook = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  readerMounts.length = 0;
   appConfig.loadAppConfig.mockResolvedValue({ reader: { libraryPath: null } });
   tauriAPI.scanLibrary.mockResolvedValue({ libraryPath: '/lib', books: [libraryBook] });
   reconcile.reconcileLibraryScan.mockResolvedValue({
@@ -293,6 +309,45 @@ describe('ReaderTab openBook', () => {
     await screen.findByText('needs-encoding');
     expect(bookRecordsBackend.recordBookOpened).not.toHaveBeenCalled();
     expect(announceOpenBook).not.toHaveBeenCalled();
+  });
+
+  it('a palette switch mounts a new reader for the new book, sharing one engine queue', async () => {
+    const otherLibraryBook: LibraryBook = { ...libraryBook, fileName: 'other.txt', title: 'other' };
+    const otherBook: OpenBook = { ...openedBook, fingerprint: 'fp-2', fileName: 'other.txt' };
+    tauriAPI.scanLibrary.mockResolvedValue({
+      libraryPath: '/lib',
+      books: [libraryBook, otherLibraryBook],
+    });
+    reconcile.reconcileLibraryScan.mockResolvedValue({
+      shelfBooks: [
+        { ...libraryBook, fingerprint: 'fp-1' },
+        { ...otherLibraryBook, fingerprint: 'fp-2' },
+      ],
+      unavailableBooks: [],
+    });
+    tauriAPI.openBook.mockImplementation(async (fileName: string) => ({
+      status: 'opened',
+      encoding,
+      book: fileName === 'other.txt' ? otherBook : openedBook,
+    }));
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      position: null,
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: null,
+    });
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    fireEvent.click(await screen.findByText('switch:other.txt'));
+    await screen.findByText('reading:other.txt');
+
+    // Two mounts, not one mount re-rendered: the second book starts with nothing the
+    // first left behind.
+    expect(readerMounts.map((mount) => mount.fingerprint)).toEqual(['fp-1', 'fp-2']);
+    // The queue outlives the reader, so a call still in flight from the first book is
+    // ahead of the second book's calls on the same queue.
+    expect(readerMounts[1].engine).toBe(readerMounts[0].engine);
   });
 
   it('a thrown open error surfaces on the shelf rather than switching to reading', async () => {

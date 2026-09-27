@@ -32,7 +32,9 @@ interface BookReaderProps {
   /** This book's record as of this open. Read once, at mount: where it was left off
    * (`position`), and the outline to restore without re-running election
    * (`chapterOutline`, `manualChapterPattern`). Later writes go straight to disk and never
-   * flow back in here — Back and reopen remounts with a freshly read record. */
+   * flow back in here. Each mount is one book: `ReaderTab` keys this component by
+   * fingerprint, and Back unmounts it, so a switch or a reopen mounts afresh with a freshly
+   * read record. */
   record: BookRecord;
   /** Whether the Reader is the visible tab — see `useReadingAnchor`. */
   isActive: boolean;

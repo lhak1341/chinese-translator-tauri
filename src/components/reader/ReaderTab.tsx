@@ -288,7 +288,12 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   if (isReading && open) {
     return (
       <div className={styles.container}>
+        {/* One instance per book: a switch remounts it, so nothing a book left behind —
+            the panels' measured row heights, the scroll offset, a cache keyed by line range
+            — reaches the next one (ADR-050). A new encoding for the same file needs no key
+            of its own: it goes through `EncodingPrompt`, which unmounts this first. */}
         <BookReader
+          key={open.book.fingerprint}
           book={open.book}
           encoding={open.encoding}
           record={open.record}
