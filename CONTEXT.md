@@ -739,6 +739,8 @@ _Avoid_: scroll position (that means pixels, and a pixel offset is never persist
 
 **`src/utils/reader/ReadingAnchor.ts`** holds all of it, with no React. Time, animation frames and storage are passed in, so its tests drive the clock by hand. **`useReadingAnchor`** (`src/hooks/`) adapts it to React: it forwards the book, tab, engine-version and Appearance signals, plus the reader's wheel, pointer and keys (these hand a re-anchor back). Its interface is `{ anchorLine, viewportLines, readLine(), onScroll, scrollToLine }`.
 
+The anchor is measured in the master panel's scroll handler (`onScroll`), from the virtualizer's own measurements. There is no IntersectionObserver, although the Reader spec (#21) proposed one: the handler already runs on every scroll and reads the same geometry. Restoring is `ReadingAnchor`'s own frame loop, not `ScrollPositionRecovery`, because that helper writes pixel `scrollTop` values and the anchor is a line plus a fraction that only the virtualizer can turn into pixels.
+
 How the position is kept:
 
 - **Writing.** Writes to `books.json` are debounced by 1.5s. A pending write is flushed when the Reader tab loses `isActive`, when the book closes, and on app exit. App exit reaches it through the one-slot `PendingPositionFlush.ts` registry, from `App.jsx`'s `onCloseRequested`.
@@ -752,6 +754,8 @@ How the position is kept:
 The Reader shows the same lines three times, side by side: the Vietnamese translation, the Chinese original, and the character-only gloss. Each is at its own natural height, because a line wraps differently in each language. The translation panel is the **scroll master**, and the other two are **followers**. Followers are aligned to the master by line index plus a sub-line fraction, never by pixel ratio: a pixel ratio compounds three panels' height estimates, which are mostly guesses at 75,000 lines. Followers never drive. A wheel over one scrolls the master, and a follower that moves by itself is pulled back.
 
 A **panel row** is one line as one panel renders it. A Vietnamese row whose translation hasn't landed yet shows its Chinese, dimmed and not clickable, at nearly its final height, so it barely moves when the Vietnamese arrives. A blank source line collapses to nothing in all three panels. `useWindowedTranslation` hands out the rows (`getRow`) along with one `contentVersion` that changes whenever any row's content does.
+
+**Highlighting is click-only.** Clicking a run lights that unit in all three panels (`useReaderHighlight`), and clicking it again clears it; each run also carries a native `title` tooltip. There is no hover highlighting, on purpose: lighting a unit on mouse move would re-render all three virtualized panels on every move, undoing the per-row memoization the panels depend on.
 
 _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous between the original and the gloss).
 

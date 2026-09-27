@@ -49,6 +49,8 @@ Second shipped bug, introduced by fixing the first one: the fix made `isAbandone
 
 ## Cross-panel sync is line-indexed and one-way
 
+**Checked on macOS WebKit only.** `overflow-anchor: none` (`Reader.module.css`) is a hint whose support differs between webviews, and the per-frame resync in `usePanelSync` is what actually holds the panels together. The app is used on macOS; Windows/WebView2 has never been checked and is out of scope until someone runs it there (Reader spec #21 close-out, 2026-09-27).
+
 `PanelSync.ts` maps a reading position between the three Reader panels as a **line index plus a sub-line fraction**, never a pixel ratio. With tens of rows visible out of 75,000+, almost every row is unmeasured, so each panel's total height is a large, shifting estimate; `scrollTop / scrollHeight` compounds three of those errors and grows worse with distance from the measured region. A line index has zero error by construction, and the fraction's error is bounded by one line height at the one place alignment is looked at.
 
 `usePanelSync` (inside `useReaderPanels`) writes follower offsets from an **animation-frame-throttled scroll handler**, not from the reading anchor (`ReadingAnchor`), which feeds persistence and translation scheduling. The two are deliberately separate: the durable anchor can afford to arrive late, follower pixels cannot — a lag there is visible as the left panels trailing the right one during a drag.
