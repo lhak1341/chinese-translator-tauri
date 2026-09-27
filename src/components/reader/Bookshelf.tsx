@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
 import { useBookRecords } from '../../hooks/useBookRecords';
+import { fictionDisplayName } from '../../utils/reader/FictionDictionarySuggestion';
 import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
 import { SearchFilterHeader } from '../SearchFilterHeader';
@@ -71,6 +72,29 @@ function formatProgress(record: BookRecord | undefined): string {
     return `Line ${(record.position.line + 1).toLocaleString()} of ${record.lineCount.toLocaleString()}`;
   }
   return 'In progress';
+}
+
+/** The fiction dictionary a book is bound to, by display name. "No fiction dictionary"
+ * is an answer, so it reads differently from a book never asked (`binding: null`), the
+ * same distinction the Reader's binding button draws. */
+function formatBinding(record: BookRecord | undefined): string {
+  const binding = record?.binding;
+  if (!binding) return 'Not bound';
+  return binding.fictionDictionary
+    ? fictionDisplayName(binding.fictionDictionary)
+    : 'No fiction dictionary';
+}
+
+/** How many chapters the book's outline has: the hit count of the pattern in effect,
+ * the reader's override or else election's. `null` for a book never opened, or one where
+ * nothing cleared election — no outline is not zero chapters. */
+function formatChapterCount(record: BookRecord | undefined): string | null {
+  const outline = record?.chapterOutline;
+  if (!outline) return null;
+  const pattern = record.manualChapterPattern ?? outline.pattern;
+  const count = outline.candidates.find((candidate) => candidate.pattern === pattern)?.hitCount;
+  if (count === undefined) return null;
+  return `${count.toLocaleString()} ${count === 1 ? 'chapter' : 'chapters'}`;
 }
 
 /**
@@ -189,6 +213,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
             const split = splitBookTitle(book.title);
+            const chapterCount = formatChapterCount(records[book.fingerprint]);
             return (
               <button
                 key={book.fileName}
@@ -217,6 +242,11 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   </div>
                 )}
                 <div className={styles.bookCardFooter}>
+                  <span className={styles.bookMeta}>
+                    {formatBinding(records[book.fingerprint])}
+                  </span>
+                  {/* A flex column, not a grid: an empty span here would only add a gap. */}
+                  {chapterCount && <span className={styles.bookMeta}>{chapterCount}</span>}
                   <span className={styles.bookProgress}>
                     {formatProgress(records[book.fingerprint])}
                   </span>
@@ -249,6 +279,12 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   ) : (
                     <span className={styles.bookTitle}>{book.title}</span>
                   )}
+                  <span className={styles.bookMeta}>
+                    {formatBinding(records[book.fingerprint])}
+                  </span>
+                  <span className={styles.bookMeta}>
+                    {formatChapterCount(records[book.fingerprint])}
+                  </span>
                   <span className={styles.bookProgress}>
                     {formatProgress(records[book.fingerprint])}
                   </span>
@@ -264,17 +300,24 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       {unavailableBooks.length > 0 && (
         <div className={styles.unavailableSection}>
           <div className={styles.unavailableTitle}>Unavailable</div>
-          {unavailableBooks.map((book) => (
-            <div key={book.fingerprint} className={styles.unavailableRow}>
-              <FileWarning size={16} className={styles.unavailableIcon} />
-              <div className={styles.unavailableInfo}>
-                <span className={styles.bookTitle}>{book.title}</span>
-                <span className={styles.unavailablePath} title={book.lastKnownPath}>
-                  Last seen at {book.lastKnownPath}
-                </span>
+          {unavailableBooks.map((book) => {
+            const chapterCount = formatChapterCount(records[book.fingerprint]);
+            return (
+              <div key={book.fingerprint} className={styles.unavailableRow}>
+                <FileWarning size={16} className={styles.unavailableIcon} />
+                <div className={styles.unavailableInfo}>
+                  <span className={styles.bookTitle}>{book.title}</span>
+                  <span className={styles.unavailablePath} title={book.lastKnownPath}>
+                    Last seen at {book.lastKnownPath}
+                  </span>
+                  <span className={styles.unavailableMeta}>
+                    <span>{formatBinding(records[book.fingerprint])}</span>
+                    {chapterCount && <span>{chapterCount}</span>}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

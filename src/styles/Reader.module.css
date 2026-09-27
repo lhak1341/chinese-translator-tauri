@@ -106,7 +106,8 @@
 
 .bookRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 9rem 3.75rem 3rem;
+  /* title (Vietnamese, Chinese) · fiction dictionary · chapters · progress · size · open */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 8rem 6rem 9rem 3.75rem 3rem;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
@@ -283,6 +284,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.unavailableMeta {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.72rem;
 }
 
 /* ── Reading view ──────────────────────────────────────────────────────────── */
