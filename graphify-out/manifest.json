@@ -1880,8 +1880,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/book_loader.rs": {
-    "mtime": 1789594966.527583,
-    "ast_hash": "0ee95cd1a119492778be1ee2e499c223",
+    "mtime": 1790526469.8605983,
+    "ast_hash": "731b7c8590112e6aee4f1b28753f755e",
     "semantic_hash": ""
   },
   "src/components/EngineContext.jsx": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
-    "mtime": 1789595228.116126,
-    "ast_hash": "597f3ad052f1aa8777fe8a1490436050",
+    "mtime": 1790526528.3051605,
+    "ast_hash": "774340b2e2c4f3f99be443db4a75c513",
     "semantic_hash": ""
   },
   "src/components/reader/ChapterPanel.tsx": {

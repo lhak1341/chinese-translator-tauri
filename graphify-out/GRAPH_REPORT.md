@@ -2,7 +2,7 @@
 
 ## Corpus Check
 
-- 428 files · ~418,825 words
+- 428 files · ~419,070 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -13,7 +13,7 @@
 
 ## Graph Freshness
 
-- Built from commit: `4c542117`
+- Built from commit: `451001ec`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -450,7 +450,7 @@ Nodes (52): DuplicateDictionaryTableView(), DuplicateDictionaryTableViewProps, E
 ### Community 18 - "Future Improvements Implementation - 2026-02-01"
 
 Cohesion: 0.11
-Nodes (29): SemanticTypeFilterChips(), NewRuleModal(), extractHanChars(), RuleRow(), EMPTY_DRAFT, RulesManager, FilterDimensionRow(), FilterDimensionRowProps (+21 more)
+Nodes (30): SemanticTypeFilterChips(), NewRuleModal(), extractHanChars(), RuleRow(), EMPTY_DRAFT, RulesManager, FilterDimensionRow(), FilterDimensionRowProps (+22 more)
 
 ### Community 19 - "WASM Code Review Fixes - 2026-01-28"
 
@@ -534,8 +534,8 @@ Nodes (16): ExtendedCacheStats, LRUCache, LRUCacheStats, LRUNode, calculateDicti
 
 ### Community 36 - "Dictionary Trie Integration Session Summary"
 
-Cohesion: 0.19
-Nodes (22): ADR-0043, ChapterOutlineState, useChapterOutline(), UseChapterOutlineOptions, ChapterOverride, useChapters(), UseChaptersOptions, assembleBatch() (+14 more)
+Cohesion: 0.17
+Nodes (23): ADR-0043, ChapterOutlineState, useChapterOutline(), UseChapterOutlineOptions, ChapterOverride, useChapters(), UseChaptersOptions, assembleBatch() (+15 more)
 
 ### Community 37 - "System Architecture"
 
@@ -545,7 +545,7 @@ Nodes (32): 1. Character-only mode, 1. WASM Number Processor, 2. Full Translatio
 ### Community 38 - "memory_management.rs"
 
 Cohesion: 0.17
-Nodes (22): Box, PatternMatchResult, VariableCacheEntry, index_selects_the_same_best_match_as_scanning_every_pattern(), matches_the_literal_run_immediately_before_the_variable(), PatternProcessingResult, resets_at_an_earlier_variable_keeping_only_the_run_immediately_before_var_idx(), returns_zero_when_before_pos_is_zero() (+14 more)
+Nodes (21): Box, PatternMatchResult, index_selects_the_same_best_match_as_scanning_every_pattern(), matches_the_literal_run_immediately_before_the_variable(), PatternProcessingResult, resets_at_an_earlier_variable_keeping_only_the_run_immediately_before_var_idx(), returns_zero_when_before_pos_is_zero(), returns_zero_when_the_preceding_tokens_do_not_end_with_the_literal_run() (+13 more)
 
 ### Community 39 - "Punctuation Spacing Debug Session - 2026-02-02"
 
@@ -560,7 +560,7 @@ Nodes (38): a_bare_arabic_line_amid_prose_is_not_mistaken_for_a_header(), a_book
 ### Community 41 - "EnhancedVirtualizedDictionaryTable.tsx"
 
 Cohesion: 0.06
-Nodes (35): eslint, eslint-config-prettier, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals (+27 more)
+Nodes (35): eslint, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals, husky (+27 more)
 
 ### Community 42 - "DictionaryManager"
 
@@ -579,8 +579,8 @@ Nodes (28): BookBindingContextValue, useBookBinding(), EngineContext, EngineProv
 
 ### Community 45 - "DictionaryEngine"
 
-Cohesion: 0.18
-Nodes (13): ADR-0024, react, EngineContextValue, useAppearanceVersion(), ColumnMetrics, useColumnMetrics(), useReadingAnchor(), UseReadingAnchorResult (+5 more)
+Cohesion: 0.20
+Nodes (11): ADR-0024, react, EngineContextValue, useAppearanceVersion(), ColumnMetrics, useColumnMetrics(), useReadingAnchor(), setReadingPosition() (+3 more)
 
 ### Community 46 - "Pattern Matching Rust WASM Migration Complete ✅"
 
@@ -590,7 +590,7 @@ Nodes (15): Bookshelf(), BookshelfProps, formatBinding(), formatChapterCount(), 
 ### Community 47 - "CSP Hardening Migration - Complete Summary"
 
 Cohesion: 0.18
-Nodes (26): I, PhaseAResult, build_result(), build_result_matches_the_shared_fixture(), find_best_pattern_match(), find_best_pattern_match_iter(), Fixture, FixtureCase (+18 more)
+Nodes (27): I, PhaseAResult, build_result(), build_result_matches_the_shared_fixture(), find_best_pattern_match(), find_best_pattern_match_iter(), Fixture, FixtureCase (+19 more)
 
 ### Community 48 - "ViewportTypes.d.ts"
 
@@ -604,8 +604,8 @@ Nodes (5): artifact, GENERATED, newestMtime(), newestSource, root
 
 ### Community 50 - "ADR-004: 5-Phase Processing Order Immutability"
 
-Cohesion: 0.46
-Nodes (6): useReaderEngine(), UseWindowedTranslationOptions, createReaderEngine(), ReaderEngineCalls, ChunkTranslationResult, GlossResult
+Cohesion: 0.42
+Nodes (7): useReaderEngine(), UseWindowedTranslationOptions, createReaderEngine(), EngineCall, ReaderEngineCalls, ChunkTranslationResult, GlossResult
 
 ### Community 51 - "Task 1: Add Semantic column to Patterns dictionary table"
 
@@ -675,7 +675,7 @@ Nodes (22): fetchWasmBinary(), wasmBinaryCache, computeSHA256(), EXPECTED_EXPORT
 ### Community 69 - "WasmProcessorLifecycle.js"
 
 Cohesion: 0.12
-Nodes (38): CAPITALIZATION, MOVE_TO_FRONT, Transform, WordTransformToolbar(), WordTransformToolbarProps, applyRule(), compareRulePrecedence(), computeInitialTranslation() (+30 more)
+Nodes (36): CAPITALIZATION, MOVE_TO_FRONT, Transform, WordTransformToolbar(), WordTransformToolbarProps, applyRule(), compareRulePrecedence(), computeInitialTranslation() (+28 more)
 
 ### Community 70 - "HookTypes.d.ts"
 
@@ -1009,8 +1009,8 @@ Nodes (3): TranslationInputValidator, ValidationResult, ValidationStats
 
 ### Community 162 - "index.ts"
 
-Cohesion: 0.16
-Nodes (21): DictionaryEntry(), DictionaryEntryProps, EntryForm, footerMessage(), patternMessage(), shortlistKeyTarget(), shortlistLabel(), baseDictionaryTypes (+13 more)
+Cohesion: 0.15
+Nodes (22): DictionaryEntry(), DictionaryEntryProps, EntryForm, footerMessage(), patternMessage(), shortlistKeyTarget(), shortlistLabel(), baseDictionaryTypes (+14 more)
 
 ### Community 164 - "@types/node"
 
