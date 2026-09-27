@@ -23,6 +23,7 @@ import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { PaletteBook } from '../../utils/reader/PaletteCommands';
 import type { ReaderEngineCalls } from '../../utils/reader/ReaderEngine';
+import ReaderEngineErrorBanner from './ReaderEngineErrorBanner';
 import ReaderPanel from './ReaderPanel';
 import styles from '../../styles/Reader.module.css';
 
@@ -302,6 +303,8 @@ const BookReader: React.FC<BookReaderProps> = ({
           onDismiss={offer.dismiss}
         />
       )}
+
+      <ReaderEngineErrorBanner />
 
       {error && (
         <div className={styles.error}>

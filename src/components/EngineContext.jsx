@@ -13,10 +13,18 @@ import ErrorBoundary from './ErrorBoundary';
  * translation (Translator, and future tabs) shares the one instance instead
  * of each owning its own.
  *
- * Wraps children in ErrorBoundary — an engine-initialization failure is now a
- * shared-state failure for every consuming tab, not something local to one.
+ * Wraps children in ErrorBoundary, and names what that boundary's fallback means: it
+ * sits above every tab, so any tab failing to render takes all of them down. It never
+ * sees an engine-initialization failure — this component's own hooks run outside its
+ * boundary, and `reinitialize` reports failures through `initError` rather than
+ * throwing — so each tab shows that itself (the Translator's error panel,
+ * `ReaderEngineErrorBanner`).
  */
 const EngineContext = createContext(undefined);
+
+const TAB_FAILURE_DESCRIPTION =
+  'A tab failed to display. Every tab shares this one error screen, so the whole ' +
+  'application is down until it reloads.';
 
 export function EngineProvider({ children }) {
   const {
@@ -51,7 +59,7 @@ export function EngineProvider({ children }) {
   );
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary description={TAB_FAILURE_DESCRIPTION}>
       <EngineContext.Provider value={value}>{children}</EngineContext.Provider>
     </ErrorBoundary>
   );

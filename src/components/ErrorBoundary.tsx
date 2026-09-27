@@ -26,6 +26,9 @@ import { logger } from '../utils/logger';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+  /** What the fallback means, for a boundary whose placement says more than the generic
+   * "unexpected error" text (`EngineProvider`'s sits above every tab). */
+  description?: string;
 }
 
 interface ErrorBoundaryState {
@@ -102,8 +105,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <h1 className={styles.title}>⚠️ Something went wrong</h1>
 
             <p className={styles.description}>
-              The application encountered an unexpected error. This is likely a bug that needs to be
-              fixed.
+              {this.props.description ??
+                'The application encountered an unexpected error. This is likely a bug that needs to be fixed.'}
             </p>
 
             {/* Error details */}
@@ -147,11 +150,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               </button>
             </div>
 
-            {/* Additional help */}
+            {/* Additional help. No "Reload Dictionary" tip: both boundaries (the app root and
+                EngineProvider) sit above every tab, so while this shows no Cmd/Ctrl+R handler
+                is mounted to answer it. "Reload Application" above is the reload that exists. */}
             <div className={styles.troubleshooting}>
               <strong>💡 Troubleshooting tips:</strong>
               <ul className={styles.troubleshootingList}>
-                <li>Try clicking "Reload Dictionary" button (Cmd/Ctrl+R) to clear caches</li>
                 <li>Check the developer console (View → Developer Tools) for more detail</li>
                 <li>If the error persists, try restarting the application</li>
               </ul>

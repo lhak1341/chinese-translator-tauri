@@ -206,7 +206,31 @@ describe('ErrorBoundary', () => {
       );
 
       expect(screen.getByText(/Troubleshooting tips/i)).toBeInTheDocument();
-      expect(screen.getByText(/Reload Dictionary/i)).toBeInTheDocument();
+    });
+
+    test('never suggests Reload Dictionary: the fallback has replaced every key handler', () => {
+      // Why: see the comment above the troubleshooting list in ErrorBoundary.tsx.
+      render(
+        <ErrorBoundary>
+          <ThrowError shouldThrow={true} />
+        </ErrorBoundary>
+      );
+
+      expect(screen.queryByText(/Reload Dictionary/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Cmd\/Ctrl\+R/i)).not.toBeInTheDocument();
+    });
+
+    test('a description replaces the generic one, for a boundary that knows its failure', () => {
+      render(
+        <ErrorBoundary description="Every tab is down until the application reloads.">
+          <ThrowError shouldThrow={true} />
+        </ErrorBoundary>
+      );
+
+      expect(
+        screen.getByText('Every tab is down until the application reloads.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/likely a bug/i)).not.toBeInTheDocument();
     });
 
     test('should show error details in collapsed state by default', () => {
