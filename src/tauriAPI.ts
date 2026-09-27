@@ -60,7 +60,6 @@ const CMD = {
   SCAN_LIBRARY: 'scan_library',
   OPEN_BOOK: 'open_book',
   READ_BOOK_LINES: 'read_book_lines',
-  CLOSE_BOOK: 'close_book',
   FINGERPRINT_BOOK: 'fingerprint_book',
   DETECT_CHAPTER_OUTLINE: 'detect_chapter_outline',
   CHAPTER_HEADERS_FOR_PATTERN: 'chapter_headers_for_pattern',
@@ -199,10 +198,6 @@ const tauriAPI = {
   /** Lines `[start, end)` of the open book, blank lines included as empty strings. */
   readBookLines: async (fingerprint: string, start: number, end: number): Promise<BookLines> =>
     callReaderCommand<BookLines>(CMD.READ_BOOK_LINES, { fingerprint, start, end }, 'readBookLines'),
-
-  /** Drop the cached book. Scoped by fingerprint so a stale close cannot evict a new book. */
-  closeBook: async (fingerprint?: string | null): Promise<boolean> =>
-    callReaderCommand<boolean>(CMD.CLOSE_BOOK, { fingerprint }, 'closeBook'),
 
   /** Fingerprint one library file without decoding it — for book-records reconciliation. */
   fingerprintBook: async (

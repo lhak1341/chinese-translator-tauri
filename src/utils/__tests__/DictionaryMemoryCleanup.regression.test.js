@@ -373,7 +373,7 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
   });
 
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {
-    it('should call parent loadDictionaries which includes disposal', async () => {
+    it('a second loadDictionaries disposes the tries it replaces', async () => {
       const manager = new DictionaryManager();
 
       // Disable WASM for simpler testing
@@ -388,40 +388,11 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       const trie = manager.dictionaries.get('characters');
       const disposeSpy = vi.spyOn(trie, 'dispose');
 
-      // Reload
-      await manager.reloadDictionaries({
+      await manager.loadDictionaries({
         characters: { 是: 'là' },
       });
 
-      // Parent's loadDictionaries should have called dispose
       expect(disposeSpy).toHaveBeenCalled();
-    });
-
-    it('should clear WASM dictionaries on reload if available', async () => {
-      // Drive this through the real DictionaryWasmLookup seam (this.wasmLookup) — a
-      // manager constructed with no wasmAdapter option has wasmLookup === null, so the
-      // adapter must be injected via the real constructor path, not poked onto the
-      // instance directly.
-      const clearAllSpy = vi.fn();
-      const mockWasmAdapter = {
-        initialize: vi.fn(async () => true),
-        isReady: vi.fn(() => true),
-        loadDictionary: vi.fn(async () => true),
-        findMatches: vi.fn(() => []),
-        hasDictionary: vi.fn(() => false),
-        clearAll: clearAllSpy,
-        getTimingStats: vi.fn(() => ({ memoryUsage: 0 })),
-        cleanup: vi.fn(),
-      };
-
-      const manager = new DictionaryManager({ wasmAdapter: mockWasmAdapter });
-      await manager.wasmLookup.initialize({});
-
-      await manager.reloadDictionaries({
-        characters: { 的: 'của' },
-      });
-
-      expect(clearAllSpy).toHaveBeenCalled();
     });
 
     it('should report WASM memory usage from the real wasmLookup seam', async () => {

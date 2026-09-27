@@ -70,7 +70,6 @@ pub fn run() {
             book_commands::scan_library,
             book_commands::open_book,
             book_commands::read_book_lines,
-            book_commands::close_book,
             book_commands::fingerprint_book,
             chapter_outline_commands::detect_chapter_outline,
             chapter_outline_commands::chapter_headers_for_pattern,

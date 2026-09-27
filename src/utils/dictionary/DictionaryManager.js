@@ -843,16 +843,4 @@ export class DictionaryManager {
       wasmMemory: this.wasmLookup?.getTimingStats()?.memoryUsage ?? null,
     };
   }
-
-  async reloadDictionaries(dictionaryData, options = {}) {
-    if (this.wasmLookup?.isReady()) {
-      try {
-        this.wasmLookup.clearAll();
-        this.log(2, '🔄 Cleared WASM dictionaries for reload');
-      } catch (error) {
-        this.log(1, '⚠️ WASM clear failed:', error);
-      }
-    }
-    return this.loadDictionaries(dictionaryData, options);
-  }
 }

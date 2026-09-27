@@ -290,8 +290,6 @@ export interface ElectronAPI {
   ) => Promise<OpenBookResult>;
   /** Read lines [start, end) of the open book */
   readBookLines: (fingerprint: string, start: number, end: number) => Promise<BookLines>;
-  /** Drop the cached book */
-  closeBook: (fingerprint?: string | null) => Promise<boolean>;
   /** Fingerprint one library file without decoding it */
   fingerprintBook: (fileName: string, libraryPath?: string | null) => Promise<BookFingerprint>;
 

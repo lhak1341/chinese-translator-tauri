@@ -441,23 +441,6 @@ pub async fn read_book_lines(
     })
 }
 
-/// Drop the cached book. Passing a fingerprint closes that book only, so a stale close
-/// from an old view cannot evict the book the reader just opened.
-#[tauri::command]
-pub async fn close_book(
-    cache: State<'_, BookCache>,
-    fingerprint: Option<String>,
-) -> Result<bool, String> {
-    Ok(cache.with_current(|current| match (&fingerprint, current.as_ref()) {
-        (Some(wanted), Some(book)) if book.fingerprint != *wanted => false,
-        (_, None) => false,
-        _ => {
-            *current = None;
-            true
-        }
-    }))
-}
-
 /// Copy out the fingerprint-matched book's text and line index, releasing `cache`'s lock
 /// immediately afterward. Chapter detection is a handful of regex passes over every line
 /// of up to a ~128 MB book — running that while holding the lock would stall every other
