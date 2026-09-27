@@ -1895,8 +1895,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1790384905.6378348,
-    "ast_hash": "d999ca3dff616912e87474493f792821",
+    "mtime": 1790523624.4137712,
+    "ast_hash": "5b26d4a6474b59924818c521db24025a",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
