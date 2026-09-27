@@ -504,6 +504,22 @@ mod tests {
     }
 
     // ── The two naive elections that were tried and rejected ─────────────────
+    //
+    // Both are pinned against one book, `DOUBLED_HEADER_BOOK`, because it is the only one
+    // in the corpus that defeats either. Checked 2026-09-27 against all 33 books then in
+    // the library (issue #34): on every other book, raw hit count and distinct header
+    // count both elect what `elect` does. Two claims in the Reader spec (#21) do not hold
+    // on the current corpus, so don't go looking for them:
+    //
+    // - Raw hit count does not fail on `Tạp đồ 卡徒`. Its 600 repeated `第一集` lines are
+    //   not a candidate at all, since `集` is not one of the patterns (`regex_for`), so
+    //   they cannot outvote its 510 `第X节` headers.
+    // - Distinct header count does not fail on the books whose chapter numbering restarts
+    //   every volume (`Tru tiên 诛仙`, `Vô hạn khủng bố 无限恐怖`, `Cửu đỉnh ký 九鼎记`).
+    //   The last two have no volume headers at all; `Tru tiên`'s 282 chapter headings still
+    //   outnumber its 23 volumes as distinct strings.
+    //
+    // A new book that defeats a naive rule belongs here as its own pinned case.
 
     /// The failure mode this pins: a book whose header line carries the volume marker on
     /// every chapter heading, so raw occurrence count favors the coarser pattern.
