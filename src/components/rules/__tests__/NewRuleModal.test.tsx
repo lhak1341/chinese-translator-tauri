@@ -248,6 +248,48 @@ describe('NewRuleModal — A2 layout', () => {
     expect(screen.queryByText('华山')).not.toBeInTheDocument();
   });
 
+  test('a row another rule wins shows that rule’s guess, marked shadowed', () => {
+    // An existing suffix rule with a longer key outranks the draft for 长安城 — so the Add
+    // form would guess with it, not with the draft.
+    const longer: TransformRule = {
+      ...EMPTY_DRAFT,
+      id: 'r-longer',
+      key: '安城',
+      relocate: false,
+      capitalizeExceptN: 0,
+    };
+    render(
+      <NewRuleModal
+        draft={CITY_DRAFT}
+        setDraft={vi.fn()}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+        dictionaries={DICTIONARIES}
+        rules={[longer]}
+      />
+    );
+    expect(screen.getByText('Trường An Thành')).toBeInTheDocument();
+    expect(screen.queryByText('thành Trường An')).not.toBeInTheDocument();
+    expect(screen.getByText(/shadowed by 安城/)).toBeInTheDocument();
+  });
+
+  test('with Enabled off, says the Add form will not use the rule', () => {
+    render(
+      <NewRuleModal
+        draft={{ ...CITY_DRAFT, enabled: false }}
+        setDraft={vi.fn()}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+        dictionaries={DICTIONARIES}
+      />
+    );
+    expect(screen.getByText(/the Add form won’t use this rule/)).toBeInTheDocument();
+    // Still previewed as written.
+    expect(screen.getByText('thành Trường An')).toBeInTheDocument();
+  });
+
   test('says so when nothing matches', () => {
     render(
       <NewRuleModal

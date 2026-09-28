@@ -227,6 +227,38 @@ export interface InitialEntryGuess {
   semanticType: SemanticType | '';
 }
 
+/** The initial guess and the rule that produced it, if any — the one path behind both
+ * `initialEntryGuess` (the Add form) and `previewRuleGuess` (the New Rule dialog). */
+function guessWithRules(
+  rules: TransformRule[],
+  dictionaries: Record<string, DictionaryData>,
+  sourceText: string,
+  targetDictionary: string
+): { guess: InitialEntryGuess; match: TransformRule | null } {
+  const roughGloss = generateRoughTranslation(dictionaries, sourceText, targetDictionary);
+  const match = dictionarySupportsTransformRules(targetDictionary)
+    ? findBestMatch(rules, sourceText)
+    : null;
+  if (!match) {
+    return {
+      guess: {
+        translation: roughGloss,
+        roughGloss,
+        semanticType: defaultSemanticType(targetDictionary),
+      },
+      match: null,
+    };
+  }
+  return {
+    guess: {
+      translation: applyRule(match, sourceText, (s) => joinCharGloss(dictionaries, s)),
+      roughGloss,
+      semanticType: match.semanticType,
+    },
+    match,
+  };
+}
+
 /**
  * Everything the Add form writes when it seeds a newly-populated Source for
  * `targetDictionary`. Transform Rules apply only to phrases/properNouns* targets.
@@ -237,20 +269,29 @@ export function initialEntryGuess(
   sourceText: string,
   targetDictionary: string
 ): InitialEntryGuess {
-  const roughGloss = generateRoughTranslation(dictionaries, sourceText, targetDictionary);
-  const match = dictionarySupportsTransformRules(targetDictionary)
-    ? findBestMatch(rules, sourceText)
-    : null;
-  if (!match) {
-    return {
-      translation: roughGloss,
-      roughGloss,
-      semanticType: defaultSemanticType(targetDictionary),
-    };
-  }
-  return {
-    translation: applyRule(match, sourceText, (s) => joinCharGloss(dictionaries, s)),
-    roughGloss,
-    semanticType: match.semanticType,
-  };
+  return guessWithRules(rules, dictionaries, sourceText, targetDictionary).guess;
+}
+
+/**
+ * What the Add form would guess for `sourceText` in `targetDictionary` once `draft` is saved
+ * beside `rules` — the New Rule dialog's preview. The draft counts as enabled: it is being
+ * written, and the dialog says separately when Enabled is off. `winner` is the rule the guess
+ * came from (the draft, or another rule that outranks it — `compareRulePrecedence`), or null
+ * for the rough gloss. See CONTEXT.md "Rule preview".
+ */
+export function previewRuleGuess<D extends Omit<TransformRule, 'id'> & { id?: string }>(
+  draft: D,
+  rules: TransformRule[],
+  dictionaries: Record<string, DictionaryData>,
+  sourceText: string,
+  targetDictionary: string
+): { guess: string; winner: TransformRule | null } {
+  const writing: TransformRule = { ...draft, id: draft.id ?? 'draft', enabled: true };
+  const { guess, match } = guessWithRules(
+    [...rules, writing],
+    dictionaries,
+    sourceText,
+    targetDictionary
+  );
+  return { guess: guess.translation, winner: match };
 }

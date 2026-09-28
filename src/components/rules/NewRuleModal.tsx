@@ -10,10 +10,9 @@ import {
   ruleDraftProblem,
 } from '../../utils/dictionary/TransformRuleValidation';
 import {
-  applyRule,
   deriveCapitalizeExceptNForKeyEdit,
   findRuleMatchingEntries,
-  joinCharGloss,
+  previewRuleGuess,
 } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
@@ -40,6 +39,7 @@ function NewRuleModal({
   onSave,
   onCancel,
   dictionaries = {},
+  rules = [],
 }: {
   draft: Omit<TransformRule, 'id'>;
   setDraft: (d: Omit<TransformRule, 'id'>) => void;
@@ -48,6 +48,9 @@ function NewRuleModal({
   onCancel: () => void;
   /** Searched for the preview. Omitted: no preview. */
   dictionaries?: Record<string, DictionaryData>;
+  /** The saved rules, so the preview guesses as the Add form will — a rule that outranks
+   * the draft for an entry wins there too (`previewRuleGuess`). */
+  rules?: TransformRule[];
 }) {
   const handleKeyChange = (key: string) => {
     // Default Capitalize-except-N to the key's own length as the user types —
@@ -270,6 +273,11 @@ function NewRuleModal({
               </div>
             ) : (
               <>
+                {!draft.enabled && (
+                  <div className={styles.previewEmpty}>
+                    Disabled — the Add form won’t use this rule.
+                  </div>
+                )}
                 <div className={styles.previewHead}>
                   <span>Your entries this rule matches</span>
                   <span>
@@ -284,8 +292,16 @@ function NewRuleModal({
                 </div>
                 <ul className={styles.previewList}>
                   {matches.slice(0, PREVIEW_LIMIT).map((m) => {
-                    const guess = applyRule(rule, m.source, (s) => joinCharGloss(dictionaries, s));
+                    // What the Add form would guess, the draft saved beside the other rules.
+                    const { guess, winner } = previewRuleGuess(
+                      rule,
+                      rules,
+                      dictionaries,
+                      m.source,
+                      m.dictionaryId
+                    );
                     const same = guess === m.translation;
+                    const shadowedBy = winner && winner.id !== rule.id ? winner : null;
                     return (
                       <li key={`${m.dictionaryId}:${m.source}`} title={m.dictionaryLabel}>
                         <span className={styles.previewSource}>{m.source}</span>
@@ -294,7 +310,16 @@ function NewRuleModal({
                           ⟶
                         </span>
                         <span className={same ? styles.previewSame : styles.previewGuess}>
-                          {same ? 'same' : guess}
+                          <span>{same ? 'same' : guess}</span>
+                          {shadowedBy && (
+                            <span
+                              className={styles.previewShadowed}
+                              title="A rule that outranks this one matches this entry first"
+                            >
+                              {' '}
+                              shadowed by {shadowedBy.key}
+                            </span>
+                          )}
                         </span>
                       </li>
                     );

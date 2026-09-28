@@ -215,6 +215,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
           onSave={save}
           onCancel={closeModal}
           dictionaries={dictionaries}
+          rules={rules}
         />
       )}
 

@@ -8,6 +8,7 @@ import {
   compareRulePrecedence,
   deriveCapitalizeExceptNForKeyEdit,
   initialEntryGuess,
+  previewRuleGuess,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -331,5 +332,56 @@ describe('initialEntryGuess', () => {
       roughGloss: '',
       semanticType: 'character',
     });
+  });
+});
+
+describe('previewRuleGuess', () => {
+  const dictionaries = { characters: GLOSS };
+  const draft = rule({ id: 'draft' }); // suffix 城: "thanh Nam Kinh" for 南京城
+  const longer = rule({ id: 'longer', key: '京城', relocate: false, capitalizeExceptN: 0 });
+
+  test.each([
+    // name                               rules                                  source    target          guess              winner
+    ['the draft alone wins', [], '南京城', 'properNouns-f_X', 'thanh Nam Kinh', 'draft'],
+    [
+      'a longer suffix shadows the draft',
+      [longer],
+      '南京城',
+      'properNouns-f_X',
+      'Nam Kinh Thanh',
+      'longer',
+    ],
+    [
+      'a suffix draft beats a prefix rule',
+      [rule({ id: 'prefix', matchKind: 'prefix', key: '南京' })],
+      '南京城',
+      'phrases',
+      'thanh Nam Kinh',
+      'draft',
+    ],
+    [
+      'a disabled rule never shadows',
+      [{ ...longer, enabled: false }],
+      '南京城',
+      'phrases',
+      'thanh Nam Kinh',
+      'draft',
+    ],
+    ['no rule matches: the rough gloss', [], '南京卫', 'phrases', 'nam kinh ve', null],
+  ] as const)('%s', (_name, rules, source, target, guess, winnerId) => {
+    const result = previewRuleGuess(draft, [...rules], dictionaries, source, target);
+    expect(result.guess).toBe(guess);
+    expect(result.winner?.id ?? null).toBe(winnerId);
+  });
+
+  test('a draft being written counts as enabled', () => {
+    const result = previewRuleGuess(
+      { ...draft, enabled: false },
+      [],
+      dictionaries,
+      '南京城',
+      'phrases'
+    );
+    expect(result.winner?.id).toBe('draft');
   });
 });
