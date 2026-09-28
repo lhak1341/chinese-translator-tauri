@@ -12,6 +12,7 @@ const CLOSED = {
   source: '',
   view: null,
   shortlist: null,
+  openId: 0,
 };
 
 /** The session's last shortlist pick per kind, shared by every surface. */
@@ -49,12 +50,22 @@ export function useDictionaryModals(
   const [modalState, setModalState] = useState(CLOSED);
   // The open modal's shortlist, read by the change handler to decide what to remember.
   const shortlistRef = useRef(null);
+  // Counts opens. Each open's id keys the form, so an Add opened over an open form mounts a
+  // fresh one — the form seeds once per mount.
+  const openCountRef = useRef(0);
 
   const openQuickAdd = useCallback(
     async (dictionaryId, source = '') => {
       const view = await loadView();
       shortlistRef.current = null;
-      setModalState({ isOpen: true, dictionaryId, source, view, shortlist: null });
+      setModalState({
+        isOpen: true,
+        dictionaryId,
+        source,
+        view,
+        shortlist: null,
+        openId: ++openCountRef.current,
+      });
     },
     [loadView]
   );
@@ -66,7 +77,14 @@ export function useDictionaryModals(
       const remembered = shortlistMemory.get(kind);
       const dictionaryId = shortlist.ids.includes(remembered) ? remembered : shortlist.ids[0];
       shortlistRef.current = shortlist;
-      setModalState({ isOpen: true, dictionaryId, source, view, shortlist });
+      setModalState({
+        isOpen: true,
+        dictionaryId,
+        source,
+        view,
+        shortlist,
+        openId: ++openCountRef.current,
+      });
     },
     [dictionaries, loadView, shortlistMemory]
   );
@@ -116,6 +134,7 @@ export function useDictionaryModals(
         source,
         view,
         shortlist: null,
+        openId: ++openCountRef.current,
       });
     },
     [dictionaries, loadView]
@@ -150,6 +169,7 @@ export function useDictionaryModals(
     showQuickAdd: modalState.isOpen,
     quickAddDictionary: modalState.dictionaryId,
     initialSource: modalState.source,
+    quickAddOpenId: modalState.openId,
     quickAddView: modalState.view,
     quickAddShortlist: modalState.shortlist,
     openQuickAddCharacter,

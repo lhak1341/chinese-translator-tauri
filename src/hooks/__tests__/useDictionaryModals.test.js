@@ -72,6 +72,14 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     });
   });
 
+  test('every open — even over an open modal — gets a new quickAddOpenId, the form key', async () => {
+    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    await act(() => result.current.openQuickAddPhrase('一'));
+    const first = result.current.quickAddOpenId;
+    await act(() => result.current.openQuickAddCharacter('二'));
+    expect(result.current.quickAddOpenId).not.toBe(first);
+  });
+
   test('every opener asks the injected loadView, once, and decides over what it returns', async () => {
     // The surface's view, not config: loadView is the seam the Reader plugs its binding into.
     const loadView = vi.fn(async () => ({

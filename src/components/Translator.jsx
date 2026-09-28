@@ -146,6 +146,7 @@ const Translator = ({ isActive = true }) => {
     showQuickAdd,
     quickAddDictionary,
     initialSource,
+    quickAddOpenId,
     quickAddView,
     quickAddShortlist,
     openQuickAddCharacter: handleQuickAddCharacter,
@@ -1086,7 +1087,12 @@ const Translator = ({ isActive = true }) => {
       />
       {/* Add Quick Add Entry modal */}
       {showQuickAdd && (
-        <ModalErrorBoundary onClose={closeQuickAdd} title="❌ Failed to load Add">
+        // Keyed per open: an Add fired over an open dialog mounts a fresh form.
+        <ModalErrorBoundary
+          key={quickAddOpenId}
+          onClose={closeQuickAdd}
+          title="❌ Failed to load Add"
+        >
           <DictionaryEntry
             onClose={closeQuickAdd}
             selectedDictionary={quickAddDictionary}

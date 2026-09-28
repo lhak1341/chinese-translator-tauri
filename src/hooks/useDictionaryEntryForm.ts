@@ -14,7 +14,6 @@ import type {
 } from '../types/DictionaryTypes';
 import {
   isPatternsDict,
-  isProperNounsDict,
   isCharacterSourceValid,
   isPatternValid,
   validateDictionaryEntry,
@@ -23,10 +22,7 @@ import {
 } from '../utils/dictionary';
 import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
-import {
-  generateRoughTranslation,
-  computeInitialTranslation,
-} from '../utils/dictionary/TransformRuleEngine';
+import { defaultSemanticType, initialEntryGuess } from '../utils/dictionary/TransformRuleEngine';
 
 export interface DictionaryEntryFormDeps {
   updateEntry: (
@@ -72,7 +68,8 @@ export interface DictionaryEntryFormState {
   translationInputRef: RefObject<HTMLInputElement | null>;
   handleDictionaryChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   /** Switches to `dictionaryId` keeping what is typed — the quick-add shortlist's switch,
-   * between dictionaries of one kind. The dropdown (`handleDictionaryChange`) clears instead. */
+   * between dictionaries of one kind. The dropdown (`handleDictionaryChange`) re-seeds an Add
+   * for the new dictionary instead, and clears a form with nothing to seed from. */
   selectDictionary: (dictionaryId: string) => void;
   handleSourceChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleTranslationFocus: () => void;
@@ -113,9 +110,7 @@ export function useDictionaryEntryForm(
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
     initial
       ? (initial.semanticType as SemanticType | PatternSemanticTypeRef | '')
-      : isProperNounsDict(selectedDictionary)
-        ? 'character'
-        : ''
+      : defaultSemanticType(selectedDictionary)
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
     initial?.allowedVariableTypes ?? {}
@@ -127,8 +122,7 @@ export function useDictionaryEntryForm(
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const translationInputRef = useRef<HTMLInputElement>(null);
   const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
-  // Set by `selectDictionary` so the auto-populate effect skips the dictionary change it causes.
-  const keepFieldsRef = useRef(false);
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [allDictionaryTypes, setAllDictionaryTypes] =
     useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [existingEntry, setExistingEntry] = useState<ExistingEntryData | null>(null);
@@ -137,7 +131,7 @@ export function useDictionaryEntryForm(
   const [showCharacterValidation, setShowCharacterValidation] = useState<boolean>(false);
   const [showPatternValidation, setShowPatternValidation] = useState<boolean>(false);
   const [isFormValid, setIsFormValid] = useState<boolean>(true);
-  const { rules: transformRules } = useTransformRules();
+  const { rules: transformRules, isLoading: rulesLoading } = useTransformRules();
   const [roughGlossReference, setRoughGlossReference] = useState<string>('');
 
   useEffect(() => {
@@ -223,54 +217,53 @@ export function useDictionaryEntryForm(
     validateForm();
   }, [source, translation, validateForm]);
 
-  // Auto-populate source from initialSource on mount. The form never reads the clipboard:
-  // the Add routes resolve what an Add starts from (`resolveQuickAddSource`), and a form
-  // opened any other way (the Dictionary tab's Add button) opens empty.
-  useEffect(() => {
-    let isMounted = true;
-    let focusTimeout: NodeJS.Timeout | null = null;
+  // What an Add starts from, trimmed — null when there is nothing to seed from. The form never
+  // reads the clipboard: the Add routes resolve the source (`resolveQuickAddSource`), and a
+  // form opened any other way (the Dictionary tab's Add button, an edit) seeds nothing.
+  const seedSource = !entry?.source && initialSource?.trim() ? initialSource.trim() : null;
 
-    const populateSourceAndTranslation = (trimmed: string): void => {
-      setSource(trimmed);
-      setRoughGlossReference(generateRoughTranslation(dictionaries, trimmed, activeDictionary));
-      const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
-        transformRules,
-        dictionaries,
-        trimmed,
-        activeDictionary
-      );
-      setTranslation(initialTranslation);
-      if (matchedRule) setSemanticType(matchedRule.semanticType);
-      focusTimeout = setTimeout(() => {
-        if (isMounted) {
-          translationInputRef.current?.focus();
-          translationInputRef.current?.select();
-        }
-      }, 100);
-    };
-
-    const handleAutoSetup = (): void => {
-      if (keepFieldsRef.current) {
-        keepFieldsRef.current = false;
+  // Seeding writes the form's first guess. It is a transition, not a reaction to state: once
+  // per mount when the Transform Rules have loaded, and again only from the dropdown switch.
+  // A new `dictionaries` object (a failed save's rollback) must never re-seed — it would
+  // overwrite what the user typed.
+  const seed = useCallback(
+    (target: string): void => {
+      if (seedSource === null) {
+        sourceInputRef.current?.focus();
         return;
       }
       try {
-        if (!entry?.source && initialSource?.trim()) {
-          populateSourceAndTranslation(initialSource.trim());
-          return;
-        }
+        const guess = initialEntryGuess(transformRules, dictionaries, seedSource, target);
+        setSource(seedSource);
+        setTranslation(guess.translation);
+        setRoughGlossReference(guess.roughGloss);
+        setSemanticType(guess.semanticType);
       } catch (err) {
-        logger.error('Error auto-populating the Add form:', err);
+        logger.error('Error seeding the Add form:', err);
       }
-      sourceInputRef.current?.focus();
-    };
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = setTimeout(() => {
+        translationInputRef.current?.focus();
+        translationInputRef.current?.select();
+      }, 100);
+    },
+    [seedSource, dictionaries, transformRules]
+  );
 
-    handleAutoSetup();
+  // Seed once per mount: with nothing to seed from, at once (focus only); otherwise when the
+  // rules have loaded — a failed load leaves `rules` empty and seeds the rough gloss.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || (seedSource !== null && rulesLoading)) return;
+    seededRef.current = true;
+    seed(activeDictionary);
+  }, [seed, seedSource, rulesLoading, activeDictionary]);
+
+  useEffect(() => {
     return () => {
-      isMounted = false;
-      if (focusTimeout) clearTimeout(focusTimeout);
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
     };
-  }, [activeDictionary, entry?.source, dictionaries, transformRules, initialSource]);
+  }, []);
 
   const checkForExistingEntry = useCallback(
     (sourceText: string, selectedId: string = activeDictionary): void => {
@@ -325,8 +318,14 @@ export function useDictionaryEntryForm(
     const newDictionary = e.target.value;
     setActiveDictionary(newDictionary);
     onDictionaryChange?.(newDictionary);
-    setSource('');
-    setTranslation('');
+    // The guess depends on the target's kind, so an Add re-seeds for the new one; a form
+    // with nothing to seed from clears instead.
+    if (seedSource !== null) {
+      seed(newDictionary);
+    } else {
+      setSource('');
+      setTranslation('');
+    }
     setExistingEntry(null);
     setShowExistingEntryNotification(false);
     setShowCharacterValidation(false);
@@ -335,7 +334,6 @@ export function useDictionaryEntryForm(
 
   const selectDictionary = (dictionaryId: string): void => {
     if (dictionaryId === activeDictionary) return;
-    keepFieldsRef.current = true;
     setActiveDictionary(dictionaryId);
     onDictionaryChange?.(dictionaryId);
     // The notice says whether the match is in *this* dictionary — re-ask for the new one.

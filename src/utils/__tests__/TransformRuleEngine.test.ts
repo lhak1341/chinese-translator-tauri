@@ -7,6 +7,7 @@ import {
   findRuleMatchingEntries,
   compareRulePrecedence,
   deriveCapitalizeExceptNForKeyEdit,
+  initialEntryGuess,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -300,5 +301,35 @@ describe('dictionarySupportsTransformRules', () => {
 
   test('false for characters', () => {
     expect(dictionarySupportsTransformRules('characters')).toBe(false);
+  });
+});
+
+describe('initialEntryGuess', () => {
+  const dictionaries = { characters: GLOSS };
+  const cityRule = rule({});
+  const otherRule = rule({ key: '市' });
+
+  // 南京城's gloss is "nam kinh thanh"; the suffix rule capitalizes all but the last word
+  // ("Nam Kinh thanh") and moves that word to the front.
+  test.each([
+    ['properNouns-f_Novel', [cityRule], 'thanh Nam Kinh', 'Nam Kinh Thanh', 'location'],
+    ['phrases', [cityRule], 'thanh Nam Kinh', 'nam kinh thanh', 'location'],
+    ['properNouns-f_Novel', [otherRule], 'Nam Kinh Thanh', 'Nam Kinh Thanh', 'character'],
+    ['phrases', [otherRule], 'nam kinh thanh', 'nam kinh thanh', ''],
+    ['patterns', [cityRule], 'nam kinh thanh', 'nam kinh thanh', ''],
+  ])('%s with %o', (target, rules, translation, roughGloss, semanticType) => {
+    expect(initialEntryGuess(rules, dictionaries, '南京城', target)).toEqual({
+      translation,
+      roughGloss,
+      semanticType,
+    });
+  });
+
+  test('no characters dictionary — empty guess, the kind default semanticType', () => {
+    expect(initialEntryGuess([otherRule], {}, '南京城', 'properNouns')).toEqual({
+      translation: '',
+      roughGloss: '',
+      semanticType: 'character',
+    });
   });
 });

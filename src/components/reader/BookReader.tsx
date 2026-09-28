@@ -359,7 +359,12 @@ const BookReader: React.FC<BookReaderProps> = ({
       </div>
 
       {quickAdd.isOpen && (
-        <ModalErrorBoundary onClose={quickAdd.close} title="❌ Failed to load Add">
+        // Keyed per open: an Add fired over an open dialog mounts a fresh form.
+        <ModalErrorBoundary
+          key={quickAdd.openId}
+          onClose={quickAdd.close}
+          title="❌ Failed to load Add"
+        >
           <DictionaryEntry
             onClose={quickAdd.close}
             selectedDictionary={quickAdd.dictionary}

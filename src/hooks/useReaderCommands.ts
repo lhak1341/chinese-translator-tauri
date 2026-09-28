@@ -72,6 +72,8 @@ export interface ReaderCommands {
     isOpen: boolean;
     dictionary: string;
     initialSource: string;
+    /** New on every open — keys the dialog, so each Add mounts a fresh form. */
+    openId: number;
     /** The quick-add view the open Add decided over — its dropdown's choices come from it. */
     view: QuickAddView | null;
     /** Cmd-3/Cmd-4's quick-add shortlist, `null` for every other Add. */
@@ -219,6 +221,7 @@ export function useReaderCommands({
       isOpen: modals.showQuickAdd,
       dictionary: modals.quickAddDictionary,
       initialSource: modals.initialSource,
+      openId: modals.quickAddOpenId,
       view: modals.quickAddView,
       shortlist: modals.quickAddShortlist,
       close: modals.closeQuickAdd,

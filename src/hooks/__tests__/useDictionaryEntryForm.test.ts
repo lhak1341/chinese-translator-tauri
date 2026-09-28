@@ -147,6 +147,22 @@ describe('auto-populate from initialSource', () => {
     expect(result.current.translation).toBe('hello');
   });
 
+  it('a typed translation survives a dictionaries identity change (failed-save rollback)', async () => {
+    const dictionaries = { characters: CHARACTERS_DICT };
+    const { result, rerender } = renderHook(
+      ({ deps }) => useDictionaryEntryForm(undefined, 'phrases', deps),
+      { initialProps: { deps: makeDeps({ initialSource: '你好', dictionaries }) } }
+    );
+    await waitFor(() => expect(result.current.translation).toBe('you good'));
+    act(() => result.current.setTranslation('xin chào'));
+
+    // A failed save's rollback hands back a new `dictionaries` object with the same content.
+    rerender({ deps: makeDeps({ initialSource: '你好', dictionaries: { ...dictionaries } }) });
+    await act(async () => {});
+
+    expect(result.current.translation).toBe('xin chào');
+  });
+
   it('roughGlossReference is always populated, regardless of Transform Rules', async () => {
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
@@ -200,8 +216,7 @@ describe('auto-populate — Transform Rule application', () => {
       useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
     );
     // gloss "you good" -> capitalizeExceptLastN(_,1) "You good" -> moveLastNWordsToBeginning(_,1) "good You"
-    // Rules load asynchronously — the auto-populate effect re-runs once they arrive, so wait on
-    // the final translation rather than racing on `source` (set synchronously on the first pass).
+    // Rules load asynchronously, after mount — the form seeds once they have arrived.
     await waitFor(() => expect(result.current.translation).toBe('good You'));
     expect(result.current.semanticType).toBe('location');
     // The naive gloss stays available as the reference field, unaffected by the rule.
@@ -223,7 +238,7 @@ describe('auto-populate — Transform Rule application', () => {
       useDictionaryEntryForm(undefined, 'patterns', makeDeps({ initialSource: '你好' }))
     );
     await waitFor(() => expect(result.current.source).toBe('你好'));
-    // Falls back to today's plain lowercase gloss — the rule never applies, on either pass.
+    // Falls back to the plain lowercase gloss — the rule never applies to a patterns target.
     expect(result.current.translation).toBe('you good');
   });
 
@@ -278,6 +293,42 @@ describe('handleDictionaryChange', () => {
     expect(result.current.showCharacterValidation).toBe(false);
   });
 
+  it('re-seeds from initialSource for the new dictionary, semanticType included', async () => {
+    loadTransformRules.mockResolvedValue({
+      rules: [
+        {
+          id: 'r1',
+          matchKind: 'suffix' as const,
+          key: '好',
+          relocate: true,
+          capitalizeExceptN: 1,
+          semanticType: 'location' as const,
+          enabled: true,
+        },
+      ],
+      droppedCount: 0,
+    });
+    const deps = makeDeps({ initialSource: '你好' });
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', deps)
+    );
+    await waitFor(() => expect(result.current.translation).toBe('good You'));
+    act(() => result.current.setTranslation('Edited By Hand'));
+
+    act(() => {
+      result.current.handleDictionaryChange({
+        target: { value: 'patterns' },
+      } as React.ChangeEvent<HTMLSelectElement>);
+    });
+
+    // A patterns target takes no rule: the plain lowercase gloss, and no rule-stamped type.
+    expect(result.current.activeDictionary).toBe('patterns');
+    expect(result.current.source).toBe('你好');
+    expect(result.current.translation).toBe('you good');
+    expect(result.current.roughGlossReference).toBe('you good');
+    expect(result.current.semanticType).toBe('');
+  });
+
   it('calls onDictionaryChange callback', async () => {
     const onDictionaryChange = vi.fn();
     const { result } = renderHook(() =>
@@ -303,8 +354,6 @@ describe('selectDictionary', () => {
 
   it('switches dictionary but keeps the typed source and translation', async () => {
     const onDictionaryChange = vi.fn();
-    // One deps object for every render, as DictionaryContext's stable `dictionaries` is — a
-    // fresh object per render would re-run auto-populate on its own.
     const deps = makeDeps({ initialSource: '你好', onDictionaryChange });
     const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'properNouns', deps));
     await act(async () => {});

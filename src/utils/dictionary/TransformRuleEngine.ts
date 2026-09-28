@@ -211,29 +211,46 @@ export function generateRoughTranslation(
   return lowercaseAll(gloss);
 }
 
+/** A new entry's semanticType before any Transform Rule stamps one: `'character'` for
+ * properNouns* targets, none otherwise. */
+export function defaultSemanticType(targetDictionary: string): SemanticType | '' {
+  return isProperNounsDict(targetDictionary) ? 'character' : '';
+}
+
+export interface InitialEntryGuess {
+  /** A matching Transform Rule's guess, else the rough gloss. */
+  translation: string;
+  /** `generateRoughTranslation`'s gloss, unaffected by any rule — the reference field. */
+  roughGloss: string;
+  /** The matched rule's semanticType, else the target's `defaultSemanticType` — always
+   * complete, so a re-seed for another target never leaves a stale type behind. */
+  semanticType: SemanticType | '';
+}
+
 /**
- * The initial Translation guess for a newly-populated Source: a matching Transform
- * Rule's guess when one exists for phrases/properNouns* targets, falling back to
- * `generateRoughTranslation` otherwise. Also returns the matched rule's semanticType,
- * if any, so the caller can stamp it.
+ * Everything the Add form writes when it seeds a newly-populated Source for
+ * `targetDictionary`. Transform Rules apply only to phrases/properNouns* targets.
  */
-export function computeInitialTranslation(
+export function initialEntryGuess(
   rules: TransformRule[],
   dictionaries: Record<string, DictionaryData>,
   sourceText: string,
   targetDictionary: string
-): { translation: string; matchedRule: TransformRule | null } {
-  if (dictionarySupportsTransformRules(targetDictionary)) {
-    const match = findBestMatch(rules, sourceText);
-    if (match) {
-      return {
-        translation: applyRule(match, sourceText, (s) => joinCharGloss(dictionaries, s)),
-        matchedRule: match,
-      };
-    }
+): InitialEntryGuess {
+  const roughGloss = generateRoughTranslation(dictionaries, sourceText, targetDictionary);
+  const match = dictionarySupportsTransformRules(targetDictionary)
+    ? findBestMatch(rules, sourceText)
+    : null;
+  if (!match) {
+    return {
+      translation: roughGloss,
+      roughGloss,
+      semanticType: defaultSemanticType(targetDictionary),
+    };
   }
   return {
-    translation: generateRoughTranslation(dictionaries, sourceText, targetDictionary),
-    matchedRule: null,
+    translation: applyRule(match, sourceText, (s) => joinCharGloss(dictionaries, s)),
+    roughGloss,
+    semanticType: match.semanticType,
   };
 }
