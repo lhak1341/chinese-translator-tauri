@@ -3,6 +3,7 @@ import {
   isPatternsDict,
   isPhrasesDict,
   isProperNounsDict,
+  showsSemanticType,
   buildEntryMetadata,
   entryFields,
   toggleVariableType,
@@ -150,6 +151,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const isPatterns = isPatternsDict(selectedDictionary);
     const isPhrases = isPhrasesDict(selectedDictionary);
     const isProperNouns = isProperNounsDict(selectedDictionary);
+    // The kind branches below are layout; whether the Semantic cell shows is the capability rule.
+    const showSemantic = showsSemanticType(selectedDictionary, allowAsPatternVariable);
 
     const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
       await onUpdateEntry(
@@ -214,7 +217,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {allowAsPatternVariable ? (
+          {showSemantic ? (
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
@@ -277,7 +280,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {allowAsPatternVariable ? (
+          {showSemantic ? (
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
@@ -317,7 +320,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           <EditableCell edit={translEdit} renderDisplay={() => translationText} />
         </div>
 
-        {isProperNouns && (
+        {showSemantic && (
           <SemanticTypeToggleCell
             activeType={semanticType}
             onSelect={handleSetSemanticType}

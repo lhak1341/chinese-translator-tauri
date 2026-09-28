@@ -20,6 +20,7 @@ function renderPicker(overrides: Record<string, any> = {}) {
     allowedVariableTypes: {},
     onAllowedVariableTypesChange,
     activeDictionary: 'properNouns',
+    allowAsPatternVariable: true,
     source: '',
     isSaving: false,
     ...overrides,
@@ -32,6 +33,23 @@ describe('SemanticTypePicker — visibility gate', () => {
   test('renders nothing for a dictionary that does not support semantic metadata', () => {
     renderPicker({ activeDictionary: 'characters' });
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+  });
+
+  test('hides the type row for a phrase with VAR off — the type only matters once VAR is on', () => {
+    renderPicker({ activeDictionary: 'phrases', allowAsPatternVariable: false });
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+  });
+
+  test('shows the type row for a proper noun with VAR off — always usable as a variable', () => {
+    renderPicker({ activeDictionary: 'properNouns-f_X', allowAsPatternVariable: false });
+    expect(screen.getByRole('radiogroup')).toBeInTheDocument();
+  });
+
+  test("keeps a pattern's X/Y rows with VAR off, hiding only its Output row", () => {
+    renderPicker({ activeDictionary: 'patterns', allowAsPatternVariable: false, source: 'X的Y' });
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'X accepts' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Y accepts' })).toBeInTheDocument();
   });
 
   test('labels the row "Type" for a non-patterns dictionary', () => {

@@ -1,4 +1,4 @@
-import { isProperNounsDict } from '../../utils/dictionary';
+import { entryCapabilities, showsSemanticType } from '../../utils/dictionary';
 import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import styles from '../../styles/RuleMatchesModal.module.css';
@@ -48,7 +48,7 @@ function VarBadge({
   active: boolean;
   onToggle: () => void;
 }) {
-  if (isProperNounsDict(dictionaryId)) {
+  if (entryCapabilities(dictionaryId).variableFlag === 'always') {
     return (
       <span
         className={dictStyles.metadataBadge}
@@ -71,8 +71,6 @@ function MatchRow({
   patchEntry: PatchEntry;
   onContextMenu: OnRowContextMenu;
 }) {
-  const isProperNoun = isProperNounsDict(row.dictionaryId);
-
   const translEdit = useInlineFieldEdit(row.translation, (translation) =>
     patchEntry(row.dictionaryId, row.source, { translation })
   );
@@ -83,9 +81,8 @@ function MatchRow({
     );
   };
 
-  // Matches Dictionary's own phrases-row rule: Semantic is only settable once VAR is on
-  // (for phrases). properNouns rows show it unconditionally, same as Dictionary's own.
-  const showSemantic = isProperNoun || row.allowAsPatternVariable;
+  // The same rule as the Dictionary table's rows: `showsSemanticType`.
+  const showSemantic = showsSemanticType(row.dictionaryId, row.allowAsPatternVariable);
 
   return (
     <RowShell

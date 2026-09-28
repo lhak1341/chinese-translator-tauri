@@ -9,6 +9,8 @@ import {
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,
+  entryCapabilities,
+  showsSemanticType,
 } from '../dictionary/DictionaryIdClassifier';
 
 // Every id shape that exists on disk (the id space is closed: fixed names, or ids built by
@@ -83,5 +85,35 @@ describe('round-trip', () => {
   test('toPatternsId(toProperNounsId(id)) === id', () => {
     const id = 'patterns-f_HarryPotter';
     expect(toPatternsId(toProperNounsId(id))).toBe(id);
+  });
+});
+
+describe('entryCapabilities', () => {
+  test.each([
+    // id                        variableFlag  semantic          variableTypes
+    ['patterns', 'toggle', 'whenVariable', true],
+    ['patterns-f_DuongThan', 'toggle', 'whenVariable', true],
+    ['phrases', 'toggle', 'whenVariable', false],
+    ['properNouns', 'always', 'always', false],
+    ['properNouns-_AiCap', 'always', 'always', false],
+    ['characters', 'none', 'none', false],
+    ['somethingUnknown', 'none', 'none', false],
+  ])('%s', (id, variableFlag, semantic, variableTypes) => {
+    expect(entryCapabilities(id)).toEqual({ variableFlag, semantic, variableTypes });
+  });
+});
+
+describe('showsSemanticType', () => {
+  test.each([
+    // id              VAR    shows
+    ['properNouns-f_X', false, true],
+    ['properNouns-f_X', true, true],
+    ['phrases', false, false],
+    ['phrases', true, true],
+    ['patterns', false, false],
+    ['patterns', true, true],
+    ['characters', true, false],
+  ])('%s with VAR %s → %s', (id, allowAsPatternVariable, shows) => {
+    expect(showsSemanticType(id, allowAsPatternVariable)).toBe(shows);
   });
 });

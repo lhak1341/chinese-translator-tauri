@@ -10,7 +10,7 @@ import {
   isPatternsDict,
   isPhrasesDict,
   isProperNounsDict,
-  isLookupTableDict,
+  entryCapabilities,
 } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
@@ -66,6 +66,18 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
     title,
     width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
   });
+  const variableType = (v: 'X' | 'Y'): HeaderColumn => ({
+    label: `${v} types`,
+    widthClassName: styles.patternsTypeCol,
+    title: `Type constraints for variable ${v}`,
+  });
+  // Which capability columns appear comes from the entry capabilities; each kind's column
+  // classes and labels below are layout.
+  const caps = entryCapabilities(dictionaryId);
+  const capabilityColumns = (semanticTitle: string): HeaderColumn[] => [
+    ...(caps.semantic !== 'none' ? [semantic(semanticTitle)] : []),
+    ...(caps.variableTypes ? [variableType('X'), variableType('Y')] : []),
+  ];
   if (isPatternsDict(dictionaryId)) {
     return [
       {
@@ -78,17 +90,7 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
         className: styles.patternsTranslationCol,
         title: 'Translation with metadata badges (VAR = Allow as variable, LP = Low priority)',
       },
-      semantic('Output semantic type (shown when pattern can be used as a variable)'),
-      {
-        label: 'X types',
-        widthClassName: styles.patternsTypeCol,
-        title: 'Type constraints for variable X',
-      },
-      {
-        label: 'Y types',
-        widthClassName: styles.patternsTypeCol,
-        title: 'Type constraints for variable Y',
-      },
+      ...capabilityColumns('Output semantic type (shown when pattern can be used as a variable)'),
     ];
   }
   if (isPhrasesDict(dictionaryId)) {
@@ -99,19 +101,20 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
         className: styles.phrasesTranslationCol,
         title: 'Translation with metadata badge (VAR = Allow as variable)',
       },
-      semantic('Semantic type'),
+      ...capabilityColumns('Semantic type'),
     ];
   }
   if (isProperNounsDict(dictionaryId)) {
     return [
       { label: 'Source', className: styles.properNounsSourceCol },
       { label: 'Translation', className: styles.properNounsTranslationCol },
-      semantic('Semantic type'),
+      ...capabilityColumns('Semantic type'),
     ];
   }
   return [
     { label: 'Source Text', className: styles.simpleSourceCol },
     { label: 'Translation', className: styles.simpleTranslationCol },
+    ...capabilityColumns('Semantic type'),
   ];
 }
 
@@ -162,10 +165,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     filterVariable,
     filterSemanticTypes,
     filterPatternType,
-    filterAllowAsVariable,
+    availableFilters,
     toggleSemanticType,
     togglePatternType,
-    toggleFlag,
     setVariable,
     clearFilters,
     resetFilters,
@@ -251,10 +253,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const { closeContextMenu, handleContextMenu } = contextMenuApi;
 
   // Reset all per-dictionary transient state when the selected dictionary changes.
-  // Filter state is only reset for dictionary types where a filter doesn't apply:
-  //   filterSemanticTypes  → phrases + proper nouns
-  //   filterVariable       → phrases only
-  //   filterPatternType / filterAllowAsVariable → patterns only
+  // Filter state is only reset where a filter doesn't apply (`availableFiltersFor`).
   useEffect(() => {
     resetFilters(selectedDictionary);
     resetEditAndMove();
@@ -263,10 +262,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     scroll.resetScroll();
   }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Determine which filter options are relevant for the selected dictionary
-  const showPatternFilter = isPatternsDict(selectedDictionary);
-  const showVariableFilter = isPhrasesDict(selectedDictionary); // phrases only; patterns use showPatternFilter
-  const showSemanticTypeFilter = !isLookupTableDict(selectedDictionary);
+  const {
+    patternType: showPatternFilter,
+    variable: showVariableFilter,
+    semantic: showSemanticTypeFilter,
+  } = availableFilters;
   // Duplicate view's Semantic column — keyed by the row's own dictionary.
   const handleSetDuplicateSemanticType = useCallback(
     (row: DuplicateRow, type: string): void => {
@@ -349,40 +349,23 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       {/* Filter panel */}
       <FilterPanel open={showFilterPanel && hasFilterOptions}>
         {showPatternFilter && (
-          <>
-            <FilterDimensionRow label="Pattern:">
-              {(
-                [
-                  ['x-only', 'X only'],
-                  ['x-y', 'X–Y'],
-                  ['no-variable', 'No variable'],
-                ] as const
-              ).map(([key, label]) => (
-                <FilterChipButton
-                  key={key}
-                  active={filterPatternType.has(key)}
-                  activeColor="var(--accent-color)"
-                  label={label}
-                  onClick={() => togglePatternType(key)}
-                />
-              ))}
-            </FilterDimensionRow>
-            <FilterDimensionRow label="Flags:">
-              {(
-                [
-                  [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
-                ] as const
-              ).map(([isActive, flag, label, color]) => (
-                <FilterChipButton
-                  key={label}
-                  active={isActive}
-                  activeColor={color}
-                  label={label}
-                  onClick={() => toggleFlag(flag)}
-                />
-              ))}
-            </FilterDimensionRow>
-          </>
+          <FilterDimensionRow label="Pattern:">
+            {(
+              [
+                ['x-only', 'X only'],
+                ['x-y', 'X–Y'],
+                ['no-variable', 'No variable'],
+              ] as const
+            ).map(([key, label]) => (
+              <FilterChipButton
+                key={key}
+                active={filterPatternType.has(key)}
+                activeColor="var(--accent-color)"
+                label={label}
+                onClick={() => togglePatternType(key)}
+              />
+            ))}
+          </FilterDimensionRow>
         )}
         {showVariableFilter && (
           <FilterDimensionRow label="Variable:">

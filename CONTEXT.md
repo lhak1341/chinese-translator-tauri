@@ -509,6 +509,17 @@ Both are total: every fixed name (`phrases`, `characters`, …) is tier `root`, 
 
 The id space is closed: every id is either one of the fixed names or built by `toProperNounsDictionaryId`/`toPatternsId`. Code that needs a single _specific_ dictionary (`=== 'characters'`) compares the literal; code asking a kind or tier question asks the classifier rather than re-deriving it from a prefix.
 
+**Entry capabilities** (decided 2026-09-28, architecture review candidate #3 grilling): what an entry of a given kind can carry, answered by `entryCapabilities(id)` from one `Record<DictionaryKind, …>` table in `DictionaryIdClassifier.ts`:
+
+| Kind          | `variableFlag` (VAR) | `semantic`     | `variableTypes` (X/Y) |
+| ------------- | -------------------- | -------------- | --------------------- |
+| `patterns`    | `toggle`             | `whenVariable` | yes                   |
+| `phrases`     | `toggle`             | `whenVariable` | no                    |
+| `properNouns` | `always`             | `always`       | no                    |
+| `lookupTable` | `none`               | `none`         | no                    |
+
+`showsSemanticType(id, allowAsPatternVariable)` is the combined question every surface asks (table rows, Duplicate view, Rule Matches, the Add form's picker) — replaces `hasSemanticTypeColumn`. The dictionary table's filters are derived, not stored: pattern-type filter when `variableTypes`, the one all/allowed/not-allowed variable filter when `variableFlag === 'toggle'`, the semantic filter when `semantic !== 'none'` — the panel and the filter reset read the same fact. A semantic type hidden by `whenVariable` (VAR off) is still saved, never dropped. Layout (column classes, header labels) stays keyed by kind; only which capability columns appear comes from the record. The engine does not read it — it treats proper nouns as always-VAR by dictionary list, not by branching on kind.
+
 ## Quick-add target
 
 Which dictionary Cmd-5 (proper noun) and Cmd-6 (structural pattern) add to. One rule, `quickAddTarget(kind, view, dictionaries)`, decides it for every surface — Translator modal, Dictionary tab, Reader — over a **quick-add view**: the `{ defaultQuickAddDictionary, activeProperNouns }` pair the decision reads.

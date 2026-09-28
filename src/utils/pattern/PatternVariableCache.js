@@ -103,7 +103,8 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
   }
 
   // Stage 3: Single-token proper noun lookups.
-  // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
+  // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate
+  // (the UI states the same rule as `entryCapabilities`: properNouns `variableFlag: 'always'`).
   for (const token of tokens) {
     const properNounResult = dictionaryManager.translate(token.value, actualProperNounDictionaries);
     if (properNounResult) {

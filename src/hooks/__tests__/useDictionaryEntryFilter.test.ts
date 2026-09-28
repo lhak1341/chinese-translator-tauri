@@ -150,15 +150,16 @@ describe('useDictionaryEntryFilter — filter state', () => {
     expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['这种马上']);
   });
 
-  it('filterAllowAsVariable shows only allowAsPatternVariable=true', () => {
-    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
+  it('filterVariable filters pattern entries too — one variable filter for every toggle kind', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
-      result.current.toggleFlag('allowAsVariable');
+      result.current.setVariable('allowed');
     });
-    const sources = result.current.filteredEntries.map(([s]) => s);
-    expect(sources).toContain('凤凰');
-    expect(sources).toContain('真人');
-    expect(sources).not.toContain('龙');
+    expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['X的弟子']);
+    act(() => {
+      result.current.setVariable('not-allowed');
+    });
+    expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['X和Y', '无X', '这种马上']);
   });
 
   it('filterSemanticTypes filters by specific type', () => {
@@ -189,11 +190,11 @@ describe('useDictionaryEntryFilter — filter state', () => {
     expect(sources).toContain('龙');
   });
 
-  it('combined: search + filterAllowAsVariable', () => {
+  it('combined: search + filterVariable', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
       result.current.setSearchTerm('真');
-      result.current.toggleFlag('allowAsVariable');
+      result.current.setVariable('allowed');
     });
     act(() => {
       vi.runAllTimers();
@@ -219,14 +220,6 @@ describe('useDictionaryEntryFilter — hasActiveFilter', () => {
     expect(result.current.hasActiveFilter).toBe(true);
   });
 
-  it('is true when filterAllowAsVariable set', () => {
-    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
-    act(() => {
-      result.current.toggleFlag('allowAsVariable');
-    });
-    expect(result.current.hasActiveFilter).toBe(true);
-  });
-
   it('is false when searchTerm set but no toggle filters', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
@@ -244,13 +237,11 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
       result.current.togglePatternType('x-only');
-      result.current.toggleFlag('allowAsVariable');
     });
     act(() => {
       result.current.resetFilters('phrases');
     });
     expect(result.current.filterPatternType.size).toBe(0);
-    expect(result.current.filterAllowAsVariable).toBe(false);
   });
 
   it('keeps pattern filters when staying on patterns', () => {
@@ -264,15 +255,26 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
     expect(result.current.filterPatternType.size).toBe(1);
   });
 
-  it('resets filterVariable when leaving phrases', () => {
+  it('resets filterVariable when switching to proper nouns — VAR is always on there', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
       result.current.setVariable('allowed');
     });
     act(() => {
-      result.current.resetFilters('patterns');
+      result.current.resetFilters('properNouns-test');
     });
     expect(result.current.filterVariable).toBe('all');
+  });
+
+  it('keeps filterVariable when switching from phrases to patterns', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
+    act(() => {
+      result.current.setVariable('not-allowed');
+    });
+    act(() => {
+      result.current.resetFilters('patterns');
+    });
+    expect(result.current.filterVariable).toBe('not-allowed');
   });
 
   it('keeps filterVariable when staying on phrases', () => {
@@ -293,6 +295,17 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
     });
     act(() => {
       result.current.resetFilters('properNouns-test');
+    });
+    expect(result.current.filterSemanticTypes.size).toBe(1);
+  });
+
+  it('keeps filterSemanticTypes when switching to patterns — the panel shows it there too', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
+    act(() => {
+      result.current.toggleSemanticType('character');
+    });
+    act(() => {
+      result.current.resetFilters('patterns');
     });
     expect(result.current.filterSemanticTypes.size).toBe(1);
   });
@@ -418,5 +431,18 @@ describe('useDictionaryEntryFilter — duplicateGroupIndices', () => {
       vi.runAllTimers();
     });
     expect(result.current.duplicateGroupIndices).toEqual([0, 0, 0]);
+  });
+});
+
+describe('useDictionaryEntryFilter — availableFilters', () => {
+  it.each([
+    // id              patternType variable semantic
+    ['patterns', true, true, true],
+    ['phrases', false, true, true],
+    ['properNouns-f_X', false, false, true],
+    ['characters', false, false, false],
+  ])('%s', (id, patternType, variable, semantic) => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, id, [], false));
+    expect(result.current.availableFilters).toEqual({ patternType, variable, semantic });
   });
 });

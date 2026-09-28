@@ -8,7 +8,7 @@ import {
 } from '../../constants/SemanticTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
-import { isPatternsDict, isLookupTableDict } from '../../utils/dictionary';
+import { isPatternsDict, entryCapabilities, showsSemanticType } from '../../utils/dictionary';
 import { PATTERN_VARIABLE_COLORS } from '../../utils/text';
 
 interface SemanticTypePickerProps {
@@ -17,13 +17,12 @@ interface SemanticTypePickerProps {
   allowedVariableTypes: Record<string, string[]>;
   onAllowedVariableTypesChange: (types: Record<string, string[]>) => void;
   activeDictionary: string;
+  /** The entry's VAR flag — for phrases and patterns, the type row shows only once it is on. */
+  allowAsPatternVariable: boolean;
   /** Pattern source text — drives X/Y variable detection */
   source: string;
   isSaving: boolean;
 }
-
-const supportsSemanticTypes = (activeDictionary: string): boolean =>
-  !isLookupTableDict(activeDictionary);
 
 const REF_COLOR = '#8b5cf6';
 const NONE_COLOR = 'var(--text-muted, #6b7280)';
@@ -129,7 +128,9 @@ const AccessibleBadgeChip: React.FC<{
  * a pattern also gets a row per variable in its source for what that variable accepts. Every
  * row shares one set of columns, so the six type names appear once, on the first row. The
  * first column means "no restriction" in every row — None for the type, any for a variable —
- * and its digit is 0 everywhere. Renders null for dictionary kinds with no semantic metadata.
+ * and its digit is 0 everywhere. The type row follows `showsSemanticType`, the variable rows
+ * the kind's `variableTypes` — a pattern's variable rows stay while VAR is off. Renders null when
+ * neither applies.
  */
 export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
   semanticType,
@@ -137,14 +138,17 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
   allowedVariableTypes,
   onAllowedVariableTypesChange,
   activeDictionary,
+  allowAsPatternVariable,
   source,
   isSaving,
 }) => {
-  if (!supportsSemanticTypes(activeDictionary)) return null;
+  const showTypeRow = showsSemanticType(activeDictionary, allowAsPatternVariable);
+  const { variableTypes } = entryCapabilities(activeDictionary);
+  if (!showTypeRow && !variableTypes) return null;
 
   const isPatterns = isPatternsDict(activeDictionary);
-  const activeVars = isPatterns ? (['X', 'Y'] as const).filter((v) => source.includes(v)) : [];
-  const typeRefs = isPatterns
+  const activeVars = variableTypes ? (['X', 'Y'] as const).filter((v) => source.includes(v)) : [];
+  const typeRefs = variableTypes
     ? PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1]))
     : [];
   // Radio options in badge order, so each one's index is its digit key: 0 None, 1-6 the
@@ -199,69 +203,73 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
 
   return (
     <div className={styles.typeGrid} style={{ gridTemplateColumns: columns }}>
-      <span
-        className={styles.typeRowLabel}
-        title={isPatterns ? 'The type this pattern produces when reused elsewhere' : undefined}
-      >
-        {isPatterns ? 'Output' : 'Type'}
-      </span>
-      <div
-        role="radiogroup"
-        aria-label="Semantic type"
-        className={`${styles.typeRow} ${styles.digitGroup}`}
-        onKeyDown={handleRadioKey}
-      >
-        <AccessibleBadgeChip
-          role="radio"
-          checked={semanticType === ''}
-          activeColor={NONE_COLOR}
-          disabled={isSaving}
-          onClick={() => onSemanticTypeChange('')}
-          title="No semantic type"
-          hint={0}
-          tabStop={radioTabStop === 0}
-        >
-          None
-        </AccessibleBadgeChip>
-        {SEMANTIC_TYPE_LIST.map((type, i) => {
-          const isSelected = semanticType === type;
-          return (
+      {showTypeRow && (
+        <>
+          <span
+            className={styles.typeRowLabel}
+            title={isPatterns ? 'The type this pattern produces when reused elsewhere' : undefined}
+          >
+            {isPatterns ? 'Output' : 'Type'}
+          </span>
+          <div
+            role="radiogroup"
+            aria-label="Semantic type"
+            className={`${styles.typeRow} ${styles.digitGroup}`}
+            onKeyDown={handleRadioKey}
+          >
             <AccessibleBadgeChip
-              key={type}
               role="radio"
-              checked={isSelected}
-              activeColor={SEMANTIC_TYPE_COLORS[type]}
+              checked={semanticType === ''}
+              activeColor={NONE_COLOR}
               disabled={isSaving}
-              onClick={() => onSemanticTypeChange(isSelected ? '' : type)}
-              title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
-              hint={i + 1}
-              tabStop={radioTabStop === i + 1}
+              onClick={() => onSemanticTypeChange('')}
+              title="No semantic type"
+              hint={0}
+              tabStop={radioTabStop === 0}
             >
-              {SEMANTIC_TYPE_ABBREVIATIONS[type]}
+              None
             </AccessibleBadgeChip>
-          );
-        })}
-        {typeRefs.map((typeRef, i) => {
-          const isSelected = semanticType === typeRef;
-          const hint = SEMANTIC_TYPE_LIST.length + 1 + i;
-          return (
-            <AccessibleBadgeChip
-              key={typeRef}
-              role="radio"
-              checked={isSelected}
-              activeColor={REF_COLOR}
-              dashed
-              disabled={isSaving}
-              onClick={() => onSemanticTypeChange(isSelected ? '' : typeRef)}
-              title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${typeRef[1]}`}
-              hint={hint}
-              tabStop={radioTabStop === hint}
-            >
-              {typeRef}
-            </AccessibleBadgeChip>
-          );
-        })}
-      </div>
+            {SEMANTIC_TYPE_LIST.map((type, i) => {
+              const isSelected = semanticType === type;
+              return (
+                <AccessibleBadgeChip
+                  key={type}
+                  role="radio"
+                  checked={isSelected}
+                  activeColor={SEMANTIC_TYPE_COLORS[type]}
+                  disabled={isSaving}
+                  onClick={() => onSemanticTypeChange(isSelected ? '' : type)}
+                  title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
+                  hint={i + 1}
+                  tabStop={radioTabStop === i + 1}
+                >
+                  {SEMANTIC_TYPE_ABBREVIATIONS[type]}
+                </AccessibleBadgeChip>
+              );
+            })}
+            {typeRefs.map((typeRef, i) => {
+              const isSelected = semanticType === typeRef;
+              const hint = SEMANTIC_TYPE_LIST.length + 1 + i;
+              return (
+                <AccessibleBadgeChip
+                  key={typeRef}
+                  role="radio"
+                  checked={isSelected}
+                  activeColor={REF_COLOR}
+                  dashed
+                  disabled={isSaving}
+                  onClick={() => onSemanticTypeChange(isSelected ? '' : typeRef)}
+                  title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${typeRef[1]}`}
+                  hint={hint}
+                  tabStop={radioTabStop === hint}
+                >
+                  {typeRef}
+                </AccessibleBadgeChip>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {activeVars.map((varName) => {
         const allowed = allowedVariableTypes[varName] ?? [];

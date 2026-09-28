@@ -111,15 +111,38 @@ export function toProperNounsDictionaryId(rawName: string): string {
 }
 
 /**
- * Whether an entry carries an editable semantic type — the rule the dictionary table's Semantic
- * column follows: always for proper nouns; for phrases and patterns only once the entry is
- * allowed as a pattern variable (the type only matters when it fills a variable slot); never for
- * string-only lookup tables.
+ * What an entry of a dictionary's kind can carry. Every surface — table rows and headers, filters,
+ * the Add form, Rule Matches — reads this instead of naming a kind. See CONTEXT.md "Entry
+ * capabilities".
+ *
+ * - `variableFlag` — the VAR flag (`allowAsPatternVariable`): a per-entry `'toggle'`; `'always'`
+ *   on for proper nouns, which fill pattern variables by design; `'none'` for lookup tables.
+ * - `semantic` — the semantic type: `'always'` editable; `'whenVariable'`, only once VAR is on
+ *   (the type only matters when the entry fills a variable slot); `'none'`.
+ * - `variableTypes` — per-variable (X/Y) type constraints: pattern templates only.
  */
-export function hasSemanticTypeColumn(id: string, allowAsPatternVariable: boolean): boolean {
-  const kind = kindOf(id);
-  if (kind === 'properNouns') return true;
-  return (kind === 'patterns' || kind === 'phrases') && allowAsPatternVariable;
+export interface EntryCapabilities {
+  variableFlag: 'toggle' | 'always' | 'none';
+  semantic: 'always' | 'whenVariable' | 'none';
+  variableTypes: boolean;
+}
+
+const KIND_CAPABILITIES: Record<DictionaryKind, EntryCapabilities> = {
+  patterns: { variableFlag: 'toggle', semantic: 'whenVariable', variableTypes: true },
+  phrases: { variableFlag: 'toggle', semantic: 'whenVariable', variableTypes: false },
+  properNouns: { variableFlag: 'always', semantic: 'always', variableTypes: false },
+  lookupTable: { variableFlag: 'none', semantic: 'none', variableTypes: false },
+};
+
+export function entryCapabilities(id: string): EntryCapabilities {
+  return KIND_CAPABILITIES[kindOf(id)];
+}
+
+/** Whether an entry with this VAR flag shows an editable semantic type. A type hidden by
+ * `'whenVariable'` is still saved — it reappears when VAR is turned on. */
+export function showsSemanticType(id: string, allowAsPatternVariable: boolean): boolean {
+  const { semantic } = entryCapabilities(id);
+  return semantic === 'always' || (semantic === 'whenVariable' && allowAsPatternVariable);
 }
 
 /**

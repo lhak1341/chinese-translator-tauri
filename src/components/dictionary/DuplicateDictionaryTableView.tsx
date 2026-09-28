@@ -8,7 +8,7 @@ import {
   ITEM_HEIGHT,
 } from './TableBuildingBlocks';
 import { DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import { createDuplicateKey, isPatternsDict, hasSemanticTypeColumn } from '../../utils/dictionary';
+import { createDuplicateKey, isPatternsDict, showsSemanticType } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
@@ -162,7 +162,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                   >
                     {row.dictionaryLabel}
                   </div>
-                  {hasSemanticTypeColumn(
+                  {showsSemanticType(
                     row.dictionaryId,
                     row.metadata?.allowAsPatternVariable === true
                   ) ? (

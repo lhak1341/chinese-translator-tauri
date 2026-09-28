@@ -2,15 +2,29 @@ import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } fr
 import { useThrottledValue } from './useThrottledValue';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
-import {
-  isPatternsDict,
-  isPhrasesDict,
-  isProperNounsDict,
-  isLookupTableDict,
-  entryFields,
-} from '../utils/dictionary';
+import { entryCapabilities, entryFields } from '../utils/dictionary';
 
 const SEARCH_DEBOUNCE_MS = 150;
+
+/** Which filter dimensions apply to a dictionary — derived from its entry capabilities, so the
+ * filter panel and the reset on a dictionary switch read the same fact. */
+export interface AvailableFilters {
+  /** X only / X–Y / no variable: pattern templates. */
+  patternType: boolean;
+  /** All / allowed / not allowed: kinds whose VAR flag is a per-entry toggle. */
+  variable: boolean;
+  /** Semantic types: kinds whose entries can carry one. */
+  semantic: boolean;
+}
+
+export function availableFiltersFor(id: string): AvailableFilters {
+  const caps = entryCapabilities(id);
+  return {
+    patternType: caps.variableTypes,
+    variable: caps.variableFlag === 'toggle',
+    semantic: caps.semantic !== 'none',
+  };
+}
 
 export function useDictionaryEntryFilter(
   dictionaries: Record<string, DictionaryData>,
@@ -30,10 +44,9 @@ export function useDictionaryEntryFilter(
   filterVariable: 'all' | 'allowed' | 'not-allowed';
   filterSemanticTypes: Set<string>;
   filterPatternType: Set<string>;
-  filterAllowAsVariable: boolean;
+  availableFilters: AvailableFilters;
   toggleSemanticType: (type: string) => void;
   togglePatternType: (type: 'x-only' | 'x-y' | 'no-variable') => void;
-  toggleFlag: (flag: 'allowAsVariable') => void;
   setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
   clearFilters: () => void;
   resetFilters: (newSelectedDictionary: string) => void;
@@ -43,35 +56,23 @@ export function useDictionaryEntryFilter(
   const [filterVariable, setFilterVariable] = useState<'all' | 'allowed' | 'not-allowed'>('all');
   const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
   const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set());
-  const [filterAllowAsVariable, setFilterAllowAsVariable] = useState(false);
 
   const debouncedSearchTerm = useThrottledValue(searchTerm, SEARCH_DEBOUNCE_MS);
 
   // Resets only the filters that don't apply to the new dictionary type.
   // Called from EVDT's selectedDictionary coordinator effect alongside other hook resets.
   const resetFilters = useCallback((newSelectedDictionary: string): void => {
-    const id = newSelectedDictionary;
-
-    if (!isPatternsDict(id)) {
-      setFilterPatternType(new Set());
-      setFilterAllowAsVariable(false);
-    }
-    if (!isPhrasesDict(id)) {
-      setFilterVariable('all');
-    }
-    if (!isPhrasesDict(id) && !isProperNounsDict(id)) {
-      setFilterSemanticTypes(new Set());
-    }
-    if (isLookupTableDict(id)) {
+    const available = availableFiltersFor(newSelectedDictionary);
+    if (!available.patternType) setFilterPatternType(new Set());
+    if (!available.variable) setFilterVariable('all');
+    if (!available.semantic) setFilterSemanticTypes(new Set());
+    if (!available.patternType && !available.variable && !available.semantic) {
       setShowFilterPanel(false);
     }
   }, []);
 
   const hasActiveFilter =
-    filterVariable !== 'all' ||
-    filterSemanticTypes.size > 0 ||
-    filterPatternType.size > 0 ||
-    filterAllowAsVariable;
+    filterVariable !== 'all' || filterSemanticTypes.size > 0 || filterPatternType.size > 0;
 
   const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
     if (showDuplicatesMode) return [];
@@ -110,12 +111,6 @@ export function useDictionaryEntryFilter(
       });
     }
 
-    if (filterAllowAsVariable) {
-      entries = entries.filter(
-        ([, translation]) => entryFields(translation).allowAsPatternVariable
-      );
-    }
-
     if (filterSemanticTypes.size > 0) {
       entries = entries.filter(([, translation]) => {
         const semType = entryFields(translation).semanticType;
@@ -136,8 +131,12 @@ export function useDictionaryEntryFilter(
     filterVariable,
     filterSemanticTypes,
     filterPatternType,
-    filterAllowAsVariable,
   ]);
+
+  const availableFilters = useMemo(
+    () => availableFiltersFor(selectedDictionary),
+    [selectedDictionary]
+  );
 
   const filteredDuplicateRows = useMemo(() => {
     if (!showDuplicatesMode) return [];
@@ -188,10 +187,6 @@ export function useDictionaryEntryFilter(
     });
   }, []);
 
-  const toggleFlag = useCallback((flag: 'allowAsVariable'): void => {
-    if (flag === 'allowAsVariable') setFilterAllowAsVariable((v) => !v);
-  }, []);
-
   const setVariable = useCallback((v: 'all' | 'allowed' | 'not-allowed'): void => {
     setFilterVariable(v);
   }, []);
@@ -200,7 +195,6 @@ export function useDictionaryEntryFilter(
     setFilterVariable('all');
     setFilterSemanticTypes(new Set());
     setFilterPatternType(new Set());
-    setFilterAllowAsVariable(false);
   }, []);
 
   return {
@@ -216,10 +210,9 @@ export function useDictionaryEntryFilter(
     filterVariable,
     filterSemanticTypes,
     filterPatternType,
-    filterAllowAsVariable,
+    availableFilters,
     toggleSemanticType,
     togglePatternType,
-    toggleFlag,
     setVariable,
     clearFilters,
     resetFilters,

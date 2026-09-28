@@ -1,4 +1,4 @@
-import { isPatternsDict } from '../../utils/dictionary';
+import { isPatternsDict, entryCapabilities } from '../../utils/dictionary';
 import React, { useRef } from 'react';
 import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
@@ -51,8 +51,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
   const showShortlist = !!shortlist && shortlist.ids.length > 1;
   const offersDropdown = quickAddView !== undefined;
-  const canBeVariable =
-    form.activeDictionary === 'phrases' || isPatternsDict(form.activeDictionary);
+  const canBeVariable = entryCapabilities(form.activeDictionary).variableFlag === 'toggle';
   const isPattern = isPatternsDict(form.activeDictionary);
   const sourceVars = isPattern ? (['X', 'Y'] as const).filter((v) => form.source.includes(v)) : [];
   const message = footerMessage(form);
@@ -324,6 +323,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             allowedVariableTypes={form.allowedVariableTypes}
             onAllowedVariableTypesChange={form.setAllowedVariableTypes}
             activeDictionary={form.activeDictionary}
+            allowAsPatternVariable={form.allowAsPatternVariable}
             source={form.source}
             isSaving={form.isSaving}
           />

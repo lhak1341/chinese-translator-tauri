@@ -86,7 +86,8 @@ export {
   isPairedPatternsId,
   getMoveFamily,
   canMoveBetween,
-  hasSemanticTypeColumn,
+  entryCapabilities,
+  showsSemanticType,
 } from './DictionaryIdClassifier';
 
 // --- Dictionary reload (one action, triggered from the Translator or the Reader) ---

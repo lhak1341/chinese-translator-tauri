@@ -202,8 +202,8 @@ describe('pattern-type filter', () => {
   });
 });
 
-describe('flag filters', () => {
-  test('toggling "Allow as Variable" narrows to entries with allowAsPatternVariable: true', () => {
+describe('variable filter', () => {
+  test('"Allowed" narrows pattern entries to allowAsPatternVariable: true', () => {
     setDict('patterns', {
       X的手: { translation: 'tay của X', allowAsPatternVariable: true },
       X给Y: { translation: 'X cho Y' },
@@ -211,7 +211,7 @@ describe('flag filters', () => {
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
     fireEvent.click(screen.getByTitle('Filter entries'));
 
-    fireEvent.click(screen.getByText('Allow as Variable'));
+    fireEvent.click(screen.getByText('Allowed'));
 
     expect(screen.getByText('tay của X')).toBeTruthy();
     expect(screen.queryByText('X cho Y')).toBeNull();
@@ -262,7 +262,7 @@ describe('clear filters', () => {
 
     expect(screen.queryByText('Clear filters')).toBeNull();
 
-    fireEvent.click(screen.getByText('Allow as Variable'));
+    fireEvent.click(screen.getByText('Allowed'));
     expect(screen.getByText('Clear filters')).toBeTruthy();
     expect(screen.queryByText('X cho Y')).toBeNull();
 
@@ -283,7 +283,7 @@ describe('empty state', () => {
     setDict('patterns', { X的手: { translation: 'tay của X' } });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
     fireEvent.click(screen.getByTitle('Filter entries'));
-    fireEvent.click(screen.getByText('Allow as Variable')); // no entry has allowAsPatternVariable: true
+    fireEvent.click(screen.getByText('Allowed')); // no entry has allowAsPatternVariable: true
 
     expect(screen.getByText('No entries match the active filters')).toBeTruthy();
     expect(screen.queryByText('Dictionary is empty')).toBeNull();
