@@ -323,8 +323,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const canMoveFromSelected = getMoveFamily(selectedDictionary) !== null;
 
   useHotkeyHandler({
-    onUndo: handleUndo,
-    onRedo: handleRedo,
+    handlers: { undo: handleUndo, redo: handleRedo },
     canUndo,
     canRedo,
     ownTab: 'dictionary',

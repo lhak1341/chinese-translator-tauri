@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { matchHotkey } from '../../utils/ui/HotkeyDispatchTable';
-import type { HotkeyHandlerOptions } from '../useHotkeyHandler';
 
 const modals = {
   openQuickAddCharacter: vi.fn(),
@@ -21,7 +20,7 @@ vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),
 }));
 
-import { READER_HOTKEY_PROPS, useReaderCommands } from '../useReaderCommands';
+import { useReaderCommands } from '../useReaderCommands';
 import type { UseReaderCommandsOptions } from '../useReaderCommands';
 
 function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
@@ -81,22 +80,19 @@ describe('useReaderCommands', () => {
         isInputFocused: false,
       });
       expect(matched?.type).toBe(command.action);
-      const prop = READER_HOTKEY_PROPS[command.action as keyof typeof READER_HOTKEY_PROPS];
-      if (prop === null) continue; // registered by the tab container, not here
-      expect(hotkeyProps[prop as keyof HotkeyHandlerOptions]).toBe(
+      expect(hotkeyProps.handlers[command.action as keyof typeof actions]).toBe(
         actions[command.action as keyof typeof actions]
       );
     }
   });
 
-  it('leaves Cmd+B to the tab container, while the palette still offers it', () => {
-    // `TabbedInterface` registers Cmd+B; a second registration here opens the dialog twice.
+  it('owns Cmd+B: the key and the palette row both open the binding dialog', () => {
     const { view, options } = setup();
     const { paletteCommands, hotkeyProps } = view.result.current;
 
-    expect(hotkeyProps).not.toHaveProperty('onBindDictionaries');
+    void hotkeyProps.handlers.bindDictionaries?.();
     paletteCommands.find((command) => command.action === 'bindDictionaries')?.run();
-    expect(options.openBindingDialog).toHaveBeenCalledTimes(1);
+    expect(options.openBindingDialog).toHaveBeenCalledTimes(2);
   });
 
   it('registers its hotkeys as the Reader, so they answer only while it shows', () => {

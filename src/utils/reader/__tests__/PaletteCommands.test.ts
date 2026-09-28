@@ -92,6 +92,16 @@ describe('buildPaletteCommands', () => {
     expect(quickAddCharacter).toHaveBeenCalledWith('萧炎');
   });
 
+  it('hands a non-Add row no text, as its hotkey does', () => {
+    const reloadDictionary = vi.fn();
+    const commands = build({
+      actions: actions({ reloadDictionary }),
+      source: { kind: 'source', text: '萧炎' },
+    });
+    commands.find((command) => command.id === 'reload-dictionaries')?.run();
+    expect(reloadDictionary).toHaveBeenCalledWith();
+  });
+
   it('a refused source stops the Add rows, and only them', () => {
     const quickAddCharacter = vi.fn();
     const nextChapter = vi.fn();

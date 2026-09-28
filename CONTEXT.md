@@ -780,11 +780,11 @@ _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous 
 
 Everything the reader can ask the Reader to do: step a chapter, open the outline, page, reload or bind dictionaries, add an entry, switch books. Each is **one action**, named by the hotkey dispatch table's own action type (`previousChapter`, `quickAddCharacter`, …), and reachable by up to three **routes**: a palette row, a hotkey, or a button. Every route runs the same function, so a palette row and the key its hint advertises cannot do different things.
 
-The one exception is a route the Reader does not own. Cmd+B (bind dictionaries) is registered by the tab container for every tab, so the Reader offers it in the palette but must not register the key a second time.
+Every route the Reader offers, it owns: its action record is passed straight to `useHotkeyHandler` as its `handlers` map (keyed by the same action types), under `ownTab: 'reader'`. Cmd+B lived in the tab container's `'app'` registration until 2026-09-28 (architecture review candidate #6), which is why the Reader once had to leave it out.
 
 The palette also has **rows of its own**, which are not actions: switching to another book, and reopening the open book with a different encoding. They have no key, and an action id is a hotkey action type, so these rows carry no action id and run their own function. They are the palette's Books group.
 
-An Add action takes the text to pre-fill, and both routes get it from `resolveQuickAddSource` (see "Selection mapping"). The palette asks when it opens, because typing into the palette's search box clears the page selection; a refusal makes its Add rows toast instead of opening. A hotkey asks when pressed.
+An Add action takes the text to pre-fill, and both routes get it from `resolveQuickAddSource` (see "Selection mapping"). Which actions take it is one table fact, `SOURCE_ACTION_LABELS` in `HotkeyDispatchTable.ts` — Cmd-1…7 and Cmd+Shift+N (`quickAdd`, which opened empty until 2026-09-28) — read by the hotkey hook and the palette alike; every other action gets no text by either route. The palette asks when it opens, because typing into the palette's search box clears the page selection; a refusal makes its Add rows toast instead of opening. A hotkey asks when pressed.
 
 **`src/hooks/useReaderCommands.ts`** holds the action record, the Add dialog, the palette, and the fiction Adds filed under the book's binding. **`src/utils/reader/PaletteCommands.ts`** is the palette's row table (label, shortcut hint, group, search keywords, action id), and **`ReaderActions.ts`** names the actions.
 

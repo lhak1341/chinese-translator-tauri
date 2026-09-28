@@ -78,3 +78,11 @@ The registry this ADR rejected is still rejected: its `when` predicates would ha
 Ownership is also what keeps two registrations from both answering one key (Cmd+R on the Reader must reload once), which per-caller `activeTab` did implicitly by the hidden caller passing nothing. Pinned by the `ownership` rows in `HotkeyDispatchTable.test.ts` and the two-registration test in `useHotkeyHandler.test.ts`.
 
 Revisit a registry only if registrations start needing rules the table cannot express from `(key, visibleTab, ownTab, canUndo, canRedo)` alone.
+
+## Addendum (2026-09-28): handlers keyed by action type — still not a registry
+
+`useHotkeyHandler` took one `on*` option per action and mapped `HotkeyAction['type']` to it in a 70-line `switch`; the Reader kept a third name for each action (`READER_HOTKEY_PROPS`), and which actions receive the selection was decided twice — in the switch and in the Reader palette's `'Add entry'` group check. The two disagreed on Cmd+Shift+N: the switch called `onQuickAdd()` with no source, so it opened an empty Add while Cmd-3, wired to the same function, opened one prefilled.
+
+Now `useHotkeyHandler({ handlers, ownTab, canUndo?, canRedo? })` takes `handlers: HotkeyHandlers`, a map keyed by the table's own action types, each handler's argument typed from its action. `SOURCE_ACTION_LABELS` in `HotkeyDispatchTable.ts` is the one fact of which actions start from `resolveQuickAddSource` (Cmd-1…7 and Cmd+Shift+N), read by the hook and the palette. The Reader passes its action record as the map; Cmd+B moved from the tab container's `'app'` registration into it.
+
+This is not the registry rejected above: callers pass no `when` predicates, and every tab rule — ownership included — stays in `matchHotkey`. The revisit condition of the 2026-09-26 addendum still stands.

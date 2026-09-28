@@ -57,7 +57,7 @@ describe('useHotkeyHandler', () => {
   describe('dispatch wiring', () => {
     test('Option+1 dispatches tabSwitch to the Reader — the first tab', async () => {
       const onTabSwitch = vi.fn();
-      renderHotkeys({ onTabSwitch, ownTab: 'app' });
+      renderHotkeys({ handlers: { tabSwitch: onTabSwitch }, ownTab: 'app' });
       fireKey({ key: '1', code: 'Digit1', altKey: true, metaKey: false });
       await flush();
       expect(onTabSwitch).toHaveBeenCalledWith('reader');
@@ -65,7 +65,7 @@ describe('useHotkeyHandler', () => {
 
     test('Option+2 dispatches tabSwitch to the Translator, which shifted down one', async () => {
       const onTabSwitch = vi.fn();
-      renderHotkeys({ onTabSwitch, ownTab: 'app' });
+      renderHotkeys({ handlers: { tabSwitch: onTabSwitch }, ownTab: 'app' });
       fireKey({ key: '2', code: 'Digit2', altKey: true, metaKey: false });
       await flush();
       expect(onTabSwitch).toHaveBeenCalledWith('translator');
@@ -73,7 +73,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Z calls onUndo when canUndo is true', async () => {
       const onUndo = vi.fn();
-      renderHotkeys({ onUndo, canUndo: true, ownTab: 'dictionary' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { undo: onUndo }, canUndo: true, ownTab: 'dictionary' },
+        'dictionary'
+      );
       fireKey({ key: 'z' });
       await flush();
       expect(onUndo).toHaveBeenCalledTimes(1);
@@ -81,7 +84,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Z does not call onUndo when canUndo is false', async () => {
       const onUndo = vi.fn();
-      renderHotkeys({ onUndo, canUndo: false, ownTab: 'dictionary' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { undo: onUndo }, canUndo: false, ownTab: 'dictionary' },
+        'dictionary'
+      );
       fireKey({ key: 'z' });
       await flush();
       expect(onUndo).not.toHaveBeenCalled();
@@ -89,7 +95,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+Z calls onRedo when canRedo is true', async () => {
       const onRedo = vi.fn();
-      renderHotkeys({ onRedo, canRedo: true, ownTab: 'dictionary' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { redo: onRedo }, canRedo: true, ownTab: 'dictionary' },
+        'dictionary'
+      );
       fireKey({ key: 'z', shiftKey: true });
       await flush();
       expect(onRedo).toHaveBeenCalledTimes(1);
@@ -97,7 +106,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N calls onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ onQuickAdd, ownTab: 'translator' }, 'translator');
+      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'translator' }, 'translator');
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).toHaveBeenCalledTimes(1);
@@ -105,7 +114,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+V calls onTranslateFromClipboard', async () => {
       const onTranslateFromClipboard = vi.fn();
-      renderHotkeys({ onTranslateFromClipboard, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { translateFromClipboard: onTranslateFromClipboard }, ownTab: 'translator' },
+        'translator'
+      );
       fireKey({ key: 'v', shiftKey: true });
       await flush();
       expect(onTranslateFromClipboard).toHaveBeenCalledTimes(1);
@@ -116,8 +128,11 @@ describe('useHotkeyHandler', () => {
       const readerReload = vi.fn();
       const { result } = renderHook(
         () => {
-          useHotkeyHandler({ onReloadDictionary: translatorReload, ownTab: 'translator' });
-          useHotkeyHandler({ onReloadDictionary: readerReload, ownTab: 'reader' });
+          useHotkeyHandler({
+            handlers: { reloadDictionary: translatorReload },
+            ownTab: 'translator',
+          });
+          useHotkeyHandler({ handlers: { reloadDictionary: readerReload }, ownTab: 'reader' });
           return useVisibleTab();
         },
         { wrapper: providerAt('reader') }
@@ -137,7 +152,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Z on the Reader does not undo the dictionary registered alongside it', async () => {
       const onUndo = vi.fn();
-      renderHotkeys({ onUndo, canUndo: true, ownTab: 'dictionary' }, 'reader');
+      renderHotkeys({ handlers: { undo: onUndo }, canUndo: true, ownTab: 'dictionary' }, 'reader');
       fireKey({ key: 'z' });
       await flush();
       expect(onUndo).not.toHaveBeenCalled();
@@ -145,7 +160,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+V on the Reader does not translate in the hidden Translator', async () => {
       const onTranslateFromClipboard = vi.fn();
-      renderHotkeys({ onTranslateFromClipboard, ownTab: 'translator' }, 'reader');
+      renderHotkeys(
+        { handlers: { translateFromClipboard: onTranslateFromClipboard }, ownTab: 'translator' },
+        'reader'
+      );
       fireKey({ key: 'v', shiftKey: true });
       await flush();
       expect(onTranslateFromClipboard).not.toHaveBeenCalled();
@@ -160,7 +178,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+L calls onFocusSearch on the Dictionary tab', async () => {
       const onFocusSearch = vi.fn();
-      renderHotkeys({ onFocusSearch, ownTab: 'app' }, 'dictionary');
+      renderHotkeys({ handlers: { focusSearch: onFocusSearch }, ownTab: 'app' }, 'dictionary');
       fireKey({ key: 'l' });
       await flush();
       expect(onFocusSearch).toHaveBeenCalledTimes(1);
@@ -168,7 +186,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+1 on Dictionary tab dispatches dictionaryTabHotkey("1")', async () => {
       const onDictionaryTabHotkey = vi.fn().mockResolvedValue(undefined);
-      renderHotkeys({ onDictionaryTabHotkey, ownTab: 'app' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { dictionaryTabHotkey: onDictionaryTabHotkey }, ownTab: 'app' },
+        'dictionary'
+      );
       fireKey({ key: '1' });
       await flush();
       expect(onDictionaryTabHotkey).toHaveBeenCalledWith('1');
@@ -199,7 +220,10 @@ describe('useHotkeyHandler', () => {
       setSelection('selected 文字');
       const onQuickAddCharacter = vi.fn().mockResolvedValue(undefined);
 
-      renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { quickAddCharacter: onQuickAddCharacter }, ownTab: 'translator' },
+        'translator'
+      );
       fireKey({ key: '1' });
       await flush();
 
@@ -213,7 +237,10 @@ describe('useHotkeyHandler', () => {
       vi.mocked(navigator.clipboard.readText).mockResolvedValue(' 萧炎 ');
       const onQuickAddCharacter = vi.fn().mockResolvedValue(undefined);
 
-      renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { quickAddCharacter: onQuickAddCharacter }, ownTab: 'translator' },
+        'translator'
+      );
       fireKey({ key: '1' });
       await flush();
 
@@ -225,7 +252,10 @@ describe('useHotkeyHandler', () => {
       const unregister = registerSelectionMapper(() => ({ kind: 'mapped', source: '林风' }));
       const onQuickAddProperNoun = vi.fn().mockResolvedValue(undefined);
 
-      renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { quickAddProperNoun: onQuickAddProperNoun }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: '3' });
       await flush();
       unregister();
@@ -242,7 +272,10 @@ describe('useHotkeyHandler', () => {
       }));
       const onQuickAddProperNoun = vi.fn();
 
-      renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { quickAddProperNoun: onQuickAddProperNoun }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: '3' });
       await flush();
       unregister();
@@ -256,7 +289,7 @@ describe('useHotkeyHandler', () => {
       vi.mocked(navigator.clipboard.readText).mockResolvedValue('山脉');
       const onOpenNewRule = vi.fn();
 
-      renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'translator');
+      renderHotkeys({ handlers: { openNewRule: onOpenNewRule }, ownTab: 'app' }, 'translator');
       fireKey({ key: '7' });
       await flush();
 
@@ -267,7 +300,10 @@ describe('useHotkeyHandler', () => {
       setSelection('selected 文字');
       const onQuickAddCharacter = vi.fn().mockRejectedValue(new Error('boom'));
 
-      renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { quickAddCharacter: onQuickAddCharacter }, ownTab: 'translator' },
+        'translator'
+      );
       const event = fireKey({ key: '1' });
       await flush();
 
@@ -281,7 +317,10 @@ describe('useHotkeyHandler', () => {
       setSelection('selected 文字');
       const onQuickAddCharacter = vi.fn();
 
-      renderHotkeys({ onQuickAddCharacter, ownTab: 'dictionary' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { quickAddCharacter: onQuickAddCharacter }, ownTab: 'dictionary' },
+        'dictionary'
+      );
       // On the dictionary tab, Cmd+1 dispatches dictionaryTabHotkey instead — this
       // hook has no onDictionaryTabHotkey wired, so nothing should be called.
       fireKey({ key: '1' });
@@ -295,16 +334,28 @@ describe('useHotkeyHandler', () => {
       setSelection('太岳山脉');
       const onQuickAddProperNoun = vi.fn();
 
-      renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { quickAddProperNoun: onQuickAddProperNoun }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: '3' });
       await flush();
 
       expect(onQuickAddProperNoun).toHaveBeenCalledWith('太岳山脉');
     });
 
+    test('Cmd+Shift+N passes the selection, like Cmd-3 — the same Add', async () => {
+      setSelection('太岳山脉');
+      const quickAdd = vi.fn();
+      renderHotkeys({ handlers: { quickAdd }, ownTab: 'translator' }, 'translator');
+      fireKey({ key: 'n', shiftKey: true });
+      await flush();
+      expect(quickAdd).toHaveBeenCalledWith('太岳山脉');
+    });
+
     test('Cmd+Shift+N on the reader tab calls onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ onQuickAdd, ownTab: 'reader' }, 'reader');
+      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'reader' }, 'reader');
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).toHaveBeenCalledTimes(1);
@@ -312,7 +363,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N on a tab with no add-entry surface does not call onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ onQuickAdd, ownTab: 'app' }, 'rules');
+      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'app' }, 'rules');
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).not.toHaveBeenCalled();
@@ -322,7 +373,7 @@ describe('useHotkeyHandler', () => {
       setSelection('太岳山脉');
       const onOpenNewRule = vi.fn();
 
-      renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'reader');
+      renderHotkeys({ handlers: { openNewRule: onOpenNewRule }, ownTab: 'app' }, 'reader');
       fireKey({ key: '7' });
       await flush();
 
@@ -333,7 +384,7 @@ describe('useHotkeyHandler', () => {
       setSelection('太岳山脉');
       const onOpenNewRule = vi.fn();
 
-      renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'translator');
+      renderHotkeys({ handlers: { openNewRule: onOpenNewRule }, ownTab: 'app' }, 'translator');
       fireKey({ key: '7' });
       await flush();
 
@@ -344,7 +395,7 @@ describe('useHotkeyHandler', () => {
       setSelection('太岳山脉');
       const onOpenNewRule = vi.fn();
 
-      renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'dictionary');
+      renderHotkeys({ handlers: { openNewRule: onOpenNewRule }, ownTab: 'app' }, 'dictionary');
       fireKey({ key: '7' });
       await flush();
 
@@ -355,7 +406,10 @@ describe('useHotkeyHandler', () => {
   describe('Reader palette and outline', () => {
     test('Cmd+K on the Reader opens the command palette', async () => {
       const onOpenCommandPalette = vi.fn();
-      renderHotkeys({ onOpenCommandPalette, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { openCommandPalette: onOpenCommandPalette }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: 'k' });
       await flush();
       expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
@@ -363,7 +417,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+K on the Translator does nothing — the palette belongs to the Reader', async () => {
       const onOpenCommandPalette = vi.fn();
-      renderHotkeys({ onOpenCommandPalette, ownTab: 'app' }, 'translator');
+      renderHotkeys(
+        { handlers: { openCommandPalette: onOpenCommandPalette }, ownTab: 'app' },
+        'translator'
+      );
       fireKey({ key: 'k' });
       await flush();
       expect(onOpenCommandPalette).not.toHaveBeenCalled();
@@ -371,7 +428,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+K does nothing while the Reader is a background tab', async () => {
       const onOpenCommandPalette = vi.fn();
-      renderHotkeys({ onOpenCommandPalette, ownTab: 'reader' }, 'translator');
+      renderHotkeys(
+        { handlers: { openCommandPalette: onOpenCommandPalette }, ownTab: 'reader' },
+        'translator'
+      );
       fireKey({ key: 'k' });
       await flush();
       expect(onOpenCommandPalette).not.toHaveBeenCalled();
@@ -379,7 +439,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+G on the Reader opens the chapter outline', async () => {
       const onOpenChapterOutline = vi.fn();
-      renderHotkeys({ onOpenChapterOutline, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { openChapterOutline: onOpenChapterOutline }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: 'g' });
       await flush();
       expect(onOpenChapterOutline).toHaveBeenCalledTimes(1);
@@ -387,7 +450,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+G on the Dictionary tab does nothing', async () => {
       const onOpenChapterOutline = vi.fn();
-      renderHotkeys({ onOpenChapterOutline, ownTab: 'app' }, 'dictionary');
+      renderHotkeys(
+        { handlers: { openChapterOutline: onOpenChapterOutline }, ownTab: 'app' },
+        'dictionary'
+      );
       fireKey({ key: 'g' });
       await flush();
       expect(onOpenChapterOutline).not.toHaveBeenCalled();
@@ -397,7 +463,10 @@ describe('useHotkeyHandler', () => {
   describe('chapter stepping', () => {
     test('[ steps to the previous chapter on the Reader', async () => {
       const onPreviousChapter = vi.fn();
-      renderHotkeys({ onPreviousChapter, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { previousChapter: onPreviousChapter }, ownTab: 'reader' },
+        'reader'
+      );
       fireKey({ key: '[', metaKey: false });
       await flush();
       expect(onPreviousChapter).toHaveBeenCalledTimes(1);
@@ -405,7 +474,7 @@ describe('useHotkeyHandler', () => {
 
     test('] steps to the next chapter on the Reader', async () => {
       const onNextChapter = vi.fn();
-      renderHotkeys({ onNextChapter, ownTab: 'reader' }, 'reader');
+      renderHotkeys({ handlers: { nextChapter: onNextChapter }, ownTab: 'reader' }, 'reader');
       fireKey({ key: ']', metaKey: false });
       await flush();
       expect(onNextChapter).toHaveBeenCalledTimes(1);
@@ -413,7 +482,10 @@ describe('useHotkeyHandler', () => {
 
     test('[ does nothing while the Reader is a background tab', async () => {
       const onPreviousChapter = vi.fn();
-      renderHotkeys({ onPreviousChapter, ownTab: 'reader' }, 'translator');
+      renderHotkeys(
+        { handlers: { previousChapter: onPreviousChapter }, ownTab: 'reader' },
+        'translator'
+      );
       fireKey({ key: '[', metaKey: false });
       await flush();
       expect(onPreviousChapter).not.toHaveBeenCalled();
@@ -421,7 +493,10 @@ describe('useHotkeyHandler', () => {
 
     test('[ typed into an input does nothing', async () => {
       const onPreviousChapter = vi.fn();
-      renderHotkeys({ onPreviousChapter, ownTab: 'reader' }, 'reader');
+      renderHotkeys(
+        { handlers: { previousChapter: onPreviousChapter }, ownTab: 'reader' },
+        'reader'
+      );
       const input = document.createElement('input');
       document.body.appendChild(input);
       input.dispatchEvent(
@@ -439,11 +514,11 @@ describe('useHotkeyHandler', () => {
       const onUndoSecond = vi.fn();
 
       const { rerender } = renderHotkeys(
-        { onUndo: onUndoFirst, canUndo: true, ownTab: 'dictionary' },
+        { handlers: { undo: onUndoFirst }, canUndo: true, ownTab: 'dictionary' },
         'dictionary'
       );
 
-      rerender({ onUndo: onUndoSecond, canUndo: true, ownTab: 'dictionary' });
+      rerender({ handlers: { undo: onUndoSecond }, canUndo: true, ownTab: 'dictionary' });
 
       fireKey({ key: 'z' });
       await flush();
@@ -455,11 +530,11 @@ describe('useHotkeyHandler', () => {
     test('canUndo flips to false on rerender without remounting the listener', async () => {
       const onUndo = vi.fn();
       const { rerender } = renderHotkeys(
-        { onUndo, canUndo: true, ownTab: 'dictionary' },
+        { handlers: { undo: onUndo }, canUndo: true, ownTab: 'dictionary' },
         'dictionary'
       );
 
-      rerender({ onUndo, canUndo: false, ownTab: 'dictionary' });
+      rerender({ handlers: { undo: onUndo }, canUndo: false, ownTab: 'dictionary' });
 
       fireKey({ key: 'z' });
       await flush();

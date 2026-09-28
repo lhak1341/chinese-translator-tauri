@@ -23,7 +23,7 @@ const { hotkeyRef, dictionariesRef, setSelectedDictionary, toastError } = vi.hoi
 
 vi.mock('../../hooks/useHotkeyHandler', () => ({
   useHotkeyHandler: (options: any) => {
-    hotkeyRef.current = options.onDictionaryTabHotkey;
+    hotkeyRef.current = options.handlers.dictionaryTabHotkey;
   },
 }));
 

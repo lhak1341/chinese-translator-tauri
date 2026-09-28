@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
-import type { TabId } from '../types/ComponentTypes';
 import { useVisibleTab } from '../components/VisibleTabContext';
 import { isEditableTarget } from '../utils/ui/EditableFocus';
-import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
+import {
+  matchHotkey,
+  takesSource,
+  SOURCE_ACTION_LABELS,
+  type HotkeyHandlers,
+} from '../utils/ui/HotkeyDispatchTable';
 import { resolveQuickAddSource } from '../utils/highlighting/SelectionMapping';
 import type { HotkeyAction, HotkeyOwner } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
@@ -10,34 +14,13 @@ import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 
 export interface HotkeyHandlerOptions {
-  onTranslateFromClipboard?: () => void;
-  onUndo?: () => void;
-  onRedo?: () => void;
-  onQuickAdd?: () => void;
+  /** One handler per action this registration answers, keyed by the dispatch table's action
+   * type. Source actions (`SOURCE_ACTION_LABELS`) receive the selection as `text` — for a
+   * selection in a translation panel, the Chinese it maps to
+   * (`utils/highlighting/SelectionMapping.ts`). */
+  handlers: HotkeyHandlers;
   canUndo?: boolean;
   canRedo?: boolean;
-  onTabSwitch?: (tab: TabId) => void;
-  /**
-   * The quick-add callbacks receive the selection as `text` — for a selection in a
-   * translation panel, the Chinese it maps to (`utils/highlighting/SelectionMapping.ts`).
-   */
-  onQuickAddCharacter?: (text?: string) => void;
-  onQuickAddPhrase?: (text?: string) => void;
-  onQuickAddProperNoun?: (text?: string) => void;
-  onQuickAddPattern?: (text?: string) => void;
-  onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
-  onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
-  onReloadDictionary?: () => void;
-  onBindDictionaries?: () => void;
-  onOpenCommandPalette?: () => void;
-  onOpenChapterOutline?: () => void;
-  onPreviousChapter?: () => void;
-  onNextChapter?: () => void;
-  onPageDown?: () => void;
-  onPageUp?: () => void;
-  onFocusSearch?: () => void;
-  onDictionaryTabHotkey?: (key: string) => Promise<void>;
-  onOpenNewRule?: (text?: string) => void;
   /**
    * The tab this registration belongs to, or `'app'` for the tab container's. Not whether
    * it is showing: that comes from `VisibleTabProvider`, so no caller can get it wrong.
@@ -63,11 +46,13 @@ export interface HotkeyHandlerOptions {
  * - Cmd/Ctrl+Z: Undo (Dictionary tab only)
  * - Cmd/Ctrl+Shift+Z: Redo (Dictionary tab only)
  * - Cmd/Ctrl+Shift+V: Translate from clipboard (Translator tab only)
- * - Cmd/Ctrl+Shift+N: Quick add entry (Translator and Reader tabs)
+ * - Cmd/Ctrl+Shift+N: Quick add a proper noun, like Cmd-3 (Translator and Reader tabs)
  *
  * Every tab rule, and which registration answers a key, lives in
  * HotkeyDispatchTable.matchHotkey — testable as a pure function. This hook only listens,
- * asks `resolveQuickAddSource` what an Add starts from, and calls the callback.
+ * asks `resolveQuickAddSource` what a source action (`SOURCE_ACTION_LABELS`) starts from,
+ * and calls the handler keyed by the action's type. Handlers keyed by type are not the
+ * registry ADR-012 rejected: no caller states when its keys fire.
  */
 export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
   // Mirror the whole options object into a ref so frequently-updating props don't force
@@ -107,78 +92,21 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
     };
 
     const dispatch = async (action: HotkeyAction, event: KeyboardEvent): Promise<void> => {
-      const opts = optionsRef.current;
+      const { handlers } = optionsRef.current;
+      if (takesSource(action.type)) {
+        await handleQuickAdd(event, handlers[action.type], SOURCE_ACTION_LABELS[action.type]);
+        return;
+      }
       switch (action.type) {
         case 'tabSwitch':
-          opts.onTabSwitch?.(action.tab);
-          break;
-        case 'quickAdd':
-          opts.onQuickAdd?.();
-          break;
-        case 'translateFromClipboard':
-          opts.onTranslateFromClipboard?.();
-          break;
+          await handlers.tabSwitch?.(action.tab);
+          return;
         case 'dictionaryTabHotkey':
-          await opts.onDictionaryTabHotkey?.(action.key);
-          break;
-        case 'quickAddCharacter':
-          await handleQuickAdd(event, opts.onQuickAddCharacter, 'Add Character');
-          break;
-        case 'quickAddPhrase':
-          await handleQuickAdd(event, opts.onQuickAddPhrase, 'Add Phrase');
-          break;
-        case 'quickAddProperNoun':
-          await handleQuickAdd(event, opts.onQuickAddProperNoun, 'Add Proper Noun');
-          break;
-        case 'quickAddPattern':
-          await handleQuickAdd(event, opts.onQuickAddPattern, 'Add Pattern');
-          break;
-        case 'quickAddCustomProperNoun':
-          await handleQuickAdd(event, opts.onQuickAddCustomProperNoun, 'Add Custom Proper Noun');
-          break;
-        case 'quickAddCustomStructuralPattern':
-          await handleQuickAdd(
-            event,
-            opts.onQuickAddCustomStructuralPattern,
-            'Add Structural Pattern'
-          );
-          break;
-        case 'focusSearch':
-          opts.onFocusSearch?.();
-          break;
-        case 'undo':
-          opts.onUndo?.();
-          break;
-        case 'redo':
-          opts.onRedo?.();
-          break;
-        case 'reloadDictionary':
-          opts.onReloadDictionary?.();
-          break;
-        case 'bindDictionaries':
-          opts.onBindDictionaries?.();
-          break;
-        case 'openCommandPalette':
-          opts.onOpenCommandPalette?.();
-          break;
-        case 'openChapterOutline':
-          opts.onOpenChapterOutline?.();
-          break;
-        case 'previousChapter':
-          opts.onPreviousChapter?.();
-          break;
-        case 'nextChapter':
-          opts.onNextChapter?.();
-          break;
-        case 'pageDown':
-          opts.onPageDown?.();
-          break;
-        case 'pageUp':
-          opts.onPageUp?.();
-          break;
-        case 'openNewRule':
-          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule');
-          break;
+          await handlers.dictionaryTabHotkey?.(action.key);
+          return;
+        default:
+          // Every remaining action takes no argument (`HandlerArgs`).
+          await (handlers[action.type] as (() => void | Promise<void>) | undefined)?.();
       }
     };
 

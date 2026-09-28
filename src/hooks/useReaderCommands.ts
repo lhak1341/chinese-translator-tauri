@@ -8,35 +8,9 @@ import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/Quick
 import { readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
-import type { ReaderActionId, ReaderActions } from '../utils/reader/ReaderActions';
+import type { ReaderActions } from '../utils/reader/ReaderActions';
 import { useDictionaryModals } from './useDictionaryModals';
 import type { HotkeyHandlerOptions } from './useHotkeyHandler';
-
-/**
- * Which `useHotkeyHandler` option each action is wired to — `null` for an action whose
- * key the Reader must not register.
- *
- * `bindDictionaries` is the one: `TabbedInterface` registers Cmd+B for every tab, so
- * passing it here as well would open the dialog twice on one press. The palette still
- * offers it; only the key is someone else's.
- */
-export const READER_HOTKEY_PROPS = {
-  openChapterOutline: 'onOpenChapterOutline',
-  previousChapter: 'onPreviousChapter',
-  nextChapter: 'onNextChapter',
-  bindDictionaries: null,
-  reloadDictionary: 'onReloadDictionary',
-  quickAdd: 'onQuickAdd',
-  quickAddCharacter: 'onQuickAddCharacter',
-  quickAddPhrase: 'onQuickAddPhrase',
-  quickAddProperNoun: 'onQuickAddProperNoun',
-  quickAddPattern: 'onQuickAddPattern',
-  quickAddCustomProperNoun: 'onQuickAddCustomProperNoun',
-  quickAddCustomStructuralPattern: 'onQuickAddCustomStructuralPattern',
-  openCommandPalette: 'onOpenCommandPalette',
-  pageDown: 'onPageDown',
-  pageUp: 'onPageUp',
-} as const satisfies Record<ReaderActionId, keyof HotkeyHandlerOptions | null>;
 
 const EMPTY_SOURCE: QuickAddSource = { kind: 'source', text: '' };
 
@@ -171,16 +145,13 @@ export function useReaderCommands({
     ]
   );
 
-  const hotkeyProps = useMemo<HotkeyHandlerOptions>(() => {
-    // Whether the Reader is showing comes from `VisibleTabProvider`; the table answers
-    // this registration only then, which keeps it and the Translator's from both
-    // answering the same key.
-    const callbacks: Record<string, unknown> = {};
-    for (const [id, prop] of Object.entries(READER_HOTKEY_PROPS)) {
-      if (prop !== null) callbacks[prop] = actions[id as ReaderActionId];
-    }
-    return { ...(callbacks as Partial<HotkeyHandlerOptions>), ownTab: 'reader' };
-  }, [actions]);
+  // The action record is the handler map: its keys are the dispatch table's action types.
+  // Whether the Reader is showing comes from `VisibleTabProvider`; the table answers this
+  // registration only then, which keeps it and the Translator's from both answering a key.
+  const hotkeyProps = useMemo<HotkeyHandlerOptions>(
+    () => ({ handlers: actions, ownTab: 'reader' }),
+    [actions]
+  );
 
   const paletteCommands = useMemo(
     () =>

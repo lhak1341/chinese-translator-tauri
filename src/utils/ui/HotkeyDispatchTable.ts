@@ -26,6 +26,45 @@ export type HotkeyAction =
   | { type: 'pageUp' };
 
 /**
+ * The actions that start from a source text — the selection's Chinese, else the clipboard
+ * (`resolveQuickAddSource`) — with the name a failure toast gives each. One fact, read by the
+ * hotkey hook (which resolves the source for these and no others) and by the Reader's palette
+ * (which passes its source to these and no others), so a key and its palette row always start
+ * from the same text. See CONTEXT.md "Reader Commands".
+ */
+export const SOURCE_ACTION_LABELS = {
+  quickAdd: 'Add Proper Noun',
+  quickAddCharacter: 'Add Character',
+  quickAddPhrase: 'Add Phrase',
+  quickAddProperNoun: 'Add Proper Noun',
+  quickAddPattern: 'Add Pattern',
+  quickAddCustomProperNoun: 'Add Custom Proper Noun',
+  quickAddCustomStructuralPattern: 'Add Structural Pattern',
+  openNewRule: 'Add Rule',
+} as const satisfies Partial<Record<HotkeyAction['type'], string>>;
+
+export type SourceActionType = keyof typeof SOURCE_ACTION_LABELS;
+
+export function takesSource(type: HotkeyAction['type']): type is SourceActionType {
+  return Object.prototype.hasOwnProperty.call(SOURCE_ACTION_LABELS, type);
+}
+
+/** What each action's handler receives: its payload, the source text, or nothing. */
+type HandlerArgs<A extends HotkeyAction> = A extends { type: 'tabSwitch'; tab: infer T }
+  ? [tab: T]
+  : A extends { type: 'dictionaryTabHotkey'; key: infer K }
+    ? [key: K]
+    : A['type'] extends SourceActionType
+      ? [text?: string]
+      : [];
+
+/** A registration's handlers, keyed by the table's own action types. An action with no
+ * handler is not this registration's to answer. */
+export type HotkeyHandlers = {
+  [A in HotkeyAction as A['type']]?: (...args: HandlerArgs<A>) => void | Promise<void>;
+};
+
+/**
  * The tab a hotkey registration belongs to. `'app'` is the tab container's own
  * registration (tab switching, Cmd+B, the Dictionary tab's Cmd-1..6 and Cmd+L, Cmd-7),
  * which answers whichever tab is showing.

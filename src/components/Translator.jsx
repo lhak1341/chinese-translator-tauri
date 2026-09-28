@@ -957,15 +957,17 @@ const Translator = ({ isActive = true }) => {
   return (
     <div className={styles.container}>
       <HotkeyHandler
-        onTranslateFromClipboard={handleTranslateFromClipboard}
-        onQuickAdd={handleQuickAddProperNoun}
-        onQuickAddCharacter={handleQuickAddCharacter}
-        onQuickAddPhrase={handleQuickAddPhrase}
-        onQuickAddProperNoun={handleQuickAddProperNoun}
-        onQuickAddPattern={handleQuickAddPattern}
-        onQuickAddCustomProperNoun={handleQuickAddCustomProperNoun}
-        onQuickAddCustomStructuralPattern={handleQuickAddCustomStructuralPattern}
-        onReloadDictionary={handleForceReload}
+        handlers={{
+          translateFromClipboard: handleTranslateFromClipboard,
+          quickAdd: handleQuickAddProperNoun,
+          quickAddCharacter: handleQuickAddCharacter,
+          quickAddPhrase: handleQuickAddPhrase,
+          quickAddProperNoun: handleQuickAddProperNoun,
+          quickAddPattern: handleQuickAddPattern,
+          quickAddCustomProperNoun: handleQuickAddCustomProperNoun,
+          quickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
+          reloadDictionary: handleForceReload,
+        }}
         ownTab="translator"
       />
 

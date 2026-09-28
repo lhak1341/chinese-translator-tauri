@@ -1,5 +1,6 @@
 import type { ReaderActionId, ReaderActions } from './ReaderActions';
 import type { QuickAddSource } from '../highlighting/SelectionMapping';
+import { takesSource } from '../ui/HotkeyDispatchTable';
 /**
  * The command palette's rows, as data.
  *
@@ -158,12 +159,18 @@ export function buildPaletteCommands({
 }: BuildPaletteCommandsInput): PaletteCommand[] {
   const commands: PaletteCommand[] = ACTION_ROWS.map((row) => ({
     ...row,
+    // Which rows start from the source is the dispatch table's fact, the same one the
+    // hotkey hook reads — so a row and its key always start from the same text.
     run: () => {
-      if (row.group === 'Add entry' && source.kind === 'refused') {
+      if (!takesSource(row.action)) {
+        void actions[row.action]();
+        return;
+      }
+      if (source.kind === 'refused') {
         onRefused(source.reason);
         return;
       }
-      void actions[row.action](source.kind === 'source' ? source.text : undefined);
+      void actions[row.action](source.text);
     },
   }));
 

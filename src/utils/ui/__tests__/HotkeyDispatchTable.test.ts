@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchHotkey } from '../HotkeyDispatchTable';
+import { SOURCE_ACTION_LABELS, takesSource, matchHotkey } from '../HotkeyDispatchTable';
 import { TAB_ORDER } from '../../../constants/tabs';
 import type { MatchHotkeyContext } from '../HotkeyDispatchTable';
 
@@ -510,5 +510,24 @@ describe('ownership', () => {
     expect(matchHotkey(key('b', { meta: true }), own('reader', 'app'))).toEqual({
       type: 'bindDictionaries',
     });
+  });
+});
+
+describe('source actions', () => {
+  it('are exactly the Add keys, Cmd-1…7 and Cmd+Shift+N', () => {
+    expect(Object.keys(SOURCE_ACTION_LABELS).sort()).toEqual(
+      [
+        'openNewRule',
+        'quickAdd',
+        'quickAddCharacter',
+        'quickAddCustomProperNoun',
+        'quickAddCustomStructuralPattern',
+        'quickAddPattern',
+        'quickAddPhrase',
+        'quickAddProperNoun',
+      ].sort()
+    );
+    expect(takesSource('reloadDictionary')).toBe(false);
+    expect(takesSource('quickAdd')).toBe(true);
   });
 });
