@@ -845,8 +845,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1790556156.6904833,
-    "ast_hash": "da499462870dc0c9ecb763c695e3176a",
+    "mtime": 1790558283.6687365,
+    "ast_hash": "129a7b271c898a712851a3760e581e96",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1054,11 +1054,6 @@
     "ast_hash": "133940e0b3274d210f58bd894600b337",
     "semantic_hash": "133940e0b3274d210f58bd894600b337"
   },
-  "src/hooks/useDictionaryModals.js": {
-    "mtime": 1790556141.6168773,
-    "ast_hash": "159083314dad3b05059f2566ee1f8562",
-    "semantic_hash": ""
-  },
   "src/hooks/usePersistSelectedDictionary.ts": {
     "mtime": 1778861733.320457,
     "ast_hash": "419ce731b806988c8723b18ab820007e",
@@ -1105,8 +1100,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790557374.5637155,
-    "ast_hash": "11f5a0227bf5c1262b3ac95297a11a8e",
+    "mtime": 1790558047.7672315,
+    "ast_hash": "bbf850427c5a275d99f002e9562de841",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1840,8 +1835,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790557374.120119,
-    "ast_hash": "67da57b3ee734bd9520539a164aced16",
+    "mtime": 1790558382.2868571,
+    "ast_hash": "1646a24b6c5fe374547cd4b570e5197c",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1890,8 +1885,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790556156.690855,
-    "ast_hash": "85821a4c5f56cd323becd73af9232326",
+    "mtime": 1790558283.671734,
+    "ast_hash": "ed139306657a14624eb5bbd3e67a4375",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2160,8 +2155,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790556156.6898508,
-    "ast_hash": "2ba886bd3a357dc243d79d066b33c700",
+    "mtime": 1790558258.0567145,
+    "ast_hash": "1e5868addbd803a2ab9977cdba584d24",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {
@@ -2277,6 +2272,11 @@
   "src/components/reader/ReaderEngineErrorBanner.tsx": {
     "mtime": 1790525543.0999138,
     "ast_hash": "eb305ca751603fe8f81e4128d5e922a0",
+    "semantic_hash": ""
+  },
+  "src/hooks/useDictionaryModals.tsx": {
+    "mtime": 1790558229.9555414,
+    "ast_hash": "44d9f89108cbbdb64437dae00a6bd23b",
     "semantic_hash": ""
   }
 }

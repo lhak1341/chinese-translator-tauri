@@ -2,8 +2,6 @@ import React, { useCallback, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
-import DictionaryEntry from '../dictionary/DictionaryEntry';
-import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
@@ -189,7 +187,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     setOutline({ focusSearch: true });
   }, []);
 
-  const { actions, paletteCommands, hotkeyProps, palette, quickAdd } = useReaderCommands({
+  const { actions, paletteCommands, hotkeyProps, palette, quickAddDialog } = useReaderCommands({
     books,
     currentFileName: book.fileName,
     fictionDictionary: boundFictionDictionary,
@@ -358,23 +356,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         />
       </div>
 
-      {quickAdd.isOpen && (
-        // Keyed per open: an Add fired over an open dialog mounts a fresh form.
-        <ModalErrorBoundary
-          key={quickAdd.openId}
-          onClose={quickAdd.close}
-          title="❌ Failed to load Add"
-        >
-          <DictionaryEntry
-            onClose={quickAdd.close}
-            selectedDictionary={quickAdd.dictionary}
-            quickAddView={quickAdd.view}
-            shortlist={quickAdd.shortlist}
-            onDictionaryChange={quickAdd.onDictionaryChange}
-            initialSource={quickAdd.initialSource}
-          />
-        </ModalErrorBoundary>
-      )}
+      {quickAddDialog}
 
       {isDialogOpen && (
         <BindingDialog

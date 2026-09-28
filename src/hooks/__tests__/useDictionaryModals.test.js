@@ -7,9 +7,27 @@
  * setModalState fix.
  */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import React from 'react';
+import { render, act } from '@testing-library/react';
 import { useDictionaryModals } from '../useDictionaryModals';
 import { loadQuickAddConfig } from '../../utils/dictionary/QuickAddTarget';
+
+// The hook's output is the rendered dialog. A stub form stands in for DictionaryEntry and
+// records what the dialog hands it — what the Add opened on is read from its props, and the
+// form's own actions (switch dictionary, close) are its callbacks.
+const form = vi.hoisted(() => ({ props: null, mounts: 0 }));
+vi.mock('../../components/dictionary/DictionaryEntry', async () => {
+  const { useEffect } = await import('react');
+  return {
+    default: function StubDictionaryEntry(props) {
+      useEffect(() => {
+        form.mounts++;
+      }, []);
+      form.props = props;
+      return null;
+    },
+  };
+});
 
 vi.mock('../../utils/appConfig', () => ({
   loadAppConfig: vi.fn(),
@@ -33,7 +51,27 @@ function makeConfig({ activeProperNouns = [], defaultQuickAddDictionary = null }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  form.props = null;
+  form.mounts = 0;
 });
+
+/** Renders the hook's dialog, as a surface does. `result.current` is the hook's return. */
+function renderModals(dictionaries, loadView, shortlistMemory) {
+  const result = { current: null };
+  function Surface({ dictionaries: dicts }) {
+    const modals = useDictionaryModals(dicts, loadView, shortlistMemory);
+    result.current = modals;
+    form.props = null; // set again by the stub only if the dialog renders it
+    return modals.dialog;
+  }
+  const view = render(React.createElement(Surface, { dictionaries }));
+  return {
+    result,
+    rerender: (next) => view.rerender(React.createElement(Surface, { dictionaries: next })),
+  };
+}
+
+const isOpen = () => form.props !== null;
 
 // ── Trivial openQuickAdd* wrappers ──────────────────────────────────────────────
 
@@ -44,11 +82,11 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     ['openQuickAddProperNoun', 'properNouns'],
     ['openQuickAddPattern', 'patterns'],
   ])('%s opens the modal with dictionaryId=%s', async (method, expectedId) => {
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(() => result.current[method]('clip text'));
-    expect(result.current.showQuickAdd).toBe(true);
-    expect(result.current.quickAddDictionary).toBe(expectedId);
-    expect(result.current.initialSource).toBe('clip text');
+    expect(isOpen()).toBe(true);
+    expect(form.props.selectedDictionary).toBe(expectedId);
+    expect(form.props.initialSource).toBe('clip text');
   });
 
   test.each([
@@ -62,22 +100,27 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({ activeProperNouns: ['properNouns-f_Novel'], defaultQuickAddDictionary: null })
     );
-    const { result } = renderHook(() =>
-      useDictionaryModals({ 'patterns-f_Novel': {} }, loadQuickAddConfig)
-    );
+    const { result } = renderModals({ 'patterns-f_Novel': {} }, loadQuickAddConfig);
     await act(() => result.current[method]('clip'));
-    expect(result.current.quickAddView).toEqual({
+    expect(form.props.quickAddView).toEqual({
       activeProperNouns: ['properNouns-f_Novel'],
       defaultQuickAddDictionary: null,
     });
   });
 
-  test('every open — even over an open modal — gets a new quickAddOpenId, the form key', async () => {
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+  test('every open — even over an open dialog — mounts a fresh form', async () => {
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(() => result.current.openQuickAddPhrase('一'));
-    const first = result.current.quickAddOpenId;
+    expect(form.mounts).toBe(1);
     await act(() => result.current.openQuickAddCharacter('二'));
-    expect(result.current.quickAddOpenId).not.toBe(first);
+    expect(form.mounts).toBe(2);
+    expect(form.props.initialSource).toBe('二');
+    expect(form.props.selectedDictionary).toBe('characters');
+  });
+
+  test('renders no dialog until an Add opens', () => {
+    renderModals({}, loadQuickAddConfig);
+    expect(isOpen()).toBe(false);
   });
 
   test('every opener asks the injected loadView, once, and decides over what it returns', async () => {
@@ -86,32 +129,29 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
       activeProperNouns: ['properNouns-f_Bound'],
       defaultQuickAddDictionary: 'properNouns-f_Bound',
     }));
-    const { result } = renderHook(() => useDictionaryModals({ 'patterns-f_Bound': {} }, loadView));
+    const { result } = renderModals({ 'patterns-f_Bound': {} }, loadView);
     await act(() => result.current.openQuickAddCustomProperNoun('clip'));
     expect(loadView).toHaveBeenCalledTimes(1);
-    expect(result.current.quickAddDictionary).toBe('properNouns-f_Bound');
+    expect(form.props.selectedDictionary).toBe('properNouns-f_Bound');
     await act(() => result.current.openQuickAddPhrase('clip'));
     expect(loadView).toHaveBeenCalledTimes(2);
-    expect(result.current.quickAddView?.activeProperNouns).toEqual(['properNouns-f_Bound']);
+    expect(form.props.quickAddView?.activeProperNouns).toEqual(['properNouns-f_Bound']);
     expect(loadAppConfig).not.toHaveBeenCalled();
   });
 
-  test('closeQuickAdd resets to the default closed state', async () => {
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+  test("the form's onClose closes the dialog", async () => {
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(() => result.current.openQuickAddCharacter('x'));
-    act(() => result.current.closeQuickAdd());
-    expect(result.current.showQuickAdd).toBe(false);
-    expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.initialSource).toBe('');
-    expect(result.current.quickAddView).toBeNull();
+    act(() => form.props.onClose());
+    expect(isOpen()).toBe(false);
   });
 
-  test('handleQuickAddDictionaryChange swaps only dictionaryId, preserving text', async () => {
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+  test("the form's onDictionaryChange swaps only the dictionary, preserving text", async () => {
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(() => result.current.openQuickAddCharacter('keep me'));
-    act(() => result.current.handleQuickAddDictionaryChange('phrases'));
-    expect(result.current.quickAddDictionary).toBe('phrases');
-    expect(result.current.initialSource).toBe('keep me');
+    act(() => form.props.onDictionaryChange('phrases'));
+    expect(form.props.selectedDictionary).toBe('phrases');
+    expect(form.props.initialSource).toBe('keep me');
   });
 });
 
@@ -125,13 +165,13 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         defaultQuickAddDictionary: 'properNouns-B',
       })
     );
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('properNouns-B');
-    expect(result.current.initialSource).toBe('clip');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('properNouns-B');
+    expect(form.props.initialSource).toBe('clip');
+    expect(isOpen()).toBe(true);
   });
 
   test('falls through to sorted custom dictionaries when default is not in activeProperNouns', async () => {
@@ -141,11 +181,11 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         defaultQuickAddDictionary: 'properNouns-Stale',
       })
     );
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('properNouns-Amy');
+    expect(form.props.selectedDictionary).toBe('properNouns-Amy');
   });
 
   test('without a usable default, prefers fiction over custom over generic (not ASCII order)', async () => {
@@ -159,45 +199,45 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
         ],
       })
     );
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('properNouns-f_Novel');
+    expect(form.props.selectedDictionary).toBe('properNouns-f_Novel');
   });
 
   test('picks the alphabetically-first custom dictionary when no default is set', async () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({ activeProperNouns: ['properNouns', 'properNouns-Zed', 'properNouns-Amy'] })
     );
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('properNouns-Amy');
+    expect(form.props.selectedDictionary).toBe('properNouns-Amy');
   });
 
   test('falls back to properNouns when no custom dictionaries exist', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('properNouns');
+    expect(isOpen()).toBe(true);
   });
 
   test('config load failure falls back to properNouns but still opens the modal (CRITICAL FIX 2026-01-20)', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomProperNoun('clip text');
     });
     // Regression guard for the batching bug: dictionaryId and text must both be
     // correct after the single atomic setModalState call, not left in a partial state.
-    expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.initialSource).toBe('clip text');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('properNouns');
+    expect(form.props.initialSource).toBe('clip text');
+    expect(isOpen()).toBe(true);
   });
 });
 
@@ -217,12 +257,12 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     const dictionaries = { 'patterns-f_Novel': {} };
-    const { result } = renderHook(() => useDictionaryModals(dictionaries, loadQuickAddConfig));
+    const { result } = renderModals(dictionaries, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('patterns-f_Novel');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('patterns-f_Novel');
+    expect(isOpen()).toBe(true);
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -234,21 +274,21 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     const dictionaries = { 'patterns-f_Amy': {} };
-    const { result } = renderHook(() => useDictionaryModals(dictionaries, loadQuickAddConfig));
+    const { result } = renderModals(dictionaries, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('patterns-f_Amy');
+    expect(form.props.selectedDictionary).toBe('patterns-f_Amy');
   });
 
   test('opens root patterns when no paired proper-noun dictionary is active', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }, loadQuickAddConfig));
+    const { result } = renderModals({ patterns: {} }, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('patterns');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('patterns');
+    expect(isOpen()).toBe(true);
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -260,11 +300,11 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
       })
     );
     // f_Novel's pattern dict was never created (or context hasn't been refreshed yet)
-    const { result } = renderHook(() => useDictionaryModals({}, loadQuickAddConfig));
+    const { result } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.showQuickAdd).toBe(false);
+    expect(isOpen()).toBe(false);
     expect(toast.error).toHaveBeenCalledWith(
       'The structural pattern dictionary patterns-f_Novel is missing'
     );
@@ -277,33 +317,28 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
         defaultQuickAddDictionary: 'properNouns-f_Novel',
       })
     );
-    const { result, rerender } = renderHook(
-      ({ dictionaries }) => useDictionaryModals(dictionaries, loadQuickAddConfig),
-      {
-        initialProps: { dictionaries: {} },
-      }
-    );
+    const { result, rerender } = renderModals({}, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.showQuickAdd).toBe(false);
+    expect(isOpen()).toBe(false);
 
-    rerender({ dictionaries: { 'patterns-f_Novel': {} } });
+    rerender({ 'patterns-f_Novel': {} });
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('patterns-f_Novel');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('patterns-f_Novel');
+    expect(isOpen()).toBe(true);
   });
 
   test('config load failure decides with no config: opens root patterns', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }, loadQuickAddConfig));
+    const { result } = renderModals({ patterns: {} }, loadQuickAddConfig);
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.quickAddDictionary).toBe('patterns');
-    expect(result.current.showQuickAdd).toBe(true);
+    expect(form.props.selectedDictionary).toBe('patterns');
+    expect(isOpen()).toBe(true);
   });
 });
 
@@ -317,23 +352,19 @@ describe('useDictionaryModals — quick-add shortlist', () => {
   const dictionaries = { 'patterns-_A': {}, 'patterns-_B': {}, 'patterns-f_C': {} };
 
   test('Cmd-3 opens on root with the shortlist of root and active generics', async () => {
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), new Map());
     await act(() => result.current.openQuickAddProperNoun('名'));
-    expect(result.current.quickAddDictionary).toBe('properNouns');
-    expect(result.current.quickAddShortlist).toEqual({
+    expect(form.props.selectedDictionary).toBe('properNouns');
+    expect(form.props.shortlist).toEqual({
       kind: 'properNoun',
       ids: ['properNouns', 'properNouns-_A', 'properNouns-_B'],
     });
   });
 
   test('Cmd-4 opens with the patterns shortlist', async () => {
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), new Map());
     await act(() => result.current.openQuickAddPattern(''));
-    expect(result.current.quickAddShortlist).toEqual({
+    expect(form.props.shortlist).toEqual({
       kind: 'structuralPattern',
       ids: ['patterns', 'patterns-_A', 'patterns-_B'],
     });
@@ -341,46 +372,38 @@ describe('useDictionaryModals — quick-add shortlist', () => {
 
   test('the next Cmd-3 opens on the last shortlist pick; Cmd-4 remembers separately', async () => {
     const memory = new Map();
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), memory);
     await act(() => result.current.openQuickAddProperNoun(''));
-    act(() => result.current.handleQuickAddDictionaryChange('properNouns-_B'));
-    act(() => result.current.closeQuickAdd());
+    act(() => form.props.onDictionaryChange('properNouns-_B'));
+    act(() => form.props.onClose());
 
     await act(() => result.current.openQuickAddProperNoun(''));
-    expect(result.current.quickAddDictionary).toBe('properNouns-_B');
+    expect(form.props.selectedDictionary).toBe('properNouns-_B');
 
     await act(() => result.current.openQuickAddPattern(''));
-    expect(result.current.quickAddDictionary).toBe('patterns');
+    expect(form.props.selectedDictionary).toBe('patterns');
   });
 
   test('a pick off the shortlist is not remembered', async () => {
     const memory = new Map();
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), memory);
     await act(() => result.current.openQuickAddProperNoun(''));
-    act(() => result.current.handleQuickAddDictionaryChange('phrases'));
+    act(() => form.props.onDictionaryChange('phrases'));
     expect(memory.size).toBe(0);
   });
 
   test('a remembered pick no longer active falls back to root', async () => {
     const memory = new Map([['properNoun', 'properNouns-_Gone']]);
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), memory)
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), memory);
     await act(() => result.current.openQuickAddProperNoun(''));
-    expect(result.current.quickAddDictionary).toBe('properNouns');
+    expect(form.props.selectedDictionary).toBe('properNouns');
   });
 
   test('other openers carry no shortlist', async () => {
-    const { result } = renderHook(() =>
-      useDictionaryModals(dictionaries, async () => twoGenerics(), new Map())
-    );
+    const { result } = renderModals(dictionaries, async () => twoGenerics(), new Map());
     await act(() => result.current.openQuickAddCustomProperNoun(''));
-    expect(result.current.quickAddShortlist).toBeNull();
+    expect(form.props.shortlist).toBeNull();
     await act(() => result.current.openQuickAddPhrase(''));
-    expect(result.current.quickAddShortlist).toBeNull();
+    expect(form.props.shortlist).toBeNull();
   });
 });

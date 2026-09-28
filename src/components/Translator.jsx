@@ -10,8 +10,6 @@ import { useDictionary } from './dictionary/DictionaryContext';
 import { registerDictionaryReload } from '../utils/dictionary';
 import { loadQuickAddConfig } from '../utils/dictionary/QuickAddTarget';
 import HotkeyHandler from './HotkeyHandler';
-import DictionaryEntry from './dictionary/DictionaryEntry';
-import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useEngine } from './EngineContext';
@@ -143,20 +141,13 @@ const Translator = ({ isActive = true }) => {
 
   // Quick Add modal hook
   const {
-    showQuickAdd,
-    quickAddDictionary,
-    initialSource,
-    quickAddOpenId,
-    quickAddView,
-    quickAddShortlist,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
     openQuickAddPattern: handleQuickAddPattern,
     openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
     openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
-    closeQuickAdd,
-    handleQuickAddDictionaryChange,
+    dialog: quickAddDialog,
   } = useDictionaryModals(dictionaries, loadQuickAddConfig);
 
   const [inputText, setInputText] = useState('');
@@ -312,10 +303,9 @@ const Translator = ({ isActive = true }) => {
    * - handleQuickAddProperNoun: Opens Quick Add for proper noun dictionary (Cmd/Ctrl-3)
    * - handleQuickAddPattern: Opens Quick Add for pattern dictionary (Cmd/Ctrl-4)
    * - handleQuickAddCustomProperNoun: Opens Quick Add for custom proper noun (Cmd/Ctrl-5)
-   * - handleQuickAddDictionaryChange: Changes target dictionary in Quick Add modal
-   * - closeQuickAdd: Closes Quick Add modal
+   * - handleQuickAddCustomStructuralPattern: Opens Quick Add for structural pattern (Cmd/Ctrl-6)
    *
-   * See useDictionaryConfig hook for implementation details.
+   * The dialog itself, and everything it does once open, is `useDictionaryModals`'.
    */
 
   /**
@@ -445,7 +435,6 @@ const Translator = ({ isActive = true }) => {
   ); // Added dependencies for character-only handling
 
   // Helper function to scroll to a highlighted element
-  // handleQuickAddDictionaryChange now provided by useDictionaryConfig hook
 
   // Streaming state now managed by useStreamingTranslation hook
 
@@ -1085,24 +1074,7 @@ const Translator = ({ isActive = true }) => {
         translationTextRef={translationTextRef}
         characterOnlyTextRef={characterOnlyTextRef}
       />
-      {/* Add Quick Add Entry modal */}
-      {showQuickAdd && (
-        // Keyed per open: an Add fired over an open dialog mounts a fresh form.
-        <ModalErrorBoundary
-          key={quickAddOpenId}
-          onClose={closeQuickAdd}
-          title="❌ Failed to load Add"
-        >
-          <DictionaryEntry
-            onClose={closeQuickAdd}
-            selectedDictionary={quickAddDictionary}
-            quickAddView={quickAddView}
-            shortlist={quickAddShortlist}
-            onDictionaryChange={handleQuickAddDictionaryChange}
-            initialSource={initialSource}
-          />
-        </ModalErrorBoundary>
-      )}
+      {quickAddDialog}
     </div>
   );
 };

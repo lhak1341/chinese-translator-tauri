@@ -1,12 +1,29 @@
-import { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import DictionaryEntry from '../components/dictionary/DictionaryEntry';
+import ModalErrorBoundary from '../components/ModalErrorBoundary';
 import {
   quickAddTarget,
   quickAddMissMessage,
   quickAddShortlist,
+  type QuickAddKind,
+  type QuickAddShortlist,
+  type QuickAddView,
 } from '../utils/dictionary/QuickAddTarget';
 import toast from '../utils/toast';
 
-const CLOSED = {
+/** What the open Add was opened on. Private: the dialog is the hook's only output of it. */
+interface QuickAddModalState {
+  isOpen: boolean;
+  dictionaryId: string;
+  source: string;
+  view: QuickAddView | null;
+  shortlist: QuickAddShortlist | null;
+  /** New on every open — keys the dialog, so an Add opened over an open one mounts a fresh
+   * form (the form seeds once per mount). */
+  openId: number;
+}
+
+const CLOSED: QuickAddModalState = {
   isOpen: false,
   dictionaryId: 'properNouns',
   source: '',
@@ -15,11 +32,25 @@ const CLOSED = {
   openId: 0,
 };
 
+type OpenQuickAdd = (source?: string) => Promise<void>;
+
+export interface DictionaryModals {
+  openQuickAddCharacter: OpenQuickAdd;
+  openQuickAddPhrase: OpenQuickAdd;
+  openQuickAddProperNoun: OpenQuickAdd;
+  openQuickAddPattern: OpenQuickAdd;
+  openQuickAddCustomProperNoun: OpenQuickAdd;
+  openQuickAddCustomStructuralPattern: OpenQuickAdd;
+  /** The open Add — error boundary + `DictionaryEntry`, wired from the modal state — or
+   * `null`. The surface renders it; it passes nothing in. */
+  dialog: React.ReactNode;
+}
+
 /** The session's last shortlist pick per kind, shared by every surface. */
-const sharedShortlistMemory = new Map();
+const sharedShortlistMemory = new Map<QuickAddKind, string>();
 
 /**
- * Quick Add modal state and handlers.
+ * The quick-add dialog: its openers, and the dialog itself. See CONTEXT.md "Quick-add dialog".
  *
  * Owns the modal's open/close state, and the quick-add view each open decided over: every
  * opener loads the view once through `loadView` and stores it with the target, so the form's
@@ -36,26 +67,22 @@ const sharedShortlistMemory = new Map();
  * by shortlist kind. A pick is remembered when the form switches to a shortlist entry, by the
  * toggle row, its keys, or the dropdown. A remembered pick that is no longer on the shortlist
  * (its book's generics differ) falls back to the root dictionary. The default memory is
- * module-level, so the Translator and the Reader share it for the session.
- *
- * @param {{ [key: string]: unknown }} dictionaries - current DictionaryContext.dictionaries state
- * @param {() => Promise<import('../utils/dictionary/QuickAddTarget').QuickAddView | null>} loadView
- * @param {Map<string, string>} [shortlistMemory] - last pick per shortlist kind; tests inject their own
+ * module-level, so the Translator and the Reader share it for the session; tests inject their
+ * own.
  */
 export function useDictionaryModals(
-  dictionaries,
-  loadView,
-  shortlistMemory = sharedShortlistMemory
-) {
-  const [modalState, setModalState] = useState(CLOSED);
+  dictionaries: { [key: string]: unknown },
+  loadView: () => Promise<QuickAddView | null>,
+  shortlistMemory: Map<QuickAddKind, string> = sharedShortlistMemory
+): DictionaryModals {
+  const [modalState, setModalState] = useState<QuickAddModalState>(CLOSED);
   // The open modal's shortlist, read by the change handler to decide what to remember.
-  const shortlistRef = useRef(null);
-  // Counts opens. Each open's id keys the form, so an Add opened over an open form mounts a
-  // fresh one — the form seeds once per mount.
+  const shortlistRef = useRef<QuickAddShortlist | null>(null);
+  // Counts opens, for each open's `openId`.
   const openCountRef = useRef(0);
 
   const openQuickAdd = useCallback(
-    async (dictionaryId, source = '') => {
+    async (dictionaryId: string, source = ''): Promise<void> => {
       const view = await loadView();
       shortlistRef.current = null;
       setModalState({
@@ -71,11 +98,14 @@ export function useDictionaryModals(
   );
 
   const openQuickAddShortlist = useCallback(
-    async (kind, source = '') => {
+    async (kind: QuickAddKind, source = ''): Promise<void> => {
       const view = await loadView();
       const shortlist = quickAddShortlist(kind, view, dictionaries);
       const remembered = shortlistMemory.get(kind);
-      const dictionaryId = shortlist.ids.includes(remembered) ? remembered : shortlist.ids[0];
+      const dictionaryId =
+        remembered !== undefined && shortlist.ids.includes(remembered)
+          ? remembered
+          : shortlist.ids[0];
       shortlistRef.current = shortlist;
       setModalState({
         isOpen: true,
@@ -89,22 +119,22 @@ export function useDictionaryModals(
     [dictionaries, loadView, shortlistMemory]
   );
 
-  const openQuickAddCharacter = useCallback(
+  const openQuickAddCharacter = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAdd('characters', source),
     [openQuickAdd]
   );
 
-  const openQuickAddPhrase = useCallback(
+  const openQuickAddPhrase = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAdd('phrases', source),
     [openQuickAdd]
   );
 
-  const openQuickAddProperNoun = useCallback(
+  const openQuickAddProperNoun = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAddShortlist('properNoun', source),
     [openQuickAddShortlist]
   );
 
-  const openQuickAddPattern = useCallback(
+  const openQuickAddPattern = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAddShortlist('structuralPattern', source),
     [openQuickAddShortlist]
   );
@@ -120,7 +150,7 @@ export function useDictionaryModals(
    * before the dictionary is resolved, leaving empty dialog fields for Cmd-5.
    */
   const openQuickAddTarget = useCallback(
-    async (kind, source = '') => {
+    async (kind: QuickAddKind, source = ''): Promise<void> => {
       const view = await loadView();
       const target = quickAddTarget(kind, view, dictionaries);
       if (target.kind === 'none') {
@@ -140,23 +170,23 @@ export function useDictionaryModals(
     [dictionaries, loadView]
   );
 
-  const openQuickAddCustomProperNoun = useCallback(
+  const openQuickAddCustomProperNoun = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAddTarget('properNoun', source),
     [openQuickAddTarget]
   );
 
-  const openQuickAddCustomStructuralPattern = useCallback(
+  const openQuickAddCustomStructuralPattern = useCallback<OpenQuickAdd>(
     (source = '') => openQuickAddTarget('structuralPattern', source),
     [openQuickAddTarget]
   );
 
-  const closeQuickAdd = useCallback(() => {
+  const close = useCallback((): void => {
     shortlistRef.current = null;
     setModalState(CLOSED);
   }, []);
 
-  const handleQuickAddDictionaryChange = useCallback(
-    (dictionaryId) => {
+  const changeDictionary = useCallback(
+    (dictionaryId: string): void => {
       const shortlist = shortlistRef.current;
       if (shortlist?.ids.includes(dictionaryId)) shortlistMemory.set(shortlist.kind, dictionaryId);
       setModalState((prev) => ({ ...prev, dictionaryId }));
@@ -164,21 +194,26 @@ export function useDictionaryModals(
     [shortlistMemory]
   );
 
+  const dialog = modalState.isOpen ? (
+    <ModalErrorBoundary key={modalState.openId} onClose={close} title="❌ Failed to load Add">
+      <DictionaryEntry
+        onClose={close}
+        selectedDictionary={modalState.dictionaryId}
+        quickAddView={modalState.view}
+        shortlist={modalState.shortlist}
+        onDictionaryChange={changeDictionary}
+        initialSource={modalState.source}
+      />
+    </ModalErrorBoundary>
+  ) : null;
+
   return {
-    modalState,
-    showQuickAdd: modalState.isOpen,
-    quickAddDictionary: modalState.dictionaryId,
-    initialSource: modalState.source,
-    quickAddOpenId: modalState.openId,
-    quickAddView: modalState.view,
-    quickAddShortlist: modalState.shortlist,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,
     openQuickAddPattern,
     openQuickAddCustomProperNoun,
     openQuickAddCustomStructuralPattern,
-    closeQuickAdd,
-    handleQuickAddDictionaryChange,
+    dialog,
   };
 }

@@ -4,17 +4,13 @@ import { matchHotkey } from '../../utils/ui/HotkeyDispatchTable';
 import type { HotkeyHandlerOptions } from '../useHotkeyHandler';
 
 const modals = {
-  showQuickAdd: false,
-  quickAddDictionary: 'properNouns',
-  initialSource: '',
   openQuickAddCharacter: vi.fn(),
   openQuickAddPhrase: vi.fn(),
   openQuickAddProperNoun: vi.fn(),
   openQuickAddPattern: vi.fn(),
   openQuickAddCustomProperNoun: vi.fn(async () => {}),
   openQuickAddCustomStructuralPattern: vi.fn(async () => {}),
-  closeQuickAdd: vi.fn(),
-  handleQuickAddDictionaryChange: vi.fn(),
+  dialog: null,
 };
 
 vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));

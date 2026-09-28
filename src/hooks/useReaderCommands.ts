@@ -1,14 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
-import {
-  loadQuickAddConfig,
-  type QuickAddShortlist,
-  type QuickAddView,
-} from '../utils/dictionary/QuickAddTarget';
+import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
@@ -67,20 +63,8 @@ export interface ReaderCommands {
   /** Spread into `<HotkeyHandler>`. */
   hotkeyProps: HotkeyHandlerOptions;
   palette: { isOpen: boolean; close: () => void };
-  /** The Add dialog's state, for the `<DictionaryEntry>` it opens. */
-  quickAdd: {
-    isOpen: boolean;
-    dictionary: string;
-    initialSource: string;
-    /** New on every open — keys the dialog, so each Add mounts a fresh form. */
-    openId: number;
-    /** The quick-add view the open Add decided over — its dropdown's choices come from it. */
-    view: QuickAddView | null;
-    /** Cmd-3/Cmd-4's quick-add shortlist, `null` for every other Add. */
-    shortlist: QuickAddShortlist | null;
-    close: () => void;
-    onDictionaryChange: (dictionaryId: string) => void;
-  };
+  /** The open Add, or `null` — `useDictionaryModals`' dialog, for the Reader to render. */
+  quickAddDialog: ReactNode;
 }
 
 /**
@@ -217,15 +201,6 @@ export function useReaderCommands({
     paletteCommands,
     hotkeyProps,
     palette: { isOpen: isPaletteOpen, close: closePalette },
-    quickAdd: {
-      isOpen: modals.showQuickAdd,
-      dictionary: modals.quickAddDictionary,
-      initialSource: modals.initialSource,
-      openId: modals.quickAddOpenId,
-      view: modals.quickAddView,
-      shortlist: modals.quickAddShortlist,
-      close: modals.closeQuickAdd,
-      onDictionaryChange: modals.handleQuickAddDictionaryChange,
-    },
+    quickAddDialog: modals.dialog,
   };
 }

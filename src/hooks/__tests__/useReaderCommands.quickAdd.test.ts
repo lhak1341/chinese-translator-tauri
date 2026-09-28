@@ -7,7 +7,8 @@
  * dropdown (`quickAddChoices` over the stored view) may ever reach the previous novel.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import React from 'react';
+import { act, render } from '@testing-library/react';
 import { quickAddChoices } from '../../utils/dictionary/QuickAddTarget';
 import { registerSelectionMapper } from '../../utils/highlighting/SelectionMapping';
 
@@ -41,6 +42,16 @@ vi.mock('../../utils/appConfig', () => appConfig);
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('../../utils/toast', () => ({ default: toast }));
 
+// A stub form stands in for DictionaryEntry inside the Reader's quick-add dialog and records
+// what the dialog hands it: what the open Add was opened on.
+const form = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+vi.mock('../../components/dictionary/DictionaryEntry', () => ({
+  default: (props: Record<string, unknown>) => {
+    form.props = props;
+    return null;
+  },
+}));
+
 import { useReaderCommands } from '../useReaderCommands';
 import type { UseReaderCommandsOptions } from '../useReaderCommands';
 import type { ReaderActions } from '../../utils/reader/ReaderActions';
@@ -56,7 +67,24 @@ function setup(fictionDictionary: string | null) {
     openBindingDialog: vi.fn(),
     onSwitchBook: vi.fn(),
   };
-  return renderHook(() => useReaderCommands(options));
+  const result = { current: null as unknown as ReturnType<typeof useReaderCommands> };
+  function Reader() {
+    const commands = useReaderCommands(options);
+    result.current = commands;
+    return React.createElement(React.Fragment, null, commands.quickAddDialog);
+  }
+  render(React.createElement(Reader));
+  return { result };
+}
+
+/** What the open Add was opened on, as its form received it. */
+function openAdd() {
+  if (!form.props) throw new Error('no Add is open');
+  return {
+    dictionary: form.props.selectedDictionary as string,
+    initialSource: form.props.initialSource as string,
+    view: form.props.quickAddView as Parameters<typeof quickAddChoices>[0],
+  };
 }
 
 /** The dropdown the open Add would show, over every dictionary that exists. */
@@ -75,6 +103,7 @@ const ADDS: (keyof ReaderActions)[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  form.props = null;
 });
 
 describe("useReaderCommands — Adds decide over the book's binding", () => {
@@ -82,11 +111,11 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
     const view = setup('properNouns-f_TapDo');
 
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
-    expect(view.result.current.quickAdd.dictionary).toBe('properNouns-f_TapDo');
-    expect(view.result.current.quickAdd.initialSource).toBe('萧炎');
+    expect(openAdd().dictionary).toBe('properNouns-f_TapDo');
+    expect(openAdd().initialSource).toBe('萧炎');
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
-    expect(view.result.current.quickAdd.dictionary).toBe('patterns-f_TapDo');
+    expect(openAdd().dictionary).toBe('patterns-f_TapDo');
   });
 
   it.each(ADDS)(
@@ -98,7 +127,7 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
         await view.result.current.actions[action]('萧炎');
       });
 
-      const dropdown = dropdownOf(view.result.current.quickAdd);
+      const dropdown = dropdownOf(openAdd());
       expect(dropdown).toContain('properNouns-f_TapDo');
       expect(dropdown).toContain('patterns-f_TapDo');
       // The non-fiction dictionaries config keeps active stay offered: the binding replaces
@@ -118,8 +147,8 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
 
     // Config's own default is the previous novel's — stale for this book. The first active
     // non-fiction dictionary is the standing Configuration choice that still applies.
-    expect(view.result.current.quickAdd.dictionary).toBe('properNouns-_Cultivation');
-    expect(dropdownOf(view.result.current.quickAdd)).not.toContain('properNouns-f_Previous');
+    expect(openAdd().dictionary).toBe('properNouns-_Cultivation');
+    expect(dropdownOf(openAdd())).not.toContain('properNouns-f_Previous');
   });
 
   it("an unbound book's structural pattern goes to the generic pair, like its proper noun", async () => {
@@ -127,7 +156,7 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
 
-    expect(view.result.current.quickAdd.dictionary).toBe('patterns-_Cultivation');
+    expect(openAdd().dictionary).toBe('patterns-_Cultivation');
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -155,6 +184,6 @@ describe("useReaderCommands — Adds decide over the book's binding", () => {
     });
     unregister();
 
-    expect(view.result.current.quickAdd.initialSource).toBe('萧炎');
+    expect(openAdd().initialSource).toBe('萧炎');
   });
 });
