@@ -7,6 +7,7 @@ import { RequiredSemanticTypeRow } from '../dictionary/SemanticTypePicker';
 import {
   parseValidatedNumber,
   parseValidatedKey,
+  ruleDraftProblem,
 } from '../../utils/dictionary/TransformRuleValidation';
 import {
   applyRule,
@@ -62,27 +63,20 @@ function NewRuleModal({
 
   // Number inputs commit every keystroke straight to draft state with no
   // per-keystroke guard (a typed "-" must stay visible while typing "-5" is
-  // still in progress) — validity is checked here, once, to gate Save instead.
+  // still in progress) — what the draft means is decided once, at Save
+  // (`commitRuleDraft`); this gate and its message, shown next to Save, are the same rule's.
+  const message = ruleDraftProblem(draft, conflictLabel);
+  const canSave = message === null;
   const keyValid = parseValidatedKey(draft.key) !== null;
-  const capitalizeValid = parseValidatedNumber(String(draft.capitalizeExceptN), 0) !== null;
   const charCountValid =
     draft.charCount === undefined || parseValidatedNumber(String(draft.charCount), 1) !== null;
-  const fieldsValid = keyValid && capitalizeValid && charCountValid;
-  const canSave = !conflictLabel && fieldsValid;
   const suffix = draft.matchKind === 'suffix';
 
-  // Shown next to Save, most urgent first.
-  const message = conflictLabel
-    ? `Conflicts with "${conflictLabel}" — same match kind + key already used.`
-    : !keyValid
-      ? `Key must be 1-${MAX_TRANSFORM_RULE_KEY_LENGTH} Chinese characters.`
-      : !capitalizeValid
-        ? 'The lowercase count must be a non-negative number.'
-        : !charCountValid
-          ? 'The length limit must be at least 1.'
-          : null;
-
-  const rule: TransformRule = useMemo(() => ({ ...draft, id: 'new-rule' }), [draft]);
+  // The preview matches on the key as it will be saved — trimmed.
+  const rule: TransformRule = useMemo(
+    () => ({ ...draft, key: draft.key.trim(), id: 'new-rule' }),
+    [draft]
+  );
   const matches = useMemo(
     () => (keyValid && charCountValid ? findRuleMatchingEntries(rule, dictionaries) : []),
     // The search reads only the match criteria; the transform fields don't change what matches.

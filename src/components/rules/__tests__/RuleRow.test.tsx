@@ -83,6 +83,35 @@ describe('RuleRow', () => {
     expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ key: '卫城' }));
   });
 
+  test('clearing the Chars cell saves the rule with no length limit ("—" means any)', () => {
+    renderRow(makeRule({ charCount: 3 }));
+    fireEvent.click(screen.getByLabelText('Total-length limit for City suffix'));
+    const input = screen.getByLabelText('Total-length limit for City suffix');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledTimes(1);
+    expect(updateRule.mock.calls[0][0]).not.toHaveProperty('charCount');
+  });
+
+  test('clearing the Label cell saves the rule with no label', () => {
+    renderRow(makeRule());
+    fireEvent.click(screen.getByLabelText('Label for City suffix'));
+    const input = screen.getByLabelText('Label for City suffix');
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledTimes(1);
+    expect(updateRule.mock.calls[0][0]).not.toHaveProperty('label');
+  });
+
+  test('clearing the Cap cell is rejected — no silent 0', () => {
+    renderRow(makeRule({ capitalizeExceptN: 2 }));
+    fireEvent.click(screen.getByLabelText('Capitalize except N for City suffix'));
+    const input = screen.getByLabelText('Capitalize except N for City suffix');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(updateRule).not.toHaveBeenCalled();
+  });
+
   test('committing a non-Chinese key is silently rejected — updateRule is not called', () => {
     renderRow(makeRule());
     fireEvent.click(screen.getByLabelText('Key for City suffix'));

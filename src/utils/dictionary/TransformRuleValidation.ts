@@ -1,6 +1,7 @@
 import type { TransformRule, TransformRuleMatchKind } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import { SEMANTIC_TYPE_LIST, type SemanticType } from '../../constants/SemanticTypes';
+import { deriveCapitalizeExceptNForKeyEdit } from './TransformRuleEngine';
 
 const MATCH_KINDS: TransformRuleMatchKind[] = ['suffix', 'prefix'];
 
@@ -85,7 +86,112 @@ export function validateTransformRule(raw: unknown): TransformRule | null {
     enabled: r.enabled,
   };
   if (charCount !== undefined) rule.charCount = charCount;
-  if (typeof r.moveReplacement === 'string') rule.moveReplacement = r.moveReplacement;
-  if (typeof r.label === 'string') rule.label = r.label;
+  // Empty optional text means absent — on disk as in both editing surfaces (`commitRuleField`).
+  if (typeof r.moveReplacement === 'string' && r.moveReplacement.trim()) {
+    rule.moveReplacement = r.moveReplacement;
+  }
+  if (typeof r.label === 'string' && r.label.trim()) rule.label = r.label;
   return rule;
+}
+
+// ─── Rule field commit ──────────────────────────────────────────────────────────
+// What an edited value means, for both editing surfaces — the inline RuleRow (one field at a
+// time, on blur) and NewRuleModal (the whole draft, at Save). See CONTEXT.md "Rule field
+// commit". One rule per field: `key` is trimmed; an empty `charCount` is absent (any length);
+// an empty `capitalizeExceptN` is invalid, never a silent 0; empty or whitespace-only
+// `label`/`moveReplacement` are absent, and non-empty ones are trimmed.
+
+/** The Transform Rule fields edited as text. The rest are toggles with typed values. */
+export type RuleTextField = 'key' | 'charCount' | 'capitalizeExceptN' | 'moveReplacement' | 'label';
+
+type RuleDraft = Omit<TransformRule, 'id'>;
+
+/** `raw` trimmed, or `undefined` when nothing is left — how optional text commits. */
+const optionalText = (raw: string): string | undefined => raw.trim() || undefined;
+
+/** Sets or removes an optional field, so an absent value leaves no key behind. */
+function withOptional<R extends RuleDraft, K extends 'charCount' | 'moveReplacement' | 'label'>(
+  rule: R,
+  field: K,
+  value: R[K] | undefined
+): R {
+  const next = { ...rule };
+  if (value === undefined) delete next[field];
+  else next[field] = value;
+  return next;
+}
+
+/**
+ * `rule` with `field` set from the text `raw`, or `null` when `raw` is not a valid value
+ * (the caller keeps the old one). A key of a new length re-derives `capitalizeExceptN`.
+ */
+export function commitRuleField<R extends RuleDraft>(
+  rule: R,
+  field: RuleTextField,
+  raw: string
+): R | null {
+  switch (field) {
+    case 'key': {
+      const key = parseValidatedKey(raw);
+      if (key === null) return null;
+      const capitalizeExceptN = deriveCapitalizeExceptNForKeyEdit(
+        rule.key,
+        key,
+        rule.capitalizeExceptN
+      );
+      return { ...rule, key, capitalizeExceptN };
+    }
+    case 'charCount': {
+      if (!raw.trim()) return withOptional(rule, 'charCount', undefined);
+      const n = parseValidatedNumber(raw, 1);
+      return n === null ? null : withOptional(rule, 'charCount', n);
+    }
+    case 'capitalizeExceptN': {
+      if (!raw.trim()) return null;
+      const n = parseValidatedNumber(raw, 0);
+      return n === null ? null : { ...rule, capitalizeExceptN: n };
+    }
+    case 'moveReplacement':
+    case 'label':
+      return withOptional(rule, field, optionalText(raw));
+  }
+}
+
+/** The draft as a rule is saved, or `null` when a field is invalid (`ruleDraftProblem` says
+ * which). Runs every text field through `commitRuleField`'s rules. The key's
+ * capitalize-default is not re-derived here: the form already did, as the key was typed. */
+export function commitRuleDraft(draft: RuleDraft): RuleDraft | null {
+  const key = parseValidatedKey(draft.key);
+  const capitalizeExceptN = parseValidatedNumber(String(draft.capitalizeExceptN), 0);
+  if (key === null || capitalizeExceptN === null) return null;
+  const rule = commitRuleField(
+    { ...draft, key, capitalizeExceptN },
+    'charCount',
+    draft.charCount === undefined ? '' : String(draft.charCount)
+  );
+  if (rule === null) return null;
+  const withReplacement = withOptional(
+    rule,
+    'moveReplacement',
+    optionalText(draft.moveReplacement ?? '')
+  );
+  return withOptional(withReplacement, 'label', optionalText(draft.label ?? ''));
+}
+
+/** Why the draft can't be saved, most urgent first, or `null` when it can. `conflictLabel`
+ * names an existing rule with the same match kind and (trimmed) key. */
+export function ruleDraftProblem(draft: RuleDraft, conflictLabel: string | null): string | null {
+  if (conflictLabel) {
+    return `Conflicts with "${conflictLabel}" — same match kind + key already used.`;
+  }
+  if (parseValidatedKey(draft.key) === null) {
+    return `Key must be 1-${MAX_TRANSFORM_RULE_KEY_LENGTH} Chinese characters.`;
+  }
+  if (parseValidatedNumber(String(draft.capitalizeExceptN), 0) === null) {
+    return 'The lowercase count must be a non-negative number.';
+  }
+  if (draft.charCount !== undefined && parseValidatedNumber(String(draft.charCount), 1) === null) {
+    return 'The length limit must be at least 1.';
+  }
+  return null;
 }

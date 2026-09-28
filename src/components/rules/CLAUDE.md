@@ -15,9 +15,18 @@ identical key/number/enum contract instead of redefining it) or `TransformRuleEn
 just one component. `RuleFieldValidation.ts` (this directory) now holds only
 `extractHanChars`, a UI-only clipboard-prefill helper with no load-time counterpart.
 
+**What an edited value means is one function, not two components** (2026-09-28, architecture
+review candidate #5): `commitRuleField(rule, field, raw)` for `RuleRow`'s text cells and
+`commitRuleDraft(draft)` for the modal's Save (via `RulesManager.save`), with the modal's gate
+and message from `ruleDraftProblem`. Empty `charCount`/`label`/`moveReplacement` is absent;
+empty `capitalizeExceptN` is invalid; the key and optional text are trimmed. RuleRow's
+optional cells pass `allowEmpty` to `EditableCell` — without it `useInlineFieldEdit` never
+commits an emptied cell, which is how "—"/any stayed impossible to set inline until then.
+`RuleFieldParity.test.tsx`'s second describe pins the empty meaning on both surfaces.
+
 **The derivation-skipped-on-one-path bug class is guarded by the shared functions above**
 (confirmed real: `key`'s `capitalizeExceptN` derivation was missing from one of the 3 call
-sites until 2026-08-14). All 3 call sites (`RuleRow.tsx`, `RulesManager.tsx`, and
+sites until 2026-08-14). All 3 call sites (`RuleRow.tsx` — now through `commitRuleField` —, `RulesManager.tsx`, and
 `NewRuleModal.tsx`'s `handleKeyChange`) are now behaviorally test-proven — the third was the
 last gap, closed 2026-08-24 (architecture review candidate #1 grilling). What's NOT guarded is a brand-new field's JSX simply never being
 added to one of the two files — a presence gap, not a policy gap. `__tests__/

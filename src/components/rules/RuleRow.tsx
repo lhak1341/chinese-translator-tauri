@@ -8,10 +8,9 @@ import {
 } from '../dictionary/TableBuildingBlocks';
 import EditableCell from './EditableCell';
 import {
-  parseValidatedNumber,
-  parseValidatedKey,
+  commitRuleField,
+  type RuleTextField,
 } from '../../utils/dictionary/TransformRuleValidation';
-import { deriveCapitalizeExceptNForKeyEdit } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
@@ -29,9 +28,10 @@ function RuleRow({
   toggleEnabled: (id: string) => Promise<void>;
   onViewMatches: (rule: TransformRule) => void;
 }) {
-  const commitCapitalizeExceptN = async (v: string) => {
-    const n = parseValidatedNumber(v, 0);
-    if (n !== null) await updateRule({ ...rule, capitalizeExceptN: n });
+  // What the typed text means is `commitRuleField`'s; an invalid value keeps the old one.
+  const commit = (field: RuleTextField) => async (raw: string) => {
+    const next = commitRuleField(rule, field, raw);
+    if (next !== null) await updateRule(next);
   };
 
   return (
@@ -62,16 +62,7 @@ function RuleRow({
           value={rule.key}
           label={`Key for ${rule.label || rule.key}`}
           maxLength={MAX_TRANSFORM_RULE_KEY_LENGTH}
-          onCommit={async (key) => {
-            const k = parseValidatedKey(key);
-            if (k === null) return;
-            const capitalizeExceptN = deriveCapitalizeExceptNForKeyEdit(
-              rule.key,
-              k,
-              rule.capitalizeExceptN
-            );
-            await updateRule({ ...rule, key: k, capitalizeExceptN });
-          }}
+          onCommit={commit('key')}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colChars}`}>
@@ -80,10 +71,8 @@ function RuleRow({
           placeholder="—"
           type="number"
           label={`Total-length limit for ${rule.label || rule.key}`}
-          onCommit={async (v) => {
-            const n = parseValidatedNumber(v, 1);
-            if (n !== null) await updateRule({ ...rule, charCount: n });
-          }}
+          allowEmpty
+          onCommit={commit('charCount')}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
@@ -102,7 +91,7 @@ function RuleRow({
           value={String(rule.capitalizeExceptN)}
           type="number"
           label={`Capitalize except N for ${rule.label || rule.key}`}
-          onCommit={commitCapitalizeExceptN}
+          onCommit={commit('capitalizeExceptN')}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colReplace}`}>
@@ -110,7 +99,8 @@ function RuleRow({
           value={rule.moveReplacement ?? ''}
           placeholder="plain gloss"
           label={`Replace key text for ${rule.label || rule.key}`}
-          onCommit={async (v) => updateRule({ ...rule, moveReplacement: v || undefined })}
+          allowEmpty
+          onCommit={commit('moveReplacement')}
         />
       </div>
       <div role="cell" className={styles.colType}>
@@ -129,7 +119,8 @@ function RuleRow({
           value={rule.label ?? ''}
           placeholder="add a label"
           label={`Label for ${rule.label || rule.key}`}
-          onCommit={(label) => updateRule({ ...rule, label })}
+          allowEmpty
+          onCommit={commit('label')}
         />
       </div>
       <div role="cell" className={`${styles.rowActions} ${styles.colActions}`}>

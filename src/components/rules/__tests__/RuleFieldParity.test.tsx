@@ -1,8 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent, cleanup } from '@testing-library/react';
 import NewRuleModal from '../NewRuleModal';
 import RuleRow from '../RuleRow';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
+import { commitRuleDraft } from '../../../utils/dictionary/TransformRuleValidation';
 
 /**
  * Guards the risk documented in rules/CLAUDE.md: NewRuleModal (create) and RuleRow
@@ -125,5 +126,49 @@ describe('RuleRow / NewRuleModal field parity', () => {
     for (const field of ruleFields) {
       expect(checkedFields).toContain(field);
     }
+  });
+});
+
+// The same meaning of "empty" on both surfaces (CONTEXT.md "Rule field commit"): each optional
+// text field, emptied, saves as absent — through RuleRow's per-field commit, and through the
+// modal's draft as RulesManager saves it (`commitRuleDraft`).
+describe('RuleRow / NewRuleModal: an emptied optional field saves as absent', () => {
+  const FILLED: Omit<TransformRule, 'id'> = { ...DRAFT, charCount: 3, moveReplacement: 'thành' };
+
+  test.each([
+    ['charCount', /^Total-length limit/, 'Total-length limit for City suffix'],
+    ['moveReplacement', /^Replace key with/, 'Replace key text for City suffix'],
+    ['label', /^Label \(optional/, 'Label for City suffix'],
+  ] as const)('%s', (field, modalLabel, rowLabel) => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={FILLED}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText(modalLabel), { target: { value: '' } });
+    expect(commitRuleDraft(setDraft.mock.calls[0][0])).not.toHaveProperty(field);
+    cleanup();
+
+    const updateRule = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RuleRow
+        rule={{ id: 'r1', ...FILLED }}
+        updateRule={updateRule}
+        deleteRule={vi.fn()}
+        toggleEnabled={vi.fn()}
+        onViewMatches={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByLabelText(rowLabel));
+    const input = screen.getByLabelText(rowLabel);
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledTimes(1);
+    expect(updateRule.mock.calls[0][0]).not.toHaveProperty(field);
   });
 });

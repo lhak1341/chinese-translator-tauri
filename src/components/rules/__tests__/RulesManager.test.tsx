@@ -222,6 +222,36 @@ describe('RulesManager', () => {
     expect(screen.getByText('Save')).toBeDisabled();
   });
 
+  test('a key typed with spaces still conflicts with the rule it collides with', async () => {
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ id: 'existing', key: '城', label: 'City suffix' })],
+      droppedCount: 0,
+    });
+    render(<RulesManager />);
+    await screen.findByText('城');
+
+    fireEvent.click(screen.getByText('Add Rule'));
+    fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: ' 城 ' } });
+
+    expect(await screen.findByText(/Conflicts with/)).toBeInTheDocument();
+    expect(screen.getByText('Save')).toBeDisabled();
+  });
+
+  test('a new rule saves with its key trimmed and a blank note left out', async () => {
+    render(<RulesManager />);
+    await screen.findByText(/No rules yet/);
+
+    fireEvent.click(screen.getByText('Add Rule'));
+    fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: ' 卫 ' } });
+    fireEvent.change(screen.getByLabelText(/^Label \(optional/), { target: { value: '   ' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(saveTransformRules).toHaveBeenCalledTimes(1));
+    const [saved] = saveTransformRules.mock.calls[0][0] as TransformRule[];
+    expect(saved.key).toBe('卫');
+    expect(saved).not.toHaveProperty('label');
+  });
+
   test('search filters rows by key or label, and shows a matching-search empty state', async () => {
     loadTransformRules.mockResolvedValue({
       rules: [

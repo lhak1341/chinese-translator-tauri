@@ -14,6 +14,7 @@ import {
   deriveCapitalizeExceptNForKeyEdit,
 } from '../../utils/dictionary/TransformRuleEngine';
 import { extractHanChars } from './RuleFieldValidation';
+import { commitRuleDraft } from '../../utils/dictionary/TransformRuleValidation';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
@@ -46,7 +47,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const [viewingMatches, setViewingMatches] = useState<TransformRule | null>(null);
 
   const conflict = draft
-    ? checkConflict({ id: '__new__', matchKind: draft.matchKind, key: draft.key })
+    ? checkConflict({ id: '__new__', matchKind: draft.matchKind, key: draft.key.trim() })
     : undefined;
   const conflictLabel = conflict ? conflict.label || conflict.key : null;
 
@@ -100,9 +101,10 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const closeModal = () => setDraft(null);
 
   const save = async () => {
-    if (!draft || !draft.key || conflictLabel) return;
+    const rule = draft && commitRuleDraft(draft);
+    if (!rule || conflictLabel) return;
     try {
-      await addRule(draft);
+      await addRule(rule);
       setDraft(null);
     } catch {
       // addRule already toasts the reason; leave the modal open to adjust and retry.

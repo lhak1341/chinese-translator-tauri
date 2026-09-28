@@ -79,6 +79,28 @@ describe('useInlineFieldEdit', () => {
     expect(result.current.editing).toBe(false);
   });
 
+  it('with allowEmpty, an emptied field commits as an empty string', async () => {
+    const { result } = renderHook(() =>
+      useInlineFieldEdit('hello', onCommit, { allowEmpty: true })
+    );
+    act(() => result.current.startEdit());
+    act(() => result.current.handleChange('   '));
+    await act(async () => {
+      await result.current.commitEdit();
+    });
+    expect(onCommit).toHaveBeenCalledWith('');
+  });
+
+  it('with allowEmpty, an already-empty field left empty commits nothing', async () => {
+    const { result } = renderHook(() => useInlineFieldEdit('', onCommit, { allowEmpty: true }));
+    act(() => result.current.startEdit());
+    act(() => result.current.handleChange('  '));
+    await act(async () => {
+      await result.current.commitEdit();
+    });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it('commitEdit resets to currentValue and closes when onCommit throws', async () => {
     onCommit.mockRejectedValue(new Error('save failed'));
     const { result } = renderHook(() => useInlineFieldEdit('hello', onCommit));

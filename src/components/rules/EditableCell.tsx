@@ -59,9 +59,14 @@ function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
 function EditableCell({
   value,
   onCommit,
+  allowEmpty,
   ...renderProps
-}: RenderProps & { onCommit: (newValue: string) => Promise<void> }) {
-  const edit = useInlineFieldEdit(value, onCommit);
+}: RenderProps & {
+  onCommit: (newValue: string) => Promise<void>;
+  /** Commit an emptied cell (as `''`) — for an optional field, where clearing is an edit. */
+  allowEmpty?: boolean;
+}) {
+  const edit = useInlineFieldEdit(value, onCommit, { allowEmpty });
   return renderEditableCell(edit, { value, ...renderProps });
 }
 

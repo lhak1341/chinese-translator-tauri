@@ -17,12 +17,15 @@ export interface InlineFieldEdit {
  * currentValue must be the live prop value so the sync effect (`!editing →
  * reset tempValue`) always has the post-save canonical value.
  *
- * onCommit is called only when the value is dirty and non-empty after trim.
- * If onCommit throws, the field resets to currentValue and closes.
+ * onCommit is called with the trimmed value, only when it differs from currentValue and is
+ * non-empty — or, with `allowEmpty`, empty too: for an optional field, where clearing is an
+ * edit (e.g. a Transform Rule's length limit or label). If onCommit throws, the field resets
+ * to currentValue and closes.
  */
 export function useInlineFieldEdit(
   currentValue: string,
-  onCommit: (newValue: string) => Promise<void>
+  onCommit: (newValue: string) => Promise<void>,
+  { allowEmpty = false }: { allowEmpty?: boolean } = {}
 ): InlineFieldEdit {
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(currentValue);
@@ -40,9 +43,10 @@ export function useInlineFieldEdit(
   }, [currentValue]);
 
   const commitEdit = useCallback(async () => {
-    if (tempValue !== currentValue && tempValue.trim()) {
+    const trimmed = tempValue.trim();
+    if (trimmed !== currentValue && (trimmed || allowEmpty)) {
       try {
-        await onCommit(tempValue.trim());
+        await onCommit(trimmed);
       } catch {
         setTempValue(currentValue);
         setEditing(false);
@@ -50,7 +54,7 @@ export function useInlineFieldEdit(
       }
     }
     setEditing(false);
-  }, [tempValue, currentValue, onCommit]);
+  }, [tempValue, currentValue, onCommit, allowEmpty]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

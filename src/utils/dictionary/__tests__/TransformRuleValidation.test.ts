@@ -5,6 +5,9 @@ import {
   isValidMatchKind,
   isValidSemanticType,
   validateTransformRule,
+  commitRuleField,
+  commitRuleDraft,
+  ruleDraftProblem,
 } from '../TransformRuleValidation';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 
@@ -217,5 +220,99 @@ describe('validateTransformRule', () => {
   test('rejects a non-boolean enabled', () => {
     expect(validateTransformRule(makeRaw({ enabled: 1 }))).toBeNull();
     expect(validateTransformRule(makeRaw({ enabled: undefined }))).toBeNull();
+  });
+});
+
+describe('validateTransformRule — empty optional text is absent', () => {
+  test.each(['', '   '])('label %j and moveReplacement %j load as absent', (empty) => {
+    expect(validateTransformRule(makeRaw({ label: empty, moveReplacement: empty }))).toEqual(
+      VALID_RULE
+    );
+  });
+});
+
+describe('commitRuleField', () => {
+  const rule: TransformRule = {
+    ...VALID_RULE,
+    charCount: 3,
+    capitalizeExceptN: 2,
+    moveReplacement: 'thành',
+    label: 'City',
+  };
+
+  test.each([
+    // field               raw       expected change (undefined key = removed), or null = rejected
+    ['charCount', '5', { charCount: 5 }],
+    ['charCount', '', { charCount: undefined }],
+    ['charCount', '  ', { charCount: undefined }],
+    ['charCount', '0', null],
+    ['charCount', 'x', null],
+    ['capitalizeExceptN', '0', { capitalizeExceptN: 0 }],
+    ['capitalizeExceptN', '', null],
+    ['capitalizeExceptN', '-1', null],
+    ['moveReplacement', '  dãy núi ', { moveReplacement: 'dãy núi' }],
+    ['moveReplacement', '', { moveReplacement: undefined }],
+    ['moveReplacement', '   ', { moveReplacement: undefined }],
+    ['label', ' Walls ', { label: 'Walls' }],
+    ['label', '', { label: undefined }],
+    ['label', '  ', { label: undefined }],
+    ['key', ' 卫 ', { key: '卫' }],
+    ['key', '', null],
+    ['key', 'abc', null],
+  ] as const)('%s ← %j', (field, raw, change) => {
+    const committed = commitRuleField(rule, field, raw);
+    if (change === null) {
+      expect(committed).toBeNull();
+      return;
+    }
+    const expected: Record<string, unknown> = { ...rule, ...change };
+    for (const [k, v] of Object.entries(change)) if (v === undefined) delete expected[k];
+    expect(committed).toEqual(expected);
+  });
+
+  test('a key of a new length re-derives capitalizeExceptN; the same length keeps it', () => {
+    expect(commitRuleField(rule, 'key', '卫城')).toMatchObject({
+      key: '卫城',
+      capitalizeExceptN: 2,
+    });
+    expect(commitRuleField(rule, 'key', '卫城门')).toMatchObject({ capitalizeExceptN: 3 });
+    expect(commitRuleField({ ...rule, key: '卫城' }, 'key', '南城')).toMatchObject({
+      capitalizeExceptN: 2,
+    });
+  });
+});
+
+describe('commitRuleDraft', () => {
+  const { id: _id, ...draft } = VALID_RULE;
+
+  test('trims the key and optional text, and drops empty optional text', () => {
+    expect(
+      commitRuleDraft({ ...draft, key: ' 城 ', label: '  ', moveReplacement: ' thành ' })
+    ).toEqual({ ...draft, key: '城', moveReplacement: 'thành' });
+  });
+
+  test('null for an invalid key, lowercase count, or length limit', () => {
+    expect(commitRuleDraft({ ...draft, key: 'abc' })).toBeNull();
+    expect(commitRuleDraft({ ...draft, capitalizeExceptN: Number.NaN })).toBeNull();
+    expect(commitRuleDraft({ ...draft, charCount: 0 })).toBeNull();
+  });
+});
+
+describe('ruleDraftProblem', () => {
+  const { id: _id, ...draft } = VALID_RULE;
+
+  test('most urgent first: conflict, key, lowercase count, length limit', () => {
+    const bad = { ...draft, key: 'abc', capitalizeExceptN: Number.NaN, charCount: 0 };
+    expect(ruleDraftProblem(bad, 'City')).toBe(
+      'Conflicts with "City" — same match kind + key already used.'
+    );
+    expect(ruleDraftProblem(bad, null)).toBe('Key must be 1-4 Chinese characters.');
+    expect(ruleDraftProblem({ ...bad, key: '城' }, null)).toBe(
+      'The lowercase count must be a non-negative number.'
+    );
+    expect(ruleDraftProblem({ ...draft, charCount: 0 }, null)).toBe(
+      'The length limit must be at least 1.'
+    );
+    expect(ruleDraftProblem(draft, null)).toBeNull();
   });
 });
