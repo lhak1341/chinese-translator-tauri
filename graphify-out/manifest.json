@@ -1100,8 +1100,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790563297.776469,
-    "ast_hash": "bd21cfd0004a4a66a93261192fa0a501",
+    "mtime": 1790565093.813225,
+    "ast_hash": "2618cbdfbad4c4bae95d73a6628fa0ba",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1945,8 +1945,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1790384802.9729395,
-    "ast_hash": "6f663fa894b109a2ba46967c19a0e7b3",
+    "mtime": 1790565255.4405332,
+    "ast_hash": "41a27459c2aece33dcc66a5993b4d2ab",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -1975,8 +1975,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790522187.472154,
-    "ast_hash": "82cdc731c9c80826b166c06ed71cd681",
+    "mtime": 1790565282.3218822,
+    "ast_hash": "b3ea4d04e65e936da499151ad8557906",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
