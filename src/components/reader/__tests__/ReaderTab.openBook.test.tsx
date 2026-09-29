@@ -57,7 +57,20 @@ vi.mock('../../../utils/reader/BookRecordsBackend', () => bookRecordsBackend);
 const reconcile = vi.hoisted(() => ({
   reconcileLibraryScan: vi.fn(),
 }));
-vi.mock('../../../utils/reader/ReconcileLibrary', () => reconcile);
+// The real `scanShelf`, over the faked scan and reconcile.
+vi.mock('../../../utils/reader/ReconcileLibrary', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/reader/ReconcileLibrary')>(
+    '../../../utils/reader/ReconcileLibrary'
+  );
+  return {
+    ...actual,
+    scanShelf: (path: string | null) =>
+      actual.scanShelf(path, {
+        scanLibrary: (p) => tauriAPI.scanLibrary(p),
+        reconcile: (books, p) => reconcile.reconcileLibraryScan(books, p),
+      }),
+  };
+});
 
 const { announceOpenBook, announceClosedBook } = vi.hoisted(() => ({
   announceOpenBook: vi.fn(),
@@ -79,9 +92,18 @@ vi.mock('../../../hooks/useReaderEngine', () => ({ useReaderEngine: () => reader
 // pull in virtualizers and engine context this suite has no reason to set up. Each exposes
 // just enough to drive `openBook`'s branches and observe what state it produced.
 vi.mock('../Bookshelf', () => ({
-  default: ({ books, onOpen }: { books: LibraryBook[]; onOpen: (b: LibraryBook) => void }) => (
+  default: ({
+    outcome,
+    notice,
+    onOpen,
+  }: {
+    outcome: { kind: string; books?: LibraryBook[] } | null;
+    notice: string | null;
+    onOpen: (b: LibraryBook) => void;
+  }) => (
     <div>
-      {books.map((b) => (
+      <span>notice:{notice ?? 'none'}</span>
+      {(outcome?.books ?? []).map((b) => (
         <button key={b.fileName} onClick={() => onOpen(b)}>
           open:{b.fileName}
         </button>
@@ -452,5 +474,8 @@ describe('ReaderTab openBook', () => {
 
     await waitFor(() => expect(screen.queryByText('reading:novel.txt')).not.toBeInTheDocument());
     expect(announceOpenBook).not.toHaveBeenCalled();
+    // The open error shows on the shelf, and the scan's shelf stays beside it.
+    await waitFor(() => expect(screen.getByText('notice:disk exploded')).toBeTruthy());
+    expect(screen.getByText('open:novel.txt')).toBeTruthy();
   });
 });

@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import tauriAPI from '../../tauriAPI';
-import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import type {
@@ -12,15 +11,10 @@ import type {
 } from '../../types/ReaderTypes';
 import { readSettledRecords, recordBookOpened } from '../../utils/reader/BookRecordsBackend';
 import { emptyBookRecord } from '../../utils/reader/BookRecord';
-import {
-  reconcileLibraryScan,
-  byShelfTitle,
-  type ShelfBook,
-  type UnavailableBook,
-} from '../../utils/reader/ReconcileLibrary';
 import { useBookBinding } from '../BookBindingContext';
 import type { OpenBookIdentity } from '../BookBindingContext';
 import { useReaderEngine } from '../../hooks/useReaderEngine';
+import { useLibrary } from '../../hooks/useLibrary';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
 import EncodingPrompt from './EncodingPrompt';
@@ -64,16 +58,15 @@ function identityOf(book: OpenBook): OpenBookIdentity {
  * Back returns to it. Back is pure navigation — the book stays decoded in the Rust-side
  * cache, so returning to it is instant. A book closes only when a different one opens.
  */
+const NO_BOOKS: LibraryBook[] = [];
+
 const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
-  const [libraryPath, setLibraryPath] = useState<string>('');
-  const [configuredPath, setConfiguredPath] = useState<string | null>(null);
-  const [books, setBooks] = useState<ShelfBook[]>([]);
-  /** The last scan could not be reconciled against the book records: every book's identity
-   * is unknown until a rescan succeeds. */
-  const [recordsUnavailable, setRecordsUnavailable] = useState(false);
-  const [unavailableBooks, setUnavailableBooks] = useState<UnavailableBook[]>([]);
-  const [isScanning, setIsScanning] = useState(true);
-  const [shelfError, setShelfError] = useState<string | null>(null);
+  const library = useLibrary();
+  const { configuredPath } = library;
+  const books: LibraryBook[] =
+    library.outcome && library.outcome.kind !== 'scanFailed' ? library.outcome.books : NO_BOOKS;
+  /** Opening a book failed — shown on the shelf, separate from the scan's own state. */
+  const [openError, setOpenError] = useState<string | null>(null);
   const [open, setOpen] = useState<OpenState | null>(null);
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
@@ -81,66 +74,6 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   // The Reader's engine queue lives here, above every `BookReader` instance — see
   // `useReaderEngine`.
   const readerEngine = useReaderEngine();
-
-  const scan = useCallback(async (path: string | null): Promise<void> => {
-    setIsScanning(true);
-    try {
-      const result = await tauriAPI.scanLibrary(path);
-      setLibraryPath(result.libraryPath);
-      setShelfError(null);
-      // Reconciliation (lazy fingerprint recompute, relink-on-move, unavailable
-      // marking) runs after every scan, not just the first — a rescan is the only
-      // refresh path this feature has, so it must be the one that catches a book that
-      // moved or came back since the last scan.
-      try {
-        const { shelfBooks, unavailableBooks: missing } = await reconcileLibraryScan(
-          result.books,
-          path
-        );
-        setBooks(shelfBooks);
-        setUnavailableBooks(missing);
-        setRecordsUnavailable(false);
-      } catch (cause) {
-        logger.error('Failed to reconcile book records:', cause);
-        // Reconciliation failure shouldn't blank the shelf — show the scan with each book's
-        // identity unknown (no progress, not "Not started"), in the shelf's own order. No
-        // record was read, so no book can be called missing either.
-        setBooks(result.books.map((book) => ({ ...book, fingerprint: null })).sort(byShelfTitle));
-        setUnavailableBooks([]);
-        setRecordsUnavailable(true);
-      }
-    } catch (cause) {
-      logger.error('Failed to scan the library:', cause);
-      setBooks([]);
-      setUnavailableBooks([]);
-      setRecordsUnavailable(false);
-      setShelfError(extractErrorMessage(cause));
-    } finally {
-      setIsScanning(false);
-    }
-  }, []);
-
-  // One load of the configured path, then one scan. The library folder changes a few
-  // times a year, so there is no watcher and no polling — the Rescan button is the
-  // refresh path.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      let path: string | null = null;
-      try {
-        const config = await loadAppConfig();
-        path = config.reader.libraryPath;
-      } catch (cause) {
-        logger.warn('Falling back to the default library folder:', cause);
-      }
-      if (cancelled) return;
-      setConfiguredPath(path);
-      await scan(path);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scan]);
 
   // Guards against a double-click firing two concurrent `open_book` calls for the same
   // file — each does a full read + decode on the Rust side, so a duplicate is wasted
@@ -176,7 +109,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       }
       if (openingFileNameRef.current === book.fileName) return;
       openingFileNameRef.current = book.fileName;
-      setShelfError(null);
+      setOpenError(null);
       try {
         const result = await tauriAPI.openBook(
           book.fileName,
@@ -225,7 +158,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
-        setShelfError(extractErrorMessage(cause));
+        setOpenError(extractErrorMessage(cause));
         setIsReading(false);
       } finally {
         openingFileNameRef.current = null;
@@ -258,34 +191,6 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       trigger: 'chosen',
     });
   }, [open]);
-
-  const changeFolder = useCallback(async (): Promise<void> => {
-    try {
-      const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
-      const chosen = await openDialog({
-        directory: true,
-        multiple: false,
-        title: 'Choose the library folder',
-      });
-      if (typeof chosen !== 'string') return;
-      await saveAppConfig({ reader: { libraryPath: chosen } });
-      setConfiguredPath(chosen);
-      await scan(chosen);
-    } catch (cause) {
-      logger.error('Failed to change the library folder:', cause);
-      setShelfError(extractErrorMessage(cause));
-    }
-  }, [scan]);
-
-  const resetToDefaultFolder = useCallback(async (): Promise<void> => {
-    try {
-      await saveAppConfig({ reader: { libraryPath: null } });
-    } catch (cause) {
-      logger.error('Failed to reset the library folder:', cause);
-    }
-    setConfiguredPath(null);
-    await scan(null);
-  }, [scan]);
 
   /** Open another book by file name — what the Reader's command palette switches with.
    * Routed through the same `openBook` a shelf click uses, so the new book arrives with
@@ -346,18 +251,16 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   return (
     <div className={styles.container}>
       <Bookshelf
-        books={books}
-        unavailableBooks={unavailableBooks}
-        libraryPath={libraryPath}
-        isUsingDefaultPath={configuredPath === null}
-        isLoading={isScanning}
-        error={shelfError}
-        recordsUnavailable={recordsUnavailable}
+        outcome={library.outcome}
+        libraryPath={library.libraryPath}
+        isUsingDefaultPath={library.isUsingDefaultPath}
+        isLoading={library.isScanning}
+        notice={openError ?? library.folderError}
         openFileName={open?.book.fileName ?? null}
         onOpen={(book) => void openBook(book)}
-        onChooseFolder={() => void changeFolder()}
-        onUseDefaultFolder={() => void resetToDefaultFolder()}
-        onRescan={() => void scan(configuredPath)}
+        onChooseFolder={() => void library.changeFolder()}
+        onUseDefaultFolder={() => void library.resetToDefaultFolder()}
+        onRescan={() => void library.rescan()}
       />
     </div>
   );

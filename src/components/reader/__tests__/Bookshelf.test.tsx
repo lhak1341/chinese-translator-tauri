@@ -13,7 +13,11 @@ import {
   transformRecords,
 } from '../../../utils/reader/BookRecordsBackend';
 import { makeBookRecord } from '../../../utils/reader/__tests__/bookRecordFixture';
-import type { ShelfBook, UnavailableBook } from '../../../utils/reader/ReconcileLibrary';
+import type {
+  ShelfBook,
+  ShelfOutcome,
+  UnavailableBook,
+} from '../../../utils/reader/ReconcileLibrary';
 import type { BookRecords } from '../../../types/ReaderTypes';
 
 const book: ShelfBook = {
@@ -33,15 +37,16 @@ function renderShelf(
   unavailableBooks: UnavailableBook[] = [],
   { books = [book], recordsUnavailable = false } = {}
 ) {
+  const outcome: ShelfOutcome = recordsUnavailable
+    ? { kind: 'recordsUnknown', libraryPath: '/library', books }
+    : { kind: 'loaded', libraryPath: '/library', books, unavailableBooks };
   return render(
     <Bookshelf
-      books={books}
-      unavailableBooks={unavailableBooks}
+      outcome={outcome}
       libraryPath="/library"
       isUsingDefaultPath={false}
       isLoading={false}
-      error={null}
-      recordsUnavailable={recordsUnavailable}
+      notice={null}
       openFileName={null}
       onOpen={vi.fn()}
       onChooseFolder={vi.fn()}
@@ -65,7 +70,7 @@ beforeEach(() => {
 describe('Bookshelf when the book records could not be read', () => {
   test('a book whose identity is unknown shows no progress, not "Not started"', async () => {
     await act(() => seedRecords({ fp1: makeBookRecord({ position: { line: 9, fraction: 0.5 } }) }));
-    renderShelf([], { books: [{ ...book, fingerprint: null }], recordsUnavailable: true });
+    renderShelf([], { recordsUnavailable: true });
 
     expect(screen.queryByText('Not started')).toBeNull();
     expect(screen.queryByText('Not bound')).toBeNull();
@@ -73,7 +78,7 @@ describe('Bookshelf when the book records could not be read', () => {
   });
 
   test('says why, and points at Rescan', () => {
-    renderShelf([], { books: [{ ...book, fingerprint: null }], recordsUnavailable: true });
+    renderShelf([], { recordsUnavailable: true });
     expect(screen.getByText(/Reading progress couldn't be loaded/)).toBeTruthy();
   });
 

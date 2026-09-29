@@ -3,18 +3,18 @@ import type {
   BookRecord,
   BookRecords,
   LibraryBook,
+  LibraryScan,
 } from '../../types/ReaderTypes';
 import tauriAPI from '../../tauriAPI';
 import { logger } from '../logger';
+import { extractErrorMessage } from '../errorHelpers';
 import { loadBookRecords, transformRecords } from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
  * reads it off the live record cache (`useBookRecords`), so it cannot go stale. */
 export interface ShelfBook extends LibraryBook {
-  /** `null` when reconciliation failed, so which record this file is is unknown — the shelf
-   * then shows no progress for it rather than "Not started". */
-  fingerprint: string | null;
+  fingerprint: string;
 }
 
 /** The shelf's order: locale-aware A-Z by title — see `planReconciliation`. */
@@ -209,4 +209,63 @@ export async function reconcileLibraryScan(
       result: { shelfBooks: applied.shelfBooks, unavailableBooks: applied.unavailableBooks },
     };
   });
+}
+
+/**
+ * What one scan of the library came to — the **shelf outcome** (CONTEXT.md "Bookshelf").
+ *
+ * - `loaded`: every scanned file matched to its record.
+ * - `recordsUnknown`: the scan worked but could not be reconciled (the records failed to
+ *   load or save), so no book's identity is known. The books still show, in the shelf's own
+ *   order, with no progress rather than "Not started"; no record was read, so none can be
+ *   called missing either.
+ * - `scanFailed`: the folder itself could not be scanned.
+ */
+export type ShelfOutcome =
+  | {
+      kind: 'loaded';
+      libraryPath: string;
+      books: ShelfBook[];
+      unavailableBooks: UnavailableBook[];
+    }
+  | { kind: 'recordsUnknown'; libraryPath: string; books: LibraryBook[] }
+  | { kind: 'scanFailed'; error: string };
+
+export interface ScanShelfDeps {
+  scanLibrary: (libraryPath: string | null) => Promise<LibraryScan>;
+  reconcile: (books: LibraryBook[], libraryPath: string | null) => Promise<ReconcileResult>;
+}
+
+const defaultScanShelfDeps: ScanShelfDeps = {
+  scanLibrary: (libraryPath) => tauriAPI.scanLibrary(libraryPath),
+  reconcile: (books, libraryPath) => reconcileLibraryScan(books, libraryPath),
+};
+
+/**
+ * Scan the library folder and reconcile it against the book records. Reconciliation runs
+ * after every scan, not just the first — a rescan is the only refresh path the Reader has,
+ * so it must be the one that catches a book that moved or came back since the last scan.
+ */
+export async function scanShelf(
+  libraryPath: string | null,
+  deps: ScanShelfDeps = defaultScanShelfDeps
+): Promise<ShelfOutcome> {
+  let scan: LibraryScan;
+  try {
+    scan = await deps.scanLibrary(libraryPath);
+  } catch (cause) {
+    logger.error('Failed to scan the library:', cause);
+    return { kind: 'scanFailed', error: extractErrorMessage(cause) };
+  }
+  try {
+    const { shelfBooks, unavailableBooks } = await deps.reconcile(scan.books, libraryPath);
+    return { kind: 'loaded', libraryPath: scan.libraryPath, books: shelfBooks, unavailableBooks };
+  } catch (cause) {
+    logger.error('Failed to reconcile book records:', cause);
+    return {
+      kind: 'recordsUnknown',
+      libraryPath: scan.libraryPath,
+      books: [...scan.books].sort(byShelfTitle),
+    };
+  }
 }
