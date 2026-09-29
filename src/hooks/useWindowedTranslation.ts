@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  assembleTranslatedLines,
   computeBands,
   orderChunksByDistance,
   planChunks,
   snapRangeToParagraphs,
 } from '../utils/reader/TranslationWindow';
-import {
-  buildCharacterOnlyLineSegments,
-  buildOriginalLineSegments,
-  buildTranslatedLineSegments,
-  fillSegmentGapsCached,
-} from '../utils/reader/LineSegments';
-import type { PanelRow, ReaderSegment, SegmentedChunk } from '../utils/reader/LineSegments';
+import { EMPTY_PANEL_ROWS, projectPanelRows, rowAt } from '../utils/reader/PanelRows';
+import type { PanelRow, PanelRowsSnapshot } from '../utils/reader/PanelRows';
 import { TranslationChunkCache } from '../utils/reader/TranslationChunkCache';
 import { fillPlan } from '../utils/reader/WindowedTranslationFill';
 import type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
@@ -78,25 +72,6 @@ export interface WindowedTranslation {
 }
 
 /**
- * One row of a Vietnamese panel.
- *
- * Text the reader has not reached yet shows its real Chinese, dimmed, rather than a blank
- * or a grey bar — scrolling ahead still shows something readable, and the row is measured
- * at very nearly its final height, so it barely moves when the Vietnamese lands.
- */
-function vietnameseRow(
-  translated: string | undefined,
-  source: string | undefined,
-  isBlank: boolean,
-  segments?: readonly ReaderSegment[]
-): PanelRow {
-  if (translated !== undefined)
-    return { text: translated, isPending: false, lang: 'vi', isBlank, segments };
-  // Stand-in Chinese carries no runs: they describe the Vietnamese this row will become.
-  return { text: source, isPending: true, lang: 'zh', isBlank };
-}
-
-/**
  * Translates the region the reader is in, on demand, as the anchor moves.
  *
  * The window is a buffer, not a single engine call: the fetch band is planned into chunks
@@ -109,8 +84,8 @@ function vietnameseRow(
  * ordering, per-chunk error isolation — lives in `fillPlan` (`src/utils/reader/
  * WindowedTranslationFill.ts`), a plain async generator with no React in it. This hook is
  * wiring: it plans the band into chunks (`TranslationWindow.ts`), owns the cache instance
- * and the generation counter, drives `fillPlan` inside an effect, and folds landed chunks
- * back into per-line strings/segments for render (`rebuild`).
+ * and the generation counter, drives `fillPlan` inside an effect, and re-projects the panel
+ * rows (`projectPanelRows`, `src/utils/reader/PanelRows.ts`) whenever a chunk lands or leaves.
  *
  * One book per instance: `BookReader` is keyed by fingerprint, so the cache never holds
  * another book's chunks, and the book never needs to be an input here.
@@ -133,11 +108,7 @@ export function useWindowedTranslation({
   isEnabled,
 }: UseWindowedTranslationOptions): WindowedTranslation {
   const cacheRef = useRef<TranslationChunkCache>(new TranslationChunkCache());
-  const linesRef = useRef<Map<number, string>>(new Map());
-  const characterOnlyRef = useRef<Map<number, string>>(new Map());
-  const translatedSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
-  const originalSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
-  const characterOnlySegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
+  const rowsRef = useRef<PanelRowsSnapshot>(EMPTY_PANEL_ROWS);
   const generationRef = useRef(0);
   // Bumps only when the cache itself stops being trustworthy — on unmount, which is also
   // what a book switch is —
@@ -150,31 +121,7 @@ export function useWindowedTranslation({
   const [isTranslating, setIsTranslating] = useState(false);
 
   const rebuild = useCallback((): void => {
-    const entries = cacheRef.current.values();
-    linesRef.current = assembleTranslatedLines(entries);
-    // The character-only pass folds back into lines by exactly the same rule — it is the
-    // same chunks through the same engine — so it reuses the same assembler rather than
-    // growing a second one that could drift from it. A chunk whose gloss has not landed
-    // yet is left out entirely rather than assembled as an empty string: an empty string
-    // is a translated blank line, which would blank the reference panel instead of leaving
-    // the Chinese showing.
-    characterOnlyRef.current = assembleTranslatedLines(
-      entries
-        .filter((entry) => entry.characterOnlyText !== null)
-        .map(({ chunk, characterOnlyText }) => ({
-          chunk,
-          translatedText: characterOnlyText as string,
-        }))
-    );
-    // Cut from the same chunks the lines above were assembled from, so a row's runs and its
-    // plain string are two views of one fold rather than two foldings that can disagree.
-    const segmented: SegmentedChunk[] = entries.map((entry) => ({
-      ...entry,
-      translatedSegments: entry.prebuiltSegments,
-    }));
-    translatedSegmentsRef.current = buildTranslatedLineSegments(segmented);
-    originalSegmentsRef.current = buildOriginalLineSegments(segmented);
-    characterOnlySegmentsRef.current = buildCharacterOnlyLineSegments(segmented);
+    rowsRef.current = projectPanelRows(cacheRef.current.values());
     forceRender((n) => n + 1);
   }, []);
 
@@ -257,45 +204,17 @@ export function useWindowedTranslation({
 
   const translationRow = useCallback(
     (index: number): PanelRow =>
-      vietnameseRow(
-        linesRef.current.get(index),
-        getLine(index),
-        isBlankAt(index),
-        translatedSegmentsRef.current.get(index)
-      ),
+      rowAt(rowsRef.current, 'translation', index, getLine(index), isBlankAt(index)),
     [getLine, isBlankAt]
   );
-
   const originalRow = useCallback(
-    (index: number): PanelRow => {
-      const line = getLine(index);
-      const segments = line === undefined ? undefined : originalSegmentsRef.current.get(index);
-      return {
-        text: line,
-        // The source panel is only ever pending on its own page fetch, never on translation.
-        isPending: line === undefined,
-        lang: 'zh',
-        isBlank: isBlankAt(index),
-        // A chunk covers part of a line before the rest of it lands, and this panel shows
-        // the file's own line either way — so whatever no run covers is filled back in as
-        // plain text rather than dropped. Cached on the runs' own identity: this runs per
-        // rendered row per render, and a fresh array each time is a changed prop for every
-        // row in the panel.
-        segments:
-          segments && line !== undefined ? fillSegmentGapsCached(line, segments) : undefined,
-      };
-    },
+    (index: number): PanelRow =>
+      rowAt(rowsRef.current, 'original', index, getLine(index), isBlankAt(index)),
     [getLine, isBlankAt]
   );
-
   const characterOnlyRow = useCallback(
     (index: number): PanelRow =>
-      vietnameseRow(
-        characterOnlyRef.current.get(index),
-        getLine(index),
-        isBlankAt(index),
-        characterOnlySegmentsRef.current.get(index)
-      ),
+      rowAt(rowsRef.current, 'characterOnly', index, getLine(index), isBlankAt(index)),
     [getLine, isBlankAt]
   );
 

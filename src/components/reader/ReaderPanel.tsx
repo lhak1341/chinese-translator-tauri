@@ -1,6 +1,7 @@
 import React from 'react';
 import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
-import type { PanelRow, ReaderSegment } from '../../utils/reader/LineSegments';
+import type { ReaderSegment } from '../../utils/reader/LineSegments';
+import type { PanelRow } from '../../utils/reader/PanelRows';
 import { sanitizeString } from '../../utils/configValidation';
 import styles from '../../styles/Reader.module.css';
 

@@ -329,7 +329,9 @@ describe('useWindowedTranslation (characterization)', () => {
  * What a panel row is — the rules `BookReader` used to apply by hand to five getters, with
  * no test of its own.
  */
-describe('useWindowedTranslation — panel rows', () => {
+// What each row shows is PanelRows' (src/utils/reader/PanelRows.ts), table-tested there. What
+// stays here is when the hook re-projects: the version the memoized panels watch.
+describe('useWindowedTranslation — contentVersion', () => {
   function render(lines: (string | undefined)[], options: { isEnabled?: boolean } = {}) {
     const getLine = (i: number): string | undefined => lines[i];
     const translateChunk = vi.fn(async (text: string) => chunkResult(`T(${text})`));
@@ -352,88 +354,6 @@ describe('useWindowedTranslation — panel rows', () => {
       { initialProps: { linesVersion: 0 } }
     );
   }
-
-  it('shows a Vietnamese row its Chinese, dimmed and without runs, until it lands', async () => {
-    const { result } = render(['你好'], { isEnabled: false });
-
-    for (const row of [
-      result.current.getRow.translation(0),
-      result.current.getRow.characterOnly(0),
-    ]) {
-      expect(row).toMatchObject({ text: '你好', isPending: true, lang: 'zh', isBlank: false });
-      // Runs describe the Vietnamese the row will become, not the stand-in.
-      expect(row.segments).toBeUndefined();
-    }
-  });
-
-  it('shows the Vietnamese once the chunk lands', async () => {
-    const { result } = render(['你好']);
-
-    await waitFor(() => expect(result.current.getRow.characterOnly(0).isPending).toBe(false));
-    expect(result.current.getRow.translation(0)).toMatchObject({
-      text: 'T(你好)',
-      isPending: false,
-      lang: 'vi',
-    });
-    expect(result.current.getRow.characterOnly(0)).toMatchObject({ text: 'G(你好)', lang: 'vi' });
-  });
-
-  it('keeps the original row pending only on its own page, never on translation', () => {
-    const { result } = render(['你好', undefined], { isEnabled: false });
-
-    expect(result.current.getRow.original(0)).toMatchObject({
-      text: '你好',
-      isPending: false,
-      lang: 'zh',
-    });
-    expect(result.current.getRow.original(1)).toMatchObject({ text: undefined, isPending: true });
-  });
-
-  it('fills the rest of an original line no run covers, so the runs still join to the line', async () => {
-    const lines = ['你好'];
-    const getLine = (i: number): string | undefined => lines[i];
-    // A unit for 你 only: 好 is covered by nothing.
-    const translateChunk = vi.fn(async () => ({
-      translatedText: 'Chào',
-      semanticArrays: {
-        original: ['你'],
-        translated: ['Chào'],
-        metadata: [{ tokenIndex: 0, originalStart: 0, originalEnd: 1 }],
-      },
-      prebuiltSegments: [],
-    })) as unknown as Parameters<typeof useWindowedTranslation>[0]['translateChunk'];
-    const { result } = renderHook(() =>
-      useWindowedTranslation({
-        lineCount: 1,
-        anchorLine: 0,
-        viewportLines: 1,
-        overscanLines: 0,
-        linesVersion: 0,
-        getLine,
-        isBlankAt: (i: number) => getLine(i)?.trim() === '',
-        translateChunk,
-        translateGloss: vi.fn(async () => glossResult('g')) as never,
-        dictionaryVersion: 0,
-        isEnabled: true,
-      })
-    );
-
-    await waitFor(() => expect(result.current.getRow.original(0).segments).toBeDefined());
-    const segments = result.current.getRow.original(0).segments ?? [];
-    expect(segments.map((segment) => segment.text).join('')).toBe('你好');
-  });
-
-  it('collapses a blank source line in all three panels', () => {
-    const { result } = render(['你好', '', '再见'], { isEnabled: false });
-
-    expect(result.current.getRow.translation(1).isBlank).toBe(true);
-    expect(result.current.getRow.original(1).isBlank).toBe(true);
-    expect(result.current.getRow.characterOnly(1).isBlank).toBe(true);
-    // An unfetched line is not blank: it keeps its height until its page lands.
-    expect(
-      render([undefined], { isEnabled: false }).result.current.getRow.original(0).isBlank
-    ).toBe(false);
-  });
 
   it('moves contentVersion when a page lands and when a chunk lands', async () => {
     const { result, rerender } = render(['你好']);
