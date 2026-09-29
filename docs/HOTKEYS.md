@@ -65,7 +65,7 @@ instead of dependent on having remembered to change a setting in Configuration.
 | Shortcut               | Action                                                        |
 | ---------------------- | ------------------------------------------------------------- |
 | `Cmd/Ctrl + Shift + V` | Translate from clipboard                                      |
-| `Cmd/Ctrl + Shift + N` | Add entry (proper nouns)                                      |
+| `Cmd/Ctrl + Shift + N` | Add entry (proper nouns), the same as `Cmd/Ctrl + 3`          |
 | `Cmd/Ctrl + R`         | Reload all dictionaries                                       |
 | `Cmd/Ctrl + 1`         | Add → Characters dictionary                                   |
 | `Cmd/Ctrl + 2`         | Add → Phrases dictionary                                      |
