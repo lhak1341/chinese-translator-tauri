@@ -120,7 +120,13 @@ const SegmentedLine: React.FC<{
 }> = React.memo(({ segments, highlight, onSegmentClick }) => (
   <>
     {segments.map((segment) =>
-      segment.chunkKey === '' ? (
+      segment.isPending ? (
+        // Chinese no landed chunk has translated yet, in an otherwise Vietnamese row:
+        // dimmed like a pending row, so the reader can see what is still untranslated.
+        <span key={segment.lineStart} lang="zh" className={styles.pending}>
+          {segment.text}
+        </span>
+      ) : segment.chunkKey === '' ? (
         <span key={segment.lineStart}>{segment.text}</span>
       ) : (
         <span

@@ -534,7 +534,7 @@ const linePieceCache = new WeakMap<ChunkPlan, Map<string, Map<number, string>>>(
  * Keyed by plan *and* text because one plan is folded twice — once for the full
  * translation and once for the character-only gloss — with different text each time.
  */
-function chunkLinePieces(chunk: ChunkPlan, text: string): Map<number, string> {
+export function chunkLinePieces(chunk: ChunkPlan, text: string): Map<number, string> {
   let byText = linePieceCache.get(chunk);
   if (byText === undefined) {
     byText = new Map();

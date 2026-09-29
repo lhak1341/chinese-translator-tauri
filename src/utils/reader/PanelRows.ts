@@ -8,6 +8,9 @@
  * silent-failure rule of the panels lives here, in one place, under table tests:
  *
  * - A Vietnamese row nothing has translated yet shows its Chinese, dimmed, with no runs.
+ * - A row only part of which has landed — a long line split across chunks — shows the
+ *   landed Vietnamese with the rest of its Chinese in place, dimmed, so the reader can see
+ *   what is still untranslated.
  * - A chunk whose gloss has not landed is left out of the reference panel, not assembled as
  *   an empty string — an empty string is a translated blank line, which would blank the row
  *   instead of leaving the Chinese showing.
@@ -19,7 +22,8 @@
  */
 
 import type { CachedChunk } from './TranslationChunkCache';
-import { assembleTranslatedLines } from './TranslationWindow';
+import { assembleTranslatedLines, chunkLinePieces, orderChunksByLine } from './TranslationWindow';
+import type { ChunkPlan } from './TranslationWindow';
 import {
   buildCharacterOnlyLineSegments,
   buildOriginalLineSegments,
@@ -80,9 +84,20 @@ export type ProjectedChunk = Pick<
 >;
 
 /** Every landed chunk, folded into lines. Replaced whole on each projection, never mutated. */
+/** One landed chunk's share of one line: the source it covers and the length of what it
+ * became. `to: null` runs to the end of the line. */
+interface LinePiece {
+  from: number;
+  to: number | null;
+  length: number;
+}
+
 export interface PanelRowsSnapshot {
   readonly translatedLines: ReadonlyMap<number, string>;
   readonly characterOnlyLines: ReadonlyMap<number, string>;
+  /** Per line, in line order, the landed pieces each assembled line is made of. */
+  readonly translatedPieces: ReadonlyMap<number, readonly LinePiece[]>;
+  readonly characterOnlyPieces: ReadonlyMap<number, readonly LinePiece[]>;
   readonly translatedSegments: ReadonlyMap<number, ReaderSegment[]>;
   readonly originalSegments: ReadonlyMap<number, ReaderSegment[]>;
   readonly characterOnlySegments: ReadonlyMap<number, ReaderSegment[]>;
@@ -91,24 +106,45 @@ export interface PanelRowsSnapshot {
 export const EMPTY_PANEL_ROWS: PanelRowsSnapshot = Object.freeze({
   translatedLines: new Map(),
   characterOnlyLines: new Map(),
+  translatedPieces: new Map(),
+  characterOnlyPieces: new Map(),
   translatedSegments: new Map(),
   originalSegments: new Map(),
   characterOnlySegments: new Map(),
 });
+
+/** Which source characters of each line a chunk covers, and how long its piece of each
+ * line came back — the same division `assembleTranslatedLines` concatenates. */
+function linePieces(
+  entries: readonly { chunk: ChunkPlan; translatedText: string }[]
+): Map<number, LinePiece[]> {
+  const byLine = new Map<number, LinePiece[]>();
+  for (const { chunk, translatedText } of orderChunksByLine(entries)) {
+    for (const [line, piece] of chunkLinePieces(chunk, translatedText)) {
+      const pieces = byLine.get(line) ?? [];
+      pieces.push({
+        from: line === chunk.startLine ? chunk.startChar : 0,
+        to: line === chunk.endLine ? chunk.endChar : null,
+        length: piece.length,
+      });
+      byLine.set(line, pieces);
+    }
+  }
+  return byLine;
+}
 
 export function projectPanelRows(entries: readonly ProjectedChunk[]): PanelRowsSnapshot {
   // The character-only pass folds back into lines by exactly the same rule — it is the
   // same chunks through the same engine — so it reuses the same assembler rather than
   // growing a second one that could drift from it. A chunk whose gloss has not landed
   // yet is left out entirely rather than assembled as an empty string.
-  const characterOnlyLines = assembleTranslatedLines(
-    entries
-      .filter((entry) => entry.characterOnlyText !== null)
-      .map(({ chunk, characterOnlyText }) => ({
-        chunk,
-        translatedText: characterOnlyText as string,
-      }))
-  );
+  const glossed = entries
+    .filter((entry) => entry.characterOnlyText !== null)
+    .map(({ chunk, characterOnlyText }) => ({
+      chunk,
+      translatedText: characterOnlyText as string,
+    }));
+  const characterOnlyLines = assembleTranslatedLines(glossed);
   // Cut from the same chunks the lines are assembled from, so a row's runs and its plain
   // string are two views of one fold rather than two foldings that can disagree.
   const segmented: SegmentedChunk[] = entries.map((entry) => ({
@@ -118,6 +154,8 @@ export function projectPanelRows(entries: readonly ProjectedChunk[]): PanelRowsS
   return Object.freeze({
     translatedLines: assembleTranslatedLines(entries),
     characterOnlyLines,
+    translatedPieces: linePieces(entries),
+    characterOnlyPieces: linePieces(glossed),
     translatedSegments: buildTranslatedLineSegments(segmented),
     originalSegments: buildOriginalLineSegments(segmented),
     characterOnlySegments: buildCharacterOnlyLineSegments(segmented),
@@ -144,6 +182,74 @@ function vietnameseRow(
 }
 
 /**
+ * A Vietnamese row whose line only some landed chunks cover: the landed pieces in their
+ * place, and the source they have not covered yet between and around them as dimmed Chinese
+ * runs. `null` when the pieces cover the whole line, which is the ordinary row.
+ */
+function partlyLandedRow(
+  translated: string,
+  line: string,
+  pieces: readonly LinePiece[],
+  segments: readonly ReaderSegment[] | undefined,
+  isBlank: boolean
+): PanelRow | null {
+  const covered = pieces.every(
+    (piece, i) => piece.from === (i === 0 ? 0 : (pieces[i - 1].to ?? line.length))
+  );
+  if (covered && (pieces[pieces.length - 1].to ?? line.length) >= line.length) return null;
+
+  const runs: ReaderSegment[] = [];
+  let text = '';
+  const pending = (chinese: string): void => {
+    runs.push({
+      text: chinese,
+      unitIndex: -1,
+      chunkKey: '',
+      lineStart: text.length,
+      isPending: true,
+    });
+    text += chinese;
+  };
+  let source = 0;
+  let offset = 0; // into `translated`
+  for (const piece of pieces) {
+    if (piece.from > source) pending(line.slice(source, piece.from));
+    const pieceText = translated.slice(offset, offset + piece.length);
+    const pieceRuns = (segments ?? []).filter(
+      (run) => run.lineStart >= offset && run.lineStart < offset + piece.length
+    );
+    const shift = text.length - offset;
+    if (pieceRuns.map((run) => run.text).join('') === pieceText && pieceRuns.length > 0) {
+      for (const run of pieceRuns) runs.push({ ...run, lineStart: run.lineStart + shift });
+    } else if (pieceText !== '') {
+      // No runs for this piece (or runs that do not tile it): one plain run, so the row
+      // still renders through its runs and can dim the gap beside it.
+      runs.push({ text: pieceText, unitIndex: -1, chunkKey: '', lineStart: text.length });
+    }
+    text += pieceText;
+    offset += piece.length;
+    source = piece.to ?? line.length;
+  }
+  if (source < line.length) pending(line.slice(source));
+  return { text, isPending: false, lang: 'vi', isBlank, segments: runs };
+}
+
+/** A Vietnamese panel's row: landed, partly landed, or its Chinese stand-in. */
+function vietnamesePanelRow(
+  translated: string | undefined,
+  line: string | undefined,
+  pieces: readonly LinePiece[] | undefined,
+  segments: readonly ReaderSegment[] | undefined,
+  isBlank: boolean
+): PanelRow {
+  if (translated !== undefined && line !== undefined && pieces !== undefined && pieces.length > 0) {
+    const partial = partlyLandedRow(translated, line, pieces, segments, isBlank);
+    if (partial) return partial;
+  }
+  return vietnameseRow(translated, line, isBlank, segments);
+}
+
+/**
  * Panel `panel`'s row for raw file line `index`. `line` is that line as fetched now
  * (`undefined` before its page lands); `isBlank` must be the panels' own rule, so a row's
  * collapse and its estimated height agree.
@@ -156,19 +262,21 @@ export function rowAt(
   isBlank: boolean
 ): PanelRow {
   if (panel === 'translation') {
-    return vietnameseRow(
+    return vietnamesePanelRow(
       snapshot.translatedLines.get(index),
       line,
-      isBlank,
-      snapshot.translatedSegments.get(index)
+      snapshot.translatedPieces.get(index),
+      snapshot.translatedSegments.get(index),
+      isBlank
     );
   }
   if (panel === 'characterOnly') {
-    return vietnameseRow(
+    return vietnamesePanelRow(
       snapshot.characterOnlyLines.get(index),
       line,
-      isBlank,
-      snapshot.characterOnlySegments.get(index)
+      snapshot.characterOnlyPieces.get(index),
+      snapshot.characterOnlySegments.get(index),
+      isBlank
     );
   }
   const segments = line === undefined ? undefined : snapshot.originalSegments.get(index);

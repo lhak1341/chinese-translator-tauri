@@ -125,16 +125,69 @@ describe('rowAt — after chunks land', () => {
     expect(rowAt(rows, 'translation', 0, '你好再见', false).text).toBe('Xin chào, tạm biệt');
   });
 
-  test('a line split across two chunks, only one landed, shows that one’s Vietnamese alone', () => {
-    // Characterization: the row stops being pending as soon as any piece of it lands, and
-    // shows only the landed piece until the rest arrives — the untranslated half's Chinese
-    // is not shown beside it.
+  test('a line split across two chunks, only the head landed, shows the rest in dimmed Chinese', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào,')]);
+    const row = rowAt(rows, 'translation', 0, '你好再见', false);
 
-    expect(rowAt(rows, 'translation', 0, '你好再见', false)).toMatchObject({
-      text: 'Xin chào,',
-      isPending: false,
-    });
+    expect(row).toMatchObject({ text: 'Xin chào,再见', isPending: false, lang: 'vi' });
+    const runs = row.segments ?? [];
+    expect(runs.map((r) => r.text).join('')).toBe(row.text);
+    expect(runs.filter((r) => r.isPending).map((r) => r.text)).toEqual(['再见']);
+    // The landed run keeps its chunk and unit, so it still highlights.
+    expect(runs[0]).toMatchObject({ text: 'Xin chào,', chunkKey: '0:0-0:2', unitIndex: 0 });
+  });
+
+  test('only the tail landed: the head shows in dimmed Chinese before it', () => {
+    const rows = projectPanelRows([landed(plan(0, 2, 0, 4), '再见', 'tạm biệt')]);
+    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+
+    expect(row.text).toBe('你好tạm biệt');
+    expect(row.segments?.map((r) => [r.text, r.lineStart, !!r.isPending])).toEqual([
+      ['你好', 0, true],
+      ['tạm biệt', 2, false],
+    ]);
+  });
+
+  test('a missing middle piece shows between the two that landed', () => {
+    const rows = projectPanelRows([
+      landed(plan(0, 0, 0, 1), '一', 'một '),
+      landed(plan(0, 2, 0, 3), '三', ' ba'),
+    ]);
+    const row = rowAt(rows, 'translation', 0, '一二三', false);
+
+    expect(row.text).toBe('một 二 ba');
+    expect(row.segments?.filter((r) => r.isPending).map((r) => r.text)).toEqual(['二']);
+  });
+
+  test('the gloss panel shows its own missing pieces the same way', () => {
+    const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào,', 'bạn tốt')]);
+    const row = rowAt(rows, 'characterOnly', 0, '你好再见', false);
+
+    expect(row.text).toBe('bạn tốt再见');
+    expect(row.segments?.filter((r) => r.isPending).map((r) => r.text)).toEqual(['再见']);
+  });
+
+  test('a landed piece with no runs still gets a plain run, so the row can dim its gap', () => {
+    const rows = projectPanelRows([
+      landed(plan(0, 0, 0, 2), '你好', 'Xin chào,', null, { prebuiltSegments: [] }),
+    ]);
+    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+
+    expect(row.segments?.map((r) => [r.text, !!r.isPending])).toEqual([
+      ['Xin chào,', false],
+      ['再见', true],
+    ]);
+  });
+
+  test('a fully covered line is untouched: no pending runs', () => {
+    const rows = projectPanelRows([
+      landed(plan(0, 0, 0, 2), '你好', 'Xin chào,'),
+      landed(plan(0, 2, 0, 4), '再见', ' tạm biệt'),
+    ]);
+    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+
+    expect(row.text).toBe('Xin chào, tạm biệt');
+    expect(row.segments?.some((r) => r.isPending)).toBe(false);
   });
 
   test('the original row fills back in whatever part of the line no run covers', () => {

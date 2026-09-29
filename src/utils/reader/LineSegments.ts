@@ -59,6 +59,11 @@ export interface ReaderSegment {
   translatedText?: string;
   /** Which phase or dictionary produced it, for the hover title. */
   source?: string;
+  /**
+   * Chinese standing in for a piece of the line no landed chunk has translated yet, in a row
+   * that is otherwise Vietnamese — rendered dimmed, never clickable (see `PanelRows`).
+   */
+  isPending?: boolean;
 }
 
 /** A cached chunk's highlighting payload, as this module needs to see it. */

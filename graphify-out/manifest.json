@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790699824.3706021,
-    "ast_hash": "c82d957b422b80a9ef10df4973c022a0",
+    "mtime": 1790701135.3806298,
+    "ast_hash": "e73ced8f252b6652b4f95dce8076b0a3",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790699824.3711417,
-    "ast_hash": "7fd4c801d7a705d35146e5bf585b04d4",
+    "mtime": 1790701206.1993616,
+    "ast_hash": "5d7a856fda92e0678556956b18c99019",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1985,13 +1985,13 @@
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationWindow.ts": {
-    "mtime": 1789898645.597418,
-    "ast_hash": "1b3fcff9f7fc832f23947d2cc38af570",
+    "mtime": 1790701111.914864,
+    "ast_hash": "77972b195dcd8421a611fdcf92d0cbe7",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1790699660.6697206,
-    "ast_hash": "90fc1bdb0175eff0b3ead2f6d6d1e40e",
+    "mtime": 1790701126.2798023,
+    "ast_hash": "495b8f55497ce19752701a8922983395",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
@@ -2075,8 +2075,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/LineSegments.ts": {
-    "mtime": 1790699660.6684356,
-    "ast_hash": "d56a05e9395daa4b7283031412b505c6",
+    "mtime": 1790701111.915356,
+    "ast_hash": "5de5443e193610e4af6d9c948ab1b668",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline_commands.rs": {
@@ -2290,8 +2290,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
-    "mtime": 1790699660.6686637,
-    "ast_hash": "811a8706179ca245f7049956d581e4f0",
+    "mtime": 1790701111.915853,
+    "ast_hash": "3116a27bddd880988b0961a63fd0db4b",
     "semantic_hash": ""
   }
 }
