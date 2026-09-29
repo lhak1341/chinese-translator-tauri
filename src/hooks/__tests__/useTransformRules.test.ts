@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useTransformRules } from '../useTransformRules';
+import { useTransformRuleEditor, useTransformRules } from '../useTransformRules';
+import { invalidateTransformRules } from '../../utils/dictionary/TransformRuleBackend';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
 const { loadTransformRules, saveTransformRules, toastError, toastWarning } = vi.hoisted(() => ({
@@ -8,11 +9,6 @@ const { loadTransformRules, saveTransformRules, toastError, toastWarning } = vi.
   saveTransformRules: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
-}));
-
-vi.mock('../../utils/dictionary/TransformRuleBackend', () => ({
-  loadTransformRules,
-  saveTransformRules,
 }));
 
 vi.mock('../../utils/toast', () => ({ default: { error: toastError, warning: toastWarning } }));
@@ -34,18 +30,68 @@ function loadResult(rules: TransformRule[], droppedCount = 0) {
   return { rules, droppedCount };
 }
 
+/** The hoisted stubs, wired in at the IPC so the real backend — the App File's cache and its
+ * commit queue — runs between them and the hooks. A dropped count becomes that many invalid
+ * items in the loaded data. */
+function wireIpc(): void {
+  invalidateTransformRules();
+  window.electronAPI = Object.assign((window.electronAPI ?? {}) as object, {
+    loadTransformRules: async () => {
+      const { rules, droppedCount } = await loadTransformRules();
+      return { success: true, data: [...rules, ...Array(droppedCount).fill({ junk: true })] };
+    },
+    saveTransformRules: async (rules: TransformRule[]) => {
+      await saveTransformRules(rules);
+      return { success: true };
+    },
+  }) as unknown as typeof window.electronAPI;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   loadTransformRules.mockResolvedValue(loadResult([]));
   saveTransformRules.mockResolvedValue(undefined);
+  wireIpc();
 });
 
-describe('useTransformRules', () => {
+describe('useTransformRules — read-only', () => {
+  test('follows a save the editor makes, the moment it lands', async () => {
+    const reader = renderHook(() => useTransformRules());
+    const editor = renderHook(() => useTransformRuleEditor());
+    await waitFor(() => expect(reader.result.current.isLoading).toBe(false));
+    await waitFor(() => expect(editor.result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await editor.result.current.addRule({
+        matchKind: 'suffix',
+        key: '城',
+        relocate: true,
+        capitalizeExceptN: 1,
+        semanticType: 'location',
+        enabled: true,
+      });
+    });
+
+    expect(reader.result.current.rules.map((r) => r.key)).toEqual(['城']);
+    expect(reader.result.current).not.toHaveProperty('addRule');
+  });
+
+  test('a failed load leaves an empty, loaded list and says nothing', async () => {
+    loadTransformRules.mockRejectedValue(new Error('Permission denied'));
+    const { result } = renderHook(() => useTransformRules());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.rules).toEqual([]);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTransformRuleEditor', () => {
   test('loads persisted rules on mount', async () => {
     const rules = [makeRule()];
     loadTransformRules.mockResolvedValue(loadResult(rules));
 
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -55,7 +101,7 @@ describe('useTransformRules', () => {
   test('toasts a warning when the backend reports dropped rules', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule()], 2));
 
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(toastWarning).toHaveBeenCalledWith(expect.stringContaining('2'));
@@ -64,14 +110,14 @@ describe('useTransformRules', () => {
   test('does not toast when nothing was dropped', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule()], 0));
 
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(toastWarning).not.toHaveBeenCalled();
   });
 
   test('addRule persists a new rule with a generated id', async () => {
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -92,7 +138,7 @@ describe('useTransformRules', () => {
 
   test('updateRule replaces the matching rule', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule({ label: 'old' })]));
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -105,7 +151,7 @@ describe('useTransformRules', () => {
   test('a save failure rolls back the optimistic update and toasts', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule({ label: 'original' })]));
     saveTransformRules.mockRejectedValueOnce(new Error('disk full'));
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await expect(result.current.updateRule(makeRule({ label: 'changed' }))).rejects.toThrow(
@@ -119,7 +165,7 @@ describe('useTransformRules', () => {
 
   test('deleteRule removes the rule', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule()]));
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -133,7 +179,7 @@ describe('useTransformRules', () => {
     loadTransformRules.mockResolvedValue(
       loadResult([makeRule({ id: 'r1', enabled: true }), makeRule({ id: 'r2', enabled: true })])
     );
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
@@ -148,7 +194,7 @@ describe('useTransformRules', () => {
     loadTransformRules.mockResolvedValue(
       loadResult([makeRule({ id: 'existing', matchKind: 'suffix', key: '城' })])
     );
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await expect(
@@ -173,7 +219,7 @@ describe('useTransformRules', () => {
         makeRule({ id: 'r2', matchKind: 'suffix', key: '市' }),
       ])
     );
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await expect(
@@ -185,7 +231,7 @@ describe('useTransformRules', () => {
 
   test('checkConflict finds a same-(matchKind,key) rule other than itself', async () => {
     loadTransformRules.mockResolvedValue(loadResult([makeRule({ id: 'existing' })]));
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.checkConflict({ id: 'new', matchKind: 'suffix', key: '城' })).toEqual(
@@ -214,15 +260,16 @@ function lastSaved(): TransformRule[] {
   return calls[calls.length - 1][0] as TransformRule[];
 }
 
-// Pinned before the save queue (architecture review 2026-09-29, candidate #3).
-describe('useTransformRules — changes made while a save is in flight', () => {
+// What the Rules tab shows while a save is in flight. The queue itself — order, re-planning,
+// a failed change dropped alone — is TransformRuleBackend's, tested there (commitRuleChange).
+describe('useTransformRuleEditor — changes made while a save is in flight', () => {
   test('a failed change is dropped alone: a later change survives, in the UI and on disk', async () => {
     loadTransformRules.mockResolvedValue(
       loadResult([makeRule({ id: 'r1', key: '城' }), makeRule({ id: 'r2', key: '市' })])
     );
     const first = deferredSave();
     saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     let a!: Promise<void>;
@@ -245,44 +292,13 @@ describe('useTransformRules — changes made while a save is in flight', () => {
     expect(lastSaved().find((r) => r.id === 'r2')?.enabled).toBe(false);
   });
 
-  test('saves run one at a time, in the order the changes were made', async () => {
-    loadTransformRules.mockResolvedValue(
-      loadResult([makeRule({ id: 'r1', key: '城' }), makeRule({ id: 'r2', key: '市' })])
-    );
-    const first = deferredSave();
-    saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useTransformRules());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    let a!: Promise<void>;
-    let b!: Promise<void>;
-    act(() => {
-      a = result.current.toggleEnabled('r1');
-    });
-    act(() => {
-      b = result.current.toggleEnabled('r2');
-    });
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    expect(saveTransformRules).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      first.resolve();
-      await a;
-      await b;
-    });
-    expect(saveTransformRules).toHaveBeenCalledTimes(2);
-    expect(lastSaved().every((r) => !r.enabled)).toBe(true);
-  });
-
   test('a change is checked for conflicts again at its turn, against what really saved', async () => {
     // Delete 城 (fails), then add a new 城 rule. When the add was made the delete looked
     // done, so it passed; at its turn the old 城 rule is still there.
     loadTransformRules.mockResolvedValue(loadResult([makeRule({ id: 'r1', key: '城' })]));
     const first = deferredSave();
     saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useTransformRules());
+    const { result } = renderHook(() => useTransformRuleEditor());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     let del!: Promise<void>;

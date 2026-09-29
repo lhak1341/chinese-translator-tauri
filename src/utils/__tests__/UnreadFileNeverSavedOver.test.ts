@@ -20,7 +20,7 @@ import { reconcileLibraryScan } from '../reader/ReconcileLibrary';
 import { loadAppConfig, saveAppConfig, invalidateAppConfig } from '../appConfig';
 import {
   loadTransformRules,
-  saveTransformRules,
+  commitRuleChange,
   invalidateTransformRules,
 } from '../dictionary/TransformRuleBackend';
 import {
@@ -92,7 +92,7 @@ describe('config.json', () => {
 describe('transform-rules.json', () => {
   test('a failed load throws, and a save refuses', async () => {
     await expect(loadTransformRules()).rejects.toThrow();
-    await expect(saveTransformRules([])).rejects.toThrow(/not saving over it/);
+    await expect(commitRuleChange(() => [])).rejects.toThrow(/not saving over it/);
     expect(api.saveTransformRules).not.toHaveBeenCalled();
   });
 });

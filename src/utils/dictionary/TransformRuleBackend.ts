@@ -51,9 +51,30 @@ export async function loadTransformRules(): Promise<LoadTransformRulesResult> {
   return { rules: value, droppedCount: dropped };
 }
 
-/** Replaces every saved rule, under the file's lock. */
-export function saveTransformRules(rules: TransformRule[]): Promise<void> {
-  return rulesFile.transform(() => ({ value: rules, result: undefined }));
+/** One change to the rule list: computed from the rules it is applied to, and throwing when
+ * that list makes it invalid (a conflict). */
+export type RuleChange = (rules: TransformRule[]) => TransformRule[];
+
+/**
+ * Saves one change. Changes run one at a time, in the order they were committed, each against
+ * the rules that last saved successfully — so a failed save drops only its own change, and the
+ * changes queued behind it re-plan without it. A change that throws at its turn saves nothing.
+ */
+export function commitRuleChange(change: RuleChange): Promise<TransformRule[]> {
+  return rulesFile.transform((current) => {
+    const next = change(current);
+    return { value: next, result: next };
+  });
+}
+
+/** Called on every change to the saved rules: a load, a save, an invalidate. */
+export function subscribeTransformRules(listener: () => void): () => void {
+  return rulesFile.subscribe(listener);
+}
+
+/** The saved rules, or `null` before the first load. Replaced, never mutated. */
+export function getTransformRulesSnapshot(): TransformRule[] | null {
+  return rulesFile.snapshot();
 }
 
 export function invalidateTransformRules(): void {

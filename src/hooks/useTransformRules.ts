@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { TransformRule } from '../types/TransformRuleTypes';
-import { loadTransformRules, saveTransformRules } from '../utils/dictionary/TransformRuleBackend';
+import {
+  commitRuleChange,
+  getTransformRulesSnapshot,
+  loadTransformRules,
+  subscribeTransformRules,
+  type RuleChange,
+} from '../utils/dictionary/TransformRuleBackend';
 import { findConflict } from '../utils/dictionary/TransformRuleEngine';
 import toast from '../utils/toast';
 
@@ -23,10 +29,6 @@ function assertNoConflict(current: TransformRule[], rule: TransformRule): void {
   if (conflict) throw conflictError(rule, conflict);
 }
 
-/** One change to the rule list: computed from the rules it is applied to, and throwing when
- * that list makes it invalid (a conflict). */
-type RuleChange = (rules: TransformRule[]) => TransformRule[];
-
 interface PendingChange {
   id: number;
   change: RuleChange;
@@ -43,51 +45,63 @@ function withPending(rules: TransformRule[], pending: PendingChange[]): Transfor
   }, rules);
 }
 
+const NO_RULES: TransformRule[] = [];
+
 /**
- * The Transform Rules list, and the changes the Rules tab makes to it.
- *
- * Changes are saved one at a time, in the order they were made. Each runs at its turn
- * against the rules that last saved successfully — never against another change still in
- * flight — so a failed save drops only its own change, and the changes queued behind it
- * re-run without it. `rules` shows the saved rules with every pending change applied, so an
- * edit appears at once. A change is checked for conflicts when it is made, for the
- * immediate error, and again at its turn.
- *
- * Only the Rules tab's instance writes. The Add form's instance only reads, through the
- * backend cache, which updates when a save succeeds — so an Add opened during a save seeds
- * from the rules before it (CONTEXT.md "Transform Rule").
+ * The saved Transform Rules, read-only — what the Add form seeds from (CONTEXT.md "Transform
+ * Rule"). Reads the backend's cache, so it follows every save the moment it lands. Starts a
+ * load if none has happened; says nothing about a failed one — the Rules tab's editor does.
  */
-export function useTransformRules() {
-  const [saved, setSaved] = useState<TransformRule[]>([]);
-  const [pending, setPending] = useState<PendingChange[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export function useTransformRules(): { rules: TransformRule[]; isLoading: boolean } {
+  const saved = useSyncExternalStore(subscribeTransformRules, getTransformRulesSnapshot);
+  const [loadSettled, setLoadSettled] = useState(false);
 
-  // Refs mirror both, updated in the same breath as state: a change made before the next
-  // render must see the one made just before it.
-  const savedRef = useRef<TransformRule[]>([]);
-  const pendingRef = useRef<PendingChange[]>([]);
-  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
-  const nextIdRef = useRef(0);
-
-  const setSavedRules = useCallback((next: TransformRule[]) => {
-    savedRef.current = next;
-    setSaved(next);
+  useEffect(() => {
+    let cancelled = false;
+    loadTransformRules()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadSettled(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  return { rules: saved ?? NO_RULES, isLoading: saved === null && !loadSettled };
+}
+
+/**
+ * The Rules tab's changes to the Transform Rules — the only writer.
+ *
+ * Each change is committed through the backend (`commitRuleChange`), which saves one at a time
+ * against the rules that last saved. `rules` shows the saved rules with every pending change
+ * applied, so an edit appears at once. A change is checked for conflicts when it is made, for
+ * the immediate error, and again at its turn.
+ */
+export function useTransformRuleEditor() {
+  const { rules: saved, isLoading } = useTransformRules();
+  const [pending, setPending] = useState<PendingChange[]>([]);
+
+  // Mirrors `pending` in the same breath as state: a change made before the next render must
+  // see the one made just before it.
+  const pendingRef = useRef<PendingChange[]>([]);
+  const nextIdRef = useRef(0);
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+
   const setPendingChanges = useCallback((next: PendingChange[]) => {
     pendingRef.current = next;
     setPending(next);
   }, []);
 
+  // Load problems are reported here, once — the Rules tab is always mounted.
   useEffect(() => {
     let cancelled = false;
     loadTransformRules()
-      .then(({ rules: loaded, droppedCount }) => {
-        if (!cancelled) {
-          setSavedRules(loaded);
-          if (droppedCount > 0) {
-            toast.warning(`${droppedCount} rule(s) skipped — invalid data`);
-          }
-          setIsLoading(false);
+      .then(({ droppedCount }) => {
+        if (!cancelled && droppedCount > 0) {
+          toast.warning(`${droppedCount} rule(s) skipped — invalid data`);
         }
       })
       .catch((error: unknown) => {
@@ -95,52 +109,46 @@ export function useTransformRules() {
         // Saves stay refused until a load succeeds (TransformRuleBackend), so say why the
         // list is empty rather than let an edit fail with no context.
         toast.error(`Could not load Transform Rules: ${(error as Error).message}`);
-        setIsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [setSavedRules]);
+  }, []);
 
   const rules = useMemo(() => withPending(saved, pending), [saved, pending]);
 
-  /** Queue `change`. Rejects at once on a conflict with what the UI shows; otherwise
+  /** Commit `change`. Rejects at once on a conflict with what the UI shows; otherwise
    * resolves or rejects when its turn has saved or failed. */
   const submit = useCallback(
-    (change: RuleChange): Promise<void> => {
+    async (change: RuleChange): Promise<void> => {
       try {
         change(withPending(savedRef.current, pendingRef.current));
       } catch (error) {
         toast.error((error as Error).message);
-        return Promise.reject(error);
+        throw error;
       }
       const id = nextIdRef.current++;
       setPendingChanges([...pendingRef.current, { id, change }]);
-      const drop = () => setPendingChanges(pendingRef.current.filter((p) => p.id !== id));
-
-      const turn = queueRef.current.then(async () => {
-        let next: TransformRule[];
-        try {
-          next = change(savedRef.current);
-        } catch (error) {
-          drop();
-          toast.error((error as Error).message);
-          throw error;
-        }
-        try {
-          await saveTransformRules(next);
-        } catch (error) {
-          drop();
-          toast.error('Failed to save rule changes — reverted.');
-          throw error;
-        }
-        setSavedRules(next);
-        drop();
-      });
-      queueRef.current = turn.catch(() => undefined);
-      return turn;
+      let conflictAtTurn = false;
+      try {
+        await commitRuleChange((current) => {
+          try {
+            return change(current);
+          } catch (error) {
+            conflictAtTurn = true;
+            throw error;
+          }
+        });
+      } catch (error) {
+        toast.error(
+          conflictAtTurn ? (error as Error).message : 'Failed to save rule changes — reverted.'
+        );
+        throw error;
+      } finally {
+        setPendingChanges(pendingRef.current.filter((p) => p.id !== id));
+      }
     },
-    [setPendingChanges, setSavedRules]
+    [setPendingChanges]
   );
 
   const checkConflict = useCallback(

@@ -1,8 +1,10 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import {
   loadTransformRules,
-  saveTransformRules,
+  commitRuleChange,
   invalidateTransformRules,
+  getTransformRulesSnapshot,
+  subscribeTransformRules,
 } from '../dictionary/TransformRuleBackend';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -105,25 +107,89 @@ describe('loadTransformRules', () => {
   });
 });
 
-describe('saveTransformRules', () => {
-  test('saves via IPC and updates the cache', async () => {
+describe('commitRuleChange', () => {
+  /** A save whose promise the test settles by hand, then instant ones after it. */
+  function holdFirstSave() {
+    let settle!: (result: { success: boolean; error?: string }) => void;
+    const first = new Promise((resolve) => {
+      settle = resolve;
+    });
+    const saveFn = vi.fn().mockReturnValueOnce(first).mockResolvedValue({ success: true });
+    window.electronAPI.saveTransformRules = saveFn;
+    return { saveFn, settle };
+  }
+  const add =
+    (rule: TransformRule) =>
+    (rules: TransformRule[]): TransformRule[] => [...rules, rule];
+
+  test('saves the change against the saved rules and updates the cache', async () => {
     const saveFn = vi.fn().mockResolvedValue({ success: true });
     window.electronAPI.saveTransformRules = saveFn;
-    window.electronAPI.loadTransformRules = vi.fn().mockResolvedValue({ success: true, data: [] });
 
-    const rules = [makeRule()];
-    await saveTransformRules(rules);
+    const next = await commitRuleChange(add(makeRule()));
 
-    expect(saveFn).toHaveBeenCalledWith(rules);
-    // Cache updated — a subsequent load returns the saved rules without hitting IPC again.
-    expect(await loadTransformRules()).toEqual({ rules, droppedCount: 0 });
+    expect(next).toEqual([makeRule()]);
+    expect(saveFn).toHaveBeenCalledWith([makeRule()]);
+    expect(getTransformRulesSnapshot()).toEqual([makeRule()]);
   });
 
-  test('throws when the save fails', async () => {
+  test('throws when the save fails, and the saved rules stay as they were', async () => {
     window.electronAPI.saveTransformRules = vi
       .fn()
       .mockResolvedValue({ success: false, error: 'disk full' });
-    await expect(saveTransformRules([makeRule()])).rejects.toThrow('disk full');
+    await expect(commitRuleChange(add(makeRule()))).rejects.toThrow('disk full');
+    expect(getTransformRulesSnapshot()).toEqual([]);
+  });
+
+  test('saves run one at a time, in the order the changes were committed', async () => {
+    const { saveFn, settle } = holdFirstSave();
+    const a = commitRuleChange(add(makeRule({ id: 'a', key: 'A' })));
+    const b = commitRuleChange(add(makeRule({ id: 'b', key: 'B' })));
+
+    await vi.waitFor(() => expect(saveFn).toHaveBeenCalledTimes(1));
+    settle({ success: true });
+    await Promise.all([a, b]);
+
+    expect(saveFn).toHaveBeenCalledTimes(2);
+    expect(saveFn.mock.calls[1][0].map((r: TransformRule) => r.id)).toEqual(['a', 'b']);
+  });
+
+  test('a failed change is dropped alone: the change queued behind it re-plans without it', async () => {
+    const { saveFn, settle } = holdFirstSave();
+    const a = commitRuleChange(add(makeRule({ id: 'a', key: 'A' })));
+    const b = commitRuleChange(add(makeRule({ id: 'b', key: 'B' })));
+
+    await vi.waitFor(() => expect(saveFn).toHaveBeenCalledTimes(1));
+    settle({ success: false, error: 'disk full' });
+
+    await expect(a).rejects.toThrow('disk full');
+    await b;
+    expect(saveFn.mock.calls[1][0].map((r: TransformRule) => r.id)).toEqual(['b']);
+    expect(getTransformRulesSnapshot()?.map((r) => r.id)).toEqual(['b']);
+  });
+
+  test('a change that throws at its turn saves nothing, and does not block the queue', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveTransformRules = saveFn;
+
+    await expect(
+      commitRuleChange(() => {
+        throw new Error('conflict');
+      })
+    ).rejects.toThrow('conflict');
+    expect(saveFn).not.toHaveBeenCalled();
+
+    await commitRuleChange(add(makeRule()));
+    expect(saveFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('subscribers hear each save', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeTransformRules(listener);
+    await commitRuleChange(add(makeRule()));
+    unsubscribe();
+    // The load, then the save.
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });
 

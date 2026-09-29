@@ -8,7 +8,7 @@ import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFi
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';
 import RuleRow from './RuleRow';
-import { useTransformRules } from '../../hooks/useTransformRules';
+import { useTransformRuleEditor } from '../../hooks/useTransformRules';
 import {
   compareRulePrecedence,
   deriveCapitalizeExceptNForKeyEdit,
@@ -41,7 +41,7 @@ const EMPTY_DRAFT: Omit<TransformRule, 'id'> = {
 
 const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const { rules, isLoading, checkConflict, addRule, updateRule, deleteRule, toggleEnabled } =
-    useTransformRules();
+    useTransformRuleEditor();
   const { dictionaries, patchEntry, deleteEntry } = useDictionary();
   const [draft, setDraft] = useState<Omit<TransformRule, 'id'> | null>(null);
   const [viewingMatches, setViewingMatches] = useState<TransformRule | null>(null);

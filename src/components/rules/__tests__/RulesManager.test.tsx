@@ -10,12 +10,26 @@ const { loadTransformRules, saveTransformRules } = vi.hoisted(() => ({
   saveTransformRules: vi.fn(),
 }));
 
-vi.mock('../../../utils/dictionary/TransformRuleBackend', () => ({
-  loadTransformRules,
-  saveTransformRules,
-}));
+import { invalidateTransformRules } from '../../../utils/dictionary/TransformRuleBackend';
 
-vi.mock('../../../utils/toast', () => ({ default: { error: vi.fn() } }));
+/** The hoisted backend-shaped stubs, wired in at the IPC so the real backend (cache, lock,
+ * snapshot) runs between them and the hooks. */
+function wireTransformRulesIpc(): void {
+  invalidateTransformRules();
+  const api = (window.electronAPI ?? {}) as unknown as Record<string, unknown>;
+  window.electronAPI = Object.assign(api, {
+    loadTransformRules: async () => {
+      const { rules } = await loadTransformRules();
+      return { success: true, data: rules };
+    },
+    saveTransformRules: async (rules: TransformRule[]) => {
+      await saveTransformRules(rules);
+      return { success: true };
+    },
+  }) as unknown as typeof window.electronAPI;
+}
+
+vi.mock('../../../utils/toast', () => ({ default: { error: vi.fn(), warning: vi.fn() } }));
 
 const mockPatchEntry = vi.fn().mockResolvedValue(undefined);
 
@@ -46,6 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   loadTransformRules.mockResolvedValue({ rules: [], droppedCount: 0 });
   saveTransformRules.mockResolvedValue(undefined);
+  wireTransformRulesIpc();
 });
 
 describe('RulesManager', () => {
