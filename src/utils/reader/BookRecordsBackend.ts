@@ -1,4 +1,4 @@
-import { reportQuarantine, unreadFileError } from '../unreadableFile';
+import { createAppFile } from '../appFile';
 import type {
   BookBinding,
   BookRecord,
@@ -7,12 +7,41 @@ import type {
   ChapterPatternId,
   ReadingPosition,
 } from '../../types/ReaderTypes';
-import { validateApiResult } from '../configValidation';
 import { validateBookRecord } from './BookRecordValidation';
 import { refreshBookRecord, type BookObservations, type ReaderAnswerField } from './BookRecord';
 import { logger } from '../logger';
 
-let cache: BookRecords | null = null;
+/** Each record validated; one that fails is dropped and counted. */
+function parseRecords(data: unknown): { value: BookRecords; dropped: number } {
+  const rawMap = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const value: BookRecords = {};
+  let dropped = 0;
+  for (const [fingerprint, raw] of Object.entries(rawMap)) {
+    const record = validateBookRecord(fingerprint, raw);
+    if (record) {
+      value[fingerprint] = record;
+    } else {
+      dropped++;
+    }
+  }
+  return { value, dropped };
+}
+
+/**
+ * `books.json` (CONTEXT.md "App file"). A failed read throws and caches nothing, so no
+ * read-modify-write can save an empty map over the file. Every write — a scan's
+ * reconciliation and a debounced position flush can land close together — runs under the
+ * file's lock, so none can clobber another with a stale copy.
+ */
+const booksFile = createAppFile<BookRecords>({
+  fileName: 'books.json',
+  what: 'Reading progress (books.json)',
+  load: () => window.electronAPI.loadBookRecords(),
+  save: (records) => window.electronAPI.saveBookRecords(records),
+  parse: parseRecords,
+  onUnreadable: 'throw',
+  saveError: 'Failed to save book records',
+});
 
 /**
  * The record cache is observable: every change to it — the first load, a save, an
@@ -20,40 +49,15 @@ let cache: BookRecords | null = null;
  * current without re-reading, whichever write landed last and in whatever order.
  */
 const EMPTY_RECORDS: BookRecords = Object.freeze({}) as BookRecords;
-const listeners = new Set<() => void>();
-
-function setCache(next: BookRecords | null): void {
-  cache = next;
-  listeners.forEach((listener) => listener());
-}
 
 export function subscribeBookRecords(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return booksFile.subscribe(listener);
 }
 
 /** The cached records, or an empty map before the first load. Stable between changes —
  * the cache is replaced, never mutated — as `useSyncExternalStore` requires. */
 export function getBookRecordsSnapshot(): BookRecords {
-  return cache ?? EMPTY_RECORDS;
-}
-
-// Serializes every write to books.json — a scan's reconciliation write and a debounced
-// position flush can land close together, and a read-modify-write done without a lock
-// would let the second clobber the first's result with a stale in-memory copy.
-let writeQueue: Promise<unknown> = Promise.resolve();
-
-/** Runs `fn` once every write ahead of it in the queue has settled. Module-private: callers
- * get `transformRecords` and `readSettledRecords`, which cannot be used out of order. */
-function withBookRecordsLock<T>(fn: () => Promise<T>): Promise<T> {
-  const result = writeQueue.then(fn, fn);
-  writeQueue = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
+  return booksFile.snapshot() ?? EMPTY_RECORDS;
 }
 
 export interface LoadBookRecordsResult {
@@ -62,45 +66,12 @@ export interface LoadBookRecordsResult {
 }
 
 export async function loadBookRecords(): Promise<LoadBookRecordsResult> {
-  if (cache) return { records: cache, droppedCount: 0 };
-  const rawResult = await window.electronAPI.loadBookRecords();
-  const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadBookRecords');
-  // A failed read caches nothing and throws, so no read-modify-write can save an empty map
-  // over the file (utils/unreadableFile.ts).
-  if (!result.success) throw unreadFileError('books.json');
-  reportQuarantine(rawResult, 'Reading progress (books.json)');
-  const rawMap = result.data ?? {};
-
-  const records: BookRecords = {};
-  let droppedCount = 0;
-  for (const [fingerprint, raw] of Object.entries(rawMap)) {
-    const record = validateBookRecord(fingerprint, raw);
-    if (record) {
-      records[fingerprint] = record;
-    } else {
-      droppedCount++;
-    }
-  }
-  if (droppedCount > 0) {
-    logger.warn(`loadBookRecords: dropped ${droppedCount} invalid record(s)`);
-  }
-
-  setCache(records);
-  return { records, droppedCount };
-}
-
-/** Module-private, and called only by `transformRecords` inside the lock — an unguarded save
- * can race a concurrent read-modify-write and silently lose one side's changes. */
-async function saveBookRecords(records: BookRecords): Promise<void> {
-  const result = await window.electronAPI.saveBookRecords(records);
-  if (!result.success) {
-    throw new Error(result.error ?? 'Failed to save book records');
-  }
-  setCache(records);
+  const { value, dropped } = await booksFile.read();
+  return { records: value, droppedCount: dropped };
 }
 
 export function invalidateBookRecords(): void {
-  setCache(null);
+  booksFile.invalidate();
 }
 
 /**
@@ -114,11 +85,9 @@ export function invalidateBookRecords(): void {
 export function transformRecords<T>(
   fn: (records: BookRecords) => { records: BookRecords; result: T }
 ): Promise<T> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
-    const { records: next, result } = fn(records);
-    if (next !== records) await saveBookRecords(next);
-    return result;
+  return booksFile.transform((current) => {
+    const { records, result } = fn(current);
+    return { value: records, result };
   });
 }
 
@@ -127,8 +96,8 @@ export function transformRecords<T>(
  * write started before it (Back queues the final position flush; a fast reopen must not
  * restore the position from before it). `loadBookRecords` is the snapshot as it is now.
  */
-export function readSettledRecords(): Promise<BookRecords> {
-  return withBookRecordsLock(async () => (await loadBookRecords()).records);
+export async function readSettledRecords(): Promise<BookRecords> {
+  return (await booksFile.readSettled()).value;
 }
 
 /**
