@@ -86,7 +86,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
   const {
     binding,
-    boundFictionDictionary,
     fictionDictionaries,
     isDialogOpen,
     isApplying: isBindingApplying,
@@ -190,7 +189,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { actions, paletteCommands, hotkeyProps, palette, quickAddDialog } = useReaderCommands({
     books,
     currentFileName: book.fileName,
-    fictionDictionary: boundFictionDictionary,
     goToChapter: chapters.step,
     openOutline: openOutlineForSearch,
     pageBy,

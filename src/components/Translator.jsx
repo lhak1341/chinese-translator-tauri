@@ -8,7 +8,7 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { registerDictionaryReload } from '../utils/dictionary';
-import { loadQuickAddConfig } from '../utils/dictionary/QuickAddTarget';
+import { useBookBinding } from './BookBindingContext';
 import HotkeyHandler from './HotkeyHandler';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
@@ -139,7 +139,9 @@ const Translator = ({ isActive = true }) => {
     setPartialSemanticArrays,
   } = useStreamingTranslation(100); // 100ms throttle
 
-  // Quick Add modal hook
+  // Quick Add modal hook. The view comes from the binding provider, so while a Reader book is
+  // open the Translator's Adds file its fiction entries under that book's dictionary too.
+  const { loadQuickAddView } = useBookBinding();
   const {
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
@@ -148,7 +150,7 @@ const Translator = ({ isActive = true }) => {
     openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
     openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
     dialog: quickAddDialog,
-  } = useDictionaryModals(dictionaries, loadQuickAddConfig);
+  } = useDictionaryModals(dictionaries, loadQuickAddView);
 
   const [inputText, setInputText] = useState('');
   const {

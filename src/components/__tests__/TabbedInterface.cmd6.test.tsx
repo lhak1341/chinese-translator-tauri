@@ -46,11 +46,15 @@ vi.mock('../../utils/toast', () => ({
 
 // Heavy children replaced with stubs — this test targets the hotkey dispatch only.
 // Paths are relative to THIS file, but must resolve to the same modules TabbedInterface.tsx imports.
-// TabbedInterface registers the bind-dictionaries shortcut, so it reads the binding
-// context; these tests are about the Cmd-6 quick-add path and need only a stub.
-vi.mock('../BookBindingContext', () => ({
-  useBookBinding: () => ({ openDialog: vi.fn() }),
-}));
+// TabbedInterface reads the binding context for the quick-add view. These tests are about
+// the Dictionary tab's Cmd-5/6 with no book open, where the view is config as loaded — the
+// real loader, so the config mocks below still decide it.
+vi.mock('../BookBindingContext', async () => {
+  const { loadQuickAddConfig } = await vi.importActual<
+    typeof import('../../utils/dictionary/QuickAddTarget')
+  >('../../utils/dictionary/QuickAddTarget');
+  return { useBookBinding: () => ({ openDialog: vi.fn(), loadQuickAddView: loadQuickAddConfig }) };
+});
 vi.mock('../Translator', () => ({ default: () => <div /> }));
 vi.mock('../dictionary/DictionaryManager', () => ({ default: () => <div /> }));
 vi.mock('../configuration/ConfigurationManager', () => ({ default: () => <div /> }));

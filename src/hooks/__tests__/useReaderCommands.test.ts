@@ -13,6 +13,9 @@ const modals = {
 };
 
 vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));
+vi.mock('../../components/BookBindingContext', () => ({
+  useBookBinding: () => ({ loadQuickAddView: async () => null }),
+}));
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
   useDictionary: () => ({ dictionaries: {} }),
 }));
@@ -30,7 +33,6 @@ function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
       { fileName: 'other.txt', title: 'Other' },
     ],
     currentFileName: 'open.txt',
-    fictionDictionary: null,
     goToChapter: vi.fn(),
     openOutline: vi.fn(),
     pageBy: vi.fn(),

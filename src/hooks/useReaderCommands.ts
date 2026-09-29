@@ -4,8 +4,7 @@ import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
-import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
-import { quickAddViewForBinding } from '../utils/reader/BindingActivation';
+import { useBookBinding } from '../components/BookBindingContext';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActions } from '../utils/reader/ReaderActions';
@@ -17,10 +16,6 @@ const EMPTY_SOURCE: QuickAddSource = { kind: 'source', text: '' };
 export interface UseReaderCommandsOptions {
   books: readonly PaletteBook[];
   currentFileName: string;
-  /** The fiction dictionary in use for the open book — where its fiction Adds are filed.
-   * `BookBindingContext`'s `boundFictionDictionary`, not the recorded binding: a bound
-   * dictionary that no longer exists must not receive entries. */
-  fictionDictionary: string | null;
   goToChapter: (direction: -1 | 1) => void;
   /** Open the chapter outline with its search focused. */
   openOutline: () => void;
@@ -49,7 +44,6 @@ export interface ReaderCommands {
 export function useReaderCommands({
   books,
   currentFileName,
-  fictionDictionary,
   goToChapter,
   openOutline,
   pageBy,
@@ -69,22 +63,12 @@ export function useReaderCommands({
   const paletteRequestRef = useRef(0);
 
   // The add-entry family, reused: the same hook (and the same DictionaryEntry modal) the
-  // Translator uses, so Cmd-1..6 resolve targets by the same rule here as there. What differs
-  // is the quick-add view they decide over: the Reader's comes from the open book's binding,
-  // never from the fiction entries in config — see `readerQuickAddView` for why. Every Add
+  // Translator uses, over the same quick-add view — the binding provider's, which with a book
+  // open is config as its binding implies it (`quickAddViewForBinding` says why). Every Add
   // loads it, Cmd-1..4 included, because their dropdown offers the view's dictionaries too.
   const { dictionaries } = useDictionary();
-  const boundFiction = fictionDictionary;
-  const loadReaderView = useCallback(
-    // Config is always read, bound book or not: it owns the non-fiction active dictionaries
-    // (root, custom, generic), which the Add dropdown offers. `readerQuickAddView` replaces
-    // only its fiction slice and fiction default with the binding's. Skipping config for a
-    // bound book (until 2026-09-26) dropped every generic dictionary from the dropdown.
-    async (): Promise<QuickAddView> =>
-      quickAddViewForBinding(await loadQuickAddConfig(), boundFiction),
-    [boundFiction]
-  );
-  const modals = useDictionaryModals(dictionaries, loadReaderView);
+  const { loadQuickAddView } = useBookBinding();
+  const modals = useDictionaryModals(dictionaries, loadQuickAddView);
   const {
     openQuickAddCharacter,
     openQuickAddPhrase,

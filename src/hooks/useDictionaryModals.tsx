@@ -56,10 +56,10 @@ const sharedShortlistMemory = new Map<QuickAddKind, string>();
  * opener loads the view once through `loadView` and stores it with the target, so the form's
  * dropdown (`quickAddChoices`) reads the same view the target came from.
  *
- * `loadView` is the one thing the surfaces differ in — the Translator passes
- * `loadQuickAddConfig` (config as loaded), the Reader a loader built from the open book's
- * binding (`readerQuickAddView`). Every opener, Cmd-1..6, goes through it, so no surface can
- * open an Add over another surface's view. `dictionaries` (DictionaryContext state) is
+ * `loadView` is the binding provider's `loadQuickAddView` for both surfaces, the Translator
+ * and the Reader — config as the open book's binding implies it while a book is open, config
+ * as loaded otherwise. Every opener, Cmd-1..6, goes through it, so no Add can decide over a
+ * view that disagrees with the open book. `dictionaries` (DictionaryContext state) is
  * injected, not stored — passed in by the caller for the Cmd-6 existence check.
  *
  * Cmd-3 and Cmd-4 open with a **quick-add shortlist** (`quickAddShortlist`) the form can switch

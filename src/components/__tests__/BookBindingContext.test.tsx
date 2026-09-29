@@ -13,6 +13,7 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { BookBindingProvider, useBookBinding } from '../BookBindingContext';
+import { quickAddTarget } from '../../utils/dictionary/QuickAddTarget';
 
 // The engine module is 300+ KB and only its debug-level enum is needed here.
 vi.mock('../../utils/TranslationEngine.js', () => ({ DEBUG_LEVELS: { ERROR: 0 } }));
@@ -587,6 +588,29 @@ describe('the quick-add view', () => {
       view = await result.current.loadQuickAddView();
     });
     expect(view!.activeProperNouns).toContain('properNouns-f_TruTien');
+  });
+
+  test("any tab's Cmd-5 files under the open book after a failed apply, not the stale config", async () => {
+    // The Translator and the Dictionary tab both decide Cmd-5 as `quickAddTarget` over
+    // `loadQuickAddView` (useDictionaryModals, TabbedInterface) — the same composition here.
+    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.applyError).toBe('engine exploded'));
+    staleConfig();
+
+    const loaded = {
+      properNouns: {},
+      'properNouns-f_TapDo': {},
+      'properNouns-f_TruTien': {},
+    };
+    let target;
+    await act(async () => {
+      target = quickAddTarget('properNoun', await result.current.loadQuickAddView(), loaded);
+    });
+    expect(target).toEqual({ kind: 'open', dictionaryId: 'properNouns-f_TapDo' });
   });
 
   test('is stable across renders', async () => {

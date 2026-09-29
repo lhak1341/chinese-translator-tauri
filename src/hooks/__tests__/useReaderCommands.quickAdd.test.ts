@@ -3,8 +3,10 @@
  * `useReaderCommands.test.ts` mocks that hook to spy on which opener each action runs.
  *
  * Config here is what a failed binding apply leaves: still naming the previous novel. The
- * Reader's quick-add view comes from the open book's binding, so neither the target nor the
- * dropdown (`quickAddChoices` over the stored view) may ever reach the previous novel.
+ * Reader's quick-add view comes from the binding provider, which with a book open builds it
+ * from the book's binding (`quickAddViewForBinding`, stubbed here as the provider composes
+ * it), so neither the target nor the dropdown (`quickAddChoices` over the stored view) may
+ * ever reach the previous novel.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
@@ -39,6 +41,20 @@ const appConfig = vi.hoisted(() => ({
 }));
 vi.mock('../../utils/appConfig', () => appConfig);
 
+// The open book's dictionary in use, as the provider would hold it.
+const openBook = vi.hoisted(() => ({ bound: null as string | null }));
+vi.mock('../../components/BookBindingContext', async () => {
+  const { loadQuickAddConfig } = await vi.importActual<
+    typeof import('../../utils/dictionary/QuickAddTarget')
+  >('../../utils/dictionary/QuickAddTarget');
+  const { quickAddViewForBinding } = await vi.importActual<
+    typeof import('../../utils/reader/BindingActivation')
+  >('../../utils/reader/BindingActivation');
+  const loadQuickAddView = async () =>
+    quickAddViewForBinding(await loadQuickAddConfig(), openBook.bound);
+  return { useBookBinding: () => ({ loadQuickAddView }) };
+});
+
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('../../utils/toast', () => ({ default: toast }));
 
@@ -57,10 +73,10 @@ import type { UseReaderCommandsOptions } from '../useReaderCommands';
 import type { ReaderActions } from '../../utils/reader/ReaderActions';
 
 function setup(fictionDictionary: string | null) {
+  openBook.bound = fictionDictionary;
   const options: UseReaderCommandsOptions = {
     books: [{ fileName: 'open.txt', title: 'Open' }],
     currentFileName: 'open.txt',
-    fictionDictionary,
     goToChapter: vi.fn(),
     openOutline: vi.fn(),
     pageBy: vi.fn(),
