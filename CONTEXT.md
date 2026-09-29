@@ -223,19 +223,19 @@ Entry point: `src/utils/text/ProperNounCapitalizationMap.ts` — `buildProperNou
 
 ## DictionaryOperationHistory
 
-The undo/redo subsystem for dictionary CRUD operations. Owns: operation log (`HistoryOperation[]`), cursor (`currentHistoryIndex`), `MAX_HISTORY = 100` cap, `addToHistory`, and diff reversal for all 5 operation types (`add`, `update`, `delete`, `bulk_delete`, `move`/`bulk_move`).
+Dictionary undo/redo: a list of committed Dictionary Edits (`DictionaryEdit[]`), a cursor, a `MAX_HISTORY = 100` cap. `record(edit)` (drops the redo tail), `undo()` commits `invert(edits[cursor])`, `redo()` commits `edits[cursor + 1]`, `clear()`. Both go through the provider's `EditCommitter`, so a stale undo — one whose keys changed since — is refused with a warning toast naming the keys, and the cursor stays put.
 
-Injected dependencies: `dictionariesRef` (ref-mirror of current dictionary state), `commitMutation` (sort → save → setDictionaries, returns `boolean`), `invalidateEngine` (clears engine caches). The cursor advances only when `commitMutation` returns `true` — the history module never touches persistence directly.
+The list and cursor live in a ref, not state: the edit an undo picks and the cursor move after it both happen inside the undo's turn in the commit queue, so a queued edit never records itself between them. A version counter re-renders `canUndo`/`canRedo`. Cleared on dictionary import (`DictionaryManager`) and when a dictionary leaves memory (`removeDictionaryKey`, after a pair rename) — both rewrite dictionaries outside history.
 
 Entry point: `src/components/dictionary/useDictionaryHistory.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
 
 ## DictionaryCRUD
 
-All 6 dictionary mutation operations: `addEntry`, `updateEntry`, `deleteEntry`, `bulkDeleteEntries`, `moveEntry`, `bulkMoveEntries`. Includes `prepareMutationEntry` (sanitize → validate → build typed value for `phrases`/`patterns`/`properNouns*` vs plain string dicts).
+All 7 dictionary mutation operations: `addEntry`, `updateEntry`, `patchEntry`, `deleteEntry`, `bulkDeleteEntries`, `moveEntry`, `bulkMoveEntries`. Each plans a Dictionary Edit and commits it through the provider's `EditCommitter`, recording it on success; this module adds `prepareMutationEntry` (sanitize → validate → build typed value for `phrases`/`patterns`/`properNouns*` vs plain string dicts), error typing and the user-facing message. `patchEntry` reads the current value inside its commit turn, so two queued patches each start from the other's result.
 
-Injected dependencies: `dictionariesRef` (reads snapshot before mutation — never closes over `dictionaries` state), `persistDictionaryMutation` (single-dict: optimistic update → save → rollback), `commitMoveOp` (two-dict: optimistic update → parallel save → partial revert), `addToHistory`, `invalidateEngine`. All 6 returned callbacks are stable — their dep arrays contain only stable injected functions.
+Injected dependencies: the `EditCommitter` and history's `record`, both stable, so all 7 returned callbacks are stable.
 
-Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictionary/` in commit `27a42dd`, superseding ADR-026). Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`. Invariant tests (`useDictionaryCRUD.test.ts`, same directory): I1 history-on-success, I2 snapshot-before-mutate, I3 error-propagates-clean, I4 single-toast-on-error (add/update/delete/bulkDelete only — moveEntry/bulkMoveEntries have no internal catch/toast at all, by design; `MoveDialog.tsx` owns error display for move ops via its own inline error banner).
+Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictionary/` in commit `27a42dd`, superseding ADR-026). Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`. Wiring tests (`src/hooks/__tests__/useDictionaryCRUD.test.ts`, real committer over a fake disk): I1 record-on-success, I3 error-propagates-clean, I4 single-toast-on-error (add/update/patch/delete/bulkDelete only — moveEntry/bulkMoveEntries never toast on failure, by design; `MoveDialog.tsx` owns error display for move ops via its own inline error banner).
 
 ## DictionaryTrie
 
@@ -330,29 +330,13 @@ No React, no toast, no sorting. Testable as a plain async function — stub `win
 
 Entry point: `src/utils/dictionary/DictionaryBackend.ts`. Called from `loadInitialState` (startup) and `loadDictionary` (single reload) in `DictionaryContext.tsx` — both use the same parallel+retry protocol.
 
-## DictionaryOperationReverter
-
-Pure diff-reversal for the undo/redo subsystem. `computeUndoMutation(op, currentDicts)` and `computeRedoMutation(op, currentDicts)` each take a `HistoryOperation` and current dict snapshot, return `MutationUpdate[] | null` (null = required dict missing). Returned entries are already sorted — pass directly to `commitMutation`. Covers all 5 op types: `add`, `update`, `delete`, `bulk_delete`, `move`/`bulk_move`.
-
-No React, no async, no side effects. All reversal logic is testable as plain functions.
-
-Entry point: `src/utils/dictionary/DictionaryOperationReverter.ts`. Called exclusively from `useDictionaryHistory`; the hook owns React state and wiring, this module owns all domain logic.
-
 ## Dictionary Edit
 
-**Planned (architecture review 2026-09-29, candidate #1, grilled; not yet built).** One change to user dictionaries, described as data: a list of `{dictionaryId, key, before, after}` changes plus an `outcome` tag (`added | overwritten | updated | moved(n) | deleted(n)`). `before`/`after` of `undefined` means the key is absent. Because every change records what it overwrote, undo is `invert(edit)` (swap `before` and `after`) and redo is the edit itself.
+One change to user dictionaries, described as data (architecture review 2026-09-29, candidate #1; ADR-052): a list of `{dictionaryId, key, before, after}` changes plus an `outcome` tag (`added | overwritten | updated | deleted(count, missing) | moved(count, missing)`). `before`/`after` of `undefined` means the key is absent. Because every change records what it overwrote, undo is `invert(edit)` (swap `before` and `after`) and redo is the edit itself.
 
-Pure half, `src/utils/dictionary/DictionaryEdit.ts`: `planAdd/planUpdate/planDelete/planMove(dicts, …) → DictionaryEdit | {invalid: reason}`, `invert`, and `changedKeys(edit, dicts)` (keys whose current value no longer equals what the edit expects, compared field by field through `EntryValue`).
+Pure half, `src/utils/dictionary/DictionaryEdit.ts`: `planAdd/planUpdate/planDelete/planMove(dicts, …) → DictionaryEdit | {invalid: reason}`, `invert`, `applyEdit`, and `changedKeys(edit, dicts)` (keys whose current value no longer equals what the edit expects, compared field by field by `sameEntryValue`). Tested by a round-trip over every plan type: `applyEdit(applyEdit(d, e), invert(e))` equals `d`.
 
-Committing half, `commitEdit(edit)` in `DictionaryContext`: runs in one global queue (ADR-052); refuses the whole edit if any key changed since (`{refused, changedKeys}`); otherwise applies to memory first, sorts (incremental hint for single-key edits), saves, and on a failed save rolls memory back and writes `before` back to every dictionary that did save (`{saveFailed, rolledBack}`); on success pushes history and invalidates the engine per changed dictionary.
-
-When built, it replaces `DictionaryOperationReverter`, `HistoryOperation`, `DictionaryPersistence` and `commitMutation`; `useDictionaryCRUD` keeps its caller-facing callbacks and becomes plan → `commitEdit` → toast. History is cleared on dictionary import and pair rename. Fixes three undo data-loss bugs: undo of an Add over an existing key, of an Update renamed onto an existing key, and of a Move into a dictionary that already held the key.
-
-## DictionaryPersistence
-
-The two write-to-disk protocols used by dictionary CRUD. `persistDictionaryMutation` — single-dict: optimistic `setDictionaries` → `saveDictionary` → rollback on failure. `commitMoveOp` — two-dict: optimistic `setDictionaries` → parallel save → partial revert (if one save succeeds and the other fails, the successful write is reverted to disk). Both returned callbacks are stable (no deps beyond `setDictionaries`).
-
-Entry point: `src/components/dictionary/useDictionaryPersistence.ts`. Injected into `useDictionaryCRUD` by `DictionaryProvider` via `const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries)`.
+Committing half, `EditCommitter` (`src/components/dictionary/EditCommitter.ts`, plain module; the provider builds one): `commit(plan, onCommitted?)` plans against the current dictionaries at its turn in one global queue (ADR-052); refuses the whole edit if any key changed since (`{refused, changedKeys}`); otherwise applies to memory first, sorts (incremental hint only for a one-key change or a rename), saves every touched dictionary, and on a failed save rolls memory back and writes the old contents back to every dictionary that did save (`{saveFailed, rolledBack}`); on success runs `onCommitted` (history's `record`, or its cursor move) and invalidates the engine per touched dictionary. The one save protocol for CRUD and undo/redo alike; it replaced `DictionaryOperationReverter`, `HistoryOperation`, `useDictionaryPersistence` and `commitMutation`.
 
 ## MoveDialog
 
@@ -360,7 +344,7 @@ The single dialog for moving dictionary entries to another dictionary — covers
 
 `entries.length === 1` drives the single-entry code paths: named overwrite detail (`Entry "X" already exists ... with translation "Y"`), named metadata-loss detail (lists the specific fields), and an entry preview with metadata tags (Variable/semantic-type chips). `entries.length > 1` drives the bulk paths: aggregate-count warnings (`N entries already exist...`, `N entries have metadata that will be lost`) and a plain first-3-preview with "...and N more" — no per-item metadata tags, kept simple since the aggregate warning already covers the concern.
 
-Backend call is chosen by count, not unified — `moveEntry(...)` for `entries.length === 1`, `bulkMoveEntries(...)` otherwise — because `DictionaryOperationHistory`/`DictionaryOperationReverter` still model `move`/`bulk_move` as separate `HistoryOperationType`s with separate undo/redo reversal logic; that split was left alone as out of scope for this deepening.
+Backend call is chosen by count — `moveEntry(...)` for `entries.length === 1`, `bulkMoveEntries(...)` otherwise. Both plan the same `planMove` Dictionary Edit (2026-09-29), so undo no longer distinguishes them; the two calls remain only because their not-found and return shapes differ (`moveEntry` throws for a missing entry, `bulkMoveEntries` reports it in `errors`).
 
 The dialog owns its own close-on-success (calls `onClose()` itself, then `onSuccess?.()` for parent-side cleanup like `resetSelection()`) — the old `BulkMoveDialog` didn't call `onClose` itself and instead relied on the parent's `onMoveSuccess` callback incidentally also flipping `showBulkMoveDialog` false.
 

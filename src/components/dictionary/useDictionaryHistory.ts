@@ -1,113 +1,107 @@
 import { useState, useRef, useCallback } from 'react';
-import type { RefObject } from 'react';
-import { logger } from '../../utils/logger';
-import {
-  computeUndoMutation,
-  computeRedoMutation,
-} from '../../utils/dictionary/DictionaryOperationReverter';
-import type { DictionaryData, HistoryOperation } from '../../types/DictionaryTypes';
+import toast from '../../utils/toast';
+import { invert } from '../../utils/dictionary/DictionaryEdit';
+import type { DictionaryEdit } from '../../utils/dictionary/DictionaryEdit';
+import type { EditCommitter, CommitResult } from './EditCommitter';
 
 const MAX_HISTORY = 100;
 
-/** Persists sorted entries to disk and updates React state. Returns true on success. */
-type CommitMutation = (
-  updates: Array<{ dictionaryId: string; entries: DictionaryData }>
-) => Promise<boolean>;
-
-/** Clears translation engine caches for a dictionary after mutation. */
-type InvalidateEngine = (dictionaryId: string) => Promise<void>;
-
 export interface DictionaryHistoryAPI {
-  addToHistory: (op: Omit<HistoryOperation, 'timestamp'>) => void;
+  /** Records a committed edit; a new edit drops anything that could still be redone. */
+  record: (edit: DictionaryEdit) => void;
   undo: () => Promise<boolean>;
   redo: () => Promise<boolean>;
+  /** Forgets every edit — after something outside history rewrote or renamed dictionaries. */
+  clear: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
 
-/**
- * Manages dictionary operation history, undo, and redo.
- *
- * Owns: history array, cursor, MAX_HISTORY cap.
- * Diff reversal delegated to computeUndoMutation / computeRedoMutation (pure, testable).
- *
- * @param dictionariesRef - Ref-mirror of current dictionary state (owned by DictionaryProvider)
- * @param commitMutation - sort → save → setDictionaries; returns true on success
- * @param invalidateEngine - clears engine caches for a dictionary ID
- */
-export function useDictionaryHistory(
-  dictionariesRef: RefObject<Record<string, DictionaryData>>,
-  commitMutation: CommitMutation,
-  invalidateEngine: InvalidateEngine
-): DictionaryHistoryAPI {
-  const [history, setHistory] = useState<HistoryOperation[]>([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
-  // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
-  const currentHistoryIndexRef = useRef(currentHistoryIndex);
-  currentHistoryIndexRef.current = currentHistoryIndex;
+function reportFailure(action: 'undo' | 'redo', result: CommitResult): void {
+  if (result.status === 'refused') {
+    toast.warning(
+      `Can't ${action}: ${result.changedKeys.join(', ')} changed since — edit it directly instead`
+    );
+  } else if (result.status === 'saveFailed') {
+    toast.error(
+      result.rolledBack
+        ? `Failed to save the ${action}`
+        : `Failed to save the ${action} and could not fully revert it — reload dictionaries before editing further`
+    );
+  }
+}
 
-  const addToHistory = useCallback(
-    (operation: Omit<HistoryOperation, 'timestamp'>): void => {
-      setHistory((prevHistory) => {
-        const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
-        newHistory.push({ ...operation, timestamp: Date.now() });
-        if (newHistory.length > MAX_HISTORY) {
-          newHistory.shift();
-        }
-        return newHistory;
-      });
-      setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
+/**
+ * Dictionary undo/redo: a list of committed Dictionary Edits and a cursor. Undo commits the
+ * inverse of the edit at the cursor, redo the edit after it — both through the same
+ * `EditCommitter` queue as every other edit, which refuses one whose keys changed since.
+ *
+ * The list and cursor live in a ref, not state, so the edit an undo picks and the cursor move
+ * after it both happen inside its turn in the queue — a queued edit never records itself
+ * between them. `version` only makes `canUndo`/`canRedo` re-render.
+ */
+export function useDictionaryHistory(committer: EditCommitter): DictionaryHistoryAPI {
+  const historyRef = useRef<{ edits: DictionaryEdit[]; cursor: number }>({
+    edits: [],
+    cursor: -1,
+  });
+  const [, setVersion] = useState(0);
+  const bump = useCallback(() => setVersion((v) => v + 1), []);
+
+  const record = useCallback(
+    (edit: DictionaryEdit): void => {
+      const h = historyRef.current;
+      const edits = h.edits.slice(0, h.cursor + 1);
+      edits.push(edit);
+      if (edits.length > MAX_HISTORY) edits.shift();
+      historyRef.current = { edits, cursor: edits.length - 1 };
+      bump();
     },
-    [] // stable — reads currentHistoryIndex via currentHistoryIndexRef.current
+    [bump]
   );
 
+  const clear = useCallback((): void => {
+    historyRef.current = { edits: [], cursor: -1 };
+    bump();
+  }, [bump]);
+
   const undo = useCallback(async (): Promise<boolean> => {
-    if (currentHistoryIndex < 0) return false;
-    const operation = history[currentHistoryIndex];
-
-    const updates = computeUndoMutation(operation, dictionariesRef.current);
-    if (!updates) {
-      logger.error(`Cannot undo ${operation.operation}: required dictionaries not found`);
-      return false;
-    }
-
-    const ok = await commitMutation(updates);
-    if (ok) {
-      setCurrentHistoryIndex((prev) => prev - 1);
-      for (const { dictionaryId } of updates) {
-        await invalidateEngine(dictionaryId);
+    const result = await committer.commit(
+      () => {
+        const { edits, cursor } = historyRef.current;
+        return cursor >= 0 ? invert(edits[cursor]) : { invalid: 'Nothing to undo' };
+      },
+      () => {
+        historyRef.current = { ...historyRef.current, cursor: historyRef.current.cursor - 1 };
+        bump();
       }
-      return true;
-    }
-    return false;
-  }, [history, currentHistoryIndex, commitMutation, invalidateEngine]);
+    );
+    reportFailure('undo', result);
+    return result.status === 'ok';
+  }, [committer, bump]);
 
   const redo = useCallback(async (): Promise<boolean> => {
-    if (currentHistoryIndex >= history.length - 1) return false;
-    const operation = history[currentHistoryIndex + 1];
-
-    const updates = computeRedoMutation(operation, dictionariesRef.current);
-    if (!updates) {
-      logger.error(`Cannot redo ${operation.operation}: required dictionaries not found`);
-      return false;
-    }
-
-    const ok = await commitMutation(updates);
-    if (ok) {
-      setCurrentHistoryIndex((prev) => prev + 1);
-      for (const { dictionaryId } of updates) {
-        await invalidateEngine(dictionaryId);
+    const result = await committer.commit(
+      () => {
+        const { edits, cursor } = historyRef.current;
+        return cursor < edits.length - 1 ? edits[cursor + 1] : { invalid: 'Nothing to redo' };
+      },
+      () => {
+        historyRef.current = { ...historyRef.current, cursor: historyRef.current.cursor + 1 };
+        bump();
       }
-      return true;
-    }
-    return false;
-  }, [history, currentHistoryIndex, commitMutation, invalidateEngine]);
+    );
+    reportFailure('redo', result);
+    return result.status === 'ok';
+  }, [committer, bump]);
 
+  const { edits, cursor } = historyRef.current;
   return {
-    addToHistory,
+    record,
     undo,
     redo,
-    canUndo: currentHistoryIndex >= 0,
-    canRedo: currentHistoryIndex < history.length - 1,
+    clear,
+    canUndo: cursor >= 0,
+    canRedo: cursor < edits.length - 1,
   };
 }

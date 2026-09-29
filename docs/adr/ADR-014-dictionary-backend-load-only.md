@@ -47,3 +47,7 @@ Rejected: save/move ops are already thin and behind typed abstractions; `window.
 - `DictionaryBackend.ts` owns load protocol. Save/move IPC stays in `DictionaryContext.tsx`.
 - Future architecture reviews should not re-propose extracting `persistDictionaryMutation`, `commitMutation`, or `commitMoveOp` into the backend — the seam is hypothetical and the save ops are already well-abstracted.
 - If a second caller for save/move IPC emerges (e.g., a bulk-import feature), revisit — that would make the seam real.
+
+## Addendum 2026-09-29
+
+The three save operations named above (`persistDictionaryMutation`, `commitMutation`, `commitMoveOp`) no longer exist. They were replaced by one `EditCommitter` (ADR-052), which fixed undo data loss rather than extracting IPC into the backend. The load-only decision here stands: `DictionaryBackend` still owns load, and saves still call `saveDictionary` from the provider's committer.

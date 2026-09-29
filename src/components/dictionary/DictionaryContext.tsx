@@ -24,7 +24,7 @@ import { loadAppConfig } from '../../utils/appConfig';
 import type { DictionaryData, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from '../../hooks/useDictionaryCRUD';
-import { useDictionaryPersistence } from './useDictionaryPersistence';
+import { createEditCommitter } from './EditCommitter';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
@@ -119,47 +119,33 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     },
     []
   );
-  // Ref-mirror so undo/redo move branches read latest dicts without closing over state
+  // Ref-mirror the committer reads from. Its own writes land here immediately, ahead of the
+  // re-render, so a queued commit plans against the previous commit's result.
   const dictionariesRef = useRef(dictionaries);
   dictionariesRef.current = dictionaries;
 
-  // Stable callback: sort → save → update state. Used by useDictionaryHistory for undo/redo.
-  const commitMutation = useCallback(
-    async (updates: Array<{ dictionaryId: string; entries: DictionaryData }>): Promise<boolean> => {
-      const results = await Promise.all(
-        updates.map(({ dictionaryId, entries }) =>
-          window.electronAPI.saveDictionary(dictionaryId, entries)
-        )
-      );
-      if (results.every((r) => r.success)) {
-        setDictionaries((prev) => {
-          const next = { ...prev };
-          for (const { dictionaryId, entries } of updates) {
-            next[dictionaryId] = entries;
-          }
-          return next;
-        });
-        return true;
-      }
-      return false;
-    },
-    [] // stable — setDictionaries is stable, window.electronAPI is a module global
+  // The one save protocol for every dictionary edit, CRUD and undo/redo alike (ADR-052).
+  const [committer] = useState(() =>
+    createEditCommitter({
+      read: () => dictionariesRef.current,
+      write: (updates) => {
+        dictionariesRef.current = { ...dictionariesRef.current, ...updates };
+        setDictionaries((prev) => ({ ...prev, ...updates }));
+      },
+      save: (dictionaryId, entries) => window.electronAPI.saveDictionary(dictionaryId, entries),
+      invalidate: (dictionaryId) =>
+        invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
+    })
   );
 
-  // Stable wrapper so useDictionaryHistory doesn't import invokeEngineInvalidator directly
-  const invalidateEngine = useCallback(
-    (dictionaryId: string) =>
-      invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
-    [] // stable — reads engineInvalidatorRef.current / hasRegisteredOnceRef.current
-  );
-
-  const { addToHistory, undo, redo, canUndo, canRedo } = useDictionaryHistory(
-    dictionariesRef,
-    commitMutation,
-    invalidateEngine
-  );
-
-  const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries);
+  const {
+    record,
+    undo,
+    redo,
+    clear: clearHistory,
+    canUndo,
+    canRedo,
+  } = useDictionaryHistory(committer);
 
   const {
     addEntry,
@@ -169,13 +155,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     bulkDeleteEntries,
     moveEntry,
     bulkMoveEntries,
-  } = useDictionaryCRUD(
-    dictionariesRef,
-    persistDictionaryMutation,
-    commitMoveOp,
-    addToHistory,
-    invalidateEngine
-  );
+  } = useDictionaryCRUD(committer, record);
 
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
@@ -272,16 +252,21 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   }, []);
 
   // Removes one key from in-memory state without touching disk. Used after an external rename
-  // (ConfigurationManager) once the new ID has already been loaded via loadDictionary, so the old
-  // ID doesn't linger as a stale duplicate entry.
-  const removeDictionaryKey = useCallback((dictionaryId: string): void => {
-    setDictionaries((prev) => {
-      if (!(dictionaryId in prev)) return prev;
-      const next = { ...prev };
-      delete next[dictionaryId];
-      return next;
-    });
-  }, []);
+  // (DictionaryPairs) once the new ID has already been loaded via loadDictionary, so the old
+  // ID doesn't linger as a stale duplicate entry. History is cleared with it: its edits name
+  // the old ID, so none of them could be undone.
+  const removeDictionaryKey = useCallback(
+    (dictionaryId: string): void => {
+      setDictionaries((prev) => {
+        if (!(dictionaryId in prev)) return prev;
+        const next = { ...prev };
+        delete next[dictionaryId];
+        return next;
+      });
+      clearHistory();
+    },
+    [clearHistory]
+  );
 
   // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
   // no useCallback wrapper needed; pass them directly in the value object below.
@@ -304,6 +289,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       redo,
       canUndo,
       canRedo,
+      clearHistory,
       loadDictionary,
       removeDictionaryKey,
       selectedDictionary,
@@ -327,6 +313,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       redo,
       canUndo,
       canRedo,
+      clearHistory,
       loadDictionary,
       removeDictionaryKey,
       selectedDictionary,

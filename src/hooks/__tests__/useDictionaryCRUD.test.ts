@@ -1,30 +1,22 @@
 /**
- * Invariant tests for useDictionaryCRUD.
+ * Wiring tests for useDictionaryCRUD: each method plans a Dictionary Edit, commits it through
+ * a real EditCommitter over a fake disk, and turns the outcome into a message or a typed
+ * throw. What an edit does to the dictionaries — and how undo reverses it — is tested once,
+ * in DictionaryEdit.test.ts and EditCommitter.test.ts.
  *
- * Four load-bearing invariants:
+ * Invariants kept from the pre-commit-queue hook:
  *
- *   I1 (history-on-success): addToHistory fires only when persistDictionaryMutation / commitMoveOp
- *      returns true. On failure (returns false), addToHistory must NOT be called.
- *
- *   I2 (snapshot-before-mutate): all operations read dictionariesRef.current into a local snapshot
- *      BEFORE calling persist. Concurrent Mode can update the ref between the dispatch and the
- *      persist callback; the hook must never read the ref inside the persist chain.
- *
- *   I3 (error-propagates-clean): on persist failure, the hook throws, addToHistory is not called,
- *      and invalidateEngine is not called.
- *
- *   I4 (single-toast-on-error): addEntry/updateEntry/deleteEntry/bulkDeleteEntries call toast at
- *      most once per failure — the catch block's isValidationError/isSaveError guard exists
- *      specifically to prevent a second toast on top of the one already shown before the throw.
- *      Does NOT apply to moveEntry/bulkMoveEntries — those have no internal catch/toast at all;
- *      MoveDialog.tsx owns error display for move ops via its own inline error banner (see
- *      dictionary/CLAUDE.md's CRUD Audit Checklist item 4). I4's move-op tests assert the inverse:
- *      zero toast calls on failure, protecting that split from a future toast being added here
- *      that would double up with MoveDialog's banner.
+ *   I1 (history-on-success): `record` fires only after every save succeeded.
+ *   I3 (error-propagates-clean): on a failed save the method throws, nothing is recorded, the
+ *      engine is not invalidated, and memory is back as it was.
+ *   I4 (single-toast-on-error): add/update/patch/delete/bulkDelete toast at most once per
+ *      failure. moveEntry/bulkMoveEntries toast never on failure — MoveDialog.tsx owns their
+ *      error display (dictionary/CLAUDE.md's CRUD Audit Checklist item 4).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDictionaryCRUD } from '../useDictionaryCRUD';
+import { createEditCommitter } from '../../components/dictionary/EditCommitter';
 import toast from '../../utils/toast';
 import { validatePersistEntry } from '../../utils/dictionary/PersistTimeValidator';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
@@ -58,42 +50,43 @@ vi.mock('../../utils/dictionary', async () => ({
 
 const DICT_ID = 'phrases';
 const CHARS_ID = 'characters';
+const PN_A = 'properNouns-A';
+const PN_B = 'properNouns-B';
 const SOURCE = '你好';
 const SOURCE_B = '再见';
-const SOURCE_C = '谢谢';
 const TRANSLATION = 'xin chào';
 
 const phraseEntry: DictionaryEntryValue = {
   translation: TRANSLATION,
   allowAsPatternVariable: false,
-  lowPriority: false,
 };
 
-function makeRef(data: Record<string, DictionaryData> = { [DICT_ID]: { [SOURCE]: phraseEntry } }) {
-  return { current: data };
+let memory: Record<string, DictionaryData>;
+let save: ReturnType<typeof vi.fn>;
+let invalidate: ReturnType<typeof vi.fn>;
+let record: ReturnType<typeof vi.fn>;
+
+function makeHook(initial: Record<string, DictionaryData>) {
+  memory = structuredClone(initial);
+  save = vi.fn().mockResolvedValue({ success: true });
+  invalidate = vi.fn().mockResolvedValue(undefined);
+  record = vi.fn();
+  const committer = createEditCommitter({
+    read: () => memory,
+    write: (updates) => {
+      memory = { ...memory, ...updates };
+    },
+    save,
+    invalidate,
+  });
+  const { result } = renderHook(() => useDictionaryCRUD(committer, record));
+  return result;
 }
 
-function makeHook(
-  refData: Record<string, DictionaryData> = { [DICT_ID]: { [SOURCE]: phraseEntry } },
-  overrides: {
-    persist?: ReturnType<typeof vi.fn>;
-    commitMove?: ReturnType<typeof vi.fn>;
-    addToHistory?: ReturnType<typeof vi.fn>;
-    invalidate?: ReturnType<typeof vi.fn>;
-  } = {}
-) {
-  const dictionariesRef = makeRef(refData);
-  const persist = overrides.persist ?? vi.fn().mockResolvedValue(true);
-  const commitMove = overrides.commitMove ?? vi.fn().mockResolvedValue(true);
-  const addToHistory = overrides.addToHistory ?? vi.fn();
-  const invalidate = overrides.invalidate ?? vi.fn().mockResolvedValue(undefined);
-
-  const { result } = renderHook(() =>
-    useDictionaryCRUD(dictionariesRef, persist, commitMove, addToHistory, invalidate)
-  );
-
-  return { result, dictionariesRef, persist, commitMove, addToHistory, invalidate };
-}
+const failSaves = () => save.mockResolvedValue({ success: false });
+const throwSaves = () => save.mockRejectedValue(new Error('IPC down'));
+const toastCount = () =>
+  vi.mocked(toast.error).mock.calls.length + vi.mocked(toast.warning).mock.calls.length;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -101,140 +94,118 @@ beforeEach(() => {
 
 // ─── addEntry ─────────────────────────────────────────────────────────────────
 
-describe('addEntry — success path', () => {
-  it('calls addToHistory after persist succeeds (I1)', async () => {
-    const { result, addToHistory, persist } = makeHook({ [DICT_ID]: {} });
+describe('addEntry', () => {
+  it('commits, records and invalidates on success (I1)', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
     await act(async () => {
       await result.current.addEntry(DICT_ID, SOURCE, TRANSLATION);
     });
-    expect(persist).toHaveBeenCalledTimes(1);
-    expect(addToHistory).toHaveBeenCalledTimes(1);
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ dictionaryId: DICT_ID, operation: 'add' })
-    );
-  });
-
-  it('calls invalidateEngine after persist succeeds', async () => {
-    const { result, invalidate } = makeHook({ [DICT_ID]: {} });
-    await act(async () => {
-      await result.current.addEntry(DICT_ID, SOURCE, TRANSLATION);
-    });
+    expect(memory[DICT_ID][SOURCE]).toEqual(phraseEntry);
+    expect(record).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith(DICT_ID);
+    expect(toast.success).toHaveBeenCalledWith('Entry added successfully');
   });
 
-  it('uses string value for characters dict (not complex-entry format)', async () => {
-    const { result, persist } = makeHook({ [CHARS_ID]: {} });
+  it('warns when it overwrote an existing entry', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
     await act(async () => {
-      await result.current.addEntry(CHARS_ID, SOURCE, TRANSLATION);
+      await result.current.addEntry(DICT_ID, SOURCE, 'mới');
     });
-    // sortedDictionary passed to persist should have a string value, not an object
-    const [, , sortedDict] = persist.mock.calls[0];
-    expect(typeof sortedDict[SOURCE]).toBe('string');
+    expect(toast.warning).toHaveBeenCalledWith('Existing entry overwritten');
   });
 
-  it('uses object value for phrases dict', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: {} });
+  it('uses a string value for a lookup table and an object for phrases', async () => {
+    const result = makeHook({ [DICT_ID]: {}, [CHARS_ID]: {} });
     await act(async () => {
-      await result.current.addEntry(DICT_ID, SOURCE, TRANSLATION);
+      await result.current.addEntry(CHARS_ID, '我', 'ta');
+      await result.current.addEntry(DICT_ID, SOURCE, TRANSLATION, { semanticType: 'concept' });
     });
-    const [, , sortedDict] = persist.mock.calls[0];
-    expect(typeof sortedDict[SOURCE]).toBe('object');
-    expect((sortedDict[SOURCE] as DictionaryEntryValue).translation).toBe(TRANSLATION);
-  });
-});
-
-describe('addEntry — persist failure (I1 + I3)', () => {
-  it('does NOT call addToHistory when persist returns false', async () => {
-    const { result, addToHistory } = makeHook(
-      { [DICT_ID]: {} },
-      { persist: vi.fn().mockResolvedValue(false) }
-    );
-    await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
-    });
-    expect(addToHistory).not.toHaveBeenCalled();
+    expect(memory[CHARS_ID]['我']).toBe('ta');
+    expect(memory[DICT_ID][SOURCE]).toEqual({ ...phraseEntry, semanticType: 'concept' });
   });
 
-  it('does NOT call invalidateEngine when persist returns false (I3)', async () => {
-    const { result, invalidate } = makeHook(
-      { [DICT_ID]: {} },
-      { persist: vi.fn().mockResolvedValue(false) }
-    );
-    await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
-    });
-    expect(invalidate).not.toHaveBeenCalled();
-  });
-
-  it('throws when persist returns false', async () => {
-    const { result } = makeHook({ [DICT_ID]: {} }, { persist: vi.fn().mockResolvedValue(false) });
+  it('throws, records nothing and restores memory when the save fails (I3)', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
+    failSaves();
     await act(async () => {
       await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow(
         'Failed to save dictionary changes'
       );
     });
+    expect(record).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(memory[DICT_ID]).toEqual({});
+  });
+
+  it.each([
+    ['the dictionary does not exist', () => makeHook({})],
+    [
+      'validation fails',
+      () => {
+        vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
+        return makeHook({ [DICT_ID]: {} });
+      },
+    ],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [DICT_ID]: {} });
+        failSaves();
+        return r;
+      },
+    ],
+    [
+      'the save throws',
+      () => {
+        const r = makeHook({ [DICT_ID]: {} });
+        throwSaves();
+        return r;
+      },
+    ],
+  ])('toasts once when %s (I4)', async (_name, setup) => {
+    const result = setup();
+    await act(async () => {
+      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
+    });
+    expect(toastCount()).toBe(1);
   });
 });
 
-describe('addEntry — dictionary not found', () => {
-  it('throws ValidationError when dict does not exist', async () => {
-    const { result } = makeHook({ [DICT_ID]: {} });
+// ─── updateEntry ─────────────────────────────────────────────────────────────
+
+describe('updateEntry', () => {
+  it('renames the key and records the edit (I1)', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
     await act(async () => {
-      await expect(result.current.addEntry('nonexistent', SOURCE, TRANSLATION)).rejects.toThrow(
-        "Dictionary 'nonexistent' does not exist"
-      );
+      await result.current.updateEntry(DICT_ID, SOURCE, SOURCE_B, 'tạm biệt');
     });
+    expect(memory[DICT_ID]).toEqual({
+      [SOURCE_B]: { translation: 'tạm biệt', allowAsPatternVariable: false },
+    });
+    expect(record).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT call persist when dict not found', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: {} });
+  it.each([
+    ['the dictionary does not exist', () => makeHook({})],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+        failSaves();
+        return r;
+      },
+    ],
+  ])('toasts once and records nothing when %s (I3 + I4)', async (_name, setup) => {
+    const result = setup();
     await act(async () => {
-      await expect(result.current.addEntry('nonexistent', SOURCE, TRANSLATION)).rejects.toThrow();
+      await expect(result.current.updateEntry(DICT_ID, SOURCE, SOURCE, 'x')).rejects.toThrow();
     });
-    expect(persist).not.toHaveBeenCalled();
-  });
-});
-
-// ─── updateEntry ──────────────────────────────────────────────────────────────
-
-describe('updateEntry — success path', () => {
-  it('calls addToHistory with operation=update on success (I1)', async () => {
-    const { result, addToHistory } = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-    await act(async () => {
-      await result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION);
-    });
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ operation: 'update', dictionaryId: DICT_ID })
-    );
-  });
-
-  it('includes oldEntry in history when source key changes', async () => {
-    const { result, addToHistory } = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-    await act(async () => {
-      await result.current.updateEntry(DICT_ID, SOURCE, SOURCE_B, TRANSLATION);
-    });
-    const call = addToHistory.mock.calls[0][0];
-    expect(call.oldEntry).toEqual({ source: SOURCE, value: phraseEntry });
-    expect(call.oldSource).toBe(SOURCE);
+    expect(toastCount()).toBe(1);
+    expect(record).not.toHaveBeenCalled();
   });
 });
 
-describe('updateEntry — persist failure (I1 + I3)', () => {
-  it('does NOT call addToHistory when persist returns false', async () => {
-    const { result, addToHistory } = makeHook(
-      { [DICT_ID]: { [SOURCE]: phraseEntry } },
-      { persist: vi.fn().mockResolvedValue(false) }
-    );
-    await act(async () => {
-      await expect(
-        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
-      ).rejects.toThrow();
-    });
-    expect(addToHistory).not.toHaveBeenCalled();
-  });
-});
-
-// ─── patchEntry ───────────────────────────────────────────────────────────────
+// ─── patchEntry ──────────────────────────────────────────────────────────────
 
 describe('patchEntry', () => {
   const PROPER_ID = 'properNouns';
@@ -244,51 +215,65 @@ describe('patchEntry', () => {
     semanticType: 'location',
     allowedVariableTypes: { X: ['character'] },
   };
-  const written = (persist: ReturnType<typeof vi.fn>, source = SOURCE) =>
-    persist.mock.calls[0][2][source];
 
   it('changes the patched field and keeps every other field as stored', async () => {
-    const { result, persist, addToHistory, invalidate } = makeHook({
-      [PROPER_ID]: { [SOURCE]: stored },
-    });
+    const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
     await act(async () => {
       await result.current.patchEntry(PROPER_ID, SOURCE, { semanticType: 'organization' });
     });
-    expect(written(persist)).toEqual({ ...stored, semanticType: 'organization' });
-    // It is an update: same history, same invalidation.
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ operation: 'update', dictionaryId: PROPER_ID })
-    );
+    expect(memory[PROPER_ID][SOURCE]).toEqual({ ...stored, semanticType: 'organization' });
+    expect(record).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith(PROPER_ID);
   });
 
   it('reads the current value, not a caller snapshot, when given an updater', async () => {
-    const { result, persist } = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
     await act(async () => {
       await result.current.patchEntry(PROPER_ID, SOURCE, (current) => ({
         allowedVariableTypes: { ...current.allowedVariableTypes, Y: ['location'] },
       }));
     });
-    expect(written(persist).allowedVariableTypes).toEqual({ X: ['character'], Y: ['location'] });
+    expect((memory[PROPER_ID][SOURCE] as DictionaryEntryValue).allowedVariableTypes).toEqual({
+      X: ['character'],
+      Y: ['location'],
+    });
+  });
+
+  it('two queued patches each start from the other one’s result', async () => {
+    const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    await act(async () => {
+      await Promise.all([
+        result.current.patchEntry(PROPER_ID, SOURCE, { semanticType: 'organization' }),
+        result.current.patchEntry(PROPER_ID, SOURCE, { translation: 'Nam Kinh 2' }),
+      ]);
+    });
+    expect(memory[PROPER_ID][SOURCE]).toEqual({
+      ...stored,
+      semanticType: 'organization',
+      translation: 'Nam Kinh 2',
+    });
   });
 
   it('an emptied field removes its key', async () => {
-    const { result, persist } = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
     await act(async () => {
       await result.current.patchEntry(PROPER_ID, SOURCE, {
         semanticType: '',
         allowedVariableTypes: {},
       });
     });
-    expect(written(persist)).toEqual({ translation: 'Nam Kinh', allowAsPatternVariable: true });
+    expect(memory[PROPER_ID][SOURCE]).toEqual({
+      translation: 'Nam Kinh',
+      allowAsPatternVariable: true,
+    });
   });
 
   it('writes a legacy string value back as an object', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: { [SOURCE]: 'xin chào' } });
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: 'xin chào' } });
     await act(async () => {
       await result.current.patchEntry(DICT_ID, SOURCE, { semanticType: 'concept' });
     });
-    expect(written(persist)).toEqual({
+    expect(memory[DICT_ID][SOURCE]).toEqual({
       translation: 'xin chào',
       allowAsPatternVariable: false,
       semanticType: 'concept',
@@ -296,535 +281,221 @@ describe('patchEntry', () => {
   });
 
   it('keeps only the translation for a lookup table', async () => {
-    const { result, persist } = makeHook({ [CHARS_ID]: { [SOURCE]: 'tốt' } });
+    const result = makeHook({ [CHARS_ID]: { [SOURCE]: 'tốt' } });
     await act(async () => {
       await result.current.patchEntry(CHARS_ID, SOURCE, {
         translation: 'hay',
         semanticType: 'concept',
       });
     });
-    expect(written(persist)).toBe('hay');
+    expect(memory[CHARS_ID][SOURCE]).toBe('hay');
   });
 
   it('throws ValidationError and writes nothing for an entry that does not exist', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: {} });
+    const result = makeHook({ [DICT_ID]: {} });
     await act(async () => {
       await expect(
         result.current.patchEntry(DICT_ID, SOURCE, { translation: 'x' })
       ).rejects.toThrow(`Entry '${SOURCE}' does not exist in '${DICT_ID}'`);
     });
     expect(toast.error).toHaveBeenCalledTimes(1);
-    expect(persist).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('toasts once when the patched value fails validation', async () => {
+    const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
+    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
+    await act(async () => {
+      await expect(
+        result.current.patchEntry(PROPER_ID, SOURCE, { translation: '' })
+      ).rejects.toThrow('bad entry');
+    });
+    expect(toastCount()).toBe(1);
+    expect(save).not.toHaveBeenCalled();
   });
 });
 
-// ─── deleteEntry ──────────────────────────────────────────────────────────────
+// ─── deleteEntry / bulkDeleteEntries ─────────────────────────────────────────
 
-describe('deleteEntry — success path', () => {
-  it('calls addToHistory with operation=delete and oldEntry (I1)', async () => {
-    const { result, addToHistory } = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+describe('deleteEntry', () => {
+  it('deletes and records (I1)', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
     await act(async () => {
       await result.current.deleteEntry(DICT_ID, SOURCE);
     });
-    expect(addToHistory).toHaveBeenCalledWith({
-      dictionaryId: DICT_ID,
-      operation: 'delete',
-      oldEntry: { source: SOURCE, value: phraseEntry },
-    });
+    expect(memory[DICT_ID]).toEqual({});
+    expect(record).toHaveBeenCalledTimes(1);
   });
-});
 
-describe('deleteEntry — source not found', () => {
-  it('throws ValidationError for missing source key', async () => {
-    const { result } = makeHook({ [DICT_ID]: {} });
+  it('warns once (not error) and saves nothing when the entry is not found', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
     await act(async () => {
       await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow(
         `Entry '${SOURCE}' not found in dictionary`
       );
     });
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 
-  it('does NOT call persist for missing source', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: {} });
+  it.each([
+    ['the dictionary does not exist', () => makeHook({})],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+        failSaves();
+        return r;
+      },
+    ],
+    [
+      'the save throws',
+      () => {
+        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+        throwSaves();
+        return r;
+      },
+    ],
+  ])('toasts once and records nothing when %s (I3 + I4)', async (_name, setup) => {
+    const result = setup();
     await act(async () => {
       await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
     });
-    expect(persist).not.toHaveBeenCalled();
+    expect(toastCount()).toBe(1);
+    expect(record).not.toHaveBeenCalled();
   });
 });
 
-describe('deleteEntry — persist failure (I3)', () => {
-  it('does NOT call addToHistory when persist returns false', async () => {
-    const { result, addToHistory } = makeHook(
-      { [DICT_ID]: { [SOURCE]: phraseEntry } },
-      { persist: vi.fn().mockResolvedValue(false) }
-    );
+describe('bulkDeleteEntries', () => {
+  it('returns zero counts without saving for empty input', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
+    let out;
     await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
+      out = await result.current.bulkDeleteEntries(DICT_ID, []);
     });
-    expect(addToHistory).not.toHaveBeenCalled();
-  });
-});
-
-// ─── bulkDeleteEntries ────────────────────────────────────────────────────────
-
-describe('bulkDeleteEntries — empty input', () => {
-  it('returns zero counts without calling persist', async () => {
-    const { result, persist } = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-    let res: { successCount: number; errors: string[] } | undefined;
-    await act(async () => {
-      res = await result.current.bulkDeleteEntries(DICT_ID, []);
-    });
-    expect(res).toEqual({ successCount: 0, errors: [] });
-    expect(persist).not.toHaveBeenCalled();
-  });
-});
-
-describe('bulkDeleteEntries — success path', () => {
-  it('calls addToHistory with operation=bulk_delete for multiple entries (I1)', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry, [SOURCE_C]: phraseEntry },
-    };
-    const { result, addToHistory } = makeHook(refData);
-    await act(async () => {
-      await result.current.bulkDeleteEntries(DICT_ID, [SOURCE, SOURCE_B]);
-    });
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ operation: 'bulk_delete', dictionaryId: DICT_ID })
-    );
+    expect(out).toEqual({ successCount: 0, errors: [] });
+    expect(save).not.toHaveBeenCalled();
   });
 
-  it('calls addToHistory with operation=delete (singular) for exactly one entry', async () => {
-    const { result, addToHistory } = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+  it('reports missing entries as errors and records one edit', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry } });
+    let out;
     await act(async () => {
-      await result.current.bulkDeleteEntries(DICT_ID, [SOURCE]);
+      out = await result.current.bulkDeleteEntries(DICT_ID, [SOURCE, SOURCE_B, '无']);
     });
-    expect(addToHistory).toHaveBeenCalledWith(expect.objectContaining({ operation: 'delete' }));
+    expect(out).toEqual({ successCount: 2, errors: ['Entry "无" not found in dictionary'] });
+    expect(memory[DICT_ID]).toEqual({});
+    expect(record).toHaveBeenCalledTimes(1);
   });
 
-  it('returns successCount and errors for partial match (I2 — snapshot integrity)', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry } };
-    const { result } = makeHook(refData);
-    let res: { successCount: number; errors: string[] } | undefined;
-    await act(async () => {
-      // SOURCE exists, SOURCE_B does not
-      res = await result.current.bulkDeleteEntries(DICT_ID, [SOURCE, SOURCE_B]);
-    });
-    expect(res!.successCount).toBe(1);
-    expect(res!.errors).toHaveLength(1);
-    expect(res!.errors[0]).toContain(SOURCE_B);
-  });
-
-  it('passes original snapshot as oldData to persist (I2)', async () => {
-    const originalDict = { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry };
-    const { result, persist } = makeHook({ [DICT_ID]: { ...originalDict } });
-    await act(async () => {
-      await result.current.bulkDeleteEntries(DICT_ID, [SOURCE]);
-    });
-    // oldData (2nd arg to persist) must be the original snapshot
-    const [, oldData] = persist.mock.calls[0];
-    expect(oldData).toEqual(originalDict);
-    // sortedDictionary (3rd arg) must have SOURCE removed
-    const [, , sortedDict] = persist.mock.calls[0];
-    expect(sortedDict[SOURCE]).toBeUndefined();
-    expect(sortedDict[SOURCE_B]).toEqual(phraseEntry);
-  });
-});
-
-describe('bulkDeleteEntries — persist failure (I3)', () => {
-  it('does NOT call addToHistory when persist returns false', async () => {
-    const { result, addToHistory } = makeHook(
-      { [DICT_ID]: { [SOURCE]: phraseEntry } },
-      { persist: vi.fn().mockResolvedValue(false) }
-    );
+  it.each([
+    ['the dictionary does not exist', () => makeHook({})],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+        failSaves();
+        return r;
+      },
+    ],
+  ])('toasts once and records nothing when %s (I3 + I4)', async (_name, setup) => {
+    const result = setup();
     await act(async () => {
       await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
     });
-    expect(addToHistory).not.toHaveBeenCalled();
+    expect(toastCount()).toBe(1);
+    expect(record).not.toHaveBeenCalled();
   });
 });
 
-// ─── moveEntry ────────────────────────────────────────────────────────────────
+// ─── moveEntry / bulkMoveEntries ─────────────────────────────────────────────
 
-const TARGET_ID = 'properNouns-Test';
-
-describe('moveEntry — success path', () => {
-  it('calls addToHistory with operation=move (I1)', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry },
-      [TARGET_ID]: {},
-    };
-    const { result, addToHistory } = makeHook(refData);
+describe('moveEntry', () => {
+  it('moves, records one edit and invalidates both dictionaries (I1)', async () => {
+    const result = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
     await act(async () => {
-      await result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test');
+      await result.current.moveEntry(PN_A, PN_B, SOURCE, 'B');
     });
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operation: 'move',
-        dictionaryId: DICT_ID,
-        targetDictionaryId: TARGET_ID,
-      })
-    );
+    expect(memory[PN_A]).toEqual({});
+    expect(memory[PN_B]).toEqual({ [SOURCE]: phraseEntry });
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(invalidate.mock.calls.map(([id]) => id)).toEqual([PN_A, PN_B]);
   });
 
-  it('invalidates both source and target dicts', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry },
-      [TARGET_ID]: {},
-    };
-    const { result, invalidate } = makeHook(refData);
-    await act(async () => {
-      await result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test');
-    });
-    expect(invalidate).toHaveBeenCalledWith(DICT_ID);
-    expect(invalidate).toHaveBeenCalledWith(TARGET_ID);
-  });
-
-  it('passes old snapshots as oldSource/oldTarget to commitMove (I2)', async () => {
-    const sourceSnapshot = { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry };
-    const targetSnapshot = { [SOURCE_C]: phraseEntry };
-    const refData = {
-      [DICT_ID]: { ...sourceSnapshot },
-      [TARGET_ID]: { ...targetSnapshot },
-    };
-    const { result, commitMove } = makeHook(refData);
-    await act(async () => {
-      await result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test');
-    });
-    const [args] = commitMove.mock.calls;
-    expect(args[0].oldSource).toEqual(sourceSnapshot);
-    expect(args[0].oldTarget).toEqual(targetSnapshot);
-    // newSource must have SOURCE removed
-    expect(args[0].newSource[SOURCE]).toBeUndefined();
-    // newTarget must have SOURCE added
-    expect(args[0].newTarget[SOURCE]).toEqual(phraseEntry);
-  });
-});
-
-describe('moveEntry — source not found', () => {
-  it('throws ValidationError when entry missing from source dict', async () => {
-    const refData = { [DICT_ID]: {}, [TARGET_ID]: {} };
-    const { result } = makeHook(refData);
-    await act(async () => {
-      await expect(result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test')).rejects.toThrow(
-        `Entry '${SOURCE}' not found in source dictionary`
-      );
-    });
-  });
-});
-
-describe('moveEntry / bulkMoveEntries — incompatible target', () => {
   it.each([
-    ['patterns', 'phrases'],
-    ['phrases', 'characters'],
-    ['characters', 'conversion'],
-  ])('rejects a move from %s to %s before touching disk', async (from, to) => {
-    const refData = { [from]: { [SOURCE]: phraseEntry }, [to]: {} };
-    const { result, commitMove } = makeHook(refData);
+    [
+      'the entry is not in the source',
+      () => makeHook({ [PN_A]: {}, [PN_B]: {} }),
+      `Entry '${SOURCE}' not found in source dictionary`,
+    ],
+    [
+      'the target is an incompatible kind',
+      () => makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [CHARS_ID]: {} }),
+      'incompatible dictionary types',
+    ],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
+        failSaves();
+        return r;
+      },
+      'Failed to save dictionaries during move',
+    ],
+  ])('throws without toasting when %s (I4)', async (name, setup, message) => {
+    const result = setup();
+    const target = name.includes('incompatible') ? CHARS_ID : PN_B;
     await act(async () => {
-      await expect(result.current.moveEntry(from, to, SOURCE, 'Test')).rejects.toThrow(
-        /incompatible dictionary types/
-      );
-      await expect(result.current.bulkMoveEntries(from, to, [SOURCE], 'Test')).rejects.toThrow(
-        /incompatible dictionary types/
-      );
+      await expect(result.current.moveEntry(PN_A, target, SOURCE, 'B')).rejects.toThrow(message);
     });
-    expect(commitMove).not.toHaveBeenCalled();
-  });
-});
-
-describe('moveEntry — commitMove failure (I1 + I3)', () => {
-  it('does NOT call addToHistory when commitMove returns false', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result, addToHistory } = makeHook(refData, {
-      commitMove: vi.fn().mockResolvedValue(false),
-    });
-    await act(async () => {
-      await expect(result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test')).rejects.toThrow();
-    });
-    expect(addToHistory).not.toHaveBeenCalled();
-  });
-
-  it('does NOT call invalidateEngine when commitMove returns false (I3)', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result, invalidate } = makeHook(refData, {
-      commitMove: vi.fn().mockResolvedValue(false),
-    });
-    await act(async () => {
-      await expect(result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test')).rejects.toThrow();
-    });
+    expect(toastCount()).toBe(0);
+    expect(record).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalled();
   });
 });
 
-// ─── bulkMoveEntries ──────────────────────────────────────────────────────────
-
-describe('bulkMoveEntries — empty input', () => {
-  it('returns zero counts without calling commitMove', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result, commitMove } = makeHook(refData);
-    let res: { movedCount: number; errors: string[] } | undefined;
+describe('bulkMoveEntries', () => {
+  it('returns zero counts without saving for empty input', async () => {
+    const result = makeHook({ [PN_A]: {}, [PN_B]: {} });
+    let out;
     await act(async () => {
-      res = await result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [], 'Test');
+      out = await result.current.bulkMoveEntries(PN_A, PN_B, [], 'B');
     });
-    expect(res).toEqual({ movedCount: 0, errors: [] });
-    expect(commitMove).not.toHaveBeenCalled();
-  });
-});
-
-describe('bulkMoveEntries — success path', () => {
-  it('calls addToHistory with operation=bulk_move for multiple entries (I1)', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry },
-      [TARGET_ID]: {},
-    };
-    const { result, addToHistory } = makeHook(refData);
-    await act(async () => {
-      await result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE, SOURCE_B], 'Test');
-    });
-    expect(addToHistory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operation: 'bulk_move',
-        dictionaryId: DICT_ID,
-        targetDictionaryId: TARGET_ID,
-      })
-    );
+    expect(out).toEqual({ movedCount: 0, errors: [] });
+    expect(save).not.toHaveBeenCalled();
   });
 
-  it('tracks partial success: missing entries become errors', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry },
-      [TARGET_ID]: {},
-    };
-    const { result } = makeHook(refData);
-    let res: { movedCount: number; errors: string[] } | undefined;
+  it('moves what exists and reports the rest', async () => {
+    const result = makeHook({
+      [PN_A]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry },
+      [PN_B]: {},
+    });
+    let out;
     await act(async () => {
-      // SOURCE_B does not exist in source dict
-      res = await result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE, SOURCE_B], 'Test');
+      out = await result.current.bulkMoveEntries(PN_A, PN_B, [SOURCE, SOURCE_B, '无'], 'B');
     });
-    expect(res!.movedCount).toBe(1);
-    expect(res!.errors).toHaveLength(1);
-    expect(res!.errors[0]).toContain(SOURCE_B);
-  });
-});
-
-describe('bulkMoveEntries — commitMove failure (I3)', () => {
-  it('does NOT call addToHistory when commitMove returns false', async () => {
-    const refData = {
-      [DICT_ID]: { [SOURCE]: phraseEntry },
-      [TARGET_ID]: {},
-    };
-    const { result, addToHistory } = makeHook(refData, {
-      commitMove: vi.fn().mockResolvedValue(false),
-    });
-    await act(async () => {
-      await expect(
-        result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE], 'Test')
-      ).rejects.toThrow();
-    });
-    expect(addToHistory).not.toHaveBeenCalled();
-  });
-});
-
-// ─── I4: single-toast-on-error ─────────────────────────────────────────────────
-
-describe('addEntry — single toast per failure (I4)', () => {
-  it('toasts once when the dictionary does not exist', async () => {
-    const { result } = makeHook({});
-    await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(out).toEqual({ movedCount: 2, errors: ['Entry "无" not found'] });
+    expect(Object.keys(memory[PN_B]).sort()).toEqual([SOURCE, SOURCE_B].sort());
+    expect(record).toHaveBeenCalledTimes(1);
   });
 
-  it('toasts once on a validation error', async () => {
-    const { result } = makeHook();
-    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
+  it.each([
+    ['the source dictionary is missing', () => makeHook({ [PN_B]: {} })],
+    [
+      'the save fails',
+      () => {
+        const r = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
+        failSaves();
+        return r;
+      },
+    ],
+  ])('throws without toasting when %s (I4)', async (_name, setup) => {
+    const result = setup();
     await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE_B, TRANSLATION)).rejects.toThrow();
+      await expect(result.current.bulkMoveEntries(PN_A, PN_B, [SOURCE], 'B')).rejects.toThrow();
     });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist returns false', async () => {
-    const { result } = makeHook({ [DICT_ID]: {} }, { persist: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist throws unexpectedly', async () => {
-    const { result } = makeHook(
-      { [DICT_ID]: {} },
-      { persist: vi.fn().mockRejectedValue(new Error('disk full')) }
-    );
-    await act(async () => {
-      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('updateEntry — single toast per failure (I4)', () => {
-  it('toasts once when the dictionary does not exist', async () => {
-    const { result } = makeHook({});
-    await act(async () => {
-      await expect(
-        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
-      ).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once on a validation error', async () => {
-    const { result } = makeHook();
-    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
-    await act(async () => {
-      await expect(
-        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
-      ).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist returns false', async () => {
-    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(
-        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
-      ).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist throws unexpectedly', async () => {
-    const { result } = makeHook(undefined, {
-      persist: vi.fn().mockRejectedValue(new Error('disk full')),
-    });
-    await act(async () => {
-      await expect(
-        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
-      ).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('deleteEntry — single toast per failure (I4)', () => {
-  it('toasts once when the dictionary does not exist', async () => {
-    const { result } = makeHook({});
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('warns once (not error) when the source entry is not found', async () => {
-    const { result } = makeHook();
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE_B)).rejects.toThrow();
-    });
-    expect(toast.warning).toHaveBeenCalledTimes(1);
-    expect(toast.error).not.toHaveBeenCalled();
-  });
-
-  it('toasts once when persist returns false', async () => {
-    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist throws unexpectedly', async () => {
-    const { result } = makeHook(undefined, {
-      persist: vi.fn().mockRejectedValue(new Error('disk full')),
-    });
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('bulkDeleteEntries — single toast per failure (I4)', () => {
-  it('toasts once when the dictionary does not exist', async () => {
-    const { result } = makeHook({});
-    await act(async () => {
-      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist returns false', async () => {
-    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('toasts once when persist throws unexpectedly', async () => {
-    const { result } = makeHook(undefined, {
-      persist: vi.fn().mockRejectedValue(new Error('disk full')),
-    });
-    await act(async () => {
-      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
-    });
-    expect(toast.error).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('moveEntry — no internal toast on failure (I4)', () => {
-  it('does not toast when the source entry is not found', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result } = makeHook(refData);
-    await act(async () => {
-      await expect(
-        result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE_B, 'Test')
-      ).rejects.toThrow();
-    });
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(toast.warning).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-
-  it('does not toast when commitMove returns false', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result } = makeHook(refData, { commitMove: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test')).rejects.toThrow();
-    });
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(toast.warning).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-});
-
-describe('bulkMoveEntries — no internal toast on failure (I4)', () => {
-  it('does not toast when the source dictionary is missing', async () => {
-    const { result } = makeHook({ [TARGET_ID]: {} });
-    await act(async () => {
-      await expect(
-        result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE], 'Test')
-      ).rejects.toThrow();
-    });
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(toast.warning).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-
-  it('does not toast when commitMove returns false', async () => {
-    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
-    const { result } = makeHook(refData, { commitMove: vi.fn().mockResolvedValue(false) });
-    await act(async () => {
-      await expect(
-        result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE], 'Test')
-      ).rejects.toThrow();
-    });
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(toast.warning).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
+    expect(toastCount()).toBe(0);
+    expect(record).not.toHaveBeenCalled();
   });
 });

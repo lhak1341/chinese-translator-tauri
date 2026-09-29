@@ -18,6 +18,7 @@ Split out of `development.md` 2026-09-07 (agent-config-hygiene restructure) — 
 
 **Deleted symbols — do not recreate:**
 
+- **`DictionaryOperationReverter.ts`, `HistoryOperation`/`HistoryOperationType`, `useDictionaryPersistence.ts` (`persistDictionaryMutation`, `commitMoveOp`), `DictionaryContext`'s `commitMutation`, `useDictionaryCRUD`'s `requireDictionaryExists`/`failSave`/`MoveOpUpdates`** (deleted 2026-09-29, architecture review candidate #1, ADR-052): history records did not store what an edit overwrote, so undo lost data. Replaced by the Dictionary Edit module (`DictionaryEdit.ts` + `EditCommitter.ts`). Do not recreate a per-operation reversal table; an edit's inverse is `invert(edit)`.
 - **`DictionaryTable.tsx` / `VirtualizedDictionaryTable.tsx`** (deleted 2026-02-15): Only `EnhancedVirtualizedDictionaryTable` is the active table component.
 - **`WasmPositionMapper`, `WasmNormalizer`, `WasmSegmentMatcher`, `PositionMappingValidator`, `PositionMappingBuilder`, `TranslationEngineFactory`** (deleted 2026-02-17): All had zero production imports.
 - **`buildSegmentsFromSemanticArrays`, `buildSimpleWordLevelSegments`, `findPositionOptimized`** (deleted 2026-02-20): Position tracking is now a byproduct of `assembleWithSpacing()`.

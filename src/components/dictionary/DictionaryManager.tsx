@@ -84,6 +84,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     redo,
     canUndo,
     canRedo,
+    clearHistory,
     isLoading,
     dictionaries: _dictionaries,
     loadDictionary,
@@ -235,6 +236,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       const result = await window.electronAPI.importDictionaries();
       if (result.success) {
         toast.success(result.message ?? 'Import complete');
+        // Import rewrote dictionary files outside history, so no edit in it can be undone.
+        clearHistory();
 
         // Selective refresh: reload dictionary types and current dictionary
         // This preserves user context (no full page reload)

@@ -35,12 +35,6 @@ export interface DictionaryData {
 }
 
 /**
- * History operation type for undo/redo
- */
-export type HistoryOperationType =
-  'add' | 'update' | 'delete' | 'bulk_delete' | 'move' | 'bulk_move';
-
-/**
  * Entry data structure for editing or creating dictionary entries
  */
 export interface EditingEntryData {
@@ -85,27 +79,6 @@ export interface SortingStats {
   timeSavedSeconds: string;
   efficiencyGain: string;
   incrementalPercentage: string;
-}
-
-/**
- * Delta-based history operation for undo/redo
- * Stores only changed entries instead of entire dictionaries
- * Memory savings: ~98% reduction (5.4GB → 100MB for 100 operations)
- */
-export interface HistoryOperation {
-  dictionaryId: string;
-  operation: HistoryOperationType;
-  /** For add/update: new entry data */
-  entry?: { source: string; value: DictionaryEntryValue | string };
-  /** For update/delete: original entry data for rollback */
-  oldEntry?: { source: string; value: DictionaryEntryValue | string };
-  /** For bulk_delete/bulk_move: all affected entries */
-  oldEntries?: Array<{ source: string; value: DictionaryEntryValue | string }>;
-  /** For update: old source key if it changed */
-  oldSource?: string;
-  /** For move/bulk_move: the destination dictionary */
-  targetDictionaryId?: string;
-  timestamp: number;
 }
 
 /**
@@ -182,6 +155,8 @@ export interface DictionaryContextInterface {
   canUndo: boolean;
   /** Whether redo is available */
   canRedo: boolean;
+  /** Forget undo history — after dictionaries were rewritten outside it (import) */
+  clearHistory: () => void;
   /** Load a specific dictionary */
   loadDictionary: (dictionaryId: string) => Promise<void>;
   /** Remove one dictionary key from in-memory state without touching disk (e.g. after an external rename) */

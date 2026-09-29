@@ -8,8 +8,6 @@ Deleted symbols live separately, in [deleted-symbols.md](deleted-symbols.md) —
 
 **After extracting Phase 1, reload broke** (2026-01-30): Removed constants still referenced. Always grep for usage before removing infrastructure.
 
-**`HistoryOperation` type divergence — DO NOT swap** (2026-02-12): `LazyDictionaryContext.tsx` uses a local snapshot-based `HistoryOperation` (`oldData`/`newData: DictionaryData`). The canonical `src/types/DictionaryTypes.ts` version is delta-based (individual entries). These are architecturally incompatible — `LazyDictionaryContext.tsx` must keep its local definition.
-
 ## Environment / Tooling (RTK, Edit, Bash)
 
 **Bash text output is lossy here — never verify from it.** An RTK proxy sits between the Bash tool and the real command, and it degrades output in ways that produce no error, so a result can look complete and be wrong. Verify with `Read` (or `sed -n 'N,Mp' file`) instead, and use `git ls-files | grep -i <name>` rather than `find`/`grep` to answer "does X exist". Known degradations, all silent:

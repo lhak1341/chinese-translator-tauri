@@ -2,8 +2,6 @@
  * Undo through the real DictionaryProvider, against a fake disk (architecture review
  * 2026-09-29, candidate #1). Each case is an edit that overwrote something: undo must bring
  * back what was overwritten, and a failed undo must leave memory and disk agreeing.
- *
- * `test.fails` marks the known bugs until the Dictionary Edit module lands (ADR-052).
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -25,6 +23,8 @@ vi.mock('../../../utils/appConfig', () => ({
 vi.mock('../../../utils/toast', () => ({
   default: { error: vi.fn(), warning: vi.fn(), success: vi.fn() },
 }));
+
+import toast from '../../../utils/toast';
 
 let disk: Record<string, DictionaryData>;
 const loadAllDictionaries = vi.fn();
@@ -67,7 +67,7 @@ beforeEach(() => {
 });
 
 describe('DictionaryContext — undo restores what an edit overwrote', () => {
-  test.fails('undo of an Add over an existing key restores the old value', async () => {
+  test('undo of an Add over an existing key restores the old value', async () => {
     const result = await ready();
 
     await act(async () => {
@@ -81,7 +81,7 @@ describe('DictionaryContext — undo restores what an edit overwrote', () => {
     expect(disk[A]['张三']).toEqual(entry('Trương Tam'));
   });
 
-  test.fails('undo of an Update renamed onto an existing key restores both entries', async () => {
+  test('undo of an Update renamed onto an existing key restores both entries', async () => {
     const result = await ready();
 
     await act(async () => {
@@ -98,25 +98,22 @@ describe('DictionaryContext — undo restores what an edit overwrote', () => {
     expect(disk[A]).toEqual(result.current.dictionaries[A]);
   });
 
-  test.fails(
-    "undo of a Move into a dictionary already holding the key restores the target's value",
-    async () => {
-      const result = await ready();
+  test("undo of a Move into a dictionary already holding the key restores the target's value", async () => {
+    const result = await ready();
 
-      await act(async () => {
-        await result.current.moveEntry(A, B, '张三', 'B');
-      });
-      await act(async () => {
-        await result.current.undo();
-      });
+    await act(async () => {
+      await result.current.moveEntry(A, B, '张三', 'B');
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
 
-      expect(result.current.dictionaries[A]['张三']).toEqual(entry('Trương Tam'));
-      expect(result.current.dictionaries[B]['张三']).toEqual(entry('Trương Tam (B)'));
-      expect(disk[B]['张三']).toEqual(entry('Trương Tam (B)'));
-    }
-  );
+    expect(result.current.dictionaries[A]['张三']).toEqual(entry('Trương Tam'));
+    expect(result.current.dictionaries[B]['张三']).toEqual(entry('Trương Tam (B)'));
+    expect(disk[B]['张三']).toEqual(entry('Trương Tam (B)'));
+  });
 
-  test.fails('a Move undo whose second save fails leaves memory and disk agreeing', async () => {
+  test('a Move undo whose second save fails leaves memory and disk agreeing', async () => {
     const result = await ready();
     await act(async () => {
       await result.current.moveEntry(A, B, '李四', 'B');
@@ -133,5 +130,80 @@ describe('DictionaryContext — undo restores what an edit overwrote', () => {
 
     expect(result.current.dictionaries[A]).toEqual(disk[A]);
     expect(result.current.dictionaries[B]).toEqual(disk[B]);
+  });
+});
+
+describe('DictionaryContext — undo against a changed dictionary', () => {
+  test('refuses an undo whose key changed since, and keeps the newer value', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry(A, '张三', 'Trương Tam mới');
+    });
+    // Changed outside history: a reload brings a different value for the same key.
+    disk[A] = { ...disk[A], 张三: entry('from disk') };
+    await act(async () => {
+      await result.current.loadDictionary(A);
+    });
+
+    let undone = true;
+    await act(async () => {
+      undone = await result.current.undo();
+    });
+
+    expect(undone).toBe(false);
+    expect(result.current.dictionaries[A]['张三']).toEqual(entry('from disk'));
+    expect(disk[A]['张三']).toEqual(entry('from disk'));
+    expect(result.current.canUndo).toBe(true);
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('张三'));
+  });
+
+  test('refuses a redo whose key changed since', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry(A, '张三', 'Trương Tam mới');
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    // Changed outside history: a reload brings a different value for the same key.
+    disk[A] = { ...disk[A], 张三: entry('from disk') };
+    await act(async () => {
+      await result.current.loadDictionary(A);
+    });
+
+    let redone = true;
+    await act(async () => {
+      redone = await result.current.redo();
+    });
+
+    expect(redone).toBe(false);
+    expect(result.current.dictionaries[A]['张三']).toEqual(entry('from disk'));
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('张三'));
+  });
+
+  test('removing a dictionary from memory (a pair rename) clears history', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry(A, '赵六', 'Triệu Lục');
+    });
+    expect(result.current.canUndo).toBe(true);
+
+    act(() => {
+      result.current.removeDictionaryKey(B);
+    });
+
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  test('clearHistory forgets every edit', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry(A, '赵六', 'Triệu Lục');
+    });
+    act(() => {
+      result.current.clearHistory();
+    });
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
   });
 });
