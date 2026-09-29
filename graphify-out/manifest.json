@@ -1205,8 +1205,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790696275.4188678,
-    "ast_hash": "428d846293a191b674ca510f605b43fd",
+    "mtime": 1790702684.3117213,
+    "ast_hash": "7c2b32f4fa9aa2e7b4e40944bc3801ab",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1790524904.6248062,
-    "ast_hash": "da80900948eed6ba5f332bfcc699c178",
+    "mtime": 1790702518.1904864,
+    "ast_hash": "e5eb12eae361a56fe98e8b80674dbf51",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordValidation.ts": {
-    "mtime": 1790360084.6367106,
-    "ast_hash": "97b6882b626b34764aca60a9078d5173",
+    "mtime": 1790702518.1912446,
+    "ast_hash": "fe756f3daec4ca844fd1d9dd0aaadce7",
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
@@ -1940,8 +1940,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
-    "mtime": 1790678120.1630368,
-    "ast_hash": "29470e6a4cef0a169bbf6aa05581fbc8",
+    "mtime": 1790702518.1917768,
+    "ast_hash": "632d8b88ef99eab7023687acc2fb96dc",
     "semantic_hash": ""
   },
   "src/components/reader/ChapterPanel.tsx": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790701206.1993616,
-    "ast_hash": "5d7a856fda92e0678556956b18c99019",
+    "mtime": 1790702684.3121345,
+    "ast_hash": "1023244bb6591857fae246b8b0850e34",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2302,6 +2302,16 @@
   "src/components/reader/ReaderBinding.tsx": {
     "mtime": 1790702262.5995004,
     "ast_hash": "1b2b440b51c8367dcc95da0679a961da",
+    "semantic_hash": ""
+  },
+  "test-fixtures/chapter-pattern-ids.json": {
+    "mtime": 1790702545.892557,
+    "ast_hash": "adbc704c9234650d7660dbb45d627de9",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-054-skip-book-record-field-schema.md": {
+    "mtime": 1790702683.7739534,
+    "ast_hash": "cdb4db74027182511fa1563e26f3059a",
     "semantic_hash": ""
   }
 }
