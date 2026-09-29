@@ -1,5 +1,4 @@
-import { validateApiResult } from './configValidation';
-import { reportQuarantine, unreadFileError } from './unreadableFile';
+import { createAppFile } from './appFile';
 import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -95,32 +94,33 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
   };
 }
 
-/** True from a failed read until a load succeeds: the app still shows defaults, but they are
- * never saved over the file (utils/unreadableFile.ts). */
-let unread = false;
+/** `appearance.json` (CONTEXT.md "App file"). A failed read still shows the defaults, but
+ * they are never saved over the file. */
+const appearanceFile = createAppFile<AppearanceSettings>({
+  fileName: 'appearance.json',
+  what: 'Appearance (appearance.json)',
+  load: () => window.electronAPI.loadAppearanceSettings(),
+  save: (settings) => window.electronAPI.saveAppearanceSettings(settings),
+  parse: (data) => ({
+    value: fromRaw(data && typeof data === 'object' ? (data as Record<string, unknown>) : {}),
+    dropped: 0,
+  }),
+  onUnreadable: 'defaults',
+  defaults: () => fromRaw({}),
+  saveError: 'Failed to save appearance settings',
+});
 
 export async function loadAppearanceConfig(): Promise<AppearanceSettings> {
-  const rawResult = await window.electronAPI.loadAppearanceSettings();
-  const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadAppearanceSettings');
-  if (!result.success) {
-    unread = true;
-    return fromRaw({});
-  }
-  unread = false;
-  reportQuarantine(rawResult, 'Appearance (appearance.json)');
-  return fromRaw(result.data ?? {});
+  return (await appearanceFile.read()).value;
 }
 
-/** Forget a failed read — tests only; the next load decides again. */
+/** Forget the cache and any failed read — tests only; the next load decides again. */
 export function invalidateAppearanceConfig(): void {
-  unread = false;
+  appearanceFile.invalidate();
 }
 
-export async function saveAppearanceConfig(settings: AppearanceSettings): Promise<void> {
-  if (unread) throw unreadFileError('appearance.json');
-  const rawResult = await window.electronAPI.saveAppearanceSettings(settings);
-  const result = validateApiResult(rawResult, 'saveAppearanceSettings');
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to save appearance settings');
-  }
+/** Replaces the saved settings. Saves run one at a time, so the last one started is the one
+ * on disk — a blur save and a checkbox save can start together. */
+export function saveAppearanceConfig(settings: AppearanceSettings): Promise<void> {
+  return appearanceFile.transform(() => ({ value: settings, result: undefined }));
 }

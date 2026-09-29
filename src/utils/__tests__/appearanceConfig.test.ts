@@ -4,6 +4,7 @@ import {
   fromRaw,
   loadAppearanceConfig,
   saveAppearanceConfig,
+  invalidateAppearanceConfig,
 } from '../appearanceConfig';
 
 describe('appearanceConfig.fromRaw', () => {
@@ -142,6 +143,8 @@ describe('appearanceConfig.loadAppearanceConfig / saveAppearanceConfig', () => {
   const mockSave = vi.fn();
 
   beforeEach(() => {
+    invalidateAppearanceConfig();
+    mockLoad.mockResolvedValue({ success: true, data: {} });
     Object.defineProperty(window, 'electronAPI', {
       value: { loadAppearanceSettings: mockLoad, saveAppearanceSettings: mockSave },
       writable: true,
@@ -180,5 +183,46 @@ describe('appearanceConfig.loadAppearanceConfig / saveAppearanceConfig', () => {
   it('throws when save reports success:false', async () => {
     mockSave.mockResolvedValue({ success: false, error: 'disk full' });
     await expect(saveAppearanceConfig(DEFAULT_APPEARANCE)).rejects.toThrow('disk full');
+  });
+});
+
+describe('appearanceConfig — overlapping saves', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('run one at a time, so the last save is what ends up on disk', async () => {
+    invalidateAppearanceConfig();
+    // A blur save and a checkbox save can start together (useAppearanceSettings). Both write
+    // `appearance.json.tmp.<pid>` in Rust, so two in flight at once race on one temp path, and
+    // the slower first save can land after — and over — the second.
+    let onDisk: unknown = null;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const save = vi.fn(async (settings: unknown) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      const first = save.mock.calls.length === 1;
+      await new Promise((resolve) => setTimeout(resolve, first ? 20 : 0));
+      onDisk = settings;
+      inFlight--;
+      return { success: true };
+    });
+    Object.defineProperty(window, 'electronAPI', {
+      value: {
+        loadAppearanceSettings: vi.fn().mockResolvedValue({ success: true, data: {} }),
+        saveAppearanceSettings: save,
+      },
+      writable: true,
+      configurable: true,
+    });
+    await loadAppearanceConfig();
+
+    const blurred = { ...DEFAULT_APPEARANCE, theme: 'dark' as const };
+    const ticked = { ...blurred, characterOnlyFollowsFullTranslation: false };
+    await Promise.all([saveAppearanceConfig(blurred), saveAppearanceConfig(ticked)]);
+
+    expect(maxInFlight).toBe(1);
+    expect(onDisk).toEqual(ticked);
   });
 });

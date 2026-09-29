@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAppearanceSettings, DEFAULT_APPEARANCE } from '../useAppearanceSettings';
+import { invalidateAppearanceConfig } from '../../utils/appearanceConfig';
 
 // ---------------------------------------------------------------------------
 // Mock window.electronAPI
@@ -9,6 +11,7 @@ const mockLoad = vi.fn();
 const mockSave = vi.fn();
 
 beforeEach(() => {
+  invalidateAppearanceConfig();
   mockLoad.mockResolvedValue({ success: true, data: null });
   mockSave.mockResolvedValue({ success: true });
   Object.defineProperty(window, 'electronAPI', {
@@ -221,6 +224,12 @@ describe('handleAutoSave', () => {
     mockLoad.mockResolvedValue({ success: true, data: makeData() });
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // An unchanged value saves nothing (App File transform), so edit first.
+    act(() =>
+      result.current.handleInputChange({
+        target: { dataset: { section: 'chineseText', property: 'fontFamily' }, value: 'Edited' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>)
+    );
 
     await act(() => result.current.handleAutoSave());
 
@@ -233,6 +242,12 @@ describe('handleAutoSave', () => {
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockSave.mockRejectedValue(new Error('disk full'));
+    // An unchanged value saves nothing (App File transform), so edit first.
+    act(() =>
+      result.current.handleInputChange({
+        target: { dataset: { section: 'chineseText', property: 'fontFamily' }, value: 'Edited' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>)
+    );
 
     await act(() => result.current.handleAutoSave());
 
@@ -245,7 +260,15 @@ describe('handleAutoSave', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.error).toBeTruthy();
 
+    // A save reads the file first and refuses while it cannot; once it reads, the save lands.
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
     mockSave.mockResolvedValue({ success: true });
+    // An unchanged value saves nothing (App File transform), so edit first.
+    act(() =>
+      result.current.handleInputChange({
+        target: { dataset: { section: 'chineseText', property: 'fontFamily' }, value: 'Edited' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>)
+    );
     await act(() => result.current.handleAutoSave());
 
     expect(result.current.error).toBeNull();
