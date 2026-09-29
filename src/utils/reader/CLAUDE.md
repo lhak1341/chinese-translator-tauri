@@ -67,9 +67,9 @@ The measurement resync (`resync()` on any panel's total size changing) cannot fi
 
 **Unmeasured rows are estimated per index, never by a fixed height.** `estimateRowSize` scales the line's Chinese character count by the panel's own `emPerChar` and biases it slightly upward. A fixed skeleton height fails differently in kind, not degree: its error is systematic, so long lines are underestimated every time and the error accumulates monotonically down the document instead of cancelling.
 
-## Records read after a write must read under the lock
+## Records read after a write must be read settled
 
-Writes to `books.json` run later, on `withBookRecordsLock`; `loadBookRecords()` returns the cache as it is now. So a read that must see a write already queued has to go through the lock itself: `withBookRecordsLock(loadBookRecords)`. Example: Back queues the final position flush in `BookReader`'s unmount cleanup (`ReadingAnchor.close()`), and `ReaderTab`'s reopen branch reads under the lock so a fast reopen doesn't restore the position from before it (pinned by `ReaderTab.openBook.test.tsx`). A view that just wants to _stay_ current subscribes instead (`useBookRecords`).
+Writes to `books.json` run later, queued; `loadBookRecords()` returns the cache as it is now. So a read that must see a write already queued uses `readSettledRecords()`, which waits behind it. Example: Back queues the final position flush in `BookReader`'s unmount cleanup (`ReadingAnchor.close()`), and `ReaderTab`'s reopen branch reads settled records so a fast reopen doesn't restore the position from before it (pinned by `ReaderTab.openBook.test.tsx`). Every write goes through `transformRecords(fn)` — the lock and the save are module-private since 2026-09-29, so a write outside the queue can't be written; `loadBookRecords()` is for a snapshot nothing will be saved from (reconciliation's planning read). A view that just wants to _stay_ current subscribes instead (`useBookRecords`).
 
 ## The binding is the authority; the config keys it writes are a cache
 
