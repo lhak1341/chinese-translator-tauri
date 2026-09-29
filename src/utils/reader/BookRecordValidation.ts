@@ -7,15 +7,8 @@ import type {
   ChapterPatternId,
   ReadingPosition,
 } from '../../types/ReaderTypes';
+import { CHAPTER_PATTERN_IDS } from '../../types/ReaderTypes';
 import { emptyBookRecord } from './BookRecord';
-
-const CHAPTER_PATTERN_IDS: readonly ChapterPatternId[] = [
-  'chapter',
-  'section',
-  'volume',
-  'hui',
-  'bareNumber',
-];
 
 function isFiniteNonNegative(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0;

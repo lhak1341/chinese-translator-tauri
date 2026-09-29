@@ -85,10 +85,15 @@ export interface ReadingPosition {
 }
 
 /**
- * A header convention `detect_chapter_outline`/`chapter_headers_for_pattern` recognize.
- * Mirrors `src-tauri/src/chapter_outline.rs::PatternId` — camelCase serde names.
+ * Every header convention `detect_chapter_outline`/`chapter_headers_for_pattern` recognize,
+ * in Rust's `PATTERN_ORDER`. Mirrors `src-tauri/src/chapter_outline.rs::PatternId` —
+ * camelCase serde names — pinned on both sides by `test-fixtures/chapter-pattern-ids.json`.
+ * The one declaration: the type below and `validateBookRecord`'s check both derive from it,
+ * so a new pattern cannot be typed here yet repaired away on every load.
  */
-export type ChapterPatternId = 'chapter' | 'section' | 'volume' | 'hui' | 'bareNumber';
+export const CHAPTER_PATTERN_IDS = ['chapter', 'section', 'volume', 'hui', 'bareNumber'] as const;
+
+export type ChapterPatternId = (typeof CHAPTER_PATTERN_IDS)[number];
 
 /** One pattern's election stats, whether or not it won — the manual-override control
  * needs every candidate, not just the winner. */

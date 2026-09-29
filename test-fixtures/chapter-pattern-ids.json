@@ -1,0 +1,4 @@
+{
+  "description": "Every chapter header convention, in PATTERN_ORDER, as the IPC names it. Asserted by src-tauri/src/chapter_outline.rs (PatternId's serde names) and src/types/__tests__/ChapterPatternIds.parity.test.ts (CHAPTER_PATTERN_IDS). A saved chapterOutline or manualChapterPattern naming an id missing from the TypeScript list is silently repaired away on load.",
+  "ids": ["chapter", "section", "volume", "hui", "bareNumber"]
+}

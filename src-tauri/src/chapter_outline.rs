@@ -245,6 +245,32 @@ mod tests {
         text.lines().collect()
     }
 
+    // ── IPC parity ────────────────────────────────────────────────────────────
+
+    /// `PATTERN_ORDER` holds every `PatternId`, and their serde names are exactly the
+    /// TypeScript `CHAPTER_PATTERN_IDS` (`src/types/ReaderTypes.ts`), pinned through
+    /// `test-fixtures/chapter-pattern-ids.json`. A name missing on the TypeScript side is
+    /// repaired away by `validateBookRecord` on every load, silently.
+    #[test]
+    fn pattern_ids_match_the_typescript_list() {
+        // Exhaustive: a new variant fails to compile here until it is placed in the list.
+        fn listed(id: PatternId) -> bool {
+            match id {
+                PatternId::Chapter
+                | PatternId::Section
+                | PatternId::Volume
+                | PatternId::Hui
+                | PatternId::BareNumber => PATTERN_ORDER.contains(&id),
+            }
+        }
+        assert!(PATTERN_ORDER.iter().all(|id| listed(*id)));
+        assert_eq!(PATTERN_ORDER.len(), 5, "a variant was added: list it in PATTERN_ORDER");
+
+        let raw = include_str!("../../test-fixtures/chapter-pattern-ids.json");
+        let fixture: serde_json::Value = serde_json::from_str(raw).unwrap();
+        assert_eq!(serde_json::to_value(PATTERN_ORDER).unwrap(), fixture["ids"]);
+    }
+
     // ── Stats ─────────────────────────────────────────────────────────────────
 
     #[test]
