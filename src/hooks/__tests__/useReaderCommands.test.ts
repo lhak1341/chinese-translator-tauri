@@ -3,22 +3,18 @@ import { act, renderHook } from '@testing-library/react';
 import { matchHotkey } from '../../utils/ui/HotkeyDispatchTable';
 
 const modals = {
-  openQuickAddCharacter: vi.fn(),
-  openQuickAddPhrase: vi.fn(),
-  openQuickAddProperNoun: vi.fn(),
-  openQuickAddPattern: vi.fn(),
-  openQuickAddCustomProperNoun: vi.fn(async () => {}),
-  openQuickAddCustomStructuralPattern: vi.fn(async () => {}),
+  handlers: {
+    quickAddCharacter: vi.fn(),
+    quickAddPhrase: vi.fn(),
+    quickAddProperNoun: vi.fn(),
+    quickAddPattern: vi.fn(),
+    quickAddCustomProperNoun: vi.fn(async () => {}),
+    quickAddCustomStructuralPattern: vi.fn(async () => {}),
+  },
   dialog: null,
 };
 
 vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));
-vi.mock('../../components/BookBindingContext', () => ({
-  useBookBinding: () => ({ loadQuickAddView: async () => null }),
-}));
-vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries: {} }),
-}));
 vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),
 }));
@@ -116,7 +112,7 @@ describe('useReaderCommands', () => {
     act(() =>
       view.result.current.paletteCommands.find((command) => command.id === 'add-character')?.run()
     );
-    expect(modals.openQuickAddCharacter).toHaveBeenCalledWith('萧炎');
+    expect(modals.handlers.quickAddCharacter).toHaveBeenCalledWith('萧炎');
   });
 
   it('steps chapters and pages through the functions it was given', () => {

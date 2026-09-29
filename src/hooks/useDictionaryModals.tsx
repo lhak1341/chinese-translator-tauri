@@ -1,6 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import DictionaryEntry from '../components/dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../components/ModalErrorBoundary';
+import { useDictionary } from '../components/dictionary/DictionaryContext';
+import { useBookBinding } from '../components/BookBindingContext';
 import {
   quickAddTarget,
   quickAddMissMessage,
@@ -10,6 +12,7 @@ import {
   type QuickAddView,
 } from '../utils/dictionary/QuickAddTarget';
 import toast from '../utils/toast';
+import type { QuickAddAction } from '../utils/ui/HotkeyDispatchTable';
 
 /** What the open Add was opened on. Private: the dialog is the hook's only output of it. */
 interface QuickAddModalState {
@@ -35,12 +38,9 @@ const CLOSED: QuickAddModalState = {
 type OpenQuickAdd = (source?: string) => Promise<void>;
 
 export interface DictionaryModals {
-  openQuickAddCharacter: OpenQuickAdd;
-  openQuickAddPhrase: OpenQuickAdd;
-  openQuickAddProperNoun: OpenQuickAdd;
-  openQuickAddPattern: OpenQuickAdd;
-  openQuickAddCustomProperNoun: OpenQuickAdd;
-  openQuickAddCustomStructuralPattern: OpenQuickAdd;
+  /** One opener per Add action, keyed by the dispatch table's action types — a surface
+   * spreads it into its hotkey handlers (or its action record) as is. */
+  handlers: Record<QuickAddAction, OpenQuickAdd>;
   /** The open Add — error boundary + `DictionaryEntry`, wired from the modal state — or
    * `null`. The surface renders it; it passes nothing in. */
   dialog: React.ReactNode;
@@ -49,20 +49,26 @@ export interface DictionaryModals {
 /** The session's last shortlist pick per kind, shared by every surface. */
 const sharedShortlistMemory = new Map<QuickAddKind, string>();
 
-const NO_UNREAD: readonly string[] = [];
+export interface DictionaryModalsOptions {
+  /** The last shortlist pick per kind. Defaults to the session-wide memory; tests inject
+   * their own. */
+  shortlistMemory?: Map<QuickAddKind, string>;
+}
 
 /**
- * The quick-add dialog: its openers, and the dialog itself. See CONTEXT.md "Quick-add dialog".
+ * The quick-add dialog: its openers, keyed by Add action, and the dialog itself. See
+ * CONTEXT.md "Quick-add dialog".
  *
  * Owns the modal's open/close state, and the quick-add view each open decided over: every
  * opener loads the view once through `loadView` and stores it with the target, so the form's
  * dropdown (`quickAddChoices`) reads the same view the target came from.
  *
- * `loadView` is the binding provider's `loadQuickAddView` for both surfaces, the Translator
- * and the Reader — config as the open book's binding implies it while a book is open, config
- * as loaded otherwise. Every opener, Cmd-1..6, goes through it, so no Add can decide over a
- * view that disagrees with the open book. `dictionaries` (DictionaryContext state) is
- * injected, not stored — passed in by the caller for the Cmd-6 existence check.
+ * The hook reads its own providers, so every surface — the Translator and the Reader — gets
+ * the same Adds from one call. The view comes from the binding provider's `loadQuickAddView`:
+ * config as the open book's binding implies it while a book is open, config as loaded
+ * otherwise. Every opener, Cmd-1..6, goes through it, so no Add can decide over a view that
+ * disagrees with the open book. `dictionaries` and `unreadDictionaryIds` come from
+ * `DictionaryContext`, for the shortlist and the Cmd-5/6 existence checks.
  *
  * Cmd-3 and Cmd-4 open with a **quick-add shortlist** (`quickAddShortlist`) the form can switch
  * through, and open on the shortlist entry last picked for that key — `shortlistMemory`, keyed
@@ -72,12 +78,11 @@ const NO_UNREAD: readonly string[] = [];
  * module-level, so the Translator and the Reader share it for the session; tests inject their
  * own.
  */
-export function useDictionaryModals(
-  dictionaries: { [key: string]: unknown },
-  loadView: () => Promise<QuickAddView | null>,
-  shortlistMemory: Map<QuickAddKind, string> = sharedShortlistMemory,
-  unreadDictionaryIds: readonly string[] = NO_UNREAD
-): DictionaryModals {
+export function useDictionaryModals({
+  shortlistMemory = sharedShortlistMemory,
+}: DictionaryModalsOptions = {}): DictionaryModals {
+  const { dictionaries, unreadDictionaryIds } = useDictionary();
+  const { loadQuickAddView: loadView } = useBookBinding();
   const [modalState, setModalState] = useState<QuickAddModalState>(CLOSED);
   // The open modal's shortlist, read by the change handler to decide what to remember.
   const shortlistRef = useRef<QuickAddShortlist | null>(null);
@@ -210,13 +215,24 @@ export function useDictionaryModals(
     </ModalErrorBoundary>
   ) : null;
 
-  return {
-    openQuickAddCharacter,
-    openQuickAddPhrase,
-    openQuickAddProperNoun,
-    openQuickAddPattern,
-    openQuickAddCustomProperNoun,
-    openQuickAddCustomStructuralPattern,
-    dialog,
-  };
+  const handlers = useMemo<Record<QuickAddAction, OpenQuickAdd>>(
+    () => ({
+      quickAddCharacter: openQuickAddCharacter,
+      quickAddPhrase: openQuickAddPhrase,
+      quickAddProperNoun: openQuickAddProperNoun,
+      quickAddPattern: openQuickAddPattern,
+      quickAddCustomProperNoun: openQuickAddCustomProperNoun,
+      quickAddCustomStructuralPattern: openQuickAddCustomStructuralPattern,
+    }),
+    [
+      openQuickAddCharacter,
+      openQuickAddPhrase,
+      openQuickAddProperNoun,
+      openQuickAddPattern,
+      openQuickAddCustomProperNoun,
+      openQuickAddCustomStructuralPattern,
+    ]
+  );
+
+  return { handlers, dialog };
 }

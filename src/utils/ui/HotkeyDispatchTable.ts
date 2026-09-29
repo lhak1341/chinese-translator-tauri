@@ -3,7 +3,6 @@ import { tabForShortcutDigit } from '../../constants/tabs';
 
 export type HotkeyAction =
   | { type: 'tabSwitch'; tab: TabId }
-  | { type: 'quickAdd' }
   | { type: 'translateFromClipboard' }
   | { type: 'quickAddCharacter' }
   | { type: 'quickAddPhrase' }
@@ -33,7 +32,6 @@ export type HotkeyAction =
  * from the same text. See CONTEXT.md "Reader Commands".
  */
 export const SOURCE_ACTION_LABELS = {
-  quickAdd: 'Add Proper Noun',
   quickAddCharacter: 'Add Character',
   quickAddPhrase: 'Add Phrase',
   quickAddProperNoun: 'Add Proper Noun',
@@ -77,7 +75,8 @@ const QUICK_ADD_TABS: readonly TabId[] = ['translator', 'reader'];
 /** Tabs where Cmd-7 opens the Rules tab's new-rule form. */
 const NEW_RULE_TABS: readonly TabId[] = ['translator', 'reader'];
 
-type QuickAddDigitAction = Extract<
+/** The Add dialog's actions: Cmd-1..6, and Cmd+Shift+N, bound to `quickAddProperNoun`. */
+export type QuickAddAction = Extract<
   HotkeyAction['type'],
   | 'quickAddCharacter'
   | 'quickAddPhrase'
@@ -88,7 +87,7 @@ type QuickAddDigitAction = Extract<
 >;
 
 /** Cmd-1..6 outside the Dictionary tab. */
-const DIGIT_ACTIONS: Readonly<Record<string, QuickAddDigitAction>> = {
+const DIGIT_ACTIONS: Readonly<Record<string, QuickAddAction>> = {
   '1': 'quickAddCharacter',
   '2': 'quickAddPhrase',
   '3': 'quickAddProperNoun',
@@ -180,7 +179,8 @@ export function matchHotkey(
   if (shift) {
     switch (key) {
       case 'n':
-        return onQuickAddTab ? { type: 'quickAdd' } : null;
+        // The unqualified Add: a name, the commonest Add on both tabs.
+        return onQuickAddTab ? { type: 'quickAddProperNoun' } : null;
       // Translator-only: the text lands in the Translator's input, and a translation it
       // starts while hidden would run beside the Reader's engine queue, which only the
       // tab gate keeps apart from the Translator's calls.

@@ -25,7 +25,7 @@ const dictionaries = vi.hoisted(() => ({
   'patterns-_Cultivation': {},
 }));
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries }),
+  useDictionary: () => ({ dictionaries, unreadDictionaryIds: [] }),
 }));
 vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),

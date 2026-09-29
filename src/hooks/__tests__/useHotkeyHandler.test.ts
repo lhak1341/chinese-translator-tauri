@@ -106,7 +106,10 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N calls onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { quickAddProperNoun: onQuickAdd }, ownTab: 'translator' },
+        'translator'
+      );
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).toHaveBeenCalledTimes(1);
@@ -347,7 +350,10 @@ describe('useHotkeyHandler', () => {
     test('Cmd+Shift+N passes the selection, like Cmd-3 — the same Add', async () => {
       setSelection('太岳山脉');
       const quickAdd = vi.fn();
-      renderHotkeys({ handlers: { quickAdd }, ownTab: 'translator' }, 'translator');
+      renderHotkeys(
+        { handlers: { quickAddProperNoun: quickAdd }, ownTab: 'translator' },
+        'translator'
+      );
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(quickAdd).toHaveBeenCalledWith('太岳山脉');
@@ -355,7 +361,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N on the reader tab calls onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'reader' }, 'reader');
+      renderHotkeys({ handlers: { quickAddProperNoun: onQuickAdd }, ownTab: 'reader' }, 'reader');
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).toHaveBeenCalledTimes(1);
@@ -363,7 +369,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N on a tab with no add-entry surface does not call onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHotkeys({ handlers: { quickAdd: onQuickAdd }, ownTab: 'app' }, 'rules');
+      renderHotkeys({ handlers: { quickAddProperNoun: onQuickAdd }, ownTab: 'app' }, 'rules');
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).not.toHaveBeenCalled();

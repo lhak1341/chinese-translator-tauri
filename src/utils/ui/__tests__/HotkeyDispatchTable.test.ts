@@ -109,8 +109,10 @@ describe('tab switch', () => {
 // ─── quickAdd / translateFromClipboard ────────────────────────────────────────
 
 describe('quick add and clipboard', () => {
-  it('Cmd+Shift+N → quickAdd', () => {
-    expect(matchHotkey(key('n', { meta: true, shift: true }), ctx())).toEqual({ type: 'quickAdd' });
+  it('Cmd+Shift+N → quickAddProperNoun, the same Add as Cmd-3', () => {
+    expect(matchHotkey(key('n', { meta: true, shift: true }), ctx())).toEqual({
+      type: 'quickAddProperNoun',
+    });
   });
 
   it('Cmd+Shift+V → translateFromClipboard', () => {
@@ -119,9 +121,9 @@ describe('quick add and clipboard', () => {
     });
   });
 
-  it('Cmd+Shift+N on reader tab → quickAdd; on rules or dictionary → null', () => {
+  it('Cmd+Shift+N on reader tab → quickAddProperNoun; on rules or dictionary → null', () => {
     const n = key('n', { meta: true, shift: true });
-    expect(matchHotkey(n, ctx({ visibleTab: 'reader' }))).toEqual({ type: 'quickAdd' });
+    expect(matchHotkey(n, ctx({ visibleTab: 'reader' }))).toEqual({ type: 'quickAddProperNoun' });
     expect(matchHotkey(n, ctx({ visibleTab: 'rules' }))).toBeNull();
     expect(matchHotkey(n, ctx({ visibleTab: 'dictionary' }))).toBeNull();
   });
@@ -518,7 +520,6 @@ describe('source actions', () => {
     expect(Object.keys(SOURCE_ACTION_LABELS).sort()).toEqual(
       [
         'openNewRule',
-        'quickAdd',
         'quickAddCharacter',
         'quickAddCustomProperNoun',
         'quickAddCustomStructuralPattern',
@@ -528,6 +529,6 @@ describe('source actions', () => {
       ].sort()
     );
     expect(takesSource('reloadDictionary')).toBe(false);
-    expect(takesSource('quickAdd')).toBe(true);
+    expect(takesSource('quickAddProperNoun')).toBe(true);
   });
 });

@@ -8,7 +8,6 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { registerDictionaryReload } from '../utils/dictionary';
-import { useBookBinding } from './BookBindingContext';
 import HotkeyHandler from './HotkeyHandler';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
@@ -142,16 +141,7 @@ const Translator = ({ isActive = true }) => {
 
   // Quick Add modal hook. The view comes from the binding provider, so while a Reader book is
   // open the Translator's Adds file its fiction entries under that book's dictionary too.
-  const { loadQuickAddView } = useBookBinding();
-  const {
-    openQuickAddCharacter: handleQuickAddCharacter,
-    openQuickAddPhrase: handleQuickAddPhrase,
-    openQuickAddProperNoun: handleQuickAddProperNoun,
-    openQuickAddPattern: handleQuickAddPattern,
-    openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
-    openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
-    dialog: quickAddDialog,
-  } = useDictionaryModals(dictionaries, loadQuickAddView, undefined, unreadDictionaryIds);
+  const { handlers: quickAddHandlers, dialog: quickAddDialog } = useDictionaryModals();
 
   const [inputText, setInputText] = useState('');
   const {
@@ -296,20 +286,6 @@ const Translator = ({ isActive = true }) => {
 
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
-
-  /**
-   * Quick Add handlers (provided by useDictionaryConfig hook)
-   *
-   * These handlers open the Quick Add modal with the appropriate dictionary pre-selected:
-   * - handleQuickAddCharacter: Opens Quick Add for character dictionary (Cmd/Ctrl-1)
-   * - handleQuickAddPhrase: Opens Quick Add for phrase dictionary (Cmd/Ctrl-2)
-   * - handleQuickAddProperNoun: Opens Quick Add for proper noun dictionary (Cmd/Ctrl-3)
-   * - handleQuickAddPattern: Opens Quick Add for pattern dictionary (Cmd/Ctrl-4)
-   * - handleQuickAddCustomProperNoun: Opens Quick Add for custom proper noun (Cmd/Ctrl-5)
-   * - handleQuickAddCustomStructuralPattern: Opens Quick Add for structural pattern (Cmd/Ctrl-6)
-   *
-   * The dialog itself, and everything it does once open, is `useDictionaryModals`'.
-   */
 
   /**
    * Handles clickable highlighting - bidirectional mapping between translation panels
@@ -964,13 +940,7 @@ const Translator = ({ isActive = true }) => {
       <HotkeyHandler
         handlers={{
           translateFromClipboard: handleTranslateFromClipboard,
-          quickAdd: handleQuickAddProperNoun,
-          quickAddCharacter: handleQuickAddCharacter,
-          quickAddPhrase: handleQuickAddPhrase,
-          quickAddProperNoun: handleQuickAddProperNoun,
-          quickAddPattern: handleQuickAddPattern,
-          quickAddCustomProperNoun: handleQuickAddCustomProperNoun,
-          quickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
+          ...quickAddHandlers,
           reloadDictionary: handleForceReload,
         }}
         ownTab="translator"

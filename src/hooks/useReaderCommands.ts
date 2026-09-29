@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
-import { useBookBinding } from '../components/BookBindingContext';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActions } from '../utils/reader/ReaderActions';
@@ -64,24 +62,8 @@ export function useReaderCommands({
 
   // The add-entry family, reused: the same hook (and the same DictionaryEntry modal) the
   // Translator uses, over the same quick-add view — the binding provider's, which with a book
-  // open is config as its binding implies it (`quickAddViewForBinding` says why). Every Add
-  // loads it, Cmd-1..4 included, because their dropdown offers the view's dictionaries too.
-  const { dictionaries, unreadDictionaryIds } = useDictionary();
-  const { loadQuickAddView } = useBookBinding();
-  const modals = useDictionaryModals(
-    dictionaries,
-    loadQuickAddView,
-    undefined,
-    unreadDictionaryIds
-  );
-  const {
-    openQuickAddCharacter,
-    openQuickAddPhrase,
-    openQuickAddProperNoun,
-    openQuickAddPattern,
-    openQuickAddCustomProperNoun,
-    openQuickAddCustomStructuralPattern,
-  } = modals;
+  // open is config as its binding implies it (`quickAddViewForBinding` says why).
+  const { handlers: quickAddHandlers, dialog: quickAddDialog } = useDictionaryModals();
 
   const openPalette = useCallback((): void => {
     const request = ++paletteRequestRef.current;
@@ -108,31 +90,12 @@ export function useReaderCommands({
           logger.error('Reader-triggered dictionary reload failed:', cause);
         });
       },
-      // Cmd+Shift+N, the unqualified quick-add: a name, the Reader's commonest Add.
-      quickAdd: openQuickAddProperNoun,
-      quickAddCharacter: openQuickAddCharacter,
-      quickAddPhrase: openQuickAddPhrase,
-      quickAddProperNoun: openQuickAddProperNoun,
-      quickAddPattern: openQuickAddPattern,
-      quickAddCustomProperNoun: openQuickAddCustomProperNoun,
-      quickAddCustomStructuralPattern: openQuickAddCustomStructuralPattern,
+      ...quickAddHandlers,
       openCommandPalette: openPalette,
       pageDown: () => pageBy(1),
       pageUp: () => pageBy(-1),
     }),
-    [
-      goToChapter,
-      openBindingDialog,
-      openOutline,
-      openPalette,
-      openQuickAddCharacter,
-      openQuickAddCustomProperNoun,
-      openQuickAddCustomStructuralPattern,
-      openQuickAddPattern,
-      openQuickAddPhrase,
-      openQuickAddProperNoun,
-      pageBy,
-    ]
+    [goToChapter, openBindingDialog, openOutline, openPalette, pageBy, quickAddHandlers]
   );
 
   // The action record is the handler map: its keys are the dispatch table's action types.
@@ -162,6 +125,6 @@ export function useReaderCommands({
     paletteCommands,
     hotkeyProps,
     palette: { isOpen: isPaletteOpen, close: closePalette },
-    quickAddDialog: modals.dialog,
+    quickAddDialog,
   };
 }

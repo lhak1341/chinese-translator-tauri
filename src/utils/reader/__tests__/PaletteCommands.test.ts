@@ -10,7 +10,6 @@ function actions(overrides: Partial<ReaderActions> = {}): ReaderActions {
     nextChapter: vi.fn(),
     bindDictionaries: vi.fn(),
     reloadDictionary: vi.fn(),
-    quickAdd: vi.fn(),
     quickAddCharacter: vi.fn(),
     quickAddPhrase: vi.fn(),
     quickAddProperNoun: vi.fn(),

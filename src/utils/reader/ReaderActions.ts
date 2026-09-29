@@ -15,7 +15,6 @@ export type ReaderActionId = Extract<
   | 'nextChapter'
   | 'bindDictionaries'
   | 'reloadDictionary'
-  | 'quickAdd'
   | 'quickAddCharacter'
   | 'quickAddPhrase'
   | 'quickAddProperNoun'
