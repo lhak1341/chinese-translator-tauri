@@ -33,7 +33,7 @@ export interface ElectronResult<T = any> {
   /** Error message (if failed) */
   error?: string;
   /** Set by the four app-file loads when the file could not be read and was renamed aside
-   * (the new file name) — see `utils/unreadableFile.ts`. */
+   * (the new file name) — see `utils/appFile.ts`. */
   quarantined?: string;
 }
 

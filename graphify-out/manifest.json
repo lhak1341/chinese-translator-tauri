@@ -225,8 +225,8 @@
     "semantic_hash": "22b47651425350e838307a5fa43147c8"
   },
   "src/types/ElectronTypes.d.ts": {
-    "mtime": 1790681294.1912196,
-    "ast_hash": "97b7a17caafba3c56e4987d5d17fc534",
+    "mtime": 1790697085.0703552,
+    "ast_hash": "d8b6625092ad8286fc7c20c85c5080a3",
     "semantic_hash": ""
   },
   "src/types/PatternProcessingTypes.d.ts": {
@@ -340,8 +340,8 @@
     "semantic_hash": ""
   },
   "src/utils/appConfig.ts": {
-    "mtime": 1790681323.5572062,
-    "ast_hash": "47a3c137b4400c0186926984e031b679",
+    "mtime": 1790696918.2264593,
+    "ast_hash": "b1573d270a6a47bc79ac926558ff9b7a",
     "semantic_hash": ""
   },
   "src/utils/TokenHelpers.ts": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
-    "mtime": 1790695687.4706488,
-    "ast_hash": "d7561d824d09d7d2d316ff35aa9f4f3b",
+    "mtime": 1790696275.834709,
+    "ast_hash": "f7a23d0e85063b3ca4d340d25e459f12",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790695817.9074326,
-    "ast_hash": "7abaf77061787b695c0061bd502e39ca",
+    "mtime": 1790697119.522774,
+    "ast_hash": "e6b0c19ab8d324fd9ff6a35bca88feae",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1205,8 +1205,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790695818.7156398,
-    "ast_hash": "b198528eced1c660d230de9b8512730a",
+    "mtime": 1790696275.4188678,
+    "ast_hash": "428d846293a191b674ca510f605b43fd",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790522187.4717772,
-    "ast_hash": "78336640c2f00f6523a0bf71b4e6de17",
+    "mtime": 1790697127.7475998,
+    "ast_hash": "1d751703b1e85b6ccdb89102ab699185",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "src/utils/appearanceConfig.ts": {
-    "mtime": 1790681323.5619512,
-    "ast_hash": "21c8d1c9ca3f82e2ea9fcfdb7e6328de",
+    "mtime": 1790696709.8466353,
+    "ast_hash": "1b095a6a4106ed55ffcaf8c5f0477245",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryEntryFlattener.ts": {
@@ -1645,8 +1645,8 @@
     "semantic_hash": "b97787cc2dbee5da362c70040b527b4f"
   },
   "src/utils/dictionary/TransformRuleBackend.ts": {
-    "mtime": 1790681323.566557,
-    "ast_hash": "661a29a335d5f1803607a7aa7e5b1535",
+    "mtime": 1790696843.6678975,
+    "ast_hash": "a3e76710a3c6559b4c0234b006472859",
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
@@ -1805,8 +1805,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1790677346.8134387,
-    "ast_hash": "139330fdc3d4a70a46b11c4779d9c6d3",
+    "mtime": 1790697201.2583413,
+    "ast_hash": "91c84cdae761f266d50ac6ae4dd99b28",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1925,8 +1925,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
-    "mtime": 1790682165.0438151,
-    "ast_hash": "acbdbc9ddddeb0c190e1e08d5fdd49ef",
+    "mtime": 1790696995.554637,
+    "ast_hash": "6f8dbb8fcfc8a113e5914420732320cd",
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
@@ -2265,13 +2265,13 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/EditCommitter.ts": {
-    "mtime": 1790695338.293097,
-    "ast_hash": "58caf75a92391ab62bbff27eca769837",
+    "mtime": 1790697085.0699923,
+    "ast_hash": "948577ee29ff809271cf7ed7ac110b07",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryEdit.ts": {
-    "mtime": 1790695338.2924957,
-    "ast_hash": "d5666ba485fb68acfd481898e6ed5af0",
+    "mtime": 1790696276.0788457,
+    "ast_hash": "2ec003f9d3b51aed83d612e66103a2c7",
     "semantic_hash": ""
   },
   "docs/adr/ADR-052-dictionary-edit-commits-one-queue-typescript-write-back.md": {
@@ -2279,14 +2279,14 @@
     "ast_hash": "cbd76dc6f09ea6aa1e8b1ecae81831c1",
     "semantic_hash": ""
   },
-  "src/utils/unreadableFile.ts": {
-    "mtime": 1790681293.670169,
-    "ast_hash": "94fca097f9fa23a4b9e8349fec043e97",
-    "semantic_hash": ""
-  },
   "docs/adr/ADR-053-unread-dictionaries-are-refused-not-quarantined.md": {
     "mtime": 1790695818.1952617,
     "ast_hash": "78589234beea2c5ec17264c868688acc",
+    "semantic_hash": ""
+  },
+  "src/utils/appFile.ts": {
+    "mtime": 1790696640.980063,
+    "ast_hash": "1f18d0425a89e2dfb1fd662570bc20dd",
     "semantic_hash": ""
   }
 }

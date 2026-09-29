@@ -5,8 +5,10 @@
  * Every loader used to turn `{ success: false }` into "no data" — `{}`, `[]` or defaults —
  * and cache it, so the next read-modify-write replaced the whole file with that emptiness:
  * every reading position and binding, the active dictionaries, every Transform Rule.
- * A failed load is now cached nowhere, the loaders that can throw do, and each file's save
- * refuses until a load of it has succeeded.
+ *
+ * The protocol itself (not cached, refusal lifts once a load succeeds) is tested once in
+ * `appFile.test.ts`. What stays here is each file's wiring through its own public functions:
+ * that it is an App File at all, and which failed-read behavior it chose.
  */
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import {
@@ -53,10 +55,8 @@ beforeEach(() => {
 });
 
 describe('books.json', () => {
-  test('a failed load throws, and is not cached', async () => {
-    await expect(loadBookRecords()).rejects.toThrow();
-    api.loadBookRecords.mockResolvedValue({ success: true, data: {} });
-    await expect(loadBookRecords()).resolves.toEqual({ records: {}, droppedCount: 0 });
+  test('a failed load throws', async () => {
+    await expect(loadBookRecords()).rejects.toThrow(/not saving over it/);
   });
 
   test('a write after a failed load saves nothing', async () => {
@@ -87,38 +87,20 @@ describe('config.json', () => {
     );
     expect(api.saveConfiguration).not.toHaveBeenCalled();
   });
-
-  test('once a load succeeds, saves go through', async () => {
-    await loadAppConfig();
-    api.loadConfiguration.mockResolvedValue({ success: true, data: { activeProperNouns: [] } });
-    await loadAppConfig();
-    await saveAppConfig({ session: { lastSelectedDictionary: 'phrases' } });
-    expect(api.saveConfiguration).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe('transform-rules.json', () => {
-  test('a failed load throws, and a save refuses until a load succeeds', async () => {
+  test('a failed load throws, and a save refuses', async () => {
     await expect(loadTransformRules()).rejects.toThrow();
     await expect(saveTransformRules([])).rejects.toThrow(/not saving over it/);
     expect(api.saveTransformRules).not.toHaveBeenCalled();
-
-    api.loadTransformRules.mockResolvedValue({ success: true, data: [] });
-    await loadTransformRules();
-    await saveTransformRules([]);
-    expect(api.saveTransformRules).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('appearance.json', () => {
-  test('a failed load hands back defaults, but a save refuses until a load succeeds', async () => {
+  test('a failed load hands back defaults, but a save refuses', async () => {
     expect(await loadAppearanceConfig()).toEqual(DEFAULT_APPEARANCE);
     await expect(saveAppearanceConfig(DEFAULT_APPEARANCE)).rejects.toThrow(/not saving over it/);
     expect(api.saveAppearanceSettings).not.toHaveBeenCalled();
-
-    api.loadAppearanceSettings.mockResolvedValue({ success: true, data: {} });
-    await loadAppearanceConfig();
-    await saveAppearanceConfig(DEFAULT_APPEARANCE);
-    expect(api.saveAppearanceSettings).toHaveBeenCalledTimes(1);
   });
 });

@@ -24,7 +24,7 @@ import type {
   PlanResult,
 } from '../../utils/dictionary/DictionaryEdit';
 import { logger } from '../../utils/logger';
-import { unreadFileError } from '../../utils/unreadableFile';
+import { unreadFileError } from '../../utils/appFile';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 
 export type CommitResult =
