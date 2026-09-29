@@ -55,9 +55,12 @@ const reconcile = vi.hoisted(() => ({
 }));
 vi.mock('../../../utils/reader/ReconcileLibrary', () => reconcile);
 
-const announceOpenBook = vi.hoisted(() => vi.fn());
+const { announceOpenBook, announceClosedBook } = vi.hoisted(() => ({
+  announceOpenBook: vi.fn(),
+  announceClosedBook: vi.fn(),
+}));
 vi.mock('../../BookBindingContext', () => ({
-  useBookBinding: () => ({ announceOpenBook }),
+  useBookBinding: () => ({ announceOpenBook, announceClosedBook }),
 }));
 
 // The real hook needs `EngineProvider`; the queue itself is `createReaderEngine`'s to test.
@@ -213,6 +216,9 @@ describe('ReaderTab openBook', () => {
     fireEvent.click(await screen.findByText('open:novel.txt'));
     await screen.findByText('reading:novel.txt');
     fireEvent.click(screen.getByText('back'));
+    // Back gives up the book's authority over the fiction dictionaries; the reopen below
+    // takes it back.
+    expect(announceClosedBook).toHaveBeenCalledTimes(1);
 
     bookRecordsBackend.loadBookRecords.mockResolvedValue({
       records: {
@@ -334,6 +340,8 @@ describe('ReaderTab openBook', () => {
     await screen.findByText('needs-encoding');
     expect(bookRecordsBackend.recordBookOpened).not.toHaveBeenCalled();
     expect(announceOpenBook).not.toHaveBeenCalled();
+    // No book is on screen while the encoding is chosen, so the previous one lets go.
+    expect(announceClosedBook).toHaveBeenCalledTimes(1);
   });
 
   it('a palette switch mounts a new reader for the new book, sharing one engine queue', async () => {

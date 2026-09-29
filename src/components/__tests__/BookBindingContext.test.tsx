@@ -181,6 +181,69 @@ describe('opening a book', () => {
   });
 });
 
+describe('closing a book', () => {
+  test('gives up the book, unlocking Configuration, and writes and rebuilds nothing', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.isApplying).toBe(false));
+    saveAppConfig.mockClear();
+    reinitializeEngine.mockClear();
+
+    await act(async () => {
+      result.current.announceClosedBook();
+    });
+
+    expect(result.current.isBookOpen).toBe(false);
+    expect(result.current.openBook).toBeNull();
+    expect(result.current.binding).toBeNull();
+    expect(result.current.boundFictionDictionary).toBeNull();
+    expect(saveAppConfig).not.toHaveBeenCalled();
+    expect(reinitializeEngine).not.toHaveBeenCalled();
+    // The last book's dictionary stays active: closing is not an answer.
+    expect(config.engine.activeProperNouns).toContain('properNouns-f_TapDo');
+  });
+
+  test('clears a missing dictionary and a failed apply once the queued apply has finished', async () => {
+    listProperNounsDictionaryIds.mockResolvedValue(['properNouns']);
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_Gone' });
+      result.current.announceClosedBook();
+    });
+
+    await waitFor(() => expect(result.current.isApplying).toBe(false));
+    expect(result.current.missingFictionDictionary).toBeNull();
+    expect(result.current.applyError).toBeNull();
+    expect(result.current.isBookOpen).toBe(false);
+  });
+
+  test('a book announced right after a close keeps its own state', async () => {
+    listProperNounsDictionaryIds.mockResolvedValue(['properNouns']);
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceClosedBook();
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_Gone' });
+    });
+
+    await waitFor(() => expect(result.current.missingFictionDictionary).toBe('properNouns-f_Gone'));
+    expect(result.current.isBookOpen).toBe(true);
+  });
+
+  test('the dialog cannot open once the book is closed', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, null);
+    });
+    act(() => {
+      result.current.announceClosedBook();
+      result.current.openDialog();
+    });
+    expect(result.current.isDialogOpen).toBe(false);
+  });
+});
+
 describe('a bound dictionary that no longer exists', () => {
   test('reads with no fiction dictionary, names the missing one, and keeps the answer', async () => {
     config.engine.activeProperNouns = ['properNouns', 'properNouns-f_TruTien'];

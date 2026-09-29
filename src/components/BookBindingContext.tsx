@@ -86,6 +86,12 @@ export interface BookBindingContextValue {
   /** Called by the Reader once a book is open and its record has been read. Applies the
    * book's answer (or, for a book with no answer yet, "global dictionaries only"). */
   announceOpenBook: (book: OpenBookIdentity, binding: BookBinding | null) => void;
+  /** Called by the Reader whenever it stops showing a book (Back to the shelf, or a new
+   * book waiting on an encoding choice). The book gives up authority over the fiction
+   * slice: `isBookOpen` goes false and the Configuration tab unlocks. Writes no config and
+   * rebuilds nothing — the last book's dictionary stays active (CONTEXT.md "Dictionary
+   * Binding"). Reopening a book announces it again. */
+  announceClosedBook: () => void;
   /** Persist and apply an answer: a fiction dictionary id, or `null` for "none". */
   bind: (fictionDictionary: string | null) => Promise<void>;
   /** Create a new fiction dictionary pair from a reader-typed name, then bind to it. */
@@ -219,6 +225,9 @@ export function BookBindingProvider({
 
   const announceOpenBook = useCallback(
     (book: OpenBookIdentity, nextBinding: BookBinding | null): void => {
+      // The ref too, not just state: queued work checks it before the next render.
+      openBookRef.current = book;
+      bindingRef.current = nextBinding;
       setOpenBook(book);
       setBinding(nextBinding);
       setIsDialogOpen(false);
@@ -248,6 +257,22 @@ export function BookBindingProvider({
     },
     [applyAnswer, enqueue]
   );
+
+  const announceClosedBook = useCallback((): void => {
+    openBookRef.current = null;
+    bindingRef.current = null;
+    setOpenBook(null);
+    setBinding(null);
+    setIsDialogOpen(false);
+    // After any apply still queued for the closed book, so its outcome cannot land on a
+    // shelf with no book to show it.
+    void enqueue(async () => {
+      if (openBookRef.current) return; // a book was announced since; its state stands
+      setMissingFictionDictionary(null);
+      setError(null);
+      setApplyError(null);
+    });
+  }, [enqueue]);
 
   /**
    * The tail every answer shares, in the order that matters: persist first, so a failed
@@ -399,6 +424,7 @@ export function BookBindingProvider({
       openDialog,
       closeDialog,
       announceOpenBook,
+      announceClosedBook,
       bind,
       createAndBind,
       createFictionDictionary,
@@ -416,6 +442,7 @@ export function BookBindingProvider({
       openDialog,
       closeDialog,
       announceOpenBook,
+      announceClosedBook,
       bind,
       createAndBind,
       createFictionDictionary,

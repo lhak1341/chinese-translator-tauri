@@ -77,7 +77,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [open, setOpen] = useState<OpenState | null>(null);
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
-  const { announceOpenBook } = useBookBinding();
+  const { announceOpenBook, announceClosedBook } = useBookBinding();
   // The Reader's engine queue lives here, above every `BookReader` instance — see
   // `useReaderEngine`.
   const readerEngine = useReaderEngine();
@@ -186,6 +186,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             trigger: 'uncertain',
           });
           setOpen(null);
+          // No book on screen while the encoding is chosen, so the previous one stops
+          // holding the fiction slice; picking an encoding announces the new book.
+          announceClosedBook();
           setIsReading(true);
           return;
         }
@@ -223,7 +226,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         openingFileNameRef.current = null;
       }
     },
-    [announceOpenBook, configuredPath, open]
+    [announceClosedBook, announceOpenBook, configuredPath, open]
   );
 
   const chooseEncoding = useCallback(
@@ -292,9 +295,11 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   );
 
   const backToShelf = useCallback((): void => {
-    // Pure navigation: the book stays decoded so coming back is instant.
+    // The book stays decoded so coming back is instant, but it stops holding the fiction
+    // slice of the active dictionaries — reopening it announces it again.
+    announceClosedBook();
     setIsReading(false);
-  }, []);
+  }, [announceClosedBook]);
 
   if (isReading && encodingChoice) {
     return (
