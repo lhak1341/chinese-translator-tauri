@@ -46,8 +46,9 @@ characters", "Ends with / Starts with" — but each control keeps the old field-
 ("Relocate to opposite end", "Capitalize except N", "Total-length limit (optional)", "Match"),
 because `RuleFieldParity.test.tsx` and `RulesManager.test.tsx` find each field by that name in
 both surfaces. Rename a control's `aria-label` only together with those locators. Its preview
-(`findRuleMatchingEntries` + `applyRule` over `joinCharGloss`) shows the Add form's _guess_ for
-each matching source, not a rewrite of the saved entry — rules never touch saved entries.
+(`previewRuleGuess` in `TransformRuleEngine.ts`, given every saved rule so precedence applies —
+2026-09-29 `adf05a2`) shows the Add form's _guess_ for each matching source, not a rewrite of
+the saved entry — rules never touch saved entries.
 
 ## `TransformRule.relocate` — Renamed from `moveWords: number` 2026-08-24
 
