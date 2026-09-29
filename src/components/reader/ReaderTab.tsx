@@ -10,11 +10,7 @@ import type {
   LibraryBook,
   OpenBook,
 } from '../../types/ReaderTypes';
-import {
-  loadBookRecords,
-  recordBookOpened,
-  withBookRecordsLock,
-} from '../../utils/reader/BookRecordsBackend';
+import { readSettledRecords, recordBookOpened } from '../../utils/reader/BookRecordsBackend';
 import { emptyBookRecord } from '../../utils/reader/BookRecord';
 import {
   reconcileLibraryScan,
@@ -156,13 +152,13 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       // Returning to a book that is already decoded costs nothing — don't re-open it. Its
       // record is re-read rather than trusting the `open` state's own copy: the position
       // and outline are written straight to disk from elsewhere (scroll debounce, an
-      // outline override) without ever flowing back into this component's state. Read
-      // under the lock: Back queued the final position write as the reader unmounted, and
-      // a reopen faster than that write would otherwise restore the position before it.
+      // outline override) without ever flowing back into this component's state. Read it
+      // settled: Back queued the final position write as the reader unmounted, and a reopen
+      // faster than that write would otherwise restore the position before it.
       if (!encodingOverride && open && open.book.fileName === book.fileName) {
         setEncodingChoice(null);
         try {
-          const { records } = await withBookRecordsLock(loadBookRecords);
+          const records = await readSettledRecords();
           const record = records[open.book.fingerprint];
           if (record) {
             // Re-announcing on a reopen is what makes returning to a book you had bound

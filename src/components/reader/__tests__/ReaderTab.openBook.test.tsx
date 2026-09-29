@@ -33,19 +33,23 @@ vi.mock('../../../utils/appConfig', () => appConfig);
 
 const bookRecordsBackend = vi.hoisted(() => {
   // A real serial queue, not a pass-through: the reopen path's ordering against a write
-  // already queued is part of what this suite pins down.
+  // already queued is part of what this suite pins down. `queueWrite` stands in for any
+  // backend write; `readSettledRecords` waits behind it, as the real one does.
   let queue: Promise<unknown> = Promise.resolve();
+  const queueWrite = <T,>(fn: () => Promise<T>): Promise<T> => {
+    const result = queue.then(fn, fn);
+    queue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
+  const loadBookRecords = vi.fn();
   return {
-    loadBookRecords: vi.fn(),
+    loadBookRecords,
     recordBookOpened: vi.fn(),
-    withBookRecordsLock: <T,>(fn: () => Promise<T>): Promise<T> => {
-      const result = queue.then(fn, fn);
-      queue = result.then(
-        () => undefined,
-        () => undefined
-      );
-      return result;
-    },
+    queueWrite,
+    readSettledRecords: vi.fn(() => queueWrite(async () => (await loadBookRecords()).records)),
   };
 });
 vi.mock('../../../utils/reader/BookRecordsBackend', () => bookRecordsBackend);
@@ -269,7 +273,7 @@ describe('ReaderTab openBook', () => {
 
     // The final position write, still in flight when the reader clicks the book again.
     let landWrite: () => void = () => {};
-    void bookRecordsBackend.withBookRecordsLock(
+    void bookRecordsBackend.queueWrite(
       () =>
         new Promise<void>((resolve) => {
           landWrite = () => {

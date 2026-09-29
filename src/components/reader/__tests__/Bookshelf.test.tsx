@@ -10,7 +10,7 @@ import Bookshelf from '../Bookshelf';
 import {
   invalidateBookRecords,
   loadBookRecords,
-  saveBookRecords,
+  transformRecords,
 } from '../../../utils/reader/BookRecordsBackend';
 import { makeBookRecord } from '../../../utils/reader/__tests__/bookRecordFixture';
 import type { ShelfBook, UnavailableBook } from '../../../utils/reader/ReconcileLibrary';
@@ -112,7 +112,10 @@ describe('Bookshelf progress', () => {
     expect(screen.getByText('Line 11 of 500')).toBeTruthy();
 
     await act(() =>
-      saveBookRecords({ fp1: makeBookRecord({ position: { line: 249, fraction: 0.5 } }) })
+      transformRecords(() => ({
+        records: { fp1: makeBookRecord({ position: { line: 249, fraction: 0.5 } }) },
+        result: undefined,
+      }))
     );
 
     expect(screen.getByText('Line 250 of 500')).toBeTruthy();

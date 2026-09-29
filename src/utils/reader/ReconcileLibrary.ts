@@ -6,7 +6,7 @@ import type {
 } from '../../types/ReaderTypes';
 import tauriAPI from '../../tauriAPI';
 import { logger } from '../logger';
-import { loadBookRecords, saveBookRecords, withBookRecordsLock } from './BookRecordsBackend';
+import { loadBookRecords, transformRecords } from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
@@ -202,10 +202,11 @@ export async function reconcileLibraryScan(
     })
   );
 
-  return withBookRecordsLock(async () => {
-    const { records: freshRecords } = await loadBookRecords();
+  return transformRecords((freshRecords) => {
     const applied = plan.resolve(freshRecords, fingerprints);
-    await saveBookRecords(applied.records);
-    return { shelfBooks: applied.shelfBooks, unavailableBooks: applied.unavailableBooks };
+    return {
+      records: applied.records,
+      result: { shelfBooks: applied.shelfBooks, unavailableBooks: applied.unavailableBooks },
+    };
   });
 }

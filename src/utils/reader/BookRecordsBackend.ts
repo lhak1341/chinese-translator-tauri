@@ -45,12 +45,9 @@ export function getBookRecordsSnapshot(): BookRecords {
 // would let the second clobber the first's result with a stale in-memory copy.
 let writeQueue: Promise<unknown> = Promise.resolve();
 
-/**
- * Runs `fn` once every write ahead of it in the queue has settled. `fn` is expected to
- * `loadBookRecords()` (safe to call repeatedly — cached) and `saveBookRecords()` itself,
- * so it always reads the freshest state before deciding what to write.
- */
-export function withBookRecordsLock<T>(fn: () => Promise<T>): Promise<T> {
+/** Runs `fn` once every write ahead of it in the queue has settled. Module-private: callers
+ * get `transformRecords` and `readSettledRecords`, which cannot be used out of order. */
+function withBookRecordsLock<T>(fn: () => Promise<T>): Promise<T> {
   const result = writeQueue.then(fn, fn);
   writeQueue = result.then(
     () => undefined,
@@ -92,9 +89,9 @@ export async function loadBookRecords(): Promise<LoadBookRecordsResult> {
   return { records, droppedCount };
 }
 
-/** Call only from inside `withBookRecordsLock` — an unguarded save can race a concurrent
- * read-modify-write and silently lose one side's changes. */
-export async function saveBookRecords(records: BookRecords): Promise<void> {
+/** Module-private, and called only by `transformRecords` inside the lock — an unguarded save
+ * can race a concurrent read-modify-write and silently lose one side's changes. */
+async function saveBookRecords(records: BookRecords): Promise<void> {
   const result = await window.electronAPI.saveBookRecords(records);
   if (!result.success) {
     throw new Error(result.error ?? 'Failed to save book records');
@@ -104,6 +101,34 @@ export async function saveBookRecords(records: BookRecords): Promise<void> {
 
 export function invalidateBookRecords(): void {
   setCache(null);
+}
+
+/**
+ * The one read-modify-write of books.json. Once every write queued ahead of it has settled,
+ * `fn` gets the freshest records and returns the next ones plus a result for the caller;
+ * returning the same `records` object it was given means "no change", and nothing is
+ * saved. Every writer — the per-field setters, `recordBookOpened`, a rename, library
+ * reconciliation — goes through here, so none can read stale records or save outside the
+ * queue.
+ */
+export function transformRecords<T>(
+  fn: (records: BookRecords) => { records: BookRecords; result: T }
+): Promise<T> {
+  return withBookRecordsLock(async () => {
+    const { records } = await loadBookRecords();
+    const { records: next, result } = fn(records);
+    if (next !== records) await saveBookRecords(next);
+    return result;
+  });
+}
+
+/**
+ * The records once every write already queued has landed — for a read that must see a
+ * write started before it (Back queues the final position flush; a fast reopen must not
+ * restore the position from before it). `loadBookRecords` is the snapshot as it is now.
+ */
+export function readSettledRecords(): Promise<BookRecords> {
+  return withBookRecordsLock(async () => (await loadBookRecords()).records);
 }
 
 /**
@@ -118,15 +143,14 @@ function updateBookRecord(
   fingerprint: string,
   patch: Partial<Pick<BookRecord, ReaderAnswerField | 'chapterOutline'>>
 ): Promise<void> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
+  return transformRecords((records) => {
     const existing = records[fingerprint];
     if (!existing) {
       logger.warn(`${caller}: no record for ${fingerprint}, skipping`);
-      return;
+      return { records, result: undefined };
     }
     const updated: BookRecord = { ...existing, ...patch };
-    await saveBookRecords({ ...records, [fingerprint]: updated });
+    return { records: { ...records, [fingerprint]: updated }, result: undefined };
   });
 }
 
@@ -186,8 +210,7 @@ export function setBookBinding(fingerprint: string, binding: BookBinding): Promi
  * a refresh: it keeps the answer the reader gave, under the dictionary's new name.
  */
 export function renameBoundDictionary(oldId: string, newId: string): Promise<void> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
+  return transformRecords((records) => {
     let changed = false;
     const next: BookRecords = {};
     for (const [fingerprint, record] of Object.entries(records)) {
@@ -198,7 +221,7 @@ export function renameBoundDictionary(oldId: string, newId: string): Promise<voi
         next[fingerprint] = record;
       }
     }
-    if (changed) await saveBookRecords(next);
+    return { records: changed ? next : records, result: undefined };
   });
 }
 
@@ -220,13 +243,11 @@ export function recordBookOpened(
   fingerprint: string,
   observed: OpenedBookObservations
 ): Promise<BookRecord> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
+  return transformRecords((records) => {
     const updated = refreshBookRecord(records[fingerprint], fingerprint, {
       ...observed,
       available: true,
     });
-    await saveBookRecords({ ...records, [fingerprint]: updated });
-    return updated;
+    return { records: { ...records, [fingerprint]: updated }, result: updated };
   });
 }

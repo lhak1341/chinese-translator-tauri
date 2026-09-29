@@ -21,9 +21,8 @@ const dialog = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => dialog);
 
 vi.mock('../../../utils/reader/BookRecordsBackend', () => ({
-  loadBookRecords: vi.fn(),
+  readSettledRecords: vi.fn(),
   recordBookOpened: vi.fn(),
-  withBookRecordsLock: <T,>(fn: () => Promise<T>) => fn(),
 }));
 
 // Only the reconciliation call is faked; the shelf order rule is the real one.

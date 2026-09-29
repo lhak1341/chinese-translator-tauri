@@ -1,7 +1,8 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import {
   loadBookRecords,
-  saveBookRecords,
+  transformRecords,
+  readSettledRecords,
   invalidateBookRecords,
   setReadingPosition,
   setChapterOutline,
@@ -9,7 +10,6 @@ import {
   setBookBinding,
   renameBoundDictionary,
   recordBookOpened,
-  withBookRecordsLock,
   subscribeBookRecords,
   getBookRecordsSnapshot,
 } from '../BookRecordsBackend';
@@ -56,23 +56,72 @@ describe('loadBookRecords', () => {
   });
 });
 
-describe('saveBookRecords', () => {
-  test('saves via IPC and updates the cache', async () => {
+/** Replace every record with `records` — the plainest transform, standing in for a save. */
+function replaceWith(records: BookRecords) {
+  return transformRecords(() => ({ records, result: undefined }));
+}
+
+describe('transformRecords', () => {
+  test('saves what the transform returns via IPC and updates the cache', async () => {
     const saveFn = vi.fn().mockResolvedValue({ success: true });
     window.electronAPI.saveBookRecords = saveFn;
 
     const records = { fp1: makeBookRecord() };
-    await saveBookRecords(records);
+    await replaceWith(records);
 
     expect(saveFn).toHaveBeenCalledWith(records);
     expect(await loadBookRecords()).toEqual({ records, droppedCount: 0 });
+  });
+
+  test('hands the transform the current records and returns its result', async () => {
+    const record = makeBookRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: record } });
+
+    const seen = await transformRecords((records) => ({
+      records,
+      result: Object.keys(records),
+    }));
+
+    expect(seen).toEqual(['fp1']);
+  });
+
+  test('returning the same records saves nothing', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await transformRecords((records) => ({ records, result: undefined }));
+
+    expect(saveFn).not.toHaveBeenCalled();
   });
 
   test('throws when the save fails', async () => {
     window.electronAPI.saveBookRecords = vi
       .fn()
       .mockResolvedValue({ success: false, error: 'disk full' });
-    await expect(saveBookRecords({})).rejects.toThrow('disk full');
+    await expect(replaceWith({})).rejects.toThrow('disk full');
+  });
+});
+
+describe('readSettledRecords', () => {
+  test('waits for a write queued before it', async () => {
+    let releaseSave!: () => void;
+    window.electronAPI.saveBookRecords = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          releaseSave = () => resolve({ success: true });
+        })
+    );
+    const written = { fp1: makeBookRecord({ position: { line: 7, fraction: 0 } }) };
+    const write = replaceWith(written);
+    const read = readSettledRecords();
+
+    await new Promise((r) => setTimeout(r, 0));
+    releaseSave();
+
+    await write;
+    expect(await read).toEqual(written);
   });
 });
 
@@ -91,7 +140,7 @@ describe('record cache subscription', () => {
     expect(getBookRecordsSnapshot()).toEqual({ fp1: record });
 
     const saved = { fp1: makeBookRecord({ position: { line: 5, fraction: 0 } }) };
-    await saveBookRecords(saved);
+    await replaceWith(saved);
     expect(listener).toHaveBeenCalledTimes(2);
     expect(getBookRecordsSnapshot()).toBe(saved);
 
@@ -100,12 +149,12 @@ describe('record cache subscription', () => {
     expect(getBookRecordsSnapshot()).toEqual({});
 
     unsubscribe();
-    await saveBookRecords(saved);
+    await replaceWith({ fp1: makeBookRecord() });
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
   test('a failed save leaves the cache alone and notifies no one', async () => {
-    await saveBookRecords({ fp1: makeBookRecord() });
+    await replaceWith({ fp1: makeBookRecord() });
     const before = getBookRecordsSnapshot();
     const listener = vi.fn();
     const unsubscribe = subscribeBookRecords(listener);
@@ -113,7 +162,7 @@ describe('record cache subscription', () => {
       .fn()
       .mockResolvedValue({ success: false, error: 'disk full' });
 
-    await expect(saveBookRecords({})).rejects.toThrow('disk full');
+    await expect(replaceWith({})).rejects.toThrow('disk full');
 
     expect(listener).not.toHaveBeenCalled();
     expect(getBookRecordsSnapshot()).toBe(before);
@@ -412,7 +461,7 @@ describe('recordBookOpened', () => {
 });
 
 describe('write coalescing', () => {
-  test("withBookRecordsLock serializes concurrent writers — the second sees the first's result", async () => {
+  test("transformRecords serializes concurrent writers — the second sees the first's result", async () => {
     let stored: Record<string, unknown> = {};
     window.electronAPI.loadBookRecords = vi.fn(async () => ({ success: true, data: stored }));
     window.electronAPI.saveBookRecords = vi.fn(async (records: Record<string, unknown>) => {
@@ -423,18 +472,16 @@ describe('write coalescing', () => {
     // Both "writers" start from an empty map concurrently. Without the lock, the second
     // read-modify-write would read the map before the first writer's save landed and
     // clobber it — one of the two keys would be lost.
-    const [a, b] = await Promise.all([
-      withBookRecordsLock(async () => {
-        const { records } = await loadBookRecords();
-        await saveBookRecords({ ...records, fp1: makeBookRecord({ fingerprint: 'fp1' }) });
-      }),
-      withBookRecordsLock(async () => {
-        const { records } = await loadBookRecords();
-        await saveBookRecords({ ...records, fp2: makeBookRecord({ fingerprint: 'fp2' }) });
-      }),
+    await Promise.all([
+      transformRecords((records) => ({
+        records: { ...records, fp1: makeBookRecord({ fingerprint: 'fp1' }) },
+        result: undefined,
+      })),
+      transformRecords((records) => ({
+        records: { ...records, fp2: makeBookRecord({ fingerprint: 'fp2' }) },
+        result: undefined,
+      })),
     ]);
-    void a;
-    void b;
 
     expect(Object.keys(stored).sort()).toEqual(['fp1', 'fp2']);
   });
