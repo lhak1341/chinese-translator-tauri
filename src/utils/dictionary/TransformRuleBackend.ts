@@ -2,8 +2,12 @@ import type { TransformRule } from '../../types/TransformRuleTypes';
 import { validateApiResult } from '../configValidation';
 import { validateTransformRule } from './TransformRuleValidation';
 import { logger } from '../logger';
+import { reportQuarantine, unreadFileError } from '../unreadableFile';
 
 let cache: TransformRule[] | null = null;
+/** True from a failed read until a load succeeds: saving then would replace every rule on
+ * disk with what this session made (utils/unreadableFile.ts). */
+let unread = false;
 
 /** Pre-2026-08-24 persisted rules stored the relocate flag as `moveWords: number`
  * (0/1, occasionally a legacy literal word count from before 2026-08-15 — see
@@ -30,7 +34,13 @@ export async function loadTransformRules(): Promise<LoadTransformRulesResult> {
   if (cache) return { rules: cache, droppedCount: 0 };
   const rawResult = await window.electronAPI.loadTransformRules();
   const result = validateApiResult<unknown>(rawResult, 'loadTransformRules');
-  const rawList = result.success && Array.isArray(result.data) ? result.data : [];
+  if (!result.success) {
+    unread = true;
+    throw unreadFileError('transform-rules.json');
+  }
+  unread = false;
+  reportQuarantine(rawResult, 'Transform Rules (transform-rules.json)');
+  const rawList = Array.isArray(result.data) ? result.data : [];
   const migrated = migrateLegacyMoveWords(rawList);
 
   const rules: TransformRule[] = [];
@@ -52,6 +62,7 @@ export async function loadTransformRules(): Promise<LoadTransformRulesResult> {
 }
 
 export async function saveTransformRules(rules: TransformRule[]): Promise<void> {
+  if (unread) throw unreadFileError('transform-rules.json');
   const result = await window.electronAPI.saveTransformRules(rules);
   if (!result.success) {
     throw new Error(result.error || 'Failed to save transform rules');
@@ -61,4 +72,5 @@ export async function saveTransformRules(rules: TransformRule[]): Promise<void> 
 
 export function invalidateTransformRules(): void {
   cache = null;
+  unread = false;
 }

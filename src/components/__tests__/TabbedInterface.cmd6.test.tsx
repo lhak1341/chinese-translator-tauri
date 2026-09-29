@@ -60,6 +60,12 @@ vi.mock('../dictionary/DictionaryManager', () => ({ default: () => <div /> }));
 vi.mock('../configuration/ConfigurationManager', () => ({ default: () => <div /> }));
 vi.mock('../appearance/AppearanceManager', () => ({ default: () => <div /> }));
 vi.mock('../reader/ReaderTab', () => ({ default: () => <div /> }));
+// The Rules tab loads Transform Rules on mount and toasts when that fails; it has nothing to
+// do with Cmd-5/6.
+vi.mock('../rules/RulesManager', async () => {
+  const { forwardRef } = await import('react');
+  return { default: forwardRef(() => <div />) };
+});
 
 import { loadAppConfig } from '../../utils/appConfig';
 

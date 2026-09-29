@@ -1,4 +1,5 @@
 import { validateApiResult } from './configValidation';
+import { reportQuarantine, unreadFileError } from './unreadableFile';
 import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -94,13 +95,29 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
   };
 }
 
+/** True from a failed read until a load succeeds: the app still shows defaults, but they are
+ * never saved over the file (utils/unreadableFile.ts). */
+let unread = false;
+
 export async function loadAppearanceConfig(): Promise<AppearanceSettings> {
   const rawResult = await window.electronAPI.loadAppearanceSettings();
   const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadAppearanceSettings');
-  return fromRaw(result.success && result.data ? result.data : {});
+  if (!result.success) {
+    unread = true;
+    return fromRaw({});
+  }
+  unread = false;
+  reportQuarantine(rawResult, 'Appearance (appearance.json)');
+  return fromRaw(result.data ?? {});
+}
+
+/** Forget a failed read — tests only; the next load decides again. */
+export function invalidateAppearanceConfig(): void {
+  unread = false;
 }
 
 export async function saveAppearanceConfig(settings: AppearanceSettings): Promise<void> {
+  if (unread) throw unreadFileError('appearance.json');
   const rawResult = await window.electronAPI.saveAppearanceSettings(settings);
   const result = validateApiResult(rawResult, 'saveAppearanceSettings');
   if (!result.success) {

@@ -90,8 +90,12 @@ export function useTransformRules() {
           setIsLoading(false);
         }
       })
-      .catch(() => {
-        if (!cancelled) setIsLoading(false);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Saves stay refused until a load succeeds (TransformRuleBackend), so say why the
+        // list is empty rather than let an edit fail with no context.
+        toast.error(`Could not load Transform Rules: ${(error as Error).message}`);
+        setIsLoading(false);
       });
     return () => {
       cancelled = true;

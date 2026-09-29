@@ -1,3 +1,4 @@
+import { reportQuarantine, unreadFileError } from '../unreadableFile';
 import type {
   BookBinding,
   BookRecord,
@@ -67,7 +68,11 @@ export async function loadBookRecords(): Promise<LoadBookRecordsResult> {
   if (cache) return { records: cache, droppedCount: 0 };
   const rawResult = await window.electronAPI.loadBookRecords();
   const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadBookRecords');
-  const rawMap = result.success && result.data ? result.data : {};
+  // A failed read caches nothing and throws, so no read-modify-write can save an empty map
+  // over the file (utils/unreadableFile.ts).
+  if (!result.success) throw unreadFileError('books.json');
+  reportQuarantine(rawResult, 'Reading progress (books.json)');
+  const rawMap = result.data ?? {};
 
   const records: BookRecords = {};
   let droppedCount = 0;

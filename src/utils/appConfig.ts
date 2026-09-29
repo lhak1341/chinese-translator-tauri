@@ -1,4 +1,6 @@
 import { validateApiResult } from './configValidation';
+import { logger } from './logger';
+import { reportQuarantine, unreadFileError } from './unreadableFile';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 export interface EngineConfig {
@@ -80,11 +82,23 @@ function toRaw(config: AppConfig): AppConfiguration {
   } as unknown as AppConfiguration;
 }
 
+/** True from a failed read until a load succeeds. The app still runs on defaults then, but
+ * they are never saved over the file (utils/unreadableFile.ts). */
+let unread = false;
+
 export async function loadAppConfig(): Promise<AppConfig> {
   if (cache) return cache;
   const rawResult = await window.electronAPI.loadConfiguration();
   const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadConfiguration');
-  cache = fromRaw(result.success && result.data ? result.data : {});
+  if (!result.success) {
+    // Defaults so the app can start, but uncached: the next load tries the file again.
+    unread = true;
+    logger.error('Could not read config.json; running on defaults:', result.error);
+    return fromRaw({});
+  }
+  unread = false;
+  reportQuarantine(rawResult, 'Settings (config.json)');
+  cache = fromRaw(result.data ?? {});
   return cache;
 }
 
@@ -96,6 +110,7 @@ export function saveAppConfig(patch: {
 }): Promise<void> {
   return withConfigLock(async () => {
     const current = cache ?? (await loadAppConfig());
+    if (unread) throw unreadFileError('config.json');
     const merged: AppConfig = {
       engine: { ...current.engine, ...patch.engine },
       ui: { ...current.ui, ...patch.ui },
@@ -113,6 +128,7 @@ export function saveAppConfig(patch: {
 
 export function invalidateAppConfig(): void {
   cache = null;
+  unread = false;
 }
 
 /**

@@ -36,11 +36,11 @@ describe('loadTransformRules', () => {
     expect(await loadTransformRules()).toEqual({ rules, droppedCount: 0 });
   });
 
-  test('returns an empty array when the load fails', async () => {
+  test('throws when the load fails, rather than handing back an empty list to save over', async () => {
     window.electronAPI.loadTransformRules = vi
       .fn()
       .mockResolvedValue({ success: false, error: 'boom' });
-    expect(await loadTransformRules()).toEqual({ rules: [], droppedCount: 0 });
+    await expect(loadTransformRules()).rejects.toThrow(/not saving over it/);
   });
 
   test('caches after the first successful load — does not call IPC again', async () => {
