@@ -50,8 +50,8 @@ export type FillEvent =
  *   landed, the viewport resized). Skipping a not-yet-started chunk here is free: the
  *   newer plan will pick it up if it's still needed.
  * - **`isAbandoned()`**, checked after each of a chunk's two awaits, answers "has the
- *   *cache itself* stopped being trustworthy?" — true only on a book switch or unmount,
- *   never on an ordinary re-plan. A chunk already in flight must finish both its calls
+ *   *cache itself* stopped being trustworthy?" — true only on unmount (a book switch is
+ *   one, since `BookReader` is keyed by fingerprint), never on an ordinary re-plan. A chunk already in flight must finish both its calls
  *   once started: `translateChunk`'s result marks the chunk `isFresh` in the cache, so if
  *   `translateGloss` is abandoned by the *same* generation signal `isStale()` uses (as an
  *   earlier version of this function did), the chunk's gloss never gets attempted again —
@@ -62,8 +62,8 @@ export type FillEvent =
  * Using `isStale()`'s signal for `isAbandoned()` was the exact mistake: an anchor move
  * mid-`await` — completely ordinary while scrolling — abandoned the gloss call for
  * whatever chunk happened to be in flight, at a rate roughly proportional to how often the
- * reader scrolls. `isAbandoned()` must bump *only* on a real book switch or unmount, not on
- * every re-plan, or this reintroduces the same bug it was meant to fix.
+ * reader scrolls. `isAbandoned()` must bump *only* on unmount, not on every re-plan, or this
+ * reintroduces the same bug it was meant to fix.
  *
  * A chunk that throws is `yield`ed as `skipped`, not thrown — the caller logs it and the
  * loop moves on to the next chunk. One bad passage no longer blocks translating the rest

@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790697576.1554492,
-    "ast_hash": "10722fca371e16c59f9d7bc6cc733aba",
+    "mtime": 1790699824.3706021,
+    "ast_hash": "c82d957b422b80a9ef10df4973c022a0",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1755,8 +1755,8 @@
     "semantic_hash": "cd01a757867adf6d75735d2bbf94cf36"
   },
   "src/components/rules/CLAUDE.md": {
-    "mtime": 1790697576.1561584,
-    "ast_hash": "4cd8617fe78aef2fbaccc4bcaf185314",
+    "mtime": 1790697591.1661808,
+    "ast_hash": "86d65c7bfad5c015d5ceb7cee3784d22",
     "semantic_hash": ""
   },
   "src/components/SearchFilterHeader.tsx": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790682344.5545566,
-    "ast_hash": "c4dcc4e13f777e81e86a4a818d411ba1",
+    "mtime": 1790699824.3711417,
+    "ast_hash": "7fd4c801d7a705d35146e5bf585b04d4",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1975,8 +1975,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1790519738.7359467,
-    "ast_hash": "a504f7f4031517e4fd4cdaae5f78787c",
+    "mtime": 1790699675.1883602,
+    "ast_hash": "a8b86b1e0dfe43cc762764a7acaea4f4",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -1990,8 +1990,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1790417009.4134803,
-    "ast_hash": "7c7168817c23b9d5c1da990dfd8f1211",
+    "mtime": 1790699660.6697206,
+    "ast_hash": "90fc1bdb0175eff0b3ead2f6d6d1e40e",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
@@ -2075,8 +2075,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/LineSegments.ts": {
-    "mtime": 1790357294.796783,
-    "ast_hash": "ccc30cb8622fe72d928f11531097af13",
+    "mtime": 1790699660.6684356,
+    "ast_hash": "d56a05e9395daa4b7283031412b505c6",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline_commands.rs": {
@@ -2090,8 +2090,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/WindowedTranslationFill.ts": {
-    "mtime": 1789825488.4298248,
-    "ast_hash": "f2d3c4d04134261c03061815254bd3dd",
+    "mtime": 1790699824.371636,
+    "ast_hash": "d4ec0beff860d30d7b598b2c96ba1411",
     "semantic_hash": ""
   },
   "docs/adr/ADR-043-skip-shared-windowed-fill-primitive.md": {
@@ -2287,6 +2287,11 @@
   "src/utils/appFile.ts": {
     "mtime": 1790696640.980063,
     "ast_hash": "1f18d0425a89e2dfb1fd662570bc20dd",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/PanelRows.ts": {
+    "mtime": 1790699660.6686637,
+    "ast_hash": "811a8706179ca245f7049956d581e4f0",
     "semantic_hash": ""
   }
 }
