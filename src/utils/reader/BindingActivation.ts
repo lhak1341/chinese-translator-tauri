@@ -1,4 +1,5 @@
 import { isFictionProperNounsId } from '../dictionary/DictionaryIdClassifier';
+import type { QuickAddView } from '../dictionary/QuickAddTarget';
 
 /**
  * Turning a book's binding into the config the engine initializes from.
@@ -43,4 +44,44 @@ export function quickAddTargetForBinding(
 ): string | null {
   if (bound) return bound;
   return currentDefault && isFictionProperNounsId(currentDefault) ? null : currentDefault;
+}
+
+/** Whether `bound` names a fiction dictionary. A binding can only ever name one, but the
+ * record is read off disk and repaired rather than trusted, so check rather than assume. */
+function isBoundToFiction(bound: string | null): bound is string {
+  return bound !== null && isFictionProperNounsId(bound);
+}
+
+/**
+ * The quick-add view while a book is open: config as the open book's binding implies it —
+ * the same arithmetic `BookBindingContext` writes into config on bind. Every Add in the app
+ * decides over it while a book is open (the provider's `loadQuickAddView`); feed it to
+ * `quickAddTarget` (utils/dictionary/QuickAddTarget.ts).
+ *
+ * The fiction slice and a fiction default come only from the binding, never from config.
+ * The fiction slice of config is a value the binding itself wrote on open, and when that
+ * write fails (`BookBindingContext` logs it and carries on, because a book that will not
+ * bind must still be readable) config still names the *previous* book's dictionary. Asking
+ * it would file this novel's names under the last novel — the silent wrong-dictionary
+ * failure the binding exists to stop. What config does still own is everything
+ * non-fiction: the active root, custom and generic dictionaries (the Add dropdown offers
+ * them) and a non-fiction default (`properNouns`, or a theme like
+ * `properNouns-_Cultivation`) — a standing Configuration choice right for any book.
+ *
+ * `config` may be `null` (it failed to load): the view is then built from the binding
+ * alone, which loses the non-fiction dictionaries — so callers read config for a bound book
+ * too.
+ */
+export function quickAddViewForBinding(
+  config: QuickAddView | null,
+  bound: string | null
+): QuickAddView {
+  const fiction = isBoundToFiction(bound) ? bound : null;
+  return {
+    defaultQuickAddDictionary: quickAddTargetForBinding(
+      fiction,
+      config?.defaultQuickAddDictionary ?? null
+    ),
+    activeProperNouns: activeProperNounsForBinding(config?.activeProperNouns ?? [], fiction),
+  };
 }

@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
 import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
-import { readerQuickAddView } from '../utils/reader/ReaderQuickAddTarget';
+import { quickAddViewForBinding } from '../utils/reader/BindingActivation';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActions } from '../utils/reader/ReaderActions';
@@ -80,7 +80,8 @@ export function useReaderCommands({
     // (root, custom, generic), which the Add dropdown offers. `readerQuickAddView` replaces
     // only its fiction slice and fiction default with the binding's. Skipping config for a
     // bound book (until 2026-09-26) dropped every generic dictionary from the dropdown.
-    async (): Promise<QuickAddView> => readerQuickAddView(await loadQuickAddConfig(), boundFiction),
+    async (): Promise<QuickAddView> =>
+      quickAddViewForBinding(await loadQuickAddConfig(), boundFiction),
     [boundFiction]
   );
   const modals = useDictionaryModals(dictionaries, loadReaderView);

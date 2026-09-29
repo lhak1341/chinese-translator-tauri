@@ -492,6 +492,113 @@ describe('creating a dictionary from the dialog', () => {
   });
 });
 
+describe('the quick-add view', () => {
+  /** Config as a failed apply leaves it: still naming the previous novel. */
+  function staleConfig() {
+    config.engine.activeProperNouns = [
+      'properNouns',
+      'properNouns-_AiCap',
+      'properNouns-f_TruTien',
+    ];
+    config.ui.defaultQuickAddDictionary = 'properNouns-f_TruTien';
+  }
+
+  test('with no book open, it is config as loaded', async () => {
+    staleConfig();
+    const { result } = setup();
+    let view;
+    await act(async () => {
+      view = await result.current.loadQuickAddView();
+    });
+    expect(view).toEqual({
+      defaultQuickAddDictionary: 'properNouns-f_TruTien',
+      activeProperNouns: ['properNouns', 'properNouns-_AiCap', 'properNouns-f_TruTien'],
+    });
+  });
+
+  test("with a bound book open, the fiction slice is the binding's, whatever config says", async () => {
+    // The apply fails, so config keeps naming the previous novel.
+    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    staleConfig();
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.applyError).toBe('engine exploded'));
+    // The failed apply did write config; put the previous novel back, as a failed write would.
+    staleConfig();
+
+    let view;
+    await act(async () => {
+      view = await result.current.loadQuickAddView();
+    });
+    expect(view).toEqual({
+      defaultQuickAddDictionary: 'properNouns-f_TapDo',
+      activeProperNouns: ['properNouns', 'properNouns-_AiCap', 'properNouns-f_TapDo'],
+    });
+  });
+
+  test('an unanswered book offers no fiction dictionary, keeping the non-fiction ones', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, null);
+    });
+    await waitFor(() => expect(result.current.isApplying).toBe(false));
+    staleConfig();
+
+    let view;
+    await act(async () => {
+      view = await result.current.loadQuickAddView();
+    });
+    expect(view).toEqual({
+      defaultQuickAddDictionary: null,
+      activeProperNouns: ['properNouns', 'properNouns-_AiCap'],
+    });
+  });
+
+  test('a bound dictionary that no longer exists files nothing', async () => {
+    listProperNounsDictionaryIds.mockResolvedValue(['properNouns', 'properNouns-_AiCap']);
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_Gone' });
+    });
+    await waitFor(() => expect(result.current.missingFictionDictionary).toBe('properNouns-f_Gone'));
+
+    let view: { activeProperNouns: string[] } | null = null;
+    await act(async () => {
+      view = await result.current.loadQuickAddView();
+    });
+    expect(view!.activeProperNouns).not.toContain('properNouns-f_Gone');
+  });
+
+  test('after the book closes, it is config as loaded again', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, null);
+    });
+    await waitFor(() => expect(result.current.isApplying).toBe(false));
+    act(() => {
+      result.current.announceClosedBook();
+    });
+    staleConfig();
+
+    let view: { activeProperNouns: string[] } | null = null;
+    await act(async () => {
+      view = await result.current.loadQuickAddView();
+    });
+    expect(view!.activeProperNouns).toContain('properNouns-f_TruTien');
+  });
+
+  test('is stable across renders', async () => {
+    const { result } = setup();
+    const first = result.current.loadQuickAddView;
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    expect(result.current.loadQuickAddView).toBe(first);
+  });
+});
+
 describe('a failed apply', () => {
   test('on open, it is reported as an apply error, and a later successful bind clears it', async () => {
     reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));

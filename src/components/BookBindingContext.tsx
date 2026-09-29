@@ -19,8 +19,10 @@ import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBack
 import {
   activeProperNounsForBinding,
   quickAddTargetForBinding,
+  quickAddViewForBinding,
 } from '../utils/reader/BindingActivation';
 import { toFictionDictionaryId } from '../utils/reader/FictionDictionarySuggestion';
+import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { renameBoundDictionary, setBookBinding } from '../utils/reader/BookRecordsBackend';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { useEngine } from './EngineContext';
@@ -99,6 +101,15 @@ export interface BookBindingContextValue {
   /** Create a fiction dictionary pair and load it, binding nothing. The Configuration
    * tab's create, for a `properNouns-f_*` id. */
   createFictionDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /**
+   * The quick-add view every Add in the app decides over — Translator, Dictionary tab and
+   * Reader alike. With a book open: config as its binding implies it
+   * (`quickAddViewForBinding`), so no Add can reach a fiction dictionary config still names
+   * after a failed apply. With no book open: config as loaded. `null` only when there is no
+   * book and config failed to load. Reads the binding at call time, so an Add opened right
+   * after a bind sees it. Stable.
+   */
+  loadQuickAddView: () => Promise<QuickAddView | null>;
   /** Rename a fiction dictionary pair and carry the new name into every book bound to it.
    * If the book records could not be updated, those books open with their binding
    * reported missing. */
@@ -151,6 +162,8 @@ export function BookBindingProvider({
   openBookRef.current = openBook;
   const bindingRef = useRef<BookBinding | null>(null);
   bindingRef.current = binding;
+  const missingRef = useRef<string | null>(null);
+  missingRef.current = missingFictionDictionary;
 
   // Serializes every apply. Opening a book and answering the dialog both do a
   // read-modify-write of `activeProperNouns` followed by an engine reinitialization;
@@ -225,11 +238,15 @@ export function BookBindingProvider({
 
   const announceOpenBook = useCallback(
     (book: OpenBookIdentity, nextBinding: BookBinding | null): void => {
-      // The ref too, not just state: queued work checks it before the next render.
+      // The refs too, not just state: queued work and `loadQuickAddView` read them before
+      // the next render. The previous book's missing dictionary is not this one's; until
+      // the existence check below answers, the binding is trusted as recorded.
       openBookRef.current = book;
       bindingRef.current = nextBinding;
+      missingRef.current = null;
       setOpenBook(book);
       setBinding(nextBinding);
+      setMissingFictionDictionary(null);
       setIsDialogOpen(false);
       void enqueue(async () => {
         setIsApplying(true);
@@ -399,6 +416,15 @@ export function BookBindingProvider({
     [enqueue, loadDictionary, refreshFictionDictionaries, removeDictionaryKey]
   );
 
+  const loadQuickAddView = useCallback(async (): Promise<QuickAddView | null> => {
+    const config = await loadQuickAddConfig();
+    if (!openBookRef.current) return config;
+    // The dictionary in use, not the recorded answer: a bound dictionary that no longer
+    // exists files nothing (see `boundFictionDictionary`).
+    const bound = missingRef.current ? null : (bindingRef.current?.fictionDictionary ?? null);
+    return quickAddViewForBinding(config, bound);
+  }, []);
+
   // Only meaningful with a book open: the dialog renders inside `BookReader`, so setting
   // the flag from the shelf (or from the Cmd/Ctrl+B shortcut, which is registered globally)
   // would leave a flag on with nothing to render it.
@@ -429,6 +455,7 @@ export function BookBindingProvider({
       createAndBind,
       createFictionDictionary,
       renameFictionDictionary,
+      loadQuickAddView,
     }),
     [
       openBook,
@@ -447,6 +474,7 @@ export function BookBindingProvider({
       createAndBind,
       createFictionDictionary,
       renameFictionDictionary,
+      loadQuickAddView,
     ]
   );
 

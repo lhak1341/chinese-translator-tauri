@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readerQuickAddView } from '../ReaderQuickAddTarget';
+import { quickAddViewForBinding } from '../BindingActivation';
 import {
   quickAddTarget,
   quickAddMissMessage,
@@ -9,16 +9,16 @@ import {
 
 vi.mock('../../appConfig', () => ({ loadAppConfig: vi.fn() }));
 
-/** What `useReaderCommands` does: the Reader's view, the shared rule, the Reader's wording.
- * The cases below predate the shared rule and are kept verbatim as the Reader rule's
+/** What every Add does while a book is open: the binding's view, the shared rule, the
+ * shared wording. The cases below predate the shared rule and are kept verbatim as its
  * regression net. */
-function readerQuickAddTarget(
+function boundQuickAddTarget(
   kind: QuickAddKind,
   bound: string | null,
   dictionaries: { [key: string]: unknown },
   config: QuickAddConfig | null
 ) {
-  const target = quickAddTarget(kind, readerQuickAddView(config, bound), dictionaries);
+  const target = quickAddTarget(kind, quickAddViewForBinding(config, bound), dictionaries);
   return target.kind === 'open' ? target : { kind: 'none', message: quickAddMissMessage(target) };
 }
 
@@ -35,21 +35,21 @@ const staleConfig: QuickAddConfig = {
   activeProperNouns: ['properNouns', 'properNouns-_Cultivation', 'properNouns-f_Previous'],
 };
 
-describe('readerQuickAddTarget', () => {
+describe('quickAddViewForBinding, through quickAddTarget', () => {
   describe('a book bound to a fiction dictionary', () => {
     it('files both Adds under its own pair, whatever config says', () => {
       expect(
-        readerQuickAddTarget('properNoun', 'properNouns-f_DuongThan', loaded, staleConfig)
+        boundQuickAddTarget('properNoun', 'properNouns-f_DuongThan', loaded, staleConfig)
       ).toEqual({ kind: 'open', dictionaryId: 'properNouns-f_DuongThan' });
       expect(
-        readerQuickAddTarget('structuralPattern', 'properNouns-f_DuongThan', loaded, staleConfig)
+        boundQuickAddTarget('structuralPattern', 'properNouns-f_DuongThan', loaded, staleConfig)
       ).toEqual({ kind: 'open', dictionaryId: 'patterns-f_DuongThan' });
     });
 
     it('reports a missing half of the pair rather than borrowing another', () => {
       const halfPair = { 'properNouns-f_DuongThan': {} };
       expect(
-        readerQuickAddTarget('structuralPattern', 'properNouns-f_DuongThan', halfPair, staleConfig)
+        boundQuickAddTarget('structuralPattern', 'properNouns-f_DuongThan', halfPair, staleConfig)
       ).toEqual({
         kind: 'none',
         message: 'The structural pattern dictionary patterns-f_DuongThan is missing',
@@ -63,14 +63,14 @@ describe('readerQuickAddTarget', () => {
     ['bound to a non-fiction id (a corrupt record)', 'properNouns-_Cultivation'],
   ])('a book with no fiction dictionary (%s)', (_label, bound) => {
     it('never files a proper noun under the fiction config still names', () => {
-      expect(readerQuickAddTarget('properNoun', bound, loaded, staleConfig)).toEqual({
+      expect(boundQuickAddTarget('properNoun', bound, loaded, staleConfig)).toEqual({
         kind: 'open',
         dictionaryId: 'properNouns-_Cultivation',
       });
     });
 
     it('files a structural pattern under the generic pair, never the stale fiction', () => {
-      expect(readerQuickAddTarget('structuralPattern', bound, loaded, staleConfig)).toEqual({
+      expect(boundQuickAddTarget('structuralPattern', bound, loaded, staleConfig)).toEqual({
         kind: 'open',
         dictionaryId: 'patterns-_Cultivation',
       });
@@ -82,7 +82,7 @@ describe('readerQuickAddTarget', () => {
       defaultQuickAddDictionary: 'properNouns',
       activeProperNouns: ['properNouns', 'properNouns-_Cultivation'],
     };
-    expect(readerQuickAddTarget('properNoun', null, loaded, config)).toEqual({
+    expect(boundQuickAddTarget('properNoun', null, loaded, config)).toEqual({
       kind: 'open',
       dictionaryId: 'properNouns',
     });
@@ -93,11 +93,11 @@ describe('readerQuickAddTarget', () => {
       defaultQuickAddDictionary: 'properNouns-f_Previous',
       activeProperNouns: ['properNouns-f_Previous'],
     };
-    expect(readerQuickAddTarget('properNoun', null, loaded, fictionOnly)).toEqual({
+    expect(boundQuickAddTarget('properNoun', null, loaded, fictionOnly)).toEqual({
       kind: 'open',
       dictionaryId: 'properNouns',
     });
-    expect(readerQuickAddTarget('properNoun', null, loaded, null)).toEqual({
+    expect(boundQuickAddTarget('properNoun', null, loaded, null)).toEqual({
       kind: 'open',
       dictionaryId: 'properNouns',
     });
