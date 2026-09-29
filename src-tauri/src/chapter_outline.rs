@@ -5,7 +5,9 @@
 //!
 //! ```text
 //! among patterns with >= 5 hits and gap-regularity >= 0.8,
-//! elect the one with the smallest median inter-header gap
+//! elect the one with the smallest median inter-header gap,
+//! where medians within 5% of the smallest count as tied and the
+//! earliest in PATTERN_ORDER wins the tie
 //! ```
 //!
 //! where gap-regularity is the fraction of positive inter-header gaps within 4x the
@@ -13,7 +15,14 @@
 //! lines, volumes at low thousands — so among evenly-spaced candidates, the finest-grained
 //! one wins. This rule (and the pattern list below) was derived from a prototype run
 //! against the reader corpus when it held 23 books, and is pinned against the whole
-//! corpus (33 books as of 2026-09-27) by `tests::corpus`.
+//! corpus (55 books as of 2026-09-29) by `tests::corpus`.
+//!
+//! The near-tie band exists for books that print the volume marker on or beside every
+//! chapter heading ("第一卷 第一章 时空机器", or a "第一卷 在澹州" line before each chapter).
+//! Chapter and volume then hit almost the same lines, and one stray volume-only line (a
+//! "第二十五卷 后记") is enough to make the volume median a line or two smaller — 114 vs
+//! 114.5 in `Tầm Tần ký 寻秦记`, 146 vs 148 in `Khánh dư niên 庆余年`. A real volume median
+//! is many times a chapter's, never within 5%.
 //!
 //! Two simpler rules were tried and both fail — see `tests::naive_rules_fail`, which pins
 //! the specific book that defeats each one. Both failures have the same root cause: a book
@@ -31,9 +40,10 @@ use serde::{Deserialize, Serialize};
 
 /// A header convention this detector recognizes.
 ///
-/// Declaration order in `PATTERN_ORDER` is the tie-break when two candidates land on the
-/// exact same median gap — see `elect`. `Chapter` before `Volume` is what keeps the
-/// finer-grained pattern winning on the doubled-header books described above.
+/// Declaration order in `PATTERN_ORDER` is the tie-break when two candidates' median gaps
+/// are within `NEAR_TIE` of each other — see `elect`. `Chapter` and `Section` before
+/// `Volume` is what keeps the finer-grained pattern winning on the doubled-header books
+/// described above.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PatternId {
@@ -87,6 +97,9 @@ const MIN_HITS: usize = 5;
 const MIN_REGULARITY: f64 = 0.8;
 /// A gap counts as "regular" when it is no more than this many times the median gap.
 const REGULARITY_TOLERANCE: f64 = 4.0;
+/// Candidates whose median gap is at most this fraction above the smallest one are tied,
+/// and the tie goes to the earliest in `PATTERN_ORDER`. See the module doc for why.
+const NEAR_TIE: f64 = 0.05;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,30 +190,22 @@ fn build_headers(lines: &[&str], hits: &[usize]) -> Vec<ChapterHeader> {
         .collect()
 }
 
-/// Among candidates clearing both thresholds, the smallest median gap wins; an exact tie
-/// keeps whichever candidate was found first (i.e. earlier in `PATTERN_ORDER`) — `<`, not
-/// `<=`, is what makes this "first wins" rather than "last wins".
+/// Among candidates clearing both thresholds, the smallest median gap wins; any candidate
+/// within `NEAR_TIE` of that smallest median ties with it, and a tie goes to whichever
+/// candidate comes first in `candidates` (i.e. earlier in `PATTERN_ORDER`).
 fn elect_index(candidates: &[PatternCandidate]) -> Option<usize> {
-    let mut best: Option<usize> = None;
-    for (i, candidate) in candidates.iter().enumerate() {
-        if candidate.hit_count < MIN_HITS {
-            continue;
-        }
-        let Some(regularity) = candidate.regularity else { continue };
-        if regularity < MIN_REGULARITY {
-            continue;
-        }
-        let median = candidate.median_gap.expect("regularity implies a median gap");
-        match best {
-            None => best = Some(i),
-            Some(current_best) => {
-                if median < candidates[current_best].median_gap.unwrap() {
-                    best = Some(i);
-                }
-            }
-        }
-    }
-    best
+    let qualifying: Vec<(usize, f64)> = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.hit_count >= MIN_HITS)
+        .filter(|(_, c)| c.regularity.is_some_and(|r| r >= MIN_REGULARITY))
+        .map(|(i, c)| (i, c.median_gap.expect("regularity implies a median gap")))
+        .collect();
+    let smallest = qualifying.iter().map(|&(_, m)| m).fold(f64::INFINITY, f64::min);
+    qualifying
+        .into_iter()
+        .find(|&(_, m)| m <= smallest * (1.0 + NEAR_TIE))
+        .map(|(i, _)| i)
 }
 
 /// Run the full election over every line of a decoded book, and build the winner's header
@@ -315,6 +320,32 @@ mod tests {
         let too_few = vec![10, 20];
         let candidates = vec![stats_for_hits(PatternId::Chapter, &too_few)];
         assert_eq!(elect_index(&candidates), None);
+    }
+
+    #[test]
+    fn a_near_tie_goes_to_the_earlier_pattern() {
+        // Tầm Tần ký's shape: the volume marker sits on every chapter heading, plus one
+        // volume-only line, so Volume's median lands half a line under Chapter's.
+        let chapter: Vec<usize> = (0..10).map(|i| i * 229).collect(); // median 229
+        let volume: Vec<usize> = (0..10).map(|i| i * 228).collect(); // median 228
+        let candidates = vec![
+            stats_for_hits(PatternId::Chapter, &chapter),
+            stats_for_hits(PatternId::Volume, &volume),
+        ];
+        let winner = elect_index(&candidates).map(|i| candidates[i].pattern);
+        assert_eq!(winner, Some(PatternId::Chapter));
+    }
+
+    #[test]
+    fn a_later_pattern_more_than_near_tie_finer_still_wins() {
+        let chapter: Vec<usize> = (0..10).map(|i| i * 100).collect(); // median 100
+        let section: Vec<usize> = (0..10).map(|i| i * 94).collect(); // 6% finer
+        let candidates = vec![
+            stats_for_hits(PatternId::Chapter, &chapter),
+            stats_for_hits(PatternId::Section, &section),
+        ];
+        let winner = elect_index(&candidates).map(|i| candidates[i].pattern);
+        assert_eq!(winner, Some(PatternId::Section));
     }
 
     #[test]
@@ -456,27 +487,37 @@ mod tests {
 
     /// The pattern a human reading each book would call its "chapter" — derived from the
     /// same prototype run that produced the election rule above, and confirmed book by
-    /// book when the corpus grew to 33 (2026-09-27). `Section` for the four books that use
-    /// "第...节" as their actual chapter marker rather than "第...章".
+    /// book when the corpus grew to 33 (2026-09-27) and to 55 (2026-09-29). `Section` for
+    /// the six books that use "第...节" as their actual chapter marker rather than "第...章".
+    /// `None` for the two whose headings carry no 第 marker at all ("一、初见古伊娜！",
+    /// "1.重生蜥蜴") — no pattern recognizes those, so the outline degrades, as designed.
     ///
     /// Matched on the Chinese half of the title only, never the Vietnamese half: macOS
     /// normalizes a directory listing's file names to NFD (diacritics decomposed), so a
     /// literal NFC string (as typed in this source file) can silently fail to
     /// byte-compare equal to what `read_dir` hands back. CJK characters have no
     /// decomposition, so they compare equal in both forms.
-    fn expected_pattern(file_name: &str) -> PatternId {
+    fn expected_pattern(file_name: &str) -> Option<PatternId> {
         if file_name.contains('不') && file_name.contains('败') {
-            PatternId::Section // Bất bại chiến thần 不败战神
+            Some(PatternId::Section) // Bất bại chiến thần 不败战神
         } else if file_name.contains('卡') && file_name.contains('徒') {
-            PatternId::Section // Tạp đồ 卡徒
+            Some(PatternId::Section) // Tạp đồ 卡徒
         } else if file_name.contains('修') && file_name.contains('世') && file_name.contains('界') {
             // Not `修` + `真` alone: `Tu chân liêu thiên quần 修真聊天群` shares both and is
             // a "第...章" book.
-            PatternId::Section // Tu chân thế giới 修真世界
+            Some(PatternId::Section) // Tu chân thế giới 修真世界
         } else if file_name.contains('唐') && file_name.contains('砖') {
-            PatternId::Section // Đường chuyên 唐砖
+            Some(PatternId::Section) // Đường chuyên 唐砖
+        } else if file_name.contains('隐') && file_name.contains('杀') {
+            Some(PatternId::Section) // Ẩn sát 隐杀
+        } else if file_name.contains('比') && file_name.contains('蒙') {
+            Some(PatternId::Section) // Bỉ mông truyền kỳ 比蒙传奇
+        } else if file_name.contains('兽') && file_name.contains('血') {
+            None // Hải tặc vương chi thú huyết phí đằng 海贼王之兽血沸腾
+        } else if file_name.contains('巨') && file_name.contains('蜥') {
+            None // Trọng lâm cự tích 重林巨蜥
         } else {
-            PatternId::Chapter
+            Some(PatternId::Chapter)
         }
     }
 
@@ -486,20 +527,16 @@ mod tests {
         if books.is_empty() {
             return;
         }
-        assert_eq!(books.len(), 33, "corpus size changed — update the expectations");
+        assert_eq!(books.len(), 55, "corpus size changed — update the expectations");
 
         for path in books {
             let file_name = path.file_name().unwrap().to_string_lossy().to_string();
             let text = decode_corpus_file(&path);
             let lines: Vec<&str> = text.lines().collect();
             let outline = elect(&lines);
-            assert_eq!(
-                outline.elected,
-                Some(expected_pattern(&file_name)),
-                "{}",
-                file_name
-            );
-            assert!(!outline.headers.is_empty(), "{}", file_name);
+            let expected = expected_pattern(&file_name);
+            assert_eq!(outline.elected, expected, "{}", file_name);
+            assert_eq!(outline.headers.is_empty(), expected.is_none(), "{}", file_name);
             // Headers must be in ascending line order — jump navigation depends on it.
             assert!(
                 outline.headers.windows(2).all(|w| w[0].line < w[1].line),
