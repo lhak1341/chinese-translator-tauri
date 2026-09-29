@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790701135.3806298,
-    "ast_hash": "e73ced8f252b6652b4f95dce8076b0a3",
+    "mtime": 1790701806.3400412,
+    "ast_hash": "cb6d2284f9e4927f03b497caa06cfe9a",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1880,8 +1880,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1790681595.848809,
-    "ast_hash": "cc7cb8ae003e6174c04b502ea4dac6f9",
+    "mtime": 1790701584.945654,
+    "ast_hash": "b00a886458b8b7f071562948d8e401ce",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790682165.0430107,
-    "ast_hash": "80897034e5a77f0b4784c8cae1b7faaa",
+    "mtime": 1790701574.562401,
+    "ast_hash": "fdaaf1bbfe5031ff0757bc677aedd0c0",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1935,8 +1935,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1790682165.0439892,
-    "ast_hash": "aa59e0fa2fee67523cad55b236dd7c7d",
+    "mtime": 1790701521.4321244,
+    "ast_hash": "d4916863760a031e7aee8149fd369fb9",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -2290,8 +2290,13 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
-    "mtime": 1790701111.915853,
-    "ast_hash": "3116a27bddd880988b0961a63fd0db4b",
+    "mtime": 1790701214.7620683,
+    "ast_hash": "fe1cab50e48d4784e7517c0653fd1c72",
+    "semantic_hash": ""
+  },
+  "src/hooks/useLibrary.ts": {
+    "mtime": 1790701552.5918431,
+    "ast_hash": "41f32a0d4b2fa93597d01c67e79da251",
     "semantic_hash": ""
   }
 }
