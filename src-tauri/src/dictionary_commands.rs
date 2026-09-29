@@ -1118,7 +1118,9 @@ pub async fn save_dictionary(
 
     write_dictionary_bytes(&file_path, json_string.as_bytes(), &cache, &dictionary_id)?;
 
-    Ok(DictionaryResponse::ok_with_data(data))
+    // No echo of the saved dictionary: callers check only `success` (EditCommitter, the trie
+    // cache writer), and echoing a large dictionary cost a second full IPC transfer per edit.
+    Ok(DictionaryResponse::ok())
 }
 
 /// SECURITY: The shared guard sequence for dictionary JSON from an untrusted source —
