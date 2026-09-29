@@ -36,7 +36,6 @@ export interface UseEntryEditAndMoveResult {
   patchEntryWithScrollPreservation: DictionaryContextInterface['patchEntry'];
   onContextMenuEdit: (entry: ContextMenuEntry) => void;
   onContextMenuMove: (entry: ContextMenuEntry) => void;
-  reset: () => void;
 }
 
 export function useEntryEditAndMove({
@@ -97,11 +96,6 @@ export function useEntryEditAndMove({
     setMoveEntry(null);
   }, []);
 
-  const reset = useCallback((): void => {
-    setEditingEntry(null);
-    setMoveEntry(null);
-  }, []);
-
   return {
     editingEntry,
     moveEntry,
@@ -111,6 +105,5 @@ export function useEntryEditAndMove({
     patchEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,
-    reset,
   };
 }

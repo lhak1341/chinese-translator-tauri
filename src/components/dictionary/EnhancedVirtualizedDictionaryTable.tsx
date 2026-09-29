@@ -1,32 +1,12 @@
-import React, { useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
-import DictionaryEntry from './DictionaryEntry';
-import MoveDialog from './MoveDialog';
-import EntryContextMenu from './EntryContextMenu';
-import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
-import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import {
-  isPatternsDict,
-  isPhrasesDict,
-  isProperNounsDict,
-  entryCapabilities,
-} from '../../utils/dictionary';
-import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
-import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import {
-  ITEM_HEIGHT,
-  SemanticTypeFilterChips,
-  FilterChipButton,
-  SelectAllCheckboxHeaderCell,
-} from './TableBuildingBlocks';
+import DictionaryTableView from './DictionaryTableView';
+import { ITEM_HEIGHT, SemanticTypeFilterChips, FilterChipButton } from './TableBuildingBlocks';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
-import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
-import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
+import type { SelectionState } from '../../hooks/useEntrySelection';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
-import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
-import { logger } from '../../utils/logger';
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -49,75 +29,6 @@ interface EnhancedVirtualizedDictionaryTableProps {
 
 const numberFormat = new Intl.NumberFormat();
 
-/** One header cell. `className` columns are left-aligned text columns whose width class is
- * shared with the matching row cell; the rest are centered badge columns (fixed `width`, or a
- * `widthClassName` for the X/Y type columns). Order must match `VirtualRowComponent`'s cells. */
-interface HeaderColumn {
-  label: string;
-  title?: string;
-  className?: string;
-  widthClassName?: string;
-  width?: string;
-}
-
-function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
-  const semantic = (title: string): HeaderColumn => ({
-    label: 'Semantic',
-    title,
-    width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-  });
-  const variableType = (v: 'X' | 'Y'): HeaderColumn => ({
-    label: `${v} types`,
-    widthClassName: styles.patternsTypeCol,
-    title: `Type constraints for variable ${v}`,
-  });
-  // Which capability columns appear comes from the entry capabilities; each kind's column
-  // classes and labels below are layout.
-  const caps = entryCapabilities(dictionaryId);
-  const capabilityColumns = (semanticTitle: string): HeaderColumn[] => [
-    ...(caps.semantic !== 'none' ? [semantic(semanticTitle)] : []),
-    ...(caps.variableTypes ? [variableType('X'), variableType('Y')] : []),
-  ];
-  if (isPatternsDict(dictionaryId)) {
-    return [
-      {
-        label: 'Source',
-        className: styles.patternsSourceCol,
-        title: 'Pattern with highlighted variables',
-      },
-      {
-        label: 'Translation',
-        className: styles.patternsTranslationCol,
-        title: 'Translation with metadata badges (VAR = Allow as variable, LP = Low priority)',
-      },
-      ...capabilityColumns('Output semantic type (shown when pattern can be used as a variable)'),
-    ];
-  }
-  if (isPhrasesDict(dictionaryId)) {
-    return [
-      { label: 'Source', className: styles.phrasesSourceCol },
-      {
-        label: 'Translation',
-        className: styles.phrasesTranslationCol,
-        title: 'Translation with metadata badge (VAR = Allow as variable)',
-      },
-      ...capabilityColumns('Semantic type'),
-    ];
-  }
-  if (isProperNounsDict(dictionaryId)) {
-    return [
-      { label: 'Source', className: styles.properNounsSourceCol },
-      { label: 'Translation', className: styles.properNounsTranslationCol },
-      ...capabilityColumns('Semantic type'),
-    ];
-  }
-  return [
-    { label: 'Source Text', className: styles.simpleSourceCol },
-    { label: 'Translation', className: styles.simpleTranslationCol },
-    ...capabilityColumns('Semantic type'),
-  ];
-}
-
 /**
  * Enhanced Virtualized Dictionary Table
  * Optimized for handling 10,000+ dictionary entries with smooth performance
@@ -130,6 +41,11 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
  * - Dynamic buffer sizing based on list size
  * - Intersection Observer for visibility detection
  *
+ * Holds what survives a dictionary switch: the search term, the filters, and the scroll state
+ * (which returns to the top on its own `resetKey`). One dictionary's rows, selection, edit/move
+ * and context menu are `DictionaryTableView`, keyed by the dictionary, so a switch remounts
+ * them fresh — see CONTEXT.md "Dictionary table view".
+ *
  * @param props - Component props
  * @returns Enhanced virtualized dictionary table with inline editing
  */
@@ -141,16 +57,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   showDuplicatesMode = false,
   duplicateRows = [],
 }) => {
-  const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, patchEntry, isLoading } =
-    useDictionary();
-
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-
-  // Clear selections when switching between duplicate and normal modes
-  // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
-  useEffect(() => {
-    resetSelection();
-  }, [showDuplicatesMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { dictionaries, isLoading } = useDictionary();
 
   const {
     filteredEntries,
@@ -170,114 +77,30 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     togglePatternType,
     setVariable,
     clearFilters,
-    resetFilters,
   } = useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, showDuplicatesMode);
 
   const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
 
+  // Back to the top whenever the list is a different list: another dictionary, a new search,
+  // a changed filter. A stale scrollTop can push startIndex past the new list's end, leaving
+  // the spacer background visible ("alternating shading stopped").
   const scroll = useVirtualScrollRange(totalItems, {
     itemHeight: ITEM_HEIGHT,
     isActive,
+    resetKey: [
+      selectedDictionary,
+      debouncedSearchTerm,
+      filterVariable,
+      [...filterSemanticTypes].sort().join(','),
+      [...filterPatternType].sort().join(','),
+    ].join('\u0000'),
   });
-
-  const {
-    selectedEntries,
-    showBulkMoveDialog,
-    setShowBulkMoveDialog,
-    handleSelectEntry,
-    handleSelectAll,
-    resetSelection,
-  } = useEntrySelection({
-    selectedDictionary,
-    filteredEntries,
-    filteredDuplicateRows,
-    dictionaries,
-    showDuplicatesMode,
-    withScrollPreservation: scroll.withScrollPreservation,
-    bulkDeleteEntries,
-    onSelectionChange,
-  });
-
-  // Reset scroll + transient state when search term changes.
-  // Without the scroll reset, a stale scrollTop can push startIndex past the filtered
-  // list end, leaving the spacer background visible ("alternating shading stopped").
-  useEffect(() => {
-    scroll.resetScroll();
-  }, [debouncedSearchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const { startIndex, endIndex } = scroll.visibleRange;
-
-  // Use different data source based on mode
-  const visibleEntries = showDuplicatesMode
-    ? [] // Not used in duplicate mode
-    : filteredEntries.slice(startIndex, endIndex);
-
-  const visibleDuplicateRows = showDuplicatesMode
-    ? filteredDuplicateRows.slice(startIndex, endIndex)
-    : [];
-
-  const totalHeight = totalItems * ITEM_HEIGHT;
-
-  const {
-    editingEntry,
-    moveEntry,
-    closeEdit,
-    closeMove,
-    updateEntryWithScrollPreservation,
-    patchEntryWithScrollPreservation,
-    onContextMenuEdit,
-    onContextMenuMove,
-    reset: resetEditAndMove,
-  } = useEntryEditAndMove({
-    dictionaries,
-    updateEntry,
-    patchEntry,
-    withScrollPreservation: scroll.withScrollPreservation,
-  });
-
-  // Acts on the entry's own dictionary, not `selectedDictionary` — in the duplicate view every
-  // row can belong to a different one.
-  const withScrollPreservation = scroll.withScrollPreservation;
-  const onContextMenuDelete = useCallback(
-    async (entry: ContextMenuEntry): Promise<void> => {
-      await withScrollPreservation(() => deleteEntry(entry.dictionaryId, entry.source));
-    },
-    [deleteEntry, withScrollPreservation]
-  );
-
-  const contextMenuApi = useContextMenu({
-    onEdit: onContextMenuEdit,
-    onMove: onContextMenuMove,
-    onDelete: onContextMenuDelete,
-  });
-  const { closeContextMenu, handleContextMenu } = contextMenuApi;
-
-  // Reset all per-dictionary transient state when the selected dictionary changes.
-  // Filter state is only reset where a filter doesn't apply (`availableFiltersFor`).
-  useEffect(() => {
-    resetFilters(selectedDictionary);
-    resetEditAndMove();
-    resetSelection();
-    closeContextMenu();
-    scroll.resetScroll();
-  }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     patternType: showPatternFilter,
     variable: showVariableFilter,
     semantic: showSemanticTypeFilter,
   } = availableFilters;
-  // Duplicate view's Semantic column — keyed by the row's own dictionary.
-  const handleSetDuplicateSemanticType = useCallback(
-    (row: DuplicateRow, type: string): void => {
-      patchEntryWithScrollPreservation(row.dictionaryId, row.source, { semanticType: type }).catch(
-        (error: unknown) => logger.error('Failed to set semantic type:', error)
-      );
-    },
-    [patchEntryWithScrollPreservation]
-  );
-
-  const headerColumns = useMemo(() => getHeaderColumns(selectedDictionary), [selectedDictionary]);
 
   const hasFilterOptions =
     !showDuplicatesMode && (showPatternFilter || showVariableFilter || showSemanticTypeFilter);
@@ -296,6 +119,55 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     scroll.visibleRange.firstVisibleIndex,
     scroll.visibleRange.visibleCount,
   ]);
+
+  const emptyState =
+    !showDuplicatesMode && filteredEntries.length === 0 ? (
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '3rem',
+        }}
+      >
+        <div
+          style={{
+            color: 'var(--text-color)',
+            opacity: 0.4,
+            textAlign: 'center',
+            fontSize: '1rem',
+            lineHeight: '1.8',
+          }}
+        >
+          {searchTerm || hasActiveFilter ? (
+            <>
+              <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                {searchTerm
+                  ? `No entries matching "${searchTerm}"`
+                  : 'No entries match the active filters'}
+              </div>
+              <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
+                {searchTerm && hasActiveFilter
+                  ? 'Try a different search term or adjust the filters'
+                  : searchTerm
+                    ? 'Try a different search term'
+                    : 'Try adjusting or clearing the filters'}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>Dictionary is empty</div>
+              <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
+                Use Add Entry above, or select text in the
+                <br />
+                Translator or Reader tab and press Cmd/Ctrl+1–6
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null;
 
   if (isLoading) {
     return (
@@ -421,209 +293,17 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         <span>{positionLabel}</span>
       </div>
 
-      {showDuplicatesMode ? (
-        <DuplicateDictionaryTableView
-          scrollRefCallback={scroll.scrollRefCallback}
-          onScroll={scroll.handleScroll}
-          totalHeight={totalHeight}
-          visibleDuplicateRows={visibleDuplicateRows}
-          startIndex={startIndex}
-          duplicateGroupIndices={duplicateGroupIndices}
-          selectedEntries={selectedEntries}
-          onSelectEntry={handleSelectEntry}
-          allSelected={
-            selectedEntries.size > 0 && selectedEntries.size === filteredDuplicateRows.length
-          }
-          onSelectAll={handleSelectAll}
-          onSetSemanticType={handleSetDuplicateSemanticType}
-          onContextMenu={handleContextMenu}
-        />
-      ) : filteredEntries.length === 0 ? (
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '3rem',
-          }}
-        >
-          <div
-            style={{
-              color: 'var(--text-color)',
-              opacity: 0.4,
-              textAlign: 'center',
-              fontSize: '1rem',
-              lineHeight: '1.8',
-            }}
-          >
-            {searchTerm || hasActiveFilter ? (
-              <>
-                <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
-                  {searchTerm
-                    ? `No entries matching "${searchTerm}"`
-                    : 'No entries match the active filters'}
-                </div>
-                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  {searchTerm && hasActiveFilter
-                    ? 'Try a different search term or adjust the filters'
-                    : searchTerm
-                      ? 'Try a different search term'
-                      : 'Try adjusting or clearing the filters'}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
-                  Dictionary is empty
-                </div>
-                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  Use Add Entry above, or select text in the
-                  <br />
-                  Translator or Reader tab and press Cmd/Ctrl+1–6
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Enhanced virtualized table container */}
-          <div
-            ref={tableContainerRef}
-            style={{
-              flex: 1,
-              overflow: 'hidden',
-              position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-            }}
-          >
-            {/* Fixed table header */}
-            <div
-              style={{
-                display: 'flex',
-                borderBottom: '1px solid var(--border-color)',
-                backgroundColor: 'var(--background-color)',
-                flexShrink: 0,
-                zIndex: 1,
-              }}
-            >
-              <SelectAllCheckboxHeaderCell
-                checked={
-                  selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                }
-                onChange={handleSelectAll}
-              />
-              {headerColumns.map((col) =>
-                col.className ? (
-                  <div
-                    key={col.label}
-                    className={`${col.className} ${styles.headerCell}`}
-                    title={col.title}
-                  >
-                    {col.label}
-                  </div>
-                ) : (
-                  <div
-                    key={col.label}
-                    className={col.widthClassName}
-                    style={{
-                      width: col.width,
-                      padding: '0.5rem 0.25rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                    title={col.title}
-                  >
-                    {col.label}
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* Scrollable content with enhanced performance */}
-            <div
-              ref={scroll.scrollRefCallback}
-              onScroll={scroll.handleScroll}
-              style={{
-                flex: 1,
-                minHeight: 0,
-                maxHeight: '100%',
-                overflow: 'auto',
-                overflowAnchor: 'none',
-                position: 'relative',
-              }}
-            >
-              {/* Virtual spacer for total height. Each row is absolutely positioned at its own
-                  global index — nothing shifts in layout when rows enter or leave the rendered
-                  window. The earlier translateY'd slice shifted every row up 40px in layout
-                  whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
-                  that by pulling scrollTop back, which re-added the row: flicker, then stuck.
-                  The stripe gradient sits on the spacer, in global coordinates, so a row's stripe
-                  parity is its real index with no phase bookkeeping. */}
-              <div
-                style={{
-                  height: totalHeight,
-                  position: 'relative',
-                  backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
-                }}
-              >
-                {visibleEntries.map(([source, translation], index) => (
-                  // Keyed by source alone (unique within a dictionary): an index in the key
-                  // remounted every row below an insert/delete, dropping inline-edit state.
-                  <div
-                    key={`${selectedDictionary}\u0000${source}`}
-                    style={{
-                      position: 'absolute',
-                      top: (startIndex + index) * ITEM_HEIGHT,
-                      left: 0,
-                      right: 0,
-                      height: ITEM_HEIGHT,
-                    }}
-                  >
-                    <VirtualRowComponent
-                      source={source}
-                      translation={translation}
-                      isSelected={selectedEntries.has(source)}
-                      selectedDictionary={selectedDictionary}
-                      onUpdateEntry={updateEntryWithScrollPreservation}
-                      onPatchEntry={patchEntryWithScrollPreservation}
-                      onSelectEntry={handleSelectEntry}
-                      onContextMenu={handleContextMenu}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Entry editing modal */}
-      {editingEntry && (
-        <DictionaryEntry
-          onClose={closeEdit}
-          entry={editingEntry}
-          selectedDictionary={editingEntry.dictionaryId ?? selectedDictionary}
-        />
-      )}
-
-      <EntryContextMenu menu={contextMenuApi} />
-
-      {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
-      {(moveEntry || showBulkMoveDialog) && (
-        <MoveDialog
-          entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}
-          currentDictionary={moveEntry ? moveEntry.dictionaryId : selectedDictionary}
-          onClose={() => {
-            closeMove();
-            setShowBulkMoveDialog(false);
-          }}
-          onSuccess={() => resetSelection()}
-        />
-      )}
+      <DictionaryTableView
+        key={selectedDictionary}
+        selectedDictionary={selectedDictionary}
+        showDuplicatesMode={showDuplicatesMode}
+        filteredEntries={filteredEntries}
+        filteredDuplicateRows={filteredDuplicateRows}
+        duplicateGroupIndices={duplicateGroupIndices}
+        scroll={scroll}
+        emptyState={emptyState}
+        onSelectionChange={onSelectionChange}
+      />
     </div>
   );
 };

@@ -39,6 +39,9 @@ interface UseVirtualScrollRangeOptions {
   isActive?: boolean;
   scrollRestore?: number | null;
   onScrollSave?: (pos: number | null) => void;
+  /** Identifies the list being shown. When it changes, the view returns to the top: the
+   * scroll position belongs to the old list. */
+  resetKey?: string;
 }
 
 export interface VirtualScrollRange {
@@ -70,7 +73,7 @@ export function useVirtualScrollRange(
   totalItems: number,
   options: UseVirtualScrollRangeOptions
 ): UseVirtualScrollRangeResult {
-  const { itemHeight, isActive, scrollRestore, onScrollSave } = options;
+  const { itemHeight, isActive, scrollRestore, onScrollSave, resetKey } = options;
 
   const [scrollTop, setScrollTop] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(600);
@@ -229,6 +232,14 @@ export function useVirtualScrollRange(
     scrollVelocityRef.current = 0;
     lastScrollTop.current = 0;
   }, []);
+
+  // A new list starts at the top. Skips the first render: a fresh list is already there.
+  const lastResetKeyRef = useRef(resetKey);
+  useEffect(() => {
+    if (lastResetKeyRef.current === resetKey) return;
+    lastResetKeyRef.current = resetKey;
+    resetScroll();
+  }, [resetKey, resetScroll]);
 
   const withScrollPreservation = useCallback(
     async (asyncFn: () => Promise<void>): Promise<void> => {

@@ -900,13 +900,13 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx": {
-    "mtime": 1790557172.8518398,
-    "ast_hash": "554bfde7348a7d7e9ea0a459a0b3c9a4",
+    "mtime": 1790705682.6555567,
+    "ast_hash": "7d3f8ae5df716764e556bb831afa421d",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
-    "mtime": 1790696275.834709,
-    "ast_hash": "f7a23d0e85063b3ca4d340d25e459f12",
+    "mtime": 1790705682.6561387,
+    "ast_hash": "23ac04c06e1a618d01f28ae12a518029",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
@@ -970,8 +970,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useVirtualScrollRange.ts": {
-    "mtime": 1790345591.2442994,
-    "ast_hash": "e360c609f5a1e4ff680b57081a8b8ce7",
+    "mtime": 1790705363.3210225,
+    "ast_hash": "5e846806fa167197d0f3a8b24cd55179",
     "semantic_hash": ""
   },
   "src/hooks/useHighlightingState.ts": {
@@ -1000,8 +1000,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryFilter.ts": {
-    "mtime": 1790557285.4401672,
-    "ast_hash": "14434a639a09acb9f640cd975ce1a3dd",
+    "mtime": 1790705363.3220882,
+    "ast_hash": "13053bcc5ecdca0c59010bf1c130478d",
     "semantic_hash": ""
   },
   "src/hooks/useTranslationResults.js": {
@@ -1010,8 +1010,8 @@
     "semantic_hash": "a80d0d8fafff02220c6324a68e0ec549"
   },
   "src/hooks/useEntryEditAndMove.ts": {
-    "mtime": 1790424539.2999392,
-    "ast_hash": "6331dc55846cb3df2fc8a24913f9d701",
+    "mtime": 1790705638.1027536,
+    "ast_hash": "efcb773dab25b88ffa37b63df157de3f",
     "semantic_hash": ""
   },
   "src/hooks/useCharacterOnlySegments.ts": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790704973.8113818,
-    "ast_hash": "e908fddb9291d8ed375c8d2e98c60e0c",
+    "mtime": 1790705682.6577537,
+    "ast_hash": "3d6113d849425d8a11df8d21c3dd0290",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790704973.8122017,
-    "ast_hash": "0501eb4987230bb5d86394292754d9db",
+    "mtime": 1790705041.0797534,
+    "ast_hash": "fea544803ebb3445c9c528304412abba",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1385,8 +1385,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1790695818.7169788,
-    "ast_hash": "b7f8c49365e64b3f5934f892e48d484a",
+    "mtime": 1790705683.0716648,
+    "ast_hash": "8a1c34e0213904e9363e92a0de4ecff8",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -2312,6 +2312,11 @@
   "docs/adr/ADR-054-skip-book-record-field-schema.md": {
     "mtime": 1790702683.7739534,
     "ast_hash": "cdb4db74027182511fa1563e26f3059a",
+    "semantic_hash": ""
+  },
+  "src/components/dictionary/DictionaryTableView.tsx": {
+    "mtime": 1790705584.5732877,
+    "ast_hash": "f6b50e3a489cd93383442c97b98adf04",
     "semantic_hash": ""
   }
 }

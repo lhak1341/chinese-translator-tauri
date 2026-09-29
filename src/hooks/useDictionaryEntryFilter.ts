@@ -49,7 +49,6 @@ export function useDictionaryEntryFilter(
   togglePatternType: (type: 'x-only' | 'x-y' | 'no-variable') => void;
   setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
   clearFilters: () => void;
-  resetFilters: (newSelectedDictionary: string) => void;
 } {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -59,17 +58,20 @@ export function useDictionaryEntryFilter(
 
   const debouncedSearchTerm = useThrottledValue(searchTerm, SEARCH_DEBOUNCE_MS);
 
-  // Resets only the filters that don't apply to the new dictionary type.
-  // Called from EVDT's selectedDictionary coordinator effect alongside other hook resets.
-  const resetFilters = useCallback((newSelectedDictionary: string): void => {
-    const available = availableFiltersFor(newSelectedDictionary);
+  // On a dictionary switch, clear only the filters the new dictionary does not support; the
+  // search term and the rest carry over. Adjusted during render, not in an effect, so the
+  // first render of the new dictionary already filters with the cleared state.
+  const [filtersFor, setFiltersFor] = useState(selectedDictionary);
+  if (filtersFor !== selectedDictionary) {
+    setFiltersFor(selectedDictionary);
+    const available = availableFiltersFor(selectedDictionary);
     if (!available.patternType) setFilterPatternType(new Set());
     if (!available.variable) setFilterVariable('all');
     if (!available.semantic) setFilterSemanticTypes(new Set());
     if (!available.patternType && !available.variable && !available.semantic) {
       setShowFilterPanel(false);
     }
-  }, []);
+  }
 
   const hasActiveFilter =
     filterVariable !== 'all' || filterSemanticTypes.size > 0 || filterPatternType.size > 0;
@@ -215,6 +217,5 @@ export function useDictionaryEntryFilter(
     togglePatternType,
     setVariable,
     clearFilters,
-    resetFilters,
   };
 }

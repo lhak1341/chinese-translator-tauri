@@ -15,7 +15,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import EnhancedVirtualizedDictionaryTable from '../EnhancedVirtualizedDictionaryTable';
 import type { DictionaryData } from '../../../types/DictionaryTypes';
@@ -308,5 +308,93 @@ describe('row positioning (scroll-anchoring regression)', () => {
       return el?.style.top;
     });
     expect(tops).toEqual(['0px', '40px', '80px']);
+  });
+});
+
+describe('dictionary switch — what resets and what carries over', () => {
+  // 100 rows each, so the list scrolls. Every source contains 词 so one search term matches in
+  // both dictionaries; every entry is a character, so the CHA filter keeps them all.
+  // Both dictionaries share their sources, so a selected key still exists after the switch and
+  // only the view's remount clears it (the selection prunes keys whose entry is gone).
+  const many = (label: string, extra: Partial<Record<string, unknown>> = {}): DictionaryData =>
+    Object.fromEntries(
+      Array.from({ length: 100 }, (_, i) => [
+        `甲词${i}`,
+        { translation: `${label}-${i}`, semanticType: 'character', ...extra },
+      ])
+    ) as DictionaryData;
+
+  function scrollerOf(text: string): HTMLElement {
+    let el: HTMLElement | null = screen.getByText(text);
+    while (el && el.style.overflow !== 'auto') el = el.parentElement;
+    if (!el) throw new Error('no scroller');
+    return el;
+  }
+
+  function scrollTo(el: HTMLElement, top: number) {
+    el.scrollTop = top;
+    fireEvent.scroll(el);
+  }
+
+  test('selection and scroll reset; the search term and supported filters carry over', async () => {
+    setDict('phrases', {
+      ...many('ph', { allowAsPatternVariable: true }),
+      其他: { translation: 'x' },
+    });
+    setDict('properNouns-test', { ...many('pn'), 无型词: { translation: 'no type' } });
+    const onSelectionChange = vi.fn();
+    const { rerender } = render(
+      <EnhancedVirtualizedDictionaryTable
+        selectedDictionary="phrases"
+        onSelectionChange={onSelectionChange}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Search dictionary entries...'), {
+      target: { value: '词' },
+    });
+    await waitFor(() => expect(screen.queryByText('x')).toBeNull());
+    fireEvent.click(screen.getByTitle('Filter entries'));
+    // Rows carry CHA badges too; the chip to click is the Type row's.
+    fireEvent.click(within(screen.getByText('Type:').parentElement!).getByText('CHA'));
+    fireEvent.click(screen.getByText('Allowed'));
+    fireEvent.click(screen.getAllByTitle('Select for deletion')[0]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selectedCount: 1 })
+    );
+    scrollTo(scrollerOf('ph-0'), 20 * 40);
+    expect(screen.getByText(/^Rows 21–/)).toBeTruthy();
+
+    rerender(
+      <EnhancedVirtualizedDictionaryTable
+        selectedDictionary="properNouns-test"
+        onSelectionChange={onSelectionChange}
+      />
+    );
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selectedCount: 0 })
+    );
+    expect(screen.getByText(/^Rows 1–/)).toBeTruthy();
+    expect(
+      (screen.getByPlaceholderText('Search dictionary entries...') as HTMLInputElement).value
+    ).toBe('词');
+    // CHA carries over (proper nouns take a semantic type): the untyped entry stays hidden.
+    expect(screen.getByText('pn-0')).toBeTruthy();
+    expect(screen.queryByText('no type')).toBeNull();
+    // "Allowed" does not (VAR is always on for proper nouns), and the panel has no VAR row.
+    expect(screen.queryByText('Variable:')).toBeNull();
+  });
+
+  test('changing a filter returns the view to the top', () => {
+    setDict('phrases', many('ph'));
+    render(<EnhancedVirtualizedDictionaryTable selectedDictionary="phrases" />);
+    scrollTo(scrollerOf('ph-0'), 20 * 40);
+    expect(screen.getByText(/^Rows 21–/)).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle('Filter entries'));
+    fireEvent.click(screen.getByText('CHA'));
+
+    expect(screen.getByText(/^Rows 1–/)).toBeTruthy();
   });
 });

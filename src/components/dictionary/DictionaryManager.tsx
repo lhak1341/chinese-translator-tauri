@@ -551,6 +551,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       )}
 
       <div className={styles.tableContainer}>
+        {/* Keyed by mode: switching modes remounts the table, which is what clears a selection
+            of composite `source::dictionaryId` keys when the duplicate view closes. */}
         <EnhancedVirtualizedDictionaryTable
           key={showDuplicatesMode ? 'duplicates' : 'dictionary-table'}
           selectedDictionary={selectedDictionary}

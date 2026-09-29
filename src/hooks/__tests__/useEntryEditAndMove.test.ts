@@ -96,27 +96,6 @@ describe('useEntryEditAndMove — onContextMenuMove', () => {
   });
 });
 
-describe('useEntryEditAndMove — reset', () => {
-  it('clears editingEntry and moveEntry', () => {
-    const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
-    act(() => {
-      result.current.onContextMenuEdit({
-        source: SOURCE,
-        translation: TRANSLATION,
-        dictionaryId: DICT_ID,
-      });
-      result.current.onContextMenuMove({
-        source: SOURCE,
-        translation: TRANSLATION,
-        dictionaryId: DICT_ID,
-      });
-    });
-    act(() => result.current.reset());
-    expect(result.current.editingEntry).toBeNull();
-    expect(result.current.moveEntry).toBeNull();
-  });
-});
-
 describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
   it('calls updateEntry with correct arguments', async () => {
     const updateEntry = vi.fn().mockResolvedValue(undefined);
