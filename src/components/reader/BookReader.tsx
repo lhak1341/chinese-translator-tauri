@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
 import { useBookLines } from '../../hooks/useBookLines';
@@ -14,9 +14,7 @@ import { useReaderCommands } from '../../hooks/useReaderCommands';
 import { useSelectionMapper } from '../../hooks/useSelectionMapper';
 import { mapReaderSelection } from '../../utils/highlighting/SelectionMapping';
 import { useBookBinding } from '../BookBindingContext';
-import { useBindingOffer } from '../../hooks/useBindingOffer';
-import BindingBanner from './BindingBanner';
-import BindingDialog from './BindingDialog';
+import { BindingButton, BindingNotices, BookBindingDialog } from './ReaderBinding';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { PaletteBook } from '../../utils/reader/PaletteCommands';
@@ -84,17 +82,9 @@ const BookReader: React.FC<BookReaderProps> = ({
   const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
   const { enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
-  const {
-    binding,
-    fictionDictionaries,
-    isDialogOpen,
-    isApplying: isBindingApplying,
-    error: bindingError,
-    openDialog,
-    closeDialog,
-    bind,
-    createAndBind,
-  } = useBookBinding();
+  // The palette's "Bind dictionaries" opens the dialog; everything else about the binding
+  // is `ReaderBinding.tsx`'s.
+  const { openDialog } = useBookBinding();
 
   const { master, followers, panels, pageBy, isBlankAt } = useReaderPanels({
     lineCount: book.lineCount,
@@ -166,8 +156,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: canTranslate && !isTranslating,
   });
 
-  const offer = useBindingOffer({ fileName: book.fileName });
-
   // Clamped for the last line's rounding, not for anything the anchor itself can produce.
   const readingProgressPercent =
     book.lineCount > 0 ? Math.min(100, ((anchorLine + 1) / book.lineCount) * 100) : 0;
@@ -215,14 +203,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         <span className={styles.readerTitle} title={book.fileName}>
           {book.title}
         </span>
-        <button
-          onClick={openDialog}
-          className={styles.secondaryButton}
-          title="Dictionaries for this book"
-        >
-          <BookMarked size={14} />
-          {offer.buttonLabel}
-        </button>
+        <BindingButton fileName={book.fileName} />
         <span className={styles.readerMeta}>
           {book.lineCount.toLocaleString()} lines · {encoding.label}
           {encoding.label === 'GBK' && !encoding.strictlyClean && (
@@ -291,14 +272,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
       </div>
 
-      {offer.isBannerVisible && (
-        <BindingBanner
-          suggestedDictionary={offer.suggestion.dictionaryId}
-          missingDictionary={offer.missingDictionary}
-          onChoose={openDialog}
-          onDismiss={offer.dismiss}
-        />
-      )}
+      <BindingNotices fileName={book.fileName} />
 
       <ReaderEngineErrorBanner />
 
@@ -306,17 +280,6 @@ const BookReader: React.FC<BookReaderProps> = ({
         <div className={styles.error}>
           <AlertCircle size={15} />
           {error}
-        </div>
-      )}
-
-      {offer.applyError && (
-        <div className={styles.error}>
-          <AlertCircle size={15} />
-          This book&apos;s dictionaries were not applied — translations may still use the previous
-          book&apos;s names. {offer.applyError}
-          <button onClick={openDialog} className={styles.secondaryButton}>
-            Choose dictionaries
-          </button>
         </div>
       )}
 
@@ -356,21 +319,11 @@ const BookReader: React.FC<BookReaderProps> = ({
 
       {quickAddDialog}
 
-      {isDialogOpen && (
-        <BindingDialog
-          bookTitle={book.title}
-          fileName={book.fileName}
-          fictionDictionaries={fictionDictionaries}
-          suggestion={offer.suggestion}
-          currentBinding={binding}
-          isApplying={isBindingApplying}
-          error={bindingError}
-          chapterOverride={chapters.override}
-          onBind={(fictionDictionary) => void bind(fictionDictionary)}
-          onCreateAndBind={(rawName) => void createAndBind(rawName)}
-          onClose={closeDialog}
-        />
-      )}
+      <BookBindingDialog
+        bookTitle={book.title}
+        fileName={book.fileName}
+        chapterOverride={chapters.override}
+      />
 
       {outline && (
         <ChapterPanel

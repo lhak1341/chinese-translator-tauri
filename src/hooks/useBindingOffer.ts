@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useBookBinding } from '../components/BookBindingContext';
 import {
   bindingLabel,
@@ -15,11 +15,11 @@ export interface BindingOffer {
   /** The fiction dictionary the file name points at, for the banner and the dialog. */
   suggestion: FictionSuggestion;
   /** The book has never answered the binding question, or its bound dictionary no longer
-   * exists — and the reader has not waved the offer away for it this time. */
-  isBannerVisible: boolean;
+   * exists. Whether the reader has waved the offer away this time is the banner's own
+   * state (`BindingNotices`), not this. */
+  shouldOffer: boolean;
   /** The bound dictionary that no longer exists, for the banner to name. */
   missingDictionary: string | null;
-  dismiss: () => void;
   /** The binding button's text: the bound dictionary, the answer "none", or the prompt. */
   buttonLabel: string;
   /**
@@ -36,17 +36,13 @@ export interface BindingOffer {
  * The Reader's offer to bind a fiction dictionary to the open book: what to suggest,
  * whether the banner shows, and what the binding button says.
  *
- * View state, so it lives with the reading view rather than in `BookBindingContext`, which
- * owns persisting and applying an answer app-wide. Dismissal in particular is not an
- * answer — nothing is written, and it lasts as long as this reading view does, so Back and
- * reopen offers again. One book per instance (`BookReader` is keyed by fingerprint), so
- * dismissing it for one book never hides it for the next.
+ * Derived view facts, so it lives with the reading view rather than in
+ * `BookBindingContext`, which owns persisting and applying an answer app-wide. Stateless:
+ * the three pieces of binding UI (`ReaderBinding.tsx`) each call it.
  */
 export function useBindingOffer({ fileName }: UseBindingOfferOptions): BindingOffer {
   const { binding, missingFictionDictionary, fictionDictionaries, applyError, isDialogOpen } =
     useBookBinding();
-  const [isDismissed, setIsDismissed] = useState(false);
-
   const suggestion = useMemo(
     () => suggestFictionDictionary(fileName, fictionDictionaries),
     [fileName, fictionDictionaries]
@@ -56,17 +52,14 @@ export function useBindingOffer({ fileName }: UseBindingOfferOptions): BindingOf
   // "none", and must not re-offer — collapsing the two is how this asks forever.
   const isUnbound = binding === null;
 
-  const dismiss = useCallback((): void => setIsDismissed(true), []);
-
   const buttonLabel = missingFictionDictionary
     ? `${fictionDisplayName(missingFictionDictionary)} (missing)`
     : bindingLabel(binding, 'Bind dictionaries');
 
   return {
     suggestion,
-    isBannerVisible: (isUnbound || missingFictionDictionary !== null) && !isDismissed,
+    shouldOffer: isUnbound || missingFictionDictionary !== null,
     missingDictionary: missingFictionDictionary,
-    dismiss,
     buttonLabel,
     applyError: isDialogOpen ? null : applyError,
   };

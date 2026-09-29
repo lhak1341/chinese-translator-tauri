@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { useBindingOffer, type UseBindingOfferOptions } from '../useBindingOffer';
 import type { BookBinding } from '../../types/ReaderTypes';
 
@@ -29,21 +29,21 @@ beforeEach(() => {
 describe('useBindingOffer', () => {
   it('an unanswered book shows the banner and prompts to bind', () => {
     const { result } = renderHook(() => useBindingOffer(BOOK));
-    expect(result.current.isBannerVisible).toBe(true);
+    expect(result.current.shouldOffer).toBe(true);
     expect(result.current.buttonLabel).toBe('Bind dictionaries');
   });
 
   it('the answer "none" is an answer: no banner, and the button says so', () => {
     bindingState.binding = { fictionDictionary: null };
     const { result } = renderHook(() => useBindingOffer(BOOK));
-    expect(result.current.isBannerVisible).toBe(false);
+    expect(result.current.shouldOffer).toBe(false);
     expect(result.current.buttonLabel).toBe('No fiction dictionary');
   });
 
   it('a bound book names its dictionary without the prefix', () => {
     bindingState.binding = { fictionDictionary: 'properNouns-f_TapDo' };
     const { result } = renderHook(() => useBindingOffer(BOOK));
-    expect(result.current.isBannerVisible).toBe(false);
+    expect(result.current.shouldOffer).toBe(false);
     expect(result.current.buttonLabel).toBe('TapDo');
   });
 
@@ -51,20 +51,9 @@ describe('useBindingOffer', () => {
     bindingState.binding = { fictionDictionary: 'properNouns-f_TapDo' };
     bindingState.missingFictionDictionary = 'properNouns-f_TapDo';
     const { result } = renderHook(() => useBindingOffer(BOOK));
-    expect(result.current.isBannerVisible).toBe(true);
+    expect(result.current.shouldOffer).toBe(true);
     expect(result.current.missingDictionary).toBe('properNouns-f_TapDo');
     expect(result.current.buttonLabel).toBe('TapDo (missing)');
-
-    act(() => result.current.dismiss());
-    expect(result.current.isBannerVisible).toBe(false);
-  });
-
-  it('dismissing hides the banner without answering', () => {
-    const { result } = renderHook(() => useBindingOffer(BOOK));
-
-    act(() => result.current.dismiss());
-    expect(result.current.isBannerVisible).toBe(false);
-    expect(result.current.buttonLabel).toBe('Bind dictionaries');
   });
 
   it('suggests from the file name, and says whether that dictionary already exists', () => {
