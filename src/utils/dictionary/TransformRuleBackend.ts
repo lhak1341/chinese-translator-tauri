@@ -1,13 +1,6 @@
 import type { TransformRule } from '../../types/TransformRuleTypes';
-import { validateApiResult } from '../configValidation';
 import { validateTransformRule } from './TransformRuleValidation';
-import { logger } from '../logger';
-import { reportQuarantine, unreadFileError } from '../unreadableFile';
-
-let cache: TransformRule[] | null = null;
-/** True from a failed read until a load succeeds: saving then would replace every rule on
- * disk with what this session made (utils/unreadableFile.ts). */
-let unread = false;
+import { createAppFile } from '../appFile';
 
 /** Pre-2026-08-24 persisted rules stored the relocate flag as `moveWords: number`
  * (0/1, occasionally a legacy literal word count from before 2026-08-15 — see
@@ -25,52 +18,44 @@ function migrateLegacyMoveWords(raw: unknown[]): unknown[] {
   });
 }
 
+/** Migrated, then validated; an item that fails validation is dropped and counted. */
+function parseRules(data: unknown): { value: TransformRule[]; dropped: number } {
+  const migrated = migrateLegacyMoveWords(Array.isArray(data) ? data : []);
+  const value: TransformRule[] = [];
+  for (const item of migrated) {
+    const rule = validateTransformRule(item);
+    if (rule) value.push(rule);
+  }
+  return { value, dropped: migrated.length - value.length };
+}
+
+/** `transform-rules.json` (CONTEXT.md "App file"). A failed read throws: saving then would
+ * replace every rule on disk with what this session made. */
+const rulesFile = createAppFile<TransformRule[]>({
+  fileName: 'transform-rules.json',
+  what: 'Transform Rules (transform-rules.json)',
+  load: () => window.electronAPI.loadTransformRules(),
+  save: (rules) => window.electronAPI.saveTransformRules(rules),
+  parse: parseRules,
+  onUnreadable: 'throw',
+  saveError: 'Failed to save transform rules',
+});
+
 export interface LoadTransformRulesResult {
   rules: TransformRule[];
   droppedCount: number;
 }
 
 export async function loadTransformRules(): Promise<LoadTransformRulesResult> {
-  if (cache) return { rules: cache, droppedCount: 0 };
-  const rawResult = await window.electronAPI.loadTransformRules();
-  const result = validateApiResult<unknown>(rawResult, 'loadTransformRules');
-  if (!result.success) {
-    unread = true;
-    throw unreadFileError('transform-rules.json');
-  }
-  unread = false;
-  reportQuarantine(rawResult, 'Transform Rules (transform-rules.json)');
-  const rawList = Array.isArray(result.data) ? result.data : [];
-  const migrated = migrateLegacyMoveWords(rawList);
-
-  const rules: TransformRule[] = [];
-  let droppedCount = 0;
-  for (const item of migrated) {
-    const rule = validateTransformRule(item);
-    if (rule) {
-      rules.push(rule);
-    } else {
-      droppedCount++;
-    }
-  }
-  if (droppedCount > 0) {
-    logger.warn(`loadTransformRules: dropped ${droppedCount} invalid rule(s)`);
-  }
-
-  cache = rules;
-  return { rules, droppedCount };
+  const { value, dropped } = await rulesFile.read();
+  return { rules: value, droppedCount: dropped };
 }
 
-export async function saveTransformRules(rules: TransformRule[]): Promise<void> {
-  if (unread) throw unreadFileError('transform-rules.json');
-  const result = await window.electronAPI.saveTransformRules(rules);
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to save transform rules');
-  }
-  cache = rules;
+/** Replaces every saved rule, under the file's lock. */
+export function saveTransformRules(rules: TransformRule[]): Promise<void> {
+  return rulesFile.transform(() => ({ value: rules, result: undefined }));
 }
 
 export function invalidateTransformRules(): void {
-  cache = null;
-  unread = false;
+  rulesFile.invalidate();
 }
