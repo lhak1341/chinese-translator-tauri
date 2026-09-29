@@ -196,3 +196,124 @@ describe('useTransformRules', () => {
     ).toBeUndefined();
   });
 });
+
+/** A save the test resolves or rejects by hand, to hold one change in flight. */
+function deferredSave() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** The rules of the most recent `saveTransformRules` call — what disk ends up holding. */
+function lastSaved(): TransformRule[] {
+  const calls = saveTransformRules.mock.calls;
+  return calls[calls.length - 1][0] as TransformRule[];
+}
+
+// Pinned before the save queue (architecture review 2026-09-29, candidate #3). `test.fails`
+// until it lands.
+describe('useTransformRules — changes made while a save is in flight', () => {
+  test.fails(
+    'a failed change is dropped alone: a later change survives, in the UI and on disk',
+    async () => {
+      loadTransformRules.mockResolvedValue(
+        loadResult([makeRule({ id: 'r1', key: '城' }), makeRule({ id: 'r2', key: '市' })])
+      );
+      const first = deferredSave();
+      saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+      const { result } = renderHook(() => useTransformRules());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let a!: Promise<void>;
+      let b!: Promise<void>;
+      act(() => {
+        a = result.current.toggleEnabled('r1');
+      });
+      act(() => {
+        b = result.current.toggleEnabled('r2');
+      });
+      await act(async () => {
+        first.reject(new Error('disk full'));
+        await expect(a).rejects.toThrow('disk full');
+        await b;
+      });
+
+      expect(result.current.rules.find((r) => r.id === 'r1')?.enabled).toBe(true);
+      expect(result.current.rules.find((r) => r.id === 'r2')?.enabled).toBe(false);
+      expect(lastSaved().find((r) => r.id === 'r1')?.enabled).toBe(true);
+      expect(lastSaved().find((r) => r.id === 'r2')?.enabled).toBe(false);
+    }
+  );
+
+  test.fails('saves run one at a time, in the order the changes were made', async () => {
+    loadTransformRules.mockResolvedValue(
+      loadResult([makeRule({ id: 'r1', key: '城' }), makeRule({ id: 'r2', key: '市' })])
+    );
+    const first = deferredSave();
+    saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useTransformRules());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let a!: Promise<void>;
+    let b!: Promise<void>;
+    act(() => {
+      a = result.current.toggleEnabled('r1');
+    });
+    act(() => {
+      b = result.current.toggleEnabled('r2');
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(saveTransformRules).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve();
+      await a;
+      await b;
+    });
+    expect(saveTransformRules).toHaveBeenCalledTimes(2);
+    expect(lastSaved().every((r) => !r.enabled)).toBe(true);
+  });
+
+  test.fails(
+    'a change is checked for conflicts again at its turn, against what really saved',
+    async () => {
+      // Delete 城 (fails), then add a new 城 rule. When the add was made the delete looked
+      // done, so it passed; at its turn the old 城 rule is still there.
+      loadTransformRules.mockResolvedValue(loadResult([makeRule({ id: 'r1', key: '城' })]));
+      const first = deferredSave();
+      saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+      const { result } = renderHook(() => useTransformRules());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let del!: Promise<void>;
+      let add!: Promise<TransformRule>;
+      act(() => {
+        del = result.current.deleteRule('r1');
+      });
+      act(() => {
+        add = result.current.addRule({
+          matchKind: 'suffix',
+          key: '城',
+          relocate: true,
+          capitalizeExceptN: 1,
+          semanticType: 'location',
+          enabled: true,
+        });
+      });
+      await act(async () => {
+        first.reject(new Error('disk full'));
+        await expect(del).rejects.toThrow('disk full');
+        await expect(add).rejects.toThrow('already exists');
+      });
+
+      expect(result.current.rules.map((r) => r.id)).toEqual(['r1']);
+      expect(saveTransformRules).toHaveBeenCalledTimes(1);
+    }
+  );
+});
