@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790701806.3400412,
-    "ast_hash": "cb6d2284f9e4927f03b497caa06cfe9a",
+    "mtime": 1790702278.7121465,
+    "ast_hash": "deeb800fd1293157ceee965d1c188640",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1875,8 +1875,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790679896.0512276,
-    "ast_hash": "7ceda72f119da00537c3c40e165be7c2",
+    "mtime": 1790702262.580807,
+    "ast_hash": "29a13a77fe0ad677c650e22f7f5a11ee",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2170,8 +2170,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useBindingOffer.ts": {
-    "mtime": 1790523975.391588,
-    "ast_hash": "63a88b262d907632c63033030f0a1e78",
+    "mtime": 1790702146.3023117,
+    "ast_hash": "631b1d723b4b2d3b03abbd319e53cc12",
     "semantic_hash": ""
   },
   "docs/adr/ADR-045-skip-shared-chapter-structure-override.md": {
@@ -2297,6 +2297,11 @@
   "src/hooks/useLibrary.ts": {
     "mtime": 1790701552.5918431,
     "ast_hash": "41f32a0d4b2fa93597d01c67e79da251",
+    "semantic_hash": ""
+  },
+  "src/components/reader/ReaderBinding.tsx": {
+    "mtime": 1790702262.5995004,
+    "ast_hash": "1b2b440b51c8367dcc95da0679a961da",
     "semantic_hash": ""
   }
 }
