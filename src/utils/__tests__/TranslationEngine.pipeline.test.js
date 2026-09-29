@@ -251,3 +251,39 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
     });
   });
 });
+
+describe('TranslationEngine.initialize — which dictionaries it loads', () => {
+  // The caller hands over every dictionary; the engine keeps what filterDictionariesForEngine
+  // keeps for activeProperNouns (its own rules: FictionDictionaryFilter.test.ts).
+  let engine;
+
+  beforeAll(async () => {
+    engine = createTranslationEngine();
+    await engine.initialize(
+      {
+        characters: { 李: 'lý', 四: 'bốn', 王: 'vương', 五: 'năm' },
+        phrases: {},
+        patterns: {},
+        properNouns: {},
+        'properNouns-f_Novel': { 王五: 'Vương Ngũ' },
+        'properNouns-f_Other': { 李四: 'Lý Tứ' },
+        conversion: {},
+      },
+      { activeProperNouns: ['properNouns', 'properNouns-f_Novel'] }
+    );
+  }, 30_000);
+
+  test('an active proper-noun dictionary translates its names', async () => {
+    const tokens = [tok('王', 0), tok('五', 1)];
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[0].translated).toBe('Vương Ngũ');
+  });
+
+  test('an inactive proper-noun dictionary is left out, so its names fall to characters', async () => {
+    const tokens = [tok('李', 0), tok('四', 1)];
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[0].translated).toBe('lý');
+    expect(tokens[1].translated).toBe('bốn');
+    expect(engine.lastLoadedDictionaries).not.toHaveProperty('properNouns-f_Other');
+  });
+});

@@ -25,7 +25,6 @@
  * } from '../types/DictionaryManagerTypes'
  */
 
-import { isProperNounsDict } from './DictionaryIdClassifier.js';
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
@@ -47,7 +46,6 @@ export class DictionaryManager {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
     this.flatEntries = new Map(); // Map of dictionary name to flat {chinese,vietnamese,metadata}[] — for RustLookupIndexManager, computed once at load instead of walked from the trie per translate call
     this.metadata = new Map(); // Dictionary metadata
-    this.pendingDictionaries = null; // Phase 4: Dictionaries awaiting lazy loading
     this.loadTime = 0;
     this.ready = false;
     this.debugLevel = DEBUG_LEVELS.INFO; // Default to INFO level
@@ -171,17 +169,9 @@ export class DictionaryManager {
     };
     this.priorities = priorities;
 
-    // Phase 4 Optimization: Filter dictionaries for lazy loading
-    const filteredDictionaries = this.filterActiveDictionaries(dictionaryData, options);
-    this.pendingDictionaries = this.getPendingDictionaries(dictionaryData, filteredDictionaries);
-
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `📊 Lazy loading: ${Object.keys(filteredDictionaries).length} active, ${Object.keys(this.pendingDictionaries).length} pending`
-    );
-
-    // Load each active dictionary
-    for (const [dictionaryName, dictionary] of Object.entries(filteredDictionaries)) {
+    // Load every dictionary given. Which ones the engine receives is decided before this call,
+    // by `filterDictionariesForEngine` in `TranslationEngine.initialize`.
+    for (const [dictionaryName, dictionary] of Object.entries(dictionaryData)) {
       if (!dictionary || typeof dictionary !== 'object') {
         this.log(DEBUG_LEVELS.ERROR, `Skipping invalid dictionary: ${dictionaryName}`);
         continue;
@@ -482,19 +472,6 @@ export class DictionaryManager {
     this.metadata.clear();
     this.metadata = null;
 
-    // CODE REVIEW FIX (MEDIUM-2): Clear pending dictionaries defensively
-    // pendingDictionaries contains raw dictionary data (plain objects)
-    // but clear for consistency and safety
-    if (this.pendingDictionaries) {
-      if (typeof this.pendingDictionaries === 'object' && this.pendingDictionaries !== null) {
-        // If it's a Map, clear it; if it's an object, nullify
-        if (typeof this.pendingDictionaries.clear === 'function') {
-          this.pendingDictionaries.clear();
-        }
-      }
-      this.pendingDictionaries = null;
-    }
-
     // Dispose cache
     if (this.cache) {
       // CODE REVIEW FIX (MEDIUM-1): Use dispose() method for proper cleanup
@@ -518,30 +495,6 @@ export class DictionaryManager {
   }
 
   /**
-   * Get cache statistics for performance monitoring
-   * @returns {Object} Cache performance statistics
-   */
-  getCacheStats() {
-    return this.cache.getStats();
-  }
-
-  /**
-   * Get cache memory usage information
-   * @returns {Object} Memory usage statistics
-   */
-  getCacheMemoryUsage() {
-    return this.cache.getMemoryUsage();
-  }
-
-  /**
-   * Enable or disable translation caching
-   * @param {boolean} enabled - Whether to enable caching
-   */
-  setCacheEnabled(enabled) {
-    this.cache.setEnabled(enabled);
-  }
-
-  /**
    * Invalidate cache entries for a specific dictionary
    * Called when dictionary is reloaded or modified
    * @param {string} dictionaryName - Dictionary name to invalidate
@@ -558,112 +511,6 @@ export class DictionaryManager {
   }
 
   /**
-   * Get sorting performance statistics
-   * Phase 6/7: Dictionary sorting and performance monitoring
-   * @returns {Object} Sorting performance stats
-   */
-  getSortingStats() {
-    // This will be provided by the context that imports the sorter
-    return {
-      message: 'Sorting stats available via DictionaryContext.getSortingStats()',
-    };
-  }
-
-  /**
-   * Phase 4: Filter dictionaries for lazy loading
-   * Only loads active proper noun dictionaries and core dictionaries
-   * @param {Object} dictionaryData - All available dictionaries
-   * @param {Object} options - Options including activeProperNouns
-   * @returns {Object} Filtered dictionaries to load immediately
-   */
-  filterActiveDictionaries(dictionaryData, options = {}) {
-    const activeProperNouns = options.activeProperNouns || ['properNouns'];
-    const filteredDictionaries = {};
-
-    for (const [dictionaryName, dictionary] of Object.entries(dictionaryData)) {
-      // Always load core dictionaries (not proper nouns)
-      if (!isProperNounsDict(dictionaryName)) {
-        filteredDictionaries[dictionaryName] = dictionary;
-      }
-      // Only load active proper noun dictionaries
-      else if (activeProperNouns.includes(dictionaryName)) {
-        filteredDictionaries[dictionaryName] = dictionary;
-        this.log(DEBUG_LEVELS.DEBUG, `✅ Loading active proper noun dictionary: ${dictionaryName}`);
-      } else {
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `⏭️ Skipping inactive proper noun dictionary: ${dictionaryName}`
-        );
-      }
-    }
-
-    return filteredDictionaries;
-  }
-
-  /**
-   * Get dictionaries that were not loaded immediately (for lazy loading)
-   * @param {Object} allDictionaries - All available dictionaries
-   * @param {Object} loadedDictionaries - Dictionaries that were loaded
-   * @returns {Object} Dictionaries pending lazy loading
-   */
-  getPendingDictionaries(allDictionaries, loadedDictionaries) {
-    const pending = {};
-
-    for (const [dictionaryName, dictionary] of Object.entries(allDictionaries)) {
-      if (!loadedDictionaries[dictionaryName]) {
-        pending[dictionaryName] = dictionary;
-      }
-    }
-
-    return pending;
-  }
-
-  /**
-   * Lazy load a pending dictionary on-demand
-   * @param {string} dictionaryName - Name of dictionary to load
-   * @returns {boolean} Success status
-   */
-  async lazyLoadDictionary(dictionaryName) {
-    if (!this.pendingDictionaries || !this.pendingDictionaries[dictionaryName]) {
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `❌ Dictionary "${dictionaryName}" not available for lazy loading`
-      );
-      return false;
-    }
-
-    this.log(DEBUG_LEVELS.DEBUG, `🔄 Lazy loading dictionary: ${dictionaryName}`);
-
-    const dictionary = this.pendingDictionaries[dictionaryName];
-    const priority = resolveDictionaryPriority(dictionaryName, this.priorities);
-    const built = buildTrieFromDictionary(dictionary, priority);
-    const entryCount = built.entryCount;
-
-    for (const invalidSource of built.invalidSources) {
-      this.log(
-        DEBUG_LEVELS.ERROR,
-        `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
-      );
-    }
-
-    // Store dictionary and metadata
-    this.dictionaries.set(dictionaryName, built.trie);
-    this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
-    this.metadata.set(dictionaryName, {
-      name: dictionaryName,
-      entryCount,
-      priority,
-      stats: built.trie.getStats(),
-    });
-
-    // Remove from pending
-    delete this.pendingDictionaries[dictionaryName];
-
-    this.log(DEBUG_LEVELS.INFO, `✅ Lazy loaded ${dictionaryName}: ${entryCount} entries`);
-    return true;
-  }
-
-  /**
    * Get priority for a specific dictionary (checks loaded metadata first, then defaults)
    * @param {string} dictionaryName - Dictionary name
    * @returns {number} Priority value
@@ -675,21 +522,8 @@ export class DictionaryManager {
       return dictMetadata.priority;
     }
 
-    // Fall back to the same rule loadDictionaries/lazyLoadDictionary use
+    // Fall back to the same rule loadDictionaries uses
     return resolveDictionaryPriority(dictionaryName, this.priorities || {});
-  }
-
-  /**
-   * Get lazy loading statistics
-   * @returns {Object} Lazy loading stats
-   */
-  getLazyLoadingStats() {
-    return {
-      loadedDictionaries: Array.from(this.dictionaries.keys()),
-      pendingDictionaries: this.pendingDictionaries ? Object.keys(this.pendingDictionaries) : [],
-      totalLoaded: this.dictionaries.size,
-      totalPending: this.pendingDictionaries ? Object.keys(this.pendingDictionaries).length : 0,
-    };
   }
 
   getDictionary(name) {

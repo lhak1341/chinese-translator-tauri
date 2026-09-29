@@ -420,39 +420,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     });
   });
 
-  describe('MEDIUM-2: pendingDictionaries cleanup', () => {
-    it('should clear pendingDictionaries on dispose', () => {
-      const manager = new DictionaryManager();
-
-      // Set pending dictionaries (simulating lazy loading)
-      manager.pendingDictionaries = {
-        properNouns: { 张三: 'Trương Tam' },
-        phrases: { 你好: 'xin chào' },
-      };
-
-      manager.dispose();
-
-      expect(manager.pendingDictionaries).toBeNull();
-    });
-
-    it('should handle Map-based pendingDictionaries', () => {
-      const manager = new DictionaryManager();
-
-      manager.pendingDictionaries = new Map();
-      manager.pendingDictionaries.set('test', { 的: 'của' });
-
-      expect(() => manager.dispose()).not.toThrow();
-      expect(manager.pendingDictionaries).toBeNull();
-    });
-
-    it('should handle null pendingDictionaries', () => {
-      const manager = new DictionaryManager();
-      manager.pendingDictionaries = null;
-
-      expect(() => manager.dispose()).not.toThrow();
-    });
-  });
-
   describe('Memory leak simulation tests', () => {
     it('should not accumulate trie references over multiple reloads', async () => {
       const manager = new DictionaryManager();
@@ -534,7 +501,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       expect(manager.dictionaries).toBeNull();
       expect(manager.metadata).toBeNull();
       expect(manager.cache).toBeNull();
-      expect(manager.pendingDictionaries).toBeNull();
       expect(manager.ready).toBe(false);
     });
 
@@ -563,7 +529,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       expect(manager.dictionaries).toBeNull();
       expect(manager.metadata).toBeNull();
       expect(manager.cache).toBeNull();
-      expect(manager.pendingDictionaries).toBeNull();
     });
   });
 });

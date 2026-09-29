@@ -158,6 +158,7 @@
 
 import { TextTokenizer, TokenType } from './text/TextTokenizer.js';
 import { DictionaryManager } from './dictionary/DictionaryManager.js';
+import { filterDictionariesForEngine } from './dictionary/FictionDictionaryFilter';
 import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
 import tauriAPI from '../tauriAPI.js';
 import {
@@ -779,10 +780,11 @@ export class TranslationEngine {
    * @param {Object} dictionaries.phrase - Phrase dictionary (10,000+ entries)
    * @param {Object} dictionaries.pattern - Pattern dictionary (100+ patterns)
    * @param {Object} [dictionaries.properNouns] - Default proper noun dictionary
-   * @param {Object} [dictionaries['properNouns-*.json']] - Novel-specific proper noun dictionaries
+   * @param {Object} [dictionaries['properNouns-*']] - Novel-specific and generic proper noun
+   *   dictionaries, active or not, with their paired `patterns-*` dictionaries. Pass them all:
+   *   the engine keeps what `filterDictionariesForEngine` keeps for `activeProperNouns`.
    * @param {Object} [options={}] - Initialization options
-   * @param {string[]} [options.activeProperNouns] - Override active proper noun dictionaries
-   * @param {boolean} [options.lazyLoad=true] - Enable lazy loading for inactive proper nouns
+   * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
    *
    * @returns {Promise<void>} Resolves when initialization is complete
    *
@@ -810,14 +812,19 @@ export class TranslationEngine {
    * @performance
    * - Dictionary loading: <100ms for 27,000+ entries
    * - WASM initialization: ~50ms (number + pattern processors)
-   * - Lazy loading: Inactive proper nouns loaded on-demand
    *
    * @critical
    * Must complete successfully before calling translate() or other translation methods.
    * Failure to initialize causes "Translation Engine not initialized" errors.
    * Configuration loading failure falls back to defaults (not an error).
    */
-  async initialize(dictionaries, options = {}) {
+  async initialize(allDictionaries, options = {}) {
+    // Use caller-supplied activeProperNouns (already loaded by Translator.jsx before engine init)
+    this.activeProperNouns = options.activeProperNouns || ['properNouns'];
+    // The one place the engine's dictionaries are chosen: inactive proper nouns dropped, active
+    // paired patterns merged into `patterns` (ADR-027, ADR-048).
+    const dictionaries = filterDictionariesForEngine(allDictionaries, this.activeProperNouns);
+
     // Store dictionaries for Core Engine sync
     this.lastLoadedDictionaries = dictionaries;
     logger.log(
@@ -839,11 +846,9 @@ export class TranslationEngine {
         this.settings = { ...this.settings, ...options.patternSettings };
       }
 
-      // Use caller-supplied activeProperNouns (already loaded by Translator.jsx before engine init)
-      this.activeProperNouns = options.activeProperNouns || ['properNouns'];
       this.log(DEBUG_LEVELS.DEBUG, '🔧 Active proper noun dictionaries:', this.activeProperNouns);
 
-      // Load dictionaries into trie structures (with lazy loading for inactive proper nouns)
+      // Load dictionaries into trie structures
       const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
       // CRITICAL FIX: Deep copy options to prevent mutation leakage
       await this.dictionaryManager.loadDictionaries(dictionaries, {
@@ -6232,38 +6237,6 @@ export class TranslationEngine {
    */
   isReady() {
     return this.isInitialized && this.dictionaryManager.isReady();
-  }
-
-  /**
-   * Get translation caching statistics
-   * @returns {Object} Cache performance statistics
-   */
-  getCacheStats() {
-    return this.dictionaryManager.getCacheStats();
-  }
-
-  /**
-   * Get cache memory usage information
-   * @returns {Object} Cache memory usage statistics
-   */
-  getCacheMemoryUsage() {
-    return this.dictionaryManager.getCacheMemoryUsage();
-  }
-
-  /**
-   * Phase 4: Get lazy loading statistics
-   * @returns {Object} Lazy loading statistics
-   */
-  getLazyLoadingStats() {
-    return this.dictionaryManager.getLazyLoadingStats();
-  }
-
-  /**
-   * Enable or disable translation caching
-   * @param {boolean} enabled - Whether to enable caching
-   */
-  setCacheEnabled(enabled) {
-    this.dictionaryManager.setCacheEnabled(enabled);
   }
 
   // ============================================================================

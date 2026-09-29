@@ -4,7 +4,6 @@ import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
-import { filterDictionariesForEngine } from '../utils/dictionary';
 
 // Engine initialization priorities — shared between initial load and reinitialize
 const ENGINE_PRIORITIES = {
@@ -67,9 +66,8 @@ export function useTranslatorEngine() {
           logger.error('Failed to destroy outgoing engine:', destroyError);
         }
       }
-      const filtered = filterDictionariesForEngine(dictionaries, activeProperNouns);
       engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(filtered, {
+      await engineRef.current.initialize(dictionaries, {
         priorities,
         activeProperNouns,
         debugLevel,
