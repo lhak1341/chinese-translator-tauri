@@ -825,8 +825,8 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1790563530.1400664,
-    "ast_hash": "355284b72d2b28b1fa104aa6e521d219",
+    "mtime": 1790679907.693936,
+    "ast_hash": "d866dbf21d50ee7b419a69c84661cd86",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -840,8 +840,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1790563523.4796312,
-    "ast_hash": "db73d77ed3f39c73a1bb86ac2773b07a",
+    "mtime": 1790679896.0522742,
+    "ast_hash": "54d7ec3819c7939c0d65294f956555cd",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790677409.44141,
-    "ast_hash": "77726b62c995503df9360e239685b692",
+    "mtime": 1790680112.0548804,
+    "ast_hash": "525857e590225b30186d5a612eb9447a",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790677409.4440002,
-    "ast_hash": "25a17d9cde8d685b059b67ba9f23af27",
+    "mtime": 1790680112.0569417,
+    "ast_hash": "14d2ab3f8867c1bbf76b1084af9c4ce7",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1875,8 +1875,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790558283.671734,
-    "ast_hash": "ed139306657a14624eb5bbd3e67a4375",
+    "mtime": 1790679896.0512276,
+    "ast_hash": "7ceda72f119da00537c3c40e165be7c2",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790524904.6253686,
-    "ast_hash": "bf827bccc743914c68d6e10c93ba9843",
+    "mtime": 1790679711.9896739,
+    "ast_hash": "9c6095653a39562c0bb04a69fec8bec2",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790565282.3218822,
-    "ast_hash": "b3ea4d04e65e936da499151ad8557906",
+    "mtime": 1790680112.0563226,
+    "ast_hash": "a7e7492961d32f9864051f07f20886ce",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2010,8 +2010,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingContext.tsx": {
-    "mtime": 1790426874.6376915,
-    "ast_hash": "d6ebc2cf351ff9d39493ebdef451e7a8",
+    "mtime": 1790679825.8118448,
+    "ast_hash": "73c46c877e191906ca14dcc549b6314f",
     "semantic_hash": ""
   },
   "src/components/reader/BindingBanner.tsx": {
@@ -2025,8 +2025,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BindingActivation.ts": {
-    "mtime": 1790411791.9001787,
-    "ast_hash": "4ca3e3c7c1099a8a2f56b176a7e0c9a1",
+    "mtime": 1790679798.260561,
+    "ast_hash": "334e0c6967cea039bb9d2d670140ce6e",
     "semantic_hash": ""
   },
   "src/utils/reader/ChapterPatternLabels.ts": {
@@ -2145,8 +2145,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790563509.7086403,
-    "ast_hash": "fb9e8ee90b2c26662c60c214f03e9a73",
+    "mtime": 1790679896.0506418,
+    "ast_hash": "fdca236c595ba90c231a89fe7bd57fdf",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {
@@ -2184,11 +2184,6 @@
     "ast_hash": "c7cd6910fa340773ae476b5f5cd25753",
     "semantic_hash": ""
   },
-  "src/utils/reader/ReaderQuickAddTarget.ts": {
-    "mtime": 1790427648.9763553,
-    "ast_hash": "e4ceb177ff81399d5d0131df11c8e7ee",
-    "semantic_hash": ""
-  },
   "src/components/VisibleTabContext.tsx": {
     "mtime": 1790405358.9915438,
     "ast_hash": "c9016f150addca273e4b45c86bdf9df4",
@@ -2205,8 +2200,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/QuickAddTarget.ts": {
-    "mtime": 1790430080.4011846,
-    "ast_hash": "f9b7de7b363cce303e852ede65779d56",
+    "mtime": 1790680012.9017003,
+    "ast_hash": "3ca4fd74da9b0c71901090ee26543b02",
     "semantic_hash": ""
   },
   "docs/adr/ADR-047-skip-numberprocessor-numeral-value.md": {
@@ -2265,8 +2260,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryModals.tsx": {
-    "mtime": 1790558229.9555414,
-    "ast_hash": "44d9f89108cbbdb64437dae00a6bd23b",
+    "mtime": 1790680012.9020784,
+    "ast_hash": "b09062a651b92c573cab6dde42b7f980",
     "semantic_hash": ""
   },
   "src/components/dictionary/EditCommitter.ts": {
