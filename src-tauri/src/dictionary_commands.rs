@@ -664,32 +664,36 @@ pub struct DictionaryResponse {
     dictionaries: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    /// Set by `load_blob` when the file existed but could not be read as JSON and was renamed
+    /// aside — the new file name, for the one-time warning (`utils/unreadableFile.ts`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quarantined: Option<String>,
 }
 
 impl DictionaryResponse {
     /// Success with no payload.
     fn ok() -> Self {
-        Self { success: true, data: None, error: None, dictionaries: None, message: None }
+        Self { success: true, data: None, error: None, dictionaries: None, message: None, quarantined: None }
     }
 
     /// Success carrying a JSON data blob.
     fn ok_with_data(data: serde_json::Value) -> Self {
-        Self { success: true, data: Some(data), error: None, dictionaries: None, message: None }
+        Self { success: true, data: Some(data), error: None, dictionaries: None, message: None, quarantined: None }
     }
 
     /// Success carrying a list of dictionary IDs.
     fn ok_with_dicts(dictionaries: Vec<String>) -> Self {
-        Self { success: true, data: None, error: None, dictionaries: Some(dictionaries), message: None }
+        Self { success: true, data: None, error: None, dictionaries: Some(dictionaries), message: None, quarantined: None }
     }
 
     /// Success carrying a human-readable message.
     fn ok_with_message(message: impl Into<String>) -> Self {
-        Self { success: true, data: None, error: None, dictionaries: None, message: Some(message.into()) }
+        Self { success: true, data: None, error: None, dictionaries: None, message: Some(message.into()), quarantined: None }
     }
 
     /// Failure carrying an error description.
     fn err(error: impl Into<String>) -> Self {
-        Self { success: false, data: None, error: Some(error.into()), dictionaries: None, message: None }
+        Self { success: false, data: None, error: Some(error.into()), dictionaries: None, message: None, quarantined: None }
     }
 }
 
@@ -1249,25 +1253,61 @@ fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf,
         .map_err(|_| "Failed to locate application data directory".to_string())
 }
 
+/// Load one of the app's JSON files, or `default` when it does not exist.
+///
+/// A file whose *content* is unreadable — over the size limit, not UTF-8, or not JSON — is
+/// quarantined: renamed to `<stem>.corrupt-<ms>.json` beside it, and `default` returned with
+/// `quarantined` naming it. The data survives for recovery, and the app's next save lands on
+/// a fresh file instead of over it. A failed *read* (permission, I/O) is an `Err` and moves
+/// nothing, since a retry may succeed; the TS loaders then refuse to save until a load works
+/// (`utils/unreadableFile.ts`).
 fn load_json_file_with_default(
     path: &PathBuf,
     default: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
     // SECURITY: Check file size before reading to prevent DoS
-    if path.exists() {
-        validate_file_size(path, MAX_JSON_SIZE_BYTES)?;
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.len() > MAX_JSON_SIZE_BYTES as u64 => {
+            return quarantine_json_file(path, default);
+        }
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(DictionaryResponse::ok_with_data(default));
+        }
+        Err(e) => return Err(sanitize_io_error(e, "config file")),
     }
     match fs::read_to_string(path) {
-        Ok(contents) => {
-            let data: serde_json::Value =
-                serde_json::from_str(&contents).map_err(|_| "Invalid JSON format in config file".to_string())?;
-            Ok(DictionaryResponse::ok_with_data(data))
-        }
+        Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
+            Ok(data) => Ok(DictionaryResponse::ok_with_data(data)),
+            Err(_) => quarantine_json_file(path, default),
+        },
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(DictionaryResponse::ok_with_data(default))
         }
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => quarantine_json_file(path, default),
         Err(e) => Err(sanitize_io_error(e, "config file")),
     }
+}
+
+/// Rename an unreadable JSON file aside and answer with `default` — see
+/// `load_json_file_with_default`. If the rename itself fails, nothing is set aside and the
+/// load fails, so the caller still refuses to save over the file.
+fn quarantine_json_file(
+    path: &PathBuf,
+    default: serde_json::Value,
+) -> Result<DictionaryResponse, String> {
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let name = format!("{}.corrupt-{}.json", stem, millis);
+    let target = path.with_file_name(&name);
+    fs::rename(path, &target).map_err(|e| sanitize_io_error(e, "unreadable config file"))?;
+    eprintln!("Quarantined unreadable {} as {}", path.display(), name);
+    let mut response = DictionaryResponse::ok_with_data(default);
+    response.quarantined = Some(name);
+    Ok(response)
 }
 
 fn save_json_file(
@@ -1666,6 +1706,7 @@ fn import_dictionaries_impl(
         error: if errors.is_empty() { None } else { Some(errors.join(", ")) },
         dictionaries: None,
         message: Some(message),
+        quarantined: None,
     })
 }
 
@@ -2656,6 +2697,73 @@ mod tests {
 
             let _ = fs::remove_dir_all(&dir);
         }
+    }
+
+    #[test]
+    fn test_blob_with_invalid_json_is_set_aside_and_defaults_are_returned() {
+        for kind in [
+            BlobKind::Config,
+            BlobKind::TransformRules,
+            BlobKind::Appearance,
+            BlobKind::Books,
+        ] {
+            let dir = temp_test_dir(&format!("blob_quarantine_{}", kind.filename()));
+            let path = dir.join(kind.filename());
+            fs::write(&path, "{ not json").unwrap();
+
+            let loaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
+
+            assert_eq!(loaded.data, Some(kind.default_value()));
+            let name = loaded.quarantined.expect("the response names the set-aside file");
+            // Moved, not deleted: the unreadable bytes survive beside the path, and the path
+            // itself is free for the next save.
+            assert!(!path.exists());
+            assert_eq!(fs::read_to_string(dir.join(&name)).unwrap(), "{ not json");
+            assert!(name.starts_with(path.file_stem().unwrap().to_str().unwrap()));
+            assert!(name.contains(".corrupt-"));
+
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    fn test_blob_that_is_not_utf8_is_set_aside() {
+        let dir = temp_test_dir("blob_quarantine_utf8");
+        let path = dir.join("books.json");
+        fs::write(&path, [0xff, 0xfe, 0x00]).unwrap();
+
+        let loaded = load_json_file_with_default(&path, serde_json::json!({})).unwrap();
+
+        assert!(loaded.quarantined.is_some());
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_blob_over_the_size_limit_is_set_aside() {
+        let dir = temp_test_dir("blob_quarantine_size");
+        let path = dir.join("books.json");
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_JSON_SIZE_BYTES as u64 + 1).unwrap();
+
+        let loaded = load_json_file_with_default(&path, serde_json::json!({})).unwrap();
+
+        assert!(loaded.quarantined.is_some());
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_blob_that_loads_is_never_marked_quarantined() {
+        let dir = temp_test_dir("blob_quarantine_none");
+        let path = dir.join("books.json");
+        fs::write(&path, "{}").unwrap();
+        let loaded = load_json_file_with_default(&path, serde_json::json!({})).unwrap();
+        assert!(loaded.quarantined.is_none());
+        assert!(path.exists());
+        let missing = load_json_file_with_default(&dir.join("absent.json"), serde_json::json!({})).unwrap();
+        assert!(missing.quarantined.is_none());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
