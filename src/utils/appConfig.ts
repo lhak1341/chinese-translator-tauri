@@ -1,6 +1,4 @@
-import { validateApiResult } from './configValidation';
-import { logger } from './logger';
-import { reportQuarantine, unreadFileError } from './unreadableFile';
+import { createAppFile } from './appFile';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 export interface EngineConfig {
@@ -34,22 +32,6 @@ const ENGINE_DEFAULTS: EngineConfig = {
   activeProperNouns: ['properNouns'],
 };
 
-let cache: AppConfig | null = null;
-
-// Serializes every config-disk write — plain saveAppConfig() calls and Rust-direct
-// config.json writes (via callRustConfigWrite) alike — so a write started while another
-// is still in flight queues instead of racing on the shared in-memory cache.
-let configWriteQueue: Promise<unknown> = Promise.resolve();
-
-function withConfigLock<T>(fn: () => Promise<T>): Promise<T> {
-  const result = configWriteQueue.then(fn, fn);
-  configWriteQueue = result.then(
-    () => undefined,
-    () => undefined
-  );
-  return result;
-}
-
 function fromRaw(raw: Record<string, unknown>): AppConfig {
   return {
     engine: {
@@ -82,53 +64,47 @@ function toRaw(config: AppConfig): AppConfiguration {
   } as unknown as AppConfiguration;
 }
 
-/** True from a failed read until a load succeeds. The app still runs on defaults then, but
- * they are never saved over the file (utils/unreadableFile.ts). */
-let unread = false;
+/** `config.json` (CONTEXT.md "App file"). A failed read runs the app on defaults, but they
+ * are never saved over the file. */
+const configFile = createAppFile<AppConfig>({
+  fileName: 'config.json',
+  what: 'Settings (config.json)',
+  load: () => window.electronAPI.loadConfiguration(),
+  save: (config) => window.electronAPI.saveConfiguration(toRaw(config)),
+  parse: (data) => ({
+    value: fromRaw(data && typeof data === 'object' ? (data as Record<string, unknown>) : {}),
+    dropped: 0,
+  }),
+  onUnreadable: 'defaults',
+  defaults: () => fromRaw({}),
+  saveError: 'Failed to save configuration',
+});
 
 export async function loadAppConfig(): Promise<AppConfig> {
-  if (cache) return cache;
-  const rawResult = await window.electronAPI.loadConfiguration();
-  const result = validateApiResult<Record<string, unknown>>(rawResult, 'loadConfiguration');
-  if (!result.success) {
-    // Defaults so the app can start, but uncached: the next load tries the file again.
-    unread = true;
-    logger.error('Could not read config.json; running on defaults:', result.error);
-    return fromRaw({});
-  }
-  unread = false;
-  reportQuarantine(rawResult, 'Settings (config.json)');
-  cache = fromRaw(result.data ?? {});
-  return cache;
+  return (await configFile.read()).value;
 }
 
+/** Merges `patch` into the saved config, under the file's lock — callers give only the fields
+ * they own. */
 export function saveAppConfig(patch: {
   engine?: Partial<EngineConfig>;
   ui?: Partial<UIConfig>;
   session?: Partial<SessionConfig>;
   reader?: Partial<ReaderConfig>;
 }): Promise<void> {
-  return withConfigLock(async () => {
-    const current = cache ?? (await loadAppConfig());
-    if (unread) throw unreadFileError('config.json');
-    const merged: AppConfig = {
+  return configFile.transform((current) => ({
+    value: {
       engine: { ...current.engine, ...patch.engine },
       ui: { ...current.ui, ...patch.ui },
       session: { ...current.session, ...patch.session },
       reader: { ...current.reader, ...patch.reader },
-    };
-    const rawResult = await window.electronAPI.saveConfiguration(toRaw(merged));
-    const result = validateApiResult(rawResult, 'saveConfiguration');
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to save configuration');
-    }
-    cache = merged;
-  });
+    },
+    result: undefined,
+  }));
 }
 
 export function invalidateAppConfig(): void {
-  cache = null;
-  unread = false;
+  configFile.invalidate();
 }
 
 /**
@@ -142,11 +118,5 @@ export function invalidateAppConfig(): void {
 export function callRustConfigWrite<T extends { success: boolean }>(
   fn: () => Promise<T>
 ): Promise<T> {
-  return withConfigLock(async () => {
-    const result = await fn();
-    if (result.success) {
-      invalidateAppConfig();
-    }
-    return result;
-  });
+  return configFile.writeExternally(fn);
 }
