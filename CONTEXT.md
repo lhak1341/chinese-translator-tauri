@@ -338,6 +338,16 @@ No React, no async, no side effects. All reversal logic is testable as plain fun
 
 Entry point: `src/utils/dictionary/DictionaryOperationReverter.ts`. Called exclusively from `useDictionaryHistory`; the hook owns React state and wiring, this module owns all domain logic.
 
+## Dictionary Edit
+
+**Planned (architecture review 2026-09-29, candidate #1, grilled; not yet built).** One change to user dictionaries, described as data: a list of `{dictionaryId, key, before, after}` changes plus an `outcome` tag (`added | overwritten | updated | moved(n) | deleted(n)`). `before`/`after` of `undefined` means the key is absent. Because every change records what it overwrote, undo is `invert(edit)` (swap `before` and `after`) and redo is the edit itself.
+
+Pure half, `src/utils/dictionary/DictionaryEdit.ts`: `planAdd/planUpdate/planDelete/planMove(dicts, …) → DictionaryEdit | {invalid: reason}`, `invert`, and `changedKeys(edit, dicts)` (keys whose current value no longer equals what the edit expects, compared field by field through `EntryValue`).
+
+Committing half, `commitEdit(edit)` in `DictionaryContext`: runs in one global queue (ADR-052); refuses the whole edit if any key changed since (`{refused, changedKeys}`); otherwise applies to memory first, sorts (incremental hint for single-key edits), saves, and on a failed save rolls memory back and writes `before` back to every dictionary that did save (`{saveFailed, rolledBack}`); on success pushes history and invalidates the engine per changed dictionary.
+
+When built, it replaces `DictionaryOperationReverter`, `HistoryOperation`, `DictionaryPersistence` and `commitMutation`; `useDictionaryCRUD` keeps its caller-facing callbacks and becomes plan → `commitEdit` → toast. History is cleared on dictionary import and pair rename. Fixes three undo data-loss bugs: undo of an Add over an existing key, of an Update renamed onto an existing key, and of a Move into a dictionary that already held the key.
+
 ## DictionaryPersistence
 
 The two write-to-disk protocols used by dictionary CRUD. `persistDictionaryMutation` — single-dict: optimistic `setDictionaries` → `saveDictionary` → rollback on failure. `commitMoveOp` — two-dict: optimistic `setDictionaries` → parallel save → partial revert (if one save succeeds and the other fails, the successful write is reverted to disk). Both returned callbacks are stable (no deps beyond `setDictionaries`).

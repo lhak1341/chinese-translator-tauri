@@ -1,0 +1,33 @@
+# ADR-052: Dictionary Edit Commits — One Queue, TypeScript Write-Back
+
+**Status:** Decided
+**Date:** 2026-09-29
+
+## Context
+
+The architecture review of 2026-09-29 (candidate #1) found that undo loses user data. A history record did not store what an edit overwrote, so undoing an Add over an existing key, an Update renamed onto an existing key, or a Move into a dictionary that already held the key deleted the earlier value. Saves also ran through three protocols with different semantics: `persistDictionaryMutation` (state first, rollback), `commitMoveOp` (state first, partial disk write-back) and `commitMutation` (save first, no partial revert, used by undo).
+
+The grilling settled on one **Dictionary Edit** module (see `CONTEXT.md`). Every edit is a pure plan of `{dictionaryId, key, before, after}` changes. One `commitEdit` applies, saves, records and invalidates. Undo is `commitEdit(invert(edit))`. Two parts of that design look like gaps that a later review might want to "fix". This ADR records why they are deliberate.
+
+## Decision
+
+1. **Multi-dictionary edits roll back in TypeScript, not through a Rust batch save.** When one save of a two-dictionary edit (a move, or its undo) fails, `commitEdit` rolls memory back and writes `before` back to each dictionary that did save. There is no `save_dictionaries` command.
+2. **All commits run through one global queue.** Each commit (plan against the latest dictionaries, check unchanged keys, apply to memory, save, roll back on failure) finishes before the next one starts. Undo and redo use the same queue.
+
+## Alternatives considered
+
+- **A Rust `save_dictionaries` command** that writes every temp file and renames only after all writes succeed. It narrows the failure window to the renames, but adds an IPC command and Rust tests for an edit type (moves) that is rare. Each single `save_dictionary` is already atomic (`write_atomic`, temp file plus rename).
+- **One queue per dictionary with key-level rollback.** It allows parallel saves to different dictionaries, but a two-dictionary edit then needs two queues in a fixed order, and edits come from one user, so there is no parallelism worth that cost.
+- **No queue, key-level rollback only.** This leaves the Rust temp path race: `save_dictionary` names its temp file `<file>.tmp.<pid>`, so two in-flight saves of the same dictionary share one path.
+
+## Reasoning
+
+**One rollback path.** With TypeScript write-back, every edit, single or multi-dictionary, fails the same way inside `commitEdit`. The best-effort write-back can itself fail. `commitEdit` then reports `{saveFailed, rolledBack: false}`, which the caller shows as a loud error.
+
+**The queue makes the unchanged-key check true.** The plan and the check against current values run at the start of the edit's queue turn, so they always see the state that the previous commit left. Without the queue, a memory-first rollback that restores a snapshot can erase a second edit that was applied while the first was saving.
+
+**The queue costs at most one save of latency** for a second edit made while the first is still saving.
+
+## Consequence
+
+A review that proposes a Rust batch save, or per-dictionary parallel commits, should find this ADR first. Reconsider (1) if a half-applied move is ever observed on disk. Reconsider (2) if edits start to come from something other than one user's clicks, such as a background import or sync that writes through `commitEdit`.
