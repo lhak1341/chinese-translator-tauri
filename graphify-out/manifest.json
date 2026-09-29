@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790681725.5454614,
-    "ast_hash": "9d0a54cb68984ec146ec3c7ca191811a",
+    "mtime": 1790682344.556199,
+    "ast_hash": "d5edfac2804095c2cf024c9192879805",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790681685.49494,
-    "ast_hash": "1284c136043ed35fe2786b4ba5d9ca99",
+    "mtime": 1790682165.0430107,
+    "ast_hash": "80897034e5a77f0b4784c8cae1b7faaa",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1925,8 +1925,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
-    "mtime": 1790681323.5707946,
-    "ast_hash": "c7bec95c3e6c996c073c2ee38e126ca3",
+    "mtime": 1790682165.0438151,
+    "ast_hash": "acbdbc9ddddeb0c190e1e08d5fdd49ef",
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
@@ -1935,8 +1935,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1790681578.828485,
-    "ast_hash": "991ab7821de7cf0c34979cf8b28773eb",
+    "mtime": 1790682165.0439892,
+    "ast_hash": "aa59e0fa2fee67523cad55b236dd7c7d",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790680112.0563226,
-    "ast_hash": "a7e7492961d32f9864051f07f20886ce",
+    "mtime": 1790682344.5545566,
+    "ast_hash": "c4dcc4e13f777e81e86a4a818d411ba1",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
