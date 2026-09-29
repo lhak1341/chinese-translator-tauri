@@ -24,6 +24,8 @@ After touching any CRUD function or `useDictionaryHistory`, audit for:
 
 **Load protocol**: Both `loadInitialState` (startup) and `loadDictionary` (single reload) delegate to `loadAllDictionaries()` in `src/utils/dictionary/DictionaryBackend.ts` (parallel batch + serial retry). Do NOT call `window.electronAPI.loadDictionary` directly — that path has no retry. Failure outcome classification lives in `classifyLoadResult` in `DictionaryLoadClassifier.ts`. See ADR-014.
 
+**A dictionary that fails to load is absent, never `{}`** (CONTEXT.md "Unread dictionary", ADR-053). It is listed in the provider's `unreadDictionaryIds`, and every plan refuses it because it is not in memory. Do not add a `dictionaries[id] ?? {}` fallback on any path that can reach a save: that rebuilds the placeholder that let an Add save a one-entry file over an unread one. A missing file is not a failure; the parallel loader returns `{}` for it.
+
 `undo`/`redo` live in `src/components/dictionary/useDictionaryHistory.ts`: undo commits `invert(edit)`, redo the edit itself, through the same `EditCommitter`, which refuses one whose keys changed since. History is a ref (plus a version counter for `canUndo`/`canRedo`), so the cursor moves inside the commit turn.
 
 ## Error Handling

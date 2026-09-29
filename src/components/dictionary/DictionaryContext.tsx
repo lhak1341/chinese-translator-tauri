@@ -123,6 +123,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // re-render, so a queued commit plans against the previous commit's result.
   const dictionariesRef = useRef(dictionaries);
   dictionariesRef.current = dictionaries;
+  // Dictionaries whose file failed to load (CONTEXT.md "Unread dictionary", ADR-053). Each is
+  // left out of `dictionaries`, so every plan refuses it and nothing saves over the file.
+  const [unreadDictionaryIds, setUnreadDictionaryIds] = useState<string[]>([]);
+  const unreadRef = useRef(unreadDictionaryIds);
+  unreadRef.current = unreadDictionaryIds;
 
   // The one save protocol for every dictionary edit, CRUD and undo/redo alike (ADR-052).
   const [committer] = useState(() =>
@@ -135,6 +140,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       save: (dictionaryId, entries) => window.electronAPI.saveDictionary(dictionaryId, entries),
       invalidate: (dictionaryId) =>
         invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
+      isUnread: (dictionaryId) => unreadRef.current.includes(dictionaryId),
     })
   );
 
@@ -208,6 +214,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
 
         setDictionaries(loadedDictionaries);
+        setUnreadDictionaryIds(stillFailedIds);
       } catch (error) {
         const msg = `Failed to load dictionaries: ${extractErrorMessage(error)}`;
         logger.error('Failed to load initial state:', error);
@@ -228,14 +235,27 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   usePersistSelectedDictionary(selectedDictionary, isLoading);
 
   // Reload a single dictionary — same protocol as loadInitialState (parallel+retry via DictionaryBackend).
+  // A Reload trusts the disk: if the file now fails to load, the in-memory copy is dropped and
+  // the dictionary becomes unread, or the next edit would save that copy over the file.
   const loadDictionary = useCallback(async (dictionaryId: string): Promise<void> => {
     try {
-      const { loadedDictionaries, stillFailedIds, total } = await loadAllDictionaries([
-        dictionaryId,
-      ]);
-      const outcome = classifyLoadResult(stillFailedIds, total);
-      if (outcome.severity === 'critical') {
-        logger.error(`Failed to reload dictionary ${dictionaryId}`);
+      const { loadedDictionaries, stillFailedIds } = await loadAllDictionaries([dictionaryId]);
+      if (stillFailedIds.includes(dictionaryId)) {
+        logger.error(`Failed to reload dictionary ${dictionaryId}; it is unread until it loads`);
+        if (dictionaryId in dictionariesRef.current) {
+          const next = { ...dictionariesRef.current };
+          delete next[dictionaryId];
+          dictionariesRef.current = next;
+          setDictionaries((prev) => {
+            if (!(dictionaryId in prev)) return prev;
+            const without = { ...prev };
+            delete without[dictionaryId];
+            return without;
+          });
+        }
+        setUnreadDictionaryIds((prev) =>
+          prev.includes(dictionaryId) ? prev : [...prev, dictionaryId]
+        );
         return;
       }
       const data = loadedDictionaries[dictionaryId];
@@ -245,6 +265,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [dictionaryId]:
             Object.keys(data).length > 0 ? sortDictionaryEntries(data, dictionaryId) : data,
         }));
+        setUnreadDictionaryIds((prev) =>
+          prev.includes(dictionaryId) ? prev.filter((id) => id !== dictionaryId) : prev
+        );
       }
     } catch (error) {
       logger.error(`Error loading dictionary ${dictionaryId}:`, error);
@@ -276,6 +299,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const value = useMemo(
     (): DictionaryContextValue => ({
       dictionaries,
+      unreadDictionaryIds,
       isLoading,
       loadError,
       addEntry,
@@ -300,6 +324,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     }),
     [
       dictionaries,
+      unreadDictionaryIds,
       isLoading,
       loadError,
       addEntry,

@@ -120,9 +120,10 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 const Translator = ({ isActive = true }) => {
   const {
     dictionaries,
+    unreadDictionaryIds,
     isLoading,
     loadError,
-    loadDictionary: _loadDictionary,
+    loadDictionary,
     registerCacheInvalidator,
   } = useDictionary();
 
@@ -150,7 +151,7 @@ const Translator = ({ isActive = true }) => {
     openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
     openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
     dialog: quickAddDialog,
-  } = useDictionaryModals(dictionaries, loadQuickAddView);
+  } = useDictionaryModals(dictionaries, loadQuickAddView, undefined, unreadDictionaryIds);
 
   const [inputText, setInputText] = useState('');
   const {
@@ -860,7 +861,9 @@ const Translator = ({ isActive = true }) => {
     isDictionaryReloading,
     inputText,
     isLoading,
-    dictionaries
+    dictionaries,
+    unreadDictionaryIds,
+    loadDictionary
   );
 
   // Redo this tab's own translation when it is next shown, rather than during a reload

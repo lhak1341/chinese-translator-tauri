@@ -88,6 +88,9 @@ export interface SortingStats {
 export interface DictionaryContextInterface {
   /** All loaded dictionaries */
   dictionaries: { [key: string]: DictionaryData };
+  /** Dictionaries whose file failed to load; each is absent from `dictionaries`, and edits
+   * to it are refused until a Reload reads it (CONTEXT.md "Unread dictionary"). */
+  unreadDictionaryIds: string[];
   /** Whether initial loading is in progress */
   isLoading: boolean;
   /**

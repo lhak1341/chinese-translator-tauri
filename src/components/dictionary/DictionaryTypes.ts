@@ -58,6 +58,17 @@ const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
 };
 
 // Function to generate dictionary types including all proper nouns dictionaries
+/** A dropdown label that says when the dictionary's file failed to load (CONTEXT.md "Unread
+ * dictionary") — its table is empty and its edits are refused, which would otherwise read as
+ * a wiped dictionary. */
+export function dictionaryOptionLabel(
+  id: string,
+  label: string,
+  unreadDictionaryIds: readonly string[]
+): string {
+  return unreadDictionaryIds.includes(id) ? `${label} — couldn't read` : label;
+}
+
 export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTypeDefinition>> => {
   try {
     // Run both list calls in parallel

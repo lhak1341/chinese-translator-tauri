@@ -66,7 +66,8 @@ describe('loadAllDictionaries', () => {
     const result = await loadAllDictionaries(['a']);
 
     expect(result.stillFailedIds).toEqual(['a']);
-    expect(result.loadedDictionaries.a).toEqual({});
+    // Absent, not `{}`: an empty placeholder would be saved over the unread file.
+    expect(result.loadedDictionaries).not.toHaveProperty('a');
   });
 
   it('classifies a retry that throws as still-failed', async () => {
@@ -83,7 +84,8 @@ describe('loadAllDictionaries', () => {
     const result = await loadAllDictionaries(['a']);
 
     expect(result.stillFailedIds).toEqual(['a']);
-    expect(result.loadedDictionaries.a).toEqual({});
+    // Absent, not `{}`: an empty placeholder would be saved over the unread file.
+    expect(result.loadedDictionaries).not.toHaveProperty('a');
   });
 
   it('retries multiple failed dictionaries independently, mixed retry outcomes', async () => {
@@ -107,7 +109,7 @@ describe('loadAllDictionaries', () => {
 
     expect(result.stillFailedIds).toEqual(['c']);
     expect(result.loadedDictionaries.b).toEqual({ id: 'b' });
-    expect(result.loadedDictionaries.c).toEqual({});
+    expect(result.loadedDictionaries).not.toHaveProperty('c');
   });
 
   it('handles an empty dictionary list without attempting any retry', async () => {

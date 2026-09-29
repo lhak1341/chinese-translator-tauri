@@ -44,6 +44,9 @@ export interface DictionaryEdit {
 /** A request that cannot be planned against the current dictionaries. */
 export interface InvalidPlan {
   invalid: string;
+  /** Set when the plan failed because this dictionary is not in memory — which is also how
+   * an unread dictionary looks, so the committer can say which it was. */
+  missingDictionaryId?: string;
 }
 
 export type PlanResult = DictionaryEdit | InvalidPlan;
@@ -53,7 +56,10 @@ export function isInvalidPlan(result: PlanResult): result is InvalidPlan {
 }
 
 function missingDictionary(dictionaryId: string): InvalidPlan {
-  return { invalid: `Dictionary '${dictionaryId}' does not exist` };
+  return {
+    invalid: `Dictionary '${dictionaryId}' does not exist`,
+    missingDictionaryId: dictionaryId,
+  };
 }
 
 /** Writes `value` at `key`, over whatever is there. */
@@ -114,8 +120,12 @@ export function planMove(
 ): PlanResult {
   const from = dicts[fromId];
   const to = dicts[toId];
-  if (!from) return { invalid: `Source dictionary '${fromId}' does not exist` };
-  if (!to) return { invalid: `Target dictionary '${toId}' does not exist` };
+  if (!from) {
+    return { invalid: `Source dictionary '${fromId}' does not exist`, missingDictionaryId: fromId };
+  }
+  if (!to) {
+    return { invalid: `Target dictionary '${toId}' does not exist`, missingDictionaryId: toId };
+  }
   if (!canMoveBetween(fromId, toId)) {
     return {
       invalid: `Cannot move entries from '${fromId}' to '${toId}' — incompatible dictionary types`,

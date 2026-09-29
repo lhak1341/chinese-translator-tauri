@@ -22,6 +22,7 @@ vi.mock('../DictionaryContext', () => ({
     updateEntry: vi.fn(),
     addEntry: vi.fn(),
     dictionaries: {},
+    unreadDictionaryIds: [],
   }),
 }));
 

@@ -27,6 +27,7 @@ vi.mock('../../../utils/appConfig', () => ({
 
 const {
   dictionariesRef,
+  unreadRef,
   selectedDictionaryRef,
   setSelectedDictionary,
   deleteEntry,
@@ -48,6 +49,7 @@ const {
       },
     } as Record<string, Record<string, { translation: string }>>,
   },
+  unreadRef: { current: [] as string[] },
   selectedDictionaryRef: { current: 'properNouns-Test' },
   setSelectedDictionary: vi.fn((id: string) => {
     selectedDictionaryRef.current = id;
@@ -64,6 +66,7 @@ const {
 vi.mock('../DictionaryContext', () => ({
   useDictionary: () => ({
     dictionaries: dictionariesRef.current,
+    unreadDictionaryIds: unreadRef.current,
     isLoading: false,
     selectedDictionary: selectedDictionaryRef.current,
     setSelectedDictionary,
@@ -139,6 +142,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   bulkDeleteEntries.mockResolvedValue({ successCount: 0, errors: [] });
   selectedDictionaryRef.current = 'properNouns-Test';
+  unreadRef.current = [];
   dictionariesRef.current = {
     'properNouns-Test': {
       你好: { translation: 'Xin chào' },
@@ -163,6 +167,18 @@ beforeEach(() => {
 });
 
 describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition', () => {
+  test('an unread dictionary is labelled in the selector and says why its table is empty', async () => {
+    unreadRef.current = ['properNouns-Test'];
+    delete dictionariesRef.current['properNouns-Test'];
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+
+    expect(await screen.findByRole('option', { name: "Test — couldn't read" })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't read properNouns-Test.json");
+
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /Reload/ }));
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-Test');
+  });
+
   test('selecting a row lifts SelectionState to DictionaryManager, which renders bulk buttons', async () => {
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');

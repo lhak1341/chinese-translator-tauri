@@ -12,8 +12,9 @@ import {
   ArrowRightLeft,
   Search,
   X,
+  RotateCw,
 } from 'lucide-react';
-import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
+import { DICTIONARY_TYPES, dictionaryOptionLabel, getDictionaryTypes } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
 import DictionaryEntry from './DictionaryEntry';
@@ -87,6 +88,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     clearHistory,
     isLoading,
     dictionaries: _dictionaries,
+    unreadDictionaryIds,
     loadDictionary,
     selectedDictionary,
     setSelectedDictionary,
@@ -355,7 +357,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         >
           {sortedDictionaryEntries.map(([id, { label }]) => (
             <option key={id} value={id}>
-              {label}
+              {dictionaryOptionLabel(id, label, unreadDictionaryIds)}
             </option>
           ))}
         </select>
@@ -516,6 +518,25 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         <div className={styles.error} role="alert">
           <AlertCircle size={15} />
           {error}
+        </div>
+      )}
+
+      {!showDuplicatesMode && unreadDictionaryIds.includes(selectedDictionary) && (
+        <div className={styles.error} role="alert">
+          <AlertCircle size={15} />
+          <span>
+            Couldn&apos;t read {selectedDictionary}.json, so it shows no entries and edits to it are
+            refused rather than saved over the file. Fix the file, then Reload.
+          </span>
+          <button
+            type="button"
+            className={`secondary ${styles.button}`}
+            onClick={() => void loadDictionary(selectedDictionary)}
+            tabIndex={0}
+          >
+            <RotateCw size={15} />
+            Reload
+          </button>
         </div>
       )}
 

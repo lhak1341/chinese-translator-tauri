@@ -30,7 +30,9 @@ export interface QuickAddView {
 
 export type QuickAddTarget =
   | { kind: 'open'; dictionaryId: string }
-  | { kind: 'none'; reason: 'pairMissing'; patternsId: string };
+  /** `pairMissing`: the patterns file is gone. `unread`: it is there but failed to load
+   * (CONTEXT.md "Unread dictionary") — the fix is to repair the file and Reload. */
+  | { kind: 'none'; reason: 'pairMissing' | 'unread'; patternsId: string };
 
 /** Fallback order when the default is unusable. Root is never picked here — it is the last
  * resort after this list comes up empty. Cmd-6 ranks only the paired tiers (custom has no
@@ -53,7 +55,8 @@ function firstByTier(activeProperNouns: readonly string[]): string | undefined {
 export function quickAddTarget(
   kind: QuickAddKind,
   view: QuickAddView | null,
-  dictionaries: { [key: string]: unknown }
+  dictionaries: { [key: string]: unknown },
+  unreadDictionaryIds: readonly string[] = []
 ): QuickAddTarget {
   const def = view?.defaultQuickAddDictionary;
   const defActive = def && view.activeProperNouns.includes(def) ? def : undefined;
@@ -75,10 +78,12 @@ export function quickAddTarget(
   if (!owner || owner === 'properNouns') return { kind: 'open', dictionaryId: 'patterns' };
   // The pair is created atomically (ADR-027), so a missing patterns file means someone
   // deleted half a pair by hand — a repair to report, not something to route around.
+  // An unread one is absent from `dictionaries` too, but the file is there — say so, or the
+  // user goes looking for a deleted file.
   const patternsId = toPatternsId(owner);
-  return dictionaries[patternsId] !== undefined
-    ? { kind: 'open', dictionaryId: patternsId }
-    : { kind: 'none', reason: 'pairMissing', patternsId };
+  if (dictionaries[patternsId] !== undefined) return { kind: 'open', dictionaryId: patternsId };
+  const reason = unreadDictionaryIds.includes(patternsId) ? 'unread' : 'pairMissing';
+  return { kind: 'none', reason, patternsId };
 }
 
 /**
@@ -135,6 +140,9 @@ export function quickAddShortlist(
 
 /** What to tell the user when Cmd-6 has nowhere to go. */
 export function quickAddMissMessage(miss: Extract<QuickAddTarget, { kind: 'none' }>): string {
+  if (miss.reason === 'unread') {
+    return `Couldn't read the structural pattern dictionary ${miss.patternsId}. Fix the file, then Reload.`;
+  }
   return `The structural pattern dictionary ${miss.patternsId} is missing`;
 }
 

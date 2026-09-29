@@ -133,6 +133,18 @@ The app keeps four JSON files beside the dictionaries — `books.json`, `config.
 
 Pinned across all four by `UnreadFileNeverSavedOver.test.ts`; the Rust half by the `test_blob_*` quarantine tests in `dictionary_commands.rs`.
 
+## Unread dictionary
+
+A dictionary whose file exists but failed to load: invalid JSON, over 10 MB or 50,000 entries, nested too deep, or a read error that survived the serial retry. It is **left out of the provider's `dictionaries`** and listed in `unreadDictionaryIds` (`DictionaryContext.tsx`), and nothing saves over its file until a Reload reads it cleanly (decided 2026-09-29, architecture review candidate #1 grilling; ADR-053). Until then the load protocol put `{}` in its place, the planners accepted it as an empty dictionary, and the next Add saved a one-entry file over everything it held.
+
+- **Not quarantined**, unlike the app files: the file stays where it is. You fix it by hand and press Reload (the Dictionary tab's notice, or force reload, which retries every unread id).
+- **Every edit refuses it for free**: the plans already reject a dictionary that is not in memory, and `EditCommitter` names the reason ("Couldn't read X.json; not saving over it"). Undo and redo refuse too, since the dictionary counts as changed.
+- **A failed Reload of a loaded dictionary makes it unread.** Reload means "trust the disk", so the in-memory copy is dropped instead of saved over the file.
+- **A missing file is not unread.** Nothing seeds the dictionary directory, so `patterns`, `phrases` and the other hard-coded ids have no file on a fresh install or after a reset. The parallel loader returns `{}` for them, and the first Add creates the file.
+- **Translation runs without it.** The engine skips an absent id. The selector and the Add form label it "— couldn't read", and Cmd-6 says `unread`, not `pairMissing`.
+
+Pinned by `DictionaryContext.unread.test.tsx` (the whole chain over a fake IPC) and `test_load_parallel_loads_a_missing_file_as_empty` in `dictionary_commands.rs`.
+
 ## AppConfig
 
 The single module owning the app configuration lifecycle: load from disk, validate, cache, and save via read-modify-write. Entry point: `src/utils/appConfig.ts`. Exposes three typed sub-objects:

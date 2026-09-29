@@ -2,6 +2,7 @@ import { isPatternsDict, entryCapabilities } from '../../utils/dictionary';
 import React, { useRef } from 'react';
 import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
+import { dictionaryOptionLabel } from './DictionaryTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
 import type { EditingEntryData } from '../../types/DictionaryTypes';
 import { SemanticTypePicker } from './SemanticTypePicker';
@@ -39,7 +40,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   quickAddView,
   shortlist,
 }) => {
-  const { updateEntry, addEntry, dictionaries } = useDictionary();
+  const { updateEntry, addEntry, dictionaries, unreadDictionaryIds } = useDictionary();
   const form = useDictionaryEntryForm(entry, selectedDictionary, {
     updateEntry,
     addEntry,
@@ -145,7 +146,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 >
                   {form.availableDictionaries.map(([id, { label }]) => (
                     <option key={id} value={id}>
-                      {label}
+                      {dictionaryOptionLabel(id, label, unreadDictionaryIds)}
                     </option>
                   ))}
                 </select>

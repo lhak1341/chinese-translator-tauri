@@ -24,6 +24,7 @@ import type {
   PlanResult,
 } from '../../utils/dictionary/DictionaryEdit';
 import { logger } from '../../utils/logger';
+import { unreadFileError } from '../../utils/unreadableFile';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 
 export type CommitResult =
@@ -40,6 +41,9 @@ export interface EditCommitterDeps {
   write: (updates: Dictionaries) => void;
   save: (dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean }>;
   invalidate: (dictionaryId: string) => Promise<void>;
+  /** True for a dictionary whose file failed to load (CONTEXT.md "Unread dictionary"). It is
+   * absent from `read()`, so plans already refuse it; this only names the reason. */
+  isUnread?: (dictionaryId: string) => boolean;
 }
 
 export interface EditCommitter {
@@ -88,7 +92,14 @@ export function createEditCommitter(deps: EditCommitterDeps): EditCommitter {
   ): Promise<CommitResult> {
     const dicts = deps.read();
     const planned = plan(dicts);
-    if (isInvalidPlan(planned)) return { status: 'invalid', reason: planned.invalid };
+    if (isInvalidPlan(planned)) {
+      const id = planned.missingDictionaryId;
+      const reason =
+        id !== undefined && deps.isUnread?.(id)
+          ? unreadFileError(`${id}.json`).message
+          : planned.invalid;
+      return { status: 'invalid', reason };
+    }
 
     const changed = changedKeys(planned, dicts);
     if (changed.length > 0) return { status: 'refused', changedKeys: changed };

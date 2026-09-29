@@ -116,6 +116,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-050](./ADR-050-one-bookreader-instance-per-book.md)                         | One BookReader instance per book                           | Decided                           | `ReaderTab` keys `BookReader` by fingerprint; the engine queue lives in `ReaderTab`; hooks under it assume one book.  |
 | [ADR-051](./ADR-051-reader-quick-add-is-the-shared-add-form.md)                  | The Reader's quick-add is the shared Add form              | Decided                           | An Add key over a selection opens the shared `DictionaryEntry` form; no Reader-only floating bar.                     |
 | [ADR-052](./ADR-052-dictionary-edit-commits-one-queue-typescript-write-back.md)  | Dictionary Edit commits: one queue, TypeScript write-back  | Decided                           | Multi-dictionary edits roll back in TypeScript, not a Rust batch save; all commits run through one global queue.      |
+| [ADR-053](./ADR-053-unread-dictionaries-are-refused-not-quarantined.md)          | Unread dictionaries are refused, not quarantined           | Decided                           | A dictionary that failed to load is left out of memory and its edits refused; unlike app files, it is not set aside.  |
 
 ## ADR Format
 
@@ -164,5 +165,5 @@ Write an ADR when making decisions about:
 - **2026-05-03**: ADR-006 (PatternProcessor interface — return results, single apply site)
 - **2026-09-26**: Index filled in for ADR-005 and ADR-007 through ADR-045; ADR-046; ADR-047; ADR-048; ADR-049
 - **2026-09-27**: ADR-050; ADR-051
-- **2026-09-29**: ADR-052
+- **2026-09-29**: ADR-052; ADR-053
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

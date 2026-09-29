@@ -66,9 +66,14 @@ export function useReaderCommands({
   // Translator uses, over the same quick-add view — the binding provider's, which with a book
   // open is config as its binding implies it (`quickAddViewForBinding` says why). Every Add
   // loads it, Cmd-1..4 included, because their dropdown offers the view's dictionaries too.
-  const { dictionaries } = useDictionary();
+  const { dictionaries, unreadDictionaryIds } = useDictionary();
   const { loadQuickAddView } = useBookBinding();
-  const modals = useDictionaryModals(dictionaries, loadQuickAddView);
+  const modals = useDictionaryModals(
+    dictionaries,
+    loadQuickAddView,
+    undefined,
+    unreadDictionaryIds
+  );
   const {
     openQuickAddCharacter,
     openQuickAddPhrase,

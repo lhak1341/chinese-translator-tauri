@@ -126,6 +126,17 @@ describe('quickAddTarget — Cmd-6 (structural pattern), mirroring Cmd-5', () =>
       quickAddTarget('structuralPattern', view(['properNouns-_Theme']), { patterns: {} })
     ).toEqual({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-_Theme' });
   });
+
+  test('a pair whose patterns file failed to load is an unread miss, not pairMissing', () => {
+    expect(
+      quickAddTarget(
+        'structuralPattern',
+        view(['properNouns-f_Novel'], 'properNouns-f_Novel'),
+        {},
+        ['patterns-f_Novel']
+      )
+    ).toEqual({ kind: 'none', reason: 'unread', patternsId: 'patterns-f_Novel' });
+  });
 });
 
 describe('quickAddMissMessage', () => {
@@ -133,6 +144,12 @@ describe('quickAddMissMessage', () => {
     expect(
       quickAddMissMessage({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-_X' })
     ).toBe('The structural pattern dictionary patterns-_X is missing');
+  });
+
+  test('tells an unread patterns dictionary apart from a missing one', () => {
+    expect(quickAddMissMessage({ kind: 'none', reason: 'unread', patternsId: 'patterns-_X' })).toBe(
+      "Couldn't read the structural pattern dictionary patterns-_X. Fix the file, then Reload."
+    );
   });
 });
 

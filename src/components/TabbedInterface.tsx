@@ -55,7 +55,7 @@ const TabbedInterface: React.FC = () => {
   const { visibleTab: activeTab, setVisibleTab: setActiveTab } = useVisibleTab();
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
   const rulesManagerRef = useRef<RulesManagerHandle>(null);
-  const { setSelectedDictionary, dictionaries } = useDictionary();
+  const { setSelectedDictionary, dictionaries, unreadDictionaryIds } = useDictionary();
   const { loadQuickAddView } = useBookBinding();
 
   const handleTabChange = (tab: TabId): void => {
@@ -87,7 +87,12 @@ const TabbedInterface: React.FC = () => {
       }
       if (key === '5' || key === '6') {
         const kind = key === '5' ? 'properNoun' : 'structuralPattern';
-        const target = quickAddTarget(kind, await loadQuickAddView(), dictionaries);
+        const target = quickAddTarget(
+          kind,
+          await loadQuickAddView(),
+          dictionaries,
+          unreadDictionaryIds
+        );
         if (target.kind === 'open') {
           setSelectedDictionary(target.dictionaryId);
         } else {
@@ -96,7 +101,7 @@ const TabbedInterface: React.FC = () => {
         }
       }
     },
-    [setSelectedDictionary, dictionaries, loadQuickAddView]
+    [setSelectedDictionary, dictionaries, unreadDictionaryIds, loadQuickAddView]
   );
 
   useHotkeyHandler({

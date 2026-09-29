@@ -63,6 +63,9 @@ function accumulateLoadResults(items) {
   return { freshDictionaries, successCount };
 }
 
+/** @type {string[]} */
+const NO_UNREAD = [];
+
 /**
  * @typedef {import('./useReloadExecutionContexts.js').ForceReloadContext} ForceReloadContext
  *
@@ -86,9 +89,21 @@ function accumulateLoadResults(items) {
  * @param {string} inputText
  * @param {boolean} isLoading
  * @param {Record<string, any>} dictionaries
+ * @param {string[]} [unreadDictionaryIds] - Dictionaries whose file failed to load; absent from
+ *   `dictionaries`, so without this a reload would never retry them (CONTEXT.md "Unread dictionary").
+ * @param {(dictionaryId: string) => Promise<void>} [reloadDictionary] - The provider's
+ *   `loadDictionary`: a clean read there is what makes an unread dictionary writable again.
  * @returns {(options?: {retranslateInput?: boolean}) => Promise<void>}
  */
-export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading, dictionaries) {
+export function useForceReload(
+  ctx,
+  isDictionaryReloading,
+  inputText,
+  isLoading,
+  dictionaries,
+  unreadDictionaryIds = NO_UNREAD,
+  reloadDictionary = undefined
+) {
   const handleForceReload = useCallback(
     async (options = {}) => {
       // Step 8 re-translates the Translator's own input. That is right when the reload was
@@ -133,7 +148,11 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
 
         // Steps 3-4: Force reload all dictionaries from storage (direct IPC — not on protocol)
         logger.log('Step 4: Force reloading all dictionaries from storage...');
-        const allDictionaryIds = Object.keys(dictionaries || {});
+        // Unread dictionaries are retried too — both here, for the engine, and through the
+        // provider, which is what lifts the refusal to save once the file reads cleanly.
+        const unreadIds = unreadDictionaryIds.filter((id) => !(id in (dictionaries || {})));
+        if (reloadDictionary) await Promise.all(unreadIds.map((id) => reloadDictionary(id)));
+        const allDictionaryIds = [...Object.keys(dictionaries || {}), ...unreadIds];
         ctx.setStatus(
           `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
         );
@@ -277,7 +296,14 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
         }, 100);
       }
     },
-    [isDictionaryReloading, inputText, isLoading, dictionaries]
+    [
+      isDictionaryReloading,
+      inputText,
+      isLoading,
+      dictionaries,
+      unreadDictionaryIds,
+      reloadDictionary,
+    ]
   ); // ctx excluded — all stable
 
   return handleForceReload;

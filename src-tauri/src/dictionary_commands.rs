@@ -1856,6 +1856,17 @@ fn load_dictionaries_parallel_impl(
                 return BatchDictionaryResult::ok(dictionary_id, cached_data);
             }
 
+            // A dictionary whose file does not exist yet is empty, not unread: nothing seeds the
+            // dictionary directory, so a fresh install or a reset has no `phrases.json` until the
+            // first Add creates it. Only a file that exists and cannot be read is a failure — the
+            // TS side refuses to save over those (CONTEXT.md "Unread dictionary", ADR-053). Not
+            // cached, so the first save's file is what the next load reads.
+            if let Err(e) = fs::metadata(&file_path) {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return BatchDictionaryResult::ok(dictionary_id, serde_json::json!({}));
+                }
+            }
+
             // SECURITY: Validate file size before reading (matches serial load path)
             if let Err(e) = validate_file_size(&file_path, MAX_JSON_SIZE_BYTES) {
                 return BatchDictionaryResult::err(dictionary_id, e);
@@ -3428,19 +3439,18 @@ mod tests {
     }
 
     #[test]
-    fn test_load_parallel_reports_missing_file() {
-        // Note: validate_file_size's own fs::metadata() NotFound check fires before the
-        // fs::read_to_string call, so the literal "File not found" string at the
-        // ErrorKind::NotFound match arm below is actually a TOCTOU-only path (file deleted
-        // between the size check and the read) — this test hits validate_file_size's
-        // sanitize_io_error("file") message instead, which is what a real caller observes.
+    fn test_load_parallel_loads_a_missing_file_as_empty() {
+        // A missing file is an empty dictionary the first Add will create, not an unread one:
+        // an unread dictionary refuses every save, which would make a fresh install's
+        // hard-coded dictionaries (`phrases`, `patterns`, ...) impossible to add to.
         let dir = temp_test_dir("load_parallel_missing");
         let cache = make_cache();
 
         let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
 
-        assert_eq!(response.failed, 1);
-        assert_eq!(response.results[0].error.as_deref(), Some("file not found"));
+        assert_eq!(response.failed, 0);
+        assert!(response.results[0].success);
+        assert_eq!(response.results[0].data, Some(serde_json::json!({})));
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -3507,12 +3517,13 @@ mod tests {
     fn test_load_parallel_totals_reflect_mixed_success_and_failure() {
         let dir = temp_test_dir("load_parallel_mixed");
         fs::write(dir.join("phrases.json"), r#"{"a":"b"}"#).unwrap();
+        fs::write(dir.join("broken.json"), "{ not json").unwrap();
         let cache = make_cache();
 
         let response = load_dictionaries_parallel_impl(
             &dir,
             &cache,
-            &["phrases".to_string(), "missing".to_string()],
+            &["phrases".to_string(), "broken".to_string()],
         );
 
         assert_eq!(response.total, 2);

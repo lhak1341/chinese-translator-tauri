@@ -510,3 +510,28 @@ describe('useForceReload — retranslateInput: false', () => {
     expect(ctx.retranslate).not.toHaveBeenCalled();
   });
 });
+
+// ── Unread dictionaries ───────────────────────────────────────────────────────
+
+describe('unread dictionaries (CONTEXT.md "Unread dictionary")', () => {
+  test('a reload retries each unread dictionary, for the engine and for the provider', async () => {
+    const ctx = makeCtx();
+    const reloadDictionary = vi.fn().mockResolvedValue(undefined);
+
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, '', false, { properNouns: {} }, ['phrases'], reloadDictionary)
+    );
+    const done = act(async () => {
+      result.current();
+    });
+    await act(async () => {
+      vi.runAllTimersAsync();
+    });
+    await done;
+
+    const [toLoad] = vi.mocked(parallelDictionaryLoader.loadDictionariesParallel).mock.calls[0];
+    expect(toLoad.map((d) => d.name)).toEqual(['properNouns', 'phrases']);
+    expect(reloadDictionary).toHaveBeenCalledWith('phrases');
+  });
+});

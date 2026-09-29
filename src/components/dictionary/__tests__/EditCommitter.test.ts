@@ -48,6 +48,27 @@ beforeEach(() => {
 });
 
 describe('EditCommitter', () => {
+  test('an edit to an unread dictionary is refused as unread, and nothing is saved', async () => {
+    const committer = createEditCommitter({ ...deps(), isUnread: (id) => id === 'phrases' });
+    const result = await committer.commit((d) => planAdd(d, 'phrases', '再见', entry('tạm biệt')));
+
+    expect(result).toEqual({
+      status: 'invalid',
+      reason: "Couldn't read phrases.json; not saving over it",
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('a move whose target is unread names the unread target', async () => {
+    const committer = createEditCommitter({ ...deps(), isUnread: (id) => id === 'properNouns-C' });
+    const result = await committer.commit((d) => planMove(d, A, 'properNouns-C', ['李四']));
+
+    expect(result).toEqual({
+      status: 'invalid',
+      reason: "Couldn't read properNouns-C.json; not saving over it",
+    });
+  });
+
   test('commits to memory and disk, then invalidates each touched dictionary', async () => {
     const committer = createEditCommitter(deps());
     const result = await committer.commit((d) => planMove(d, A, B, ['李四']));

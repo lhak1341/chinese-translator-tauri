@@ -49,6 +49,8 @@ export interface DictionaryModals {
 /** The session's last shortlist pick per kind, shared by every surface. */
 const sharedShortlistMemory = new Map<QuickAddKind, string>();
 
+const NO_UNREAD: readonly string[] = [];
+
 /**
  * The quick-add dialog: its openers, and the dialog itself. See CONTEXT.md "Quick-add dialog".
  *
@@ -73,7 +75,8 @@ const sharedShortlistMemory = new Map<QuickAddKind, string>();
 export function useDictionaryModals(
   dictionaries: { [key: string]: unknown },
   loadView: () => Promise<QuickAddView | null>,
-  shortlistMemory: Map<QuickAddKind, string> = sharedShortlistMemory
+  shortlistMemory: Map<QuickAddKind, string> = sharedShortlistMemory,
+  unreadDictionaryIds: readonly string[] = NO_UNREAD
 ): DictionaryModals {
   const [modalState, setModalState] = useState<QuickAddModalState>(CLOSED);
   // The open modal's shortlist, read by the change handler to decide what to remember.
@@ -152,7 +155,7 @@ export function useDictionaryModals(
   const openQuickAddTarget = useCallback(
     async (kind: QuickAddKind, source = ''): Promise<void> => {
       const view = await loadView();
-      const target = quickAddTarget(kind, view, dictionaries);
+      const target = quickAddTarget(kind, view, dictionaries, unreadDictionaryIds);
       if (target.kind === 'none') {
         toast.error(quickAddMissMessage(target));
         return;
@@ -167,7 +170,7 @@ export function useDictionaryModals(
         openId: ++openCountRef.current,
       });
     },
-    [dictionaries, loadView]
+    [dictionaries, loadView, unreadDictionaryIds]
   );
 
   const openQuickAddCustomProperNoun = useCallback<OpenQuickAdd>(

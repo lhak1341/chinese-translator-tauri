@@ -97,12 +97,15 @@ describe('DictionaryEdit — plans', () => {
   test('invalid requests', () => {
     expect(planAdd(dicts(), 'properNouns-X', 'k', entry('v'))).toEqual({
       invalid: "Dictionary 'properNouns-X' does not exist",
+      missingDictionaryId: 'properNouns-X',
     });
     expect(planMove(dicts(), 'properNouns-X', B, ['k'])).toEqual({
       invalid: "Source dictionary 'properNouns-X' does not exist",
+      missingDictionaryId: 'properNouns-X',
     });
     expect(planMove(dicts(), A, 'properNouns-X', ['k'])).toEqual({
       invalid: "Target dictionary 'properNouns-X' does not exist",
+      missingDictionaryId: 'properNouns-X',
     });
     expect(isInvalidPlan(planMove(dicts(), A, 'characters', ['张三']))).toBe(true);
     expect(isInvalidPlan(planMove(dicts(), A, A, ['张三']))).toBe(true);
