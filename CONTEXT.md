@@ -293,7 +293,7 @@ Per-entry `metadata` intentionally omits the derived `priority`/`frequency`/`dic
 
 Interface: `flattenDictionaryEntries(dictionaryData): FlatDictionaryEntry[]`. Pure function of the raw JSON object — no trie, no DictionaryManager instance required.
 
-Entry point: `src/utils/dictionary/DictionaryEntryFlattener.ts`. Called from `DictionaryManager`'s two dictionary-registration sites (main load loop, `lazyLoadDictionary`) alongside `this.dictionaries.set(...)`.
+Entry point: `src/utils/dictionary/DictionaryEntryFlattener.ts`. Called from `DictionaryManager`'s one dictionary-registration site, the main load loop, alongside `this.dictionaries.set(...)` (a second, `lazyLoadDictionary`, was deleted 2026-09-30).
 
 ## VocabularyWarmup
 
@@ -484,7 +484,7 @@ Two exports: `resolveDictionaryPriority(dictionaryName, priorities)` — fiction
 
 Extracted 2026-07-17d from `loadDictionaries`' 204-line body: the priority-assignment rule was previously duplicated verbatim twice per dictionary (once inside the per-entry trie-insert loop as `priority`, again after the loop as `metadataPriority` for the dictionary-level metadata Map entry) despite depending only on `dictionaryName` — the first copy was being wastefully recomputed on every single entry. `resolveDictionaryPriority` is now called once per dictionary and the same value feeds both the trie-node metadata and the dictionary metadata.
 
-**Unified with `lazyLoadDictionary` 2026-09-09** (architecture review candidate #3 grilling): `lazyLoadDictionary` previously hand-rolled its own discrimination loop with no metadata output at all — a third, weaker copy of the same `string` vs `{translation}` classification `flattenDictionaryEntries`/`buildTrieFromDictionary` already had to agree on, missing the truthiness guard on `value` (a literal `null` entry passed its `typeof value === 'object'` check and threw on `value.translation`, while `flattenDictionaryEntries` correctly skipped it). `lazyLoadDictionary` now calls `buildTrieFromDictionary` directly, same as `loadDictionaries`' cache-miss fallback branch — one discrimination, and lazily-loaded tries now carry real `priority`/`allowAsPatternVariable`/`semanticType` metadata they previously lacked. This is a real behavior change, not just a crash fix: a phrase/proper-noun entry in a dictionary that gets lazy-loaded (inactive at startup, activated later without a full reload) now correctly participates in `PatternVariableCache`'s pattern-matching, where it was silently excluded before.
+**`lazyLoadDictionary` is gone** (deleted 2026-09-30, architecture review candidate #2): it once hand-rolled a third, weaker copy of this classification (unified onto `buildTrieFromDictionary` 2026-09-09), but it never had a production caller. The engine's only caller filtered inactive proper nouns out before the manager saw them, so nothing was ever pending. Which dictionaries the engine loads is now decided once, by `filterDictionariesForEngine` inside `TranslationEngine.initialize`.
 
 Entry point: `src/utils/dictionary/DictionaryTrieBuilder.ts`. Not barrel-exported — sole caller is `DictionaryManager.js` in the same directory (matches `MatchComparator.ts`/`PhraseConsumptionMarker.ts` convention).
 
