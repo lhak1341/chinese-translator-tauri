@@ -12,8 +12,14 @@ import { refreshBookRecord } from './BookRecord';
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
  * reads it off the live record cache (`useBookRecords`), so it cannot go stale. */
 export interface ShelfBook extends LibraryBook {
-  /** `''` when reconciliation failed and identity is unknown. */
-  fingerprint: string;
+  /** `null` when reconciliation failed, so which record this file is is unknown — the shelf
+   * then shows no progress for it rather than "Not started". */
+  fingerprint: string | null;
+}
+
+/** The shelf's order: locale-aware A-Z by title — see `planReconciliation`. */
+export function byShelfTitle(a: LibraryBook, b: LibraryBook): number {
+  return a.title.localeCompare(b.title);
 }
 
 /** A previously-known book whose file this scan could not find, anywhere under the
@@ -145,7 +151,7 @@ export function planReconciliation(
     // which puts every capital letter before every lowercase one and doesn't fold diacritics.
     // This sort is authoritative; the Rust one is redundant but harmless left as a stable
     // starting order.
-    shelfBooks.sort((a, b) => a.title.localeCompare(b.title));
+    shelfBooks.sort(byShelfTitle);
 
     const unavailableBooks: UnavailableBook[] = [];
     for (const record of Object.values(next)) {

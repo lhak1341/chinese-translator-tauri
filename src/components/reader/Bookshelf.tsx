@@ -24,6 +24,8 @@ interface BookshelfProps {
   isUsingDefaultPath: boolean;
   isLoading: boolean;
   error: string | null;
+  /** The book records could not be read for this scan, so no book's progress is known. */
+  recordsUnavailable: boolean;
   /** File name of the book currently loaded, if any. */
   openFileName: string | null;
   onOpen: (book: LibraryBook) => void;
@@ -67,6 +69,11 @@ function splitBookTitle(title: string): { vietnamese: string; chinese: string } 
 /** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
  * hasn't been opened, just seen on a scan). Read off the live record, never a copy taken
  * at scan time, so Back from reading shows where the reader got to. */
+/** A shelf book whose identity is unknown (the scan could not be reconciled against the
+ * records): its progress, binding and chapters are shown as unknown, not as "Not started". */
+const UNKNOWN = Symbol('unknown');
+const UNKNOWN_LABEL = '—';
+
 function formatProgress(record: BookRecord | undefined): string {
   if (!record?.position) return 'Not started';
   if (record.lineCount > 0) {
@@ -105,6 +112,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   isUsingDefaultPath,
   isLoading,
   error,
+  recordsUnavailable,
   openFileName,
   onOpen,
   onChooseFolder,
@@ -114,6 +122,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const [search, setSearch] = useState('');
   const [layout, setLayout] = useState<ShelfLayout>(loadShelfLayout);
   const records = useBookRecords();
+  /** A shelf book's record, or `UNKNOWN` when the scan couldn't tell which record it is. */
+  const recordOf = (book: ShelfBook): BookRecord | undefined | typeof UNKNOWN =>
+    book.fingerprint === null ? UNKNOWN : records[book.fingerprint];
 
   const toggleLayout = () => {
     const next: ShelfLayout = layout === 'list' ? 'card' : 'list';
@@ -177,6 +188,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         </div>
       )}
 
+      {recordsUnavailable && !isLoading && (
+        <div className={styles.error}>
+          <AlertCircle size={15} />
+          Reading progress couldn't be loaded — Rescan to retry.
+        </div>
+      )}
+
       {!isLoading && books.length > 0 && (
         <SearchFilterHeader
           searchValue={search}
@@ -209,7 +227,8 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
             const split = splitBookTitle(book.title);
-            const chapterCount = formatChapterCount(records[book.fingerprint]);
+            const record = recordOf(book);
+            const chapterCount = record === UNKNOWN ? null : formatChapterCount(record);
             return (
               <button
                 key={book.fileName}
@@ -239,12 +258,12 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                 )}
                 <div className={styles.bookCardFooter}>
                   <span className={styles.bookMeta}>
-                    {formatBinding(records[book.fingerprint])}
+                    {record === UNKNOWN ? UNKNOWN_LABEL : formatBinding(record)}
                   </span>
                   {/* A flex column, not a grid: an empty span here would only add a gap. */}
                   {chapterCount && <span className={styles.bookMeta}>{chapterCount}</span>}
                   <span className={styles.bookProgress}>
-                    {formatProgress(records[book.fingerprint])}
+                    {record === UNKNOWN ? UNKNOWN_LABEL : formatProgress(record)}
                   </span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                 </div>
@@ -257,6 +276,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
             const split = splitBookTitle(book.title);
+            const record = recordOf(book);
             return (
               <li key={book.fileName}>
                 <button
@@ -276,13 +296,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                     <span className={styles.bookTitle}>{book.title}</span>
                   )}
                   <span className={styles.bookMeta}>
-                    {formatBinding(records[book.fingerprint])}
+                    {record === UNKNOWN ? UNKNOWN_LABEL : formatBinding(record)}
                   </span>
                   <span className={styles.bookMeta}>
-                    {formatChapterCount(records[book.fingerprint])}
+                    {record === UNKNOWN ? UNKNOWN_LABEL : formatChapterCount(record)}
                   </span>
                   <span className={styles.bookProgress}>
-                    {formatProgress(records[book.fingerprint])}
+                    {record === UNKNOWN ? UNKNOWN_LABEL : formatProgress(record)}
                   </span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                   {isOpen && <span className={styles.openBadge}>open</span>}

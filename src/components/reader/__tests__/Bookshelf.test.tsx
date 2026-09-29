@@ -29,15 +29,19 @@ async function seedRecords(records: BookRecords): Promise<void> {
   await loadBookRecords();
 }
 
-function renderShelf(unavailableBooks: UnavailableBook[] = []) {
+function renderShelf(
+  unavailableBooks: UnavailableBook[] = [],
+  { books = [book], recordsUnavailable = false } = {}
+) {
   return render(
     <Bookshelf
-      books={[book]}
+      books={books}
       unavailableBooks={unavailableBooks}
       libraryPath="/library"
       isUsingDefaultPath={false}
       isLoading={false}
       error={null}
+      recordsUnavailable={recordsUnavailable}
       openFileName={null}
       onOpen={vi.fn()}
       onChooseFolder={vi.fn()}
@@ -56,6 +60,27 @@ beforeEach(() => {
     loadBookRecords: vi.fn().mockResolvedValue({ success: true, data: {} }),
     saveBookRecords: vi.fn().mockResolvedValue({ success: true }),
   } as unknown as typeof window.electronAPI;
+});
+
+describe('Bookshelf when the book records could not be read', () => {
+  test('a book whose identity is unknown shows no progress, not "Not started"', async () => {
+    await act(() => seedRecords({ fp1: makeBookRecord({ position: { line: 9, fraction: 0.5 } }) }));
+    renderShelf([], { books: [{ ...book, fingerprint: null }], recordsUnavailable: true });
+
+    expect(screen.queryByText('Not started')).toBeNull();
+    expect(screen.queryByText('Not bound')).toBeNull();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('says why, and points at Rescan', () => {
+    renderShelf([], { books: [{ ...book, fingerprint: null }], recordsUnavailable: true });
+    expect(screen.getByText(/Reading progress couldn't be loaded/)).toBeTruthy();
+  });
+
+  test('says nothing when the records were read', () => {
+    renderShelf();
+    expect(screen.queryByText(/Reading progress couldn't be loaded/)).toBeNull();
+  });
 });
 
 describe('Bookshelf progress', () => {

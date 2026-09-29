@@ -18,6 +18,7 @@ import {
 import { emptyBookRecord } from '../../utils/reader/BookRecord';
 import {
   reconcileLibraryScan,
+  byShelfTitle,
   type ShelfBook,
   type UnavailableBook,
 } from '../../utils/reader/ReconcileLibrary';
@@ -71,6 +72,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [libraryPath, setLibraryPath] = useState<string>('');
   const [configuredPath, setConfiguredPath] = useState<string | null>(null);
   const [books, setBooks] = useState<ShelfBook[]>([]);
+  /** The last scan could not be reconciled against the book records: every book's identity
+   * is unknown until a rescan succeeds. */
+  const [recordsUnavailable, setRecordsUnavailable] = useState(false);
   const [unavailableBooks, setUnavailableBooks] = useState<UnavailableBook[]>([]);
   const [isScanning, setIsScanning] = useState(true);
   const [shelfError, setShelfError] = useState<string | null>(null);
@@ -99,16 +103,21 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         );
         setBooks(shelfBooks);
         setUnavailableBooks(missing);
+        setRecordsUnavailable(false);
       } catch (cause) {
         logger.error('Failed to reconcile book records:', cause);
-        // Reconciliation failure shouldn't blank the shelf — show the scan as-is, with
-        // no progress info, rather than nothing.
-        setBooks(result.books.map((book) => ({ ...book, fingerprint: '' })));
+        // Reconciliation failure shouldn't blank the shelf — show the scan with each book's
+        // identity unknown (no progress, not "Not started"), in the shelf's own order. No
+        // record was read, so no book can be called missing either.
+        setBooks(result.books.map((book) => ({ ...book, fingerprint: null })).sort(byShelfTitle));
+        setUnavailableBooks([]);
+        setRecordsUnavailable(true);
       }
     } catch (cause) {
       logger.error('Failed to scan the library:', cause);
       setBooks([]);
       setUnavailableBooks([]);
+      setRecordsUnavailable(false);
       setShelfError(extractErrorMessage(cause));
     } finally {
       setIsScanning(false);
@@ -347,6 +356,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         isUsingDefaultPath={configuredPath === null}
         isLoading={isScanning}
         error={shelfError}
+        recordsUnavailable={recordsUnavailable}
         openFileName={open?.book.fileName ?? null}
         onOpen={(book) => void openBook(book)}
         onChooseFolder={() => void changeFolder()}
