@@ -378,13 +378,25 @@ Backend call is chosen by count — `moveEntry(...)` for `entries.length === 1`,
 
 The dialog owns its own close-on-success (calls `onClose()` itself, then `onSuccess?.()` for parent-side cleanup like `resetSelection()`) — the old `BulkMoveDialog` didn't call `onClose` itself and instead relied on the parent's `onMoveSuccess` callback incidentally also flipping `showBulkMoveDialog` false.
 
-Trigger hooks stayed untouched: `useEntryEditAndMove` (single, context-menu — `moveEntry`/`closeMove`) and `useEntrySelection` (bulk, multi-select — `selectedEntries`/`showBulkMoveDialog`) are still two separate hooks with their own state. `EnhancedVirtualizedDictionaryTable.tsx` converges them at the render site only: `entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}`, rendering exactly one `<MoveDialog>`.
+Trigger hooks stayed untouched: `useEntryEditAndMove` (single, context-menu — `moveEntry`/`closeMove`) and `useEntrySelection` (bulk, multi-select — `selectedEntries`/`showBulkMoveDialog`) are still two separate hooks with their own state. `DictionaryTableView.tsx` converges them at the render site only: `entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}`, rendering exactly one `<MoveDialog>`.
 
 Entry point: `src/components/dictionary/MoveDialog.tsx`, styled by `src/styles/MoveDialog.module.css` (unprefixed class names — the old `bulkMove*`-prefixed classes that lived inside `EnhancedVirtualizedDictionaryTable.module.css` were deleted, not migrated).
 
+## Dictionary table view
+
+One dictionary as the Dictionary tab's table shows it, and the state that belongs to looking at that one dictionary: the selection, the open edit or move, the context menu. `DictionaryTableView.tsx`, rendered by `EnhancedVirtualizedDictionaryTable` with `key={selectedDictionary}` (decided 2026-09-30, architecture review candidate #3 grilling).
+
+The key is the reset rule: switching dictionaries remounts the view, so its state starts fresh and nothing resets it by hand. Before, the table called five resets across four hooks from one effect, and each new piece of transient state had to be added to that list. The two recorded bugs in that code (the stripes stopping, composite keys persisting) were both coordination bugs of that kind.
+
+What survives a switch lives above the view, in the table: the search term, any filter the new dictionary also supports, and whether the filter panel is open. `useDictionaryEntryFilter` clears the filters the new dictionary does not support itself, during render. The scroll state lives above the view too, because the scroll buttons and the row-position label above the rows read it. It returns to the top through `useVirtualScrollRange`'s `resetKey`, which the table builds from the dictionary, the debounced search term and the filter values, so a filter change also scrolls back to the top.
+
+Switching modes (duplicates or not) remounts the whole table: `DictionaryManager.tsx` keys it by mode.
+
+Tested through the table: `EnhancedVirtualizedDictionaryTable.test.tsx`'s "dictionary switch" block. Its two dictionaries share their sources, because `useEntrySelection` prunes selected keys whose entry is gone, which would hide a missing remount.
+
 ## DictionaryColumnSchema
 
-Not a module — the column-width contract now shared by the dictionary table's header (`EnhancedVirtualizedDictionaryTable.tsx`) and row (`VirtualRowComponent.tsx`, `DuplicateDictionaryTableView.tsx`) renderers (architecture review 2026-08-28, candidate #2 grilling). Before this, "which columns exist, at what width, for dictionary type X" was defined independently in each of those 3 files with no shared source of truth — the same failure class `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks entry already names 5 prior instances of at the row/badge layer, this being a 6th, one level up.
+Not a module — the column-width contract now shared by the dictionary table's header (`getHeaderColumns` in `DictionaryTableView.tsx`) and row (`VirtualRowComponent.tsx`, `DuplicateDictionaryTableView.tsx`) renderers (architecture review 2026-08-28, candidate #2 grilling). Before this, "which columns exist, at what width, for dictionary type X" was defined independently in each of those 3 files with no shared source of truth — the same failure class `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks entry already names 5 prior instances of at the row/badge layer, this being a 6th, one level up.
 
 There are 4 distinct column sets (patterns=6 columns, phrases/properNouns=4, simple dictionaries=3) plus `DuplicateDictionaryTableView`'s own fixed 4-column layout — not a 5th type variant, since it shows the same columns regardless of dictionary type. Two mechanisms, chosen per-column by what actually constrains it:
 
