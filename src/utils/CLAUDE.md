@@ -126,7 +126,7 @@ Dev console commands are never automatically tested and rot silently — confirm
 
 ## Dictionaries
 
-- **`*.trie.json` files are the JS Map-based trie cache**, written by `PrecomputedTrieCache.js` — nothing WASM-related. Do not delete them; they speed up cold starts.
+- **`*.trie.json` files are the JS Map-based trie cache**, written by `PrecomputedTrieCache.js` — nothing WASM-related. Do not delete them; they speed up cold starts. They load through the same `load_dictionary` IPC as real dictionaries (`DictionaryTrieLoader.js`, `loadDictionary('<id>.trie')`), so a change to that command's semantics is a change to the cache too: making "File not found" load as `{}` there would turn every missing cache into a hit. Dictionary-only behavior goes in `load_dictionaries_parallel_impl`, which only real dictionaries use (2026-09-29, ADR-053).
 - **Trie-node metadata is not uniform across load paths.** Two paths remain (unified 2026-09-09: `lazyLoadDictionary` now shares `buildTrieFromDictionary` with the main load loop's cache-miss fallback, both producing `priority`/`allowAsPatternVariable`/`semanticType`/`allowedVariableTypes`): `buildTrieFromDictionary` (main load loop's fallback, `lazyLoadDictionary`) vs `DictionaryTrieLoader`'s cache-hit build (raw JSON `target` only, no derived metadata). Do not assume completeness on the cache-hit path.
 
 ---
