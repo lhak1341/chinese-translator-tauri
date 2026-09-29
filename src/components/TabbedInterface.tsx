@@ -70,9 +70,9 @@ const TabbedInterface: React.FC = () => {
 
   // Deliberately does NOT switch to the Rules tab — same in-place-overlay UX as the
   // Cmd-1..6 quick-add modals, which open directly on top of Translator without
-  // navigating away. RulesManager stays on its own always-mounted `useTransformRules()`
-  // instance (not a second one in Translator.jsx) so the rule immediately shows up in
-  // the Rules tab's own list with no state-sync/staleness gap; the modal itself portals
+  // navigating away. The Rules tab's always-mounted RulesManager owns the one
+  // `useTransformRuleEditor()` — the only writer of Transform Rules — so the new rule goes
+  // through its pending overlay and shows up in its list at once; the modal itself portals
   // to document.body (see RulesManager.tsx) so it's visible despite its real ancestor
   // (the Rules tab panel) staying `visibility: hidden` while Translator is active.
   const handleOpenNewRule = useCallback((text?: string): void => {

@@ -825,8 +825,8 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1790695629.4040205,
-    "ast_hash": "25d81152c400324fcd4441caec031227",
+    "mtime": 1790697576.155723,
+    "ast_hash": "8e6a2d2acd0a8719073396c5a7a50031",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790697119.522774,
-    "ast_hash": "e6b0c19ab8d324fd9ff6a35bca88feae",
+    "mtime": 1790697576.1554492,
+    "ast_hash": "10722fca371e16c59f9d7bc6cc733aba",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790697127.7475998,
-    "ast_hash": "1d751703b1e85b6ccdb89102ab699185",
+    "mtime": 1790697219.8216774,
+    "ast_hash": "c28adde00cb49426aee9e16864d1067b",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1540,8 +1540,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1790565822.6538012,
-    "ast_hash": "3add9d6ca2d590317a7bef23bddfae40",
+    "mtime": 1790697413.5485737,
+    "ast_hash": "4ac863673f880b5ecbbd679d9c6fdb8e",
     "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
@@ -1595,8 +1595,8 @@
     "semantic_hash": "c7a15aed477d67dfa0be02f753bfa852"
   },
   "src/hooks/useTransformRules.ts": {
-    "mtime": 1790681308.3370545,
-    "ast_hash": "71590d5fcb81e777b1ab742bce77338e",
+    "mtime": 1790697406.6683187,
+    "ast_hash": "8368e9bdbf7c0c5c11acce3eea8c8843",
     "semantic_hash": ""
   },
   "src/types/TransformRuleTypes.ts": {
@@ -1645,8 +1645,8 @@
     "semantic_hash": "b97787cc2dbee5da362c70040b527b4f"
   },
   "src/utils/dictionary/TransformRuleBackend.ts": {
-    "mtime": 1790696843.6678975,
-    "ast_hash": "a3e76710a3c6559b4c0234b006472859",
+    "mtime": 1790697367.4437487,
+    "ast_hash": "e431fe33271655c998f083f7bc4e0bf8",
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
@@ -1755,8 +1755,8 @@
     "semantic_hash": "cd01a757867adf6d75735d2bbf94cf36"
   },
   "src/components/rules/CLAUDE.md": {
-    "mtime": 1790680709.6051004,
-    "ast_hash": "267370affe63ee0595958f93c4a6c60f",
+    "mtime": 1790697576.1561584,
+    "ast_hash": "4cd8617fe78aef2fbaccc4bcaf185314",
     "semantic_hash": ""
   },
   "src/components/SearchFilterHeader.tsx": {

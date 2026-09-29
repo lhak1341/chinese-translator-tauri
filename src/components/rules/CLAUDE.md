@@ -74,3 +74,7 @@ TableBuildingBlocks.tsx`), built on the same `BadgeChip` primitive `SemanticType
 its own `options` array — do NOT create a new `XyzToggle.tsx` file that re-derives the chip
 styling; that's the exact duplication this unification closed. `RuleRow.tsx`'s `matchKind`/
 `relocate` cells are the reference call sites.
+
+## Saving: one writer, one queue
+
+`useTransformRuleEditor()` (`src/hooks/useTransformRules.ts`) is the only writer, and only `RulesManager` calls it. Anything else that needs the rules — the Add form's seed and preview — calls the read-only `useTransformRules()`, which has no operations to call. Every change is a function of the rule list committed through `TransformRuleBackend.commitRuleChange`, which queues it on the rules App File (CONTEXT.md "Transform Rule", "App file"). Do not add a queue, a ref copy of the saved rules, or a whole-list save to a hook: the backend's cache is the one copy.
