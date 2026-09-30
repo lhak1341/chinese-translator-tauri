@@ -1019,7 +1019,7 @@ const Translator = ({ isActive = true }) => {
 
       <TranslatorControls
         handleTranslateFromClipboard={handleTranslateFromClipboard}
-        handleQuickAddProperNoun={handleQuickAddProperNoun}
+        handleQuickAddProperNoun={() => quickAddHandlers.quickAddProperNoun()}
         handleForceReload={handleForceReload}
         isLoading={isLoading}
         isReloading={isDictionaryReloading}
