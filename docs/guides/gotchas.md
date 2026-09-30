@@ -253,8 +253,6 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Testing orchestration upstream of the WASM pipeline** (logic inside `translateWithChunking`/`translateWithProgressiveBatches` before `translateDirectly` is reached): bare-construct the engine, stub the one heavy call to `throw` immediately after the logic under test has run, then `await expect(...).rejects.toThrow()` and assert the side effect. See `TranslationEngine.regression.test.js`'s "parallel branch wiring" and "adaptiveChunker reset wiring" blocks (2026-08-18).
 
-**`DictionaryManager` tests loading `properNouns-f_*`/`properNouns-_*` dicts** must pass `{ activeProperNouns: ['properNouns-f_test', 'properNouns'] }` as the second arg — the default `['properNouns']` silently excludes every prefixed dict with no error.
-
 **`SemanticPatternProcessor.initializePatterns` object-format dicts key on `translation`, not `template`**: `{ 'X的': { translation: 'của X', allowAsPatternVariable: true } }`.
 
 **A test file that hand-copies a production method "verbatim" is a reimplementation, not a mock** — it drifts silently. `TranslationEngine.patternSemanticType.test.js` was missing a `groupLeader` assignment and hardcoded a value the real method derives dynamically. Prefer calling the real method on a minimal stub (`EngineClass.prototype.method.call(stub, ...)`).
@@ -287,6 +285,8 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 - `window.electronAPI.loadDictionariesParallel` (Rust IPC bridge, called from `DictionaryBackend.ts`) and `parallelDictionaryLoader.loadDictionariesParallel` (JS class in `ParallelDictionaryLoader.js`, called from `useForceReload.js`) are two unrelated implementations sharing one method name — grepping the name alone will not tell you which layer you are looking at.
 
 ### Before asserting
+
+**Prove a new guard test by breaking the line it guards once** (delete the key, the `resetKey`, the in-commit read) and watching it fail; a second mechanism can make it pass anyway. The Dictionary table's switch test passed without the view's `key` until its two dictionaries shared their sources, because `useEntrySelection` prunes selected keys whose entry is gone.
 
 **Verify a fixture's expected value by running it, not by computing it in your head** — regexes, heuristic calculations (density scores, complexity weights), and interval arithmetic alike; a quick `node -e` snippet first. CJK-range regexes are easy to misjudge; one "proper noun density" pattern actually fired on nearly any punctuated Chinese sentence. Half-open ranges are the arithmetic case: a `countVisibleLines` fixture was asserted at 3 because one of four rows overlapping `[100, 400)` was miscounted by hand, and a keep-band test treated a chunk starting exactly at `end` as inside the band. For modules with tunable magic-number weights, assert directional or boundary relationships (`x > y`, `below threshold N → strategy A`) rather than pinning exact float outputs, so the test survives re-tuning.
 

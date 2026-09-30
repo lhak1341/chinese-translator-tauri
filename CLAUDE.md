@@ -17,6 +17,8 @@ bun run type-check  # 0 errors expected; excludes **/*.test.ts(x) — a test fil
 bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:full` for the findings. Exits 1 both directions — *below* baseline fails too, with a "nice." message that reads like success; `bun run lint:baseline` locks the lower count in and is required to go green
 ```
 
+`git commit` runs the pre-commit hook (prettier, eslint, a full `tsc --noEmit`) and has taken over 300 s; a chained test + lint + commit run went past 600 s. Run long chains with `run_in_background`, then check `git log` rather than trusting the exit code.
+
 `bun run tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
 
 ---
