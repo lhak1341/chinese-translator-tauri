@@ -58,6 +58,8 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 **The same applies to `useCallback` with a mutable state dep**: a `Set` in state is a new reference on every `setState`, so the callback recreates on every update. Ref mirror, dep array `[]`.
 
+**State whose correctness is ordering across async work — a queue, generation counters, a flag cleared at several exits — lives in a plain module with `subscribe`/`getSnapshot`, and the hook is an adapter over `useSyncExternalStore`** (`ReadingAnchor`, `DictionaryStore`, `WindowFiller`). Kept in an effect or a ref mirror, its bugs hide in how tested pure pieces are called, reachable only through `renderHook` and timers — both 2026-09-30 refactors began there.
+
 **State set inside a `useEffect` must not appear in its deps** — a flag reset in the effect body and listed as a dep re-triggers the effect.
 
 **Two async fetches keyed by the same identifier can race.** A same-key check cannot tell which one _started_ more recently. Guard with a shared `requestIdRef` counter incremented per fetch and applied only if it still matches on resolution — `useChapterOutline.ts`'s mount fetch and `setOverride` fetch both write `headers` for one fingerprint, and without it a slow mount fetch silently clobbers the user's choice.
