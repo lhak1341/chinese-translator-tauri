@@ -2,6 +2,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import prettierConfig from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
+import globals from 'globals';
 
 export default tseslint.config(
   {
@@ -103,6 +104,19 @@ export default tseslint.config(
       // Catches `x || default` silently treating an explicit falsy value (0, '', false)
       // as absent — use `x ?? default` when only null/undefined should fall back.
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+    },
+  },
+  {
+    // JavaScript files have no type-check (`checkJs: false`), so a name a refactor removed
+    // stays referenced until it throws at render — Translator.jsx's `handleQuickAddProperNoun`,
+    // 2026-09-30. Test files use Vitest's globals and are unlinted anyway (see above).
+    files: ['src/**/*.{js,jsx}'],
+    ignores: ['**/*.test.{js,jsx}', '**/*.spec.{js,jsx}', '**/__tests__/**'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: {
+      'no-undef': 'error',
     },
   },
   // Prettier config (disables conflicting ESLint rules)
