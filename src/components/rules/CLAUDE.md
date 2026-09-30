@@ -20,7 +20,7 @@ review candidate #5): `commitRuleField(rule, field, raw)` for `RuleRow`'s text c
 `commitRuleDraft(draft)` for the modal's Save (via `RulesManager.save`), with the modal's gate
 and message from `ruleDraftProblem`. Empty `charCount`/`label`/`moveReplacement` is absent;
 empty `capitalizeExceptN` is invalid; the key and optional text are trimmed. RuleRow's
-optional cells pass `allowEmpty` to `EditableCell` — without it `useInlineFieldEdit` never
+optional cells pass `allowEmpty` to `EditableCell` (`src/components/EditableCell.tsx`, shared with the Dictionary tab's rows since 2026-09-30) — without it `useInlineFieldEdit` never
 commits an emptied cell, which is how "—"/any stayed impossible to set inline until then.
 `RuleFieldParity.test.tsx`'s second describe pins the empty meaning on both surfaces.
 
