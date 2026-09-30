@@ -50,9 +50,10 @@ export interface WindowFillerSnapshot {
  * checked after each await). Collapsing them orphaned a chunk's gloss on an ordinary anchor
  * move — see `fillPlan`'s doc comment and `src/utils/reader/CLAUDE.md`.
  *
- * `isTranslating` is cleared in exactly two places, both here: when a plan finds nothing
- * missing (a fill abandoned by a newer plan never reaches its own end, so the newer plan must
- * clear it), and when the fill of the newest plan ends.
+ * `isTranslating` is cleared in exactly three places, all here: when an update cannot plan
+ * (disabled, or no geometry yet), when a plan finds nothing missing (a fill abandoned by a
+ * newer plan never reaches its own end, so the newer plan must clear it), and when the fill
+ * of the newest plan ends.
  *
  * One book per instance: `BookReader` is keyed by fingerprint (ADR-050), so the cache never
  * holds another book's chunks. Nothing is written to disk.
@@ -91,9 +92,16 @@ export class WindowFiller {
     // replacement arrives, rather than reverting to Chinese for the length of the refill.
     // Before the enabled check, so a reload that lands while the Reader is hidden still counts.
     cache.setVersion(dictionaryVersion);
-    if (!inputs.isEnabled || lineCount === 0 || viewportLines <= 0) return;
 
     const generation = ++this.generation;
+    if (!inputs.isEnabled || lineCount === 0 || viewportLines <= 0) {
+      // Counts as a plan with nothing in it: a fill already running starts no further chunk
+      // (the one in flight finishes, gloss included), so a hidden Reader stops calling the
+      // engine the Translator tab now has. Until 2026-09-30 this returned before the bump, and
+      // a fill kept going through its whole plan behind the other tab.
+      this.setTranslating(false);
+      return;
+    }
     const lifetime = this.lifetime;
     const isStale = (): boolean => this.generation !== generation;
     // `dictionaryVersion` belongs here too: a reload must not let a chunk's result land

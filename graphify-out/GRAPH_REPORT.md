@@ -2,18 +2,18 @@
 
 ## Corpus Check
 
-- 439 files · ~434,111 words
+- 439 files · ~434,262 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 4825 nodes · 10064 edges · 323 communities (230 shown, 93 thin omitted)
+- 4825 nodes · 10064 edges · 325 communities (232 shown, 93 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 184 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `3a277985`
+- Built from commit: `04e12120`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -274,7 +274,9 @@
 - SmartMemoryCoordinator
 - RustLookupIndexManager
 - types
+- TwoPhasePatternProcessor.js
 - 9. Recommendations
+- Security Mitigations
 - DictionaryManager Types
 - Keyboard Shortcuts
 - 📍 Code Locations Map
@@ -372,7 +374,7 @@
 - **RulesManager two-surface shared field-policy group** — src_components_rules_newrulemodal_newrulemodal, src_components_rules_rulerow_rulerow, src_components_rules_rulefieldvalidation_rulefieldvalidation, src_utils_dictionary_transformruleengine_transformruleengine, src_components_rules_tests_rulefieldparity_rulefieldparity [EXTRACTED 1.00]
 - **Constant-zero-metric dead code sweep group** — rationale_constant_zero_metric_pattern, src_utils_dictionary_dictionarywasmlookup_dictionarywasmlookup, src_utils_dictionary_dictionarymanager_dictionarymanager, src_utils_translationengine_translationengine [INFERRED 0.85]
 
-## Communities (323 total, 93 thin omitted)
+## Communities (325 total, 93 thin omitted)
 
 ### Community 0 - "dictionary_commands.rs"
 
@@ -426,8 +428,8 @@ Nodes (65): AdaptiveBatchSizer, AppConfig, AppearanceConfig, AppearanceSettings 
 
 ### Community 11 - "Systematic Refactoring: Pure Utility Extraction"
 
-Cohesion: 0.04
-Nodes (80): ADR-0014, DictionaryContext, DictionaryContextValue, DictionaryProvider(), DictionaryProviderProps, invokeEngineInvalidator(), ADR-0005, ADR-0053 (+72 more)
+Cohesion: 0.05
+Nodes (64): ADR-0014, DictionaryRename, DictionarySnapshot, DictionaryStore, DictionaryStoreDeps, LoadAllOptions, LoadAllResult, sorted() (+56 more)
 
 ### Community 12 - "TranslationEngine Internals"
 
@@ -456,8 +458,8 @@ Nodes (5): INITIAL_STATE, INITIAL_STREAMING, streamingReducer(), useStreamingTra
 
 ### Community 18 - "Future Improvements Implementation - 2026-02-01"
 
-Cohesion: 0.13
-Nodes (25): DictionaryEntryProps, DICTIONARY_HOTKEY_MAP, TAB_PRESENTATION, TabbedInterface(), TABS, useVisibleTab(), CLOSED, DictionaryModals (+17 more)
+Cohesion: 0.09
+Nodes (28): DictionaryContext, DictionaryContextValue, DictionaryProvider(), DictionaryProviderProps, invokeEngineInvalidator(), ADR-0005, ADR-0053, ADR-0055 (+20 more)
 
 ### Community 19 - "WASM Code Review Fixes - 2026-01-28"
 
@@ -491,8 +493,8 @@ Nodes (13): ReadingPosition, AnchorVirtualizer, computeAnchor(), DETACHED_INPUTS
 
 ### Community 25 - "Memory Leak Prevention"
 
-Cohesion: 0.08
-Nodes (49): BookBindingContext, BookBindingContextValue, BookBindingProvider(), boundDictionaryExists(), FictionRenameResult, sameList(), ADR-0027, ConfigurationManager() (+41 more)
+Cohesion: 0.07
+Nodes (62): BookBindingContext, BookBindingContextValue, BookBindingProvider(), boundDictionaryExists(), FictionRenameResult, sameList(), ADR-0027, ConfigurationManager() (+54 more)
 
 ### Community 26 - "PerformanceMonitoringTypes.d.ts"
 
@@ -536,8 +538,8 @@ Nodes (31): App(), AppContent(), NOTE: WASM singleton cleanup intentionally NOT 
 
 ### Community 34 - "Clickable Highlighting - Code Review Fixes Summary"
 
-Cohesion: 0.06
-Nodes (32): 1. ✅ Local-Only WASM Loading (CRITICAL), 2. ✅ Binary Integrity Verification (SHA-256 Hashing), 3. ✅ Module Structure Verification, 4. ✅ Instance Method Verification, 5. ✅ Graceful Degradation, 6. ✅ Retry Logic with Exponential Backoff, 7. ✅ No Dynamic WASM Loading, Attack Scenarios (If Exploited) (+24 more)
+Cohesion: 0.08
+Nodes (24): Attack Scenarios (If Exploited), Attack Vector Analysis, Comparison to CSP Best Practices, Configuration Location, Content Security Policy (CSP) and WASM Security, Expected Behavior, External Resources, Future Improvements (+16 more)
 
 ### Community 35 - "TranslationEngine.js"
 
@@ -556,8 +558,8 @@ Nodes (32): 1. Character-only mode, 1. WASM Number Processor, 2. Full Translatio
 
 ### Community 38 - "memory_management.rs"
 
-Cohesion: 0.17
-Nodes (22): Box, PatternMatchResult, VariableCacheEntry, index_selects_the_same_best_match_as_scanning_every_pattern(), matches_the_literal_run_immediately_before_the_variable(), PatternProcessingResult, resets_at_an_earlier_variable_keeping_only_the_run_immediately_before_var_idx(), returns_zero_when_before_pos_is_zero() (+14 more)
+Cohesion: 0.18
+Nodes (21): Box, PatternMatchResult, VariableCacheEntry, index_selects_the_same_best_match_as_scanning_every_pattern(), matches_the_literal_run_immediately_before_the_variable(), PatternProcessingResult, resets_at_an_earlier_variable_keeping_only_the_run_immediately_before_var_idx(), returns_zero_when_before_pos_is_zero() (+13 more)
 
 ### Community 39 - "Punctuation Spacing Debug Session - 2026-02-02"
 
@@ -596,8 +598,8 @@ Nodes (26): BindingBanner(), BindingBannerProps, BindingDialog(), BindingDialogP
 
 ### Community 47 - "CSP Hardening Migration - Complete Summary"
 
-Cohesion: 0.18
-Nodes (26): I, PhaseAResult, build_result(), build_result_matches_the_shared_fixture(), find_best_pattern_match(), find_best_pattern_match_iter(), Fixture, FixtureCase (+18 more)
+Cohesion: 0.17
+Nodes (27): I, PhaseAResult, build_result(), build_result_matches_the_shared_fixture(), find_best_pattern_match(), find_best_pattern_match_iter(), Fixture, FixtureCase (+19 more)
 
 ### Community 49 - "FallbackManager"
 
@@ -866,8 +868,8 @@ Nodes (14): ADR-008: Dictionary Cache Invalidation — Locality in handleForceRe
 
 ### Community 122 - "pattern.rs"
 
-Cohesion: 0.03
-Nodes (52): ADR-0037, fetchWasmBinary(), wasmBinaryCache, areChunksInBounds(), isPatternMatchInBounds(), validateWasmDictionaryMatch(), fireCascadeRetire(), _handlers (+44 more)
+Cohesion: 0.04
+Nodes (42): fetchWasmBinary(), wasmBinaryCache, areChunksInBounds(), fireCascadeRetire(), _handlers, registerCascadeHandler(), initialize(), jsFallback() (+34 more)
 
 ### Community 124 - "jsdom"
 
@@ -1389,10 +1391,20 @@ Nodes (5): ADR-042: Adopt `@tanstack/react-virtual` for the Reader, Rather Than 
 Cohesion: 0.67
 Nodes (3): node, react-dom, types
 
+### Community 255 - "TwoPhasePatternProcessor.js"
+
+Cohesion: 0.13
+Nodes (10): ADR-0037, isPatternMatchInBounds(), validateWasmDictionaryMatch(), callWasmWithTimeout(), createTimeoutWrapper(), DEFAULT_WASM_TIMEOUTS, TimeoutError, TimeoutManager (+2 more)
+
 ### Community 256 - "9. Recommendations"
 
 Cohesion: 0.25
 Nodes (8): Background, Step 1: No test needed for this visual change — run type-check instead, Step 2: Extend the condition to include patterns, Step 3: Run type-check, Step 4: Run full JS suite, Step 5: Manual smoke test, Step 6: Commit, Task 6: UI — add semantic type selector to pattern entries
+
+### Community 257 - "Security Mitigations"
+
+Cohesion: 0.25
+Nodes (8): 1. ✅ Local-Only WASM Loading (CRITICAL), 2. ✅ Binary Integrity Verification (SHA-256 Hashing), 3. ✅ Module Structure Verification, 4. ✅ Instance Method Verification, 5. ✅ Graceful Degradation, 6. ✅ Retry Logic with Exponential Backoff, 7. ✅ No Dynamic WASM Loading, Security Mitigations
 
 ### Community 259 - "DictionaryManager Types"
 
@@ -1499,7 +1511,7 @@ Nodes (3): Manual Verification Completed, Testing Required, Verification Checkli
 
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Logger` connect `ADR-038: Reject "Deepen RuleMatchesModal to Preview Real Output"` to `SemanticArrayBuilder.ts`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `Systematic Refactoring: Pure Utility Extraction`, `prettier`, `list_dictionaries_with_prefix`, `ErrorBoundary`, `Content Security Policy (CSP) and WASM Security`, `Future Improvements Implementation - 2026-02-01`, `Test Coverage Improvements Summary`, `fireCascadeRetire`, `Troubleshooting Guide`, `Memory Leak Prevention`, `DictionaryTypes.ts`, `PatternProcessingTypes.d.ts`, `TypeScript/Rust Optimization Progress Report`, `TranslationInputValidator`, `Pattern Processing Code Review Fixes`, `TranslationEngine.js`, `Dictionary Trie Integration Session Summary`, `ReconcileLibrary.ts`, `DictionaryEngine`, `appFile.ts`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `FallbackManager`, `.new`, `TranslatorControls.tsx`, `ADR-043: Skip a Shared Generation-Guarded-Fill Primitive`, `SegmentedParagraphs.tsx`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `SemanticPatternProcessor.js`, `translation_wasm_core.js`, `eslint-plugin-react-refresh`, `LookupIndexUtils.ts`, `useHighlightingState.ts`, `husky`, `pattern.rs`?**
+- **Why does `Logger` connect `ADR-038: Reject "Deepen RuleMatchesModal to Preview Real Output"` to `SemanticArrayBuilder.ts`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `Systematic Refactoring: Pure Utility Extraction`, `prettier`, `list_dictionaries_with_prefix`, `ErrorBoundary`, `Content Security Policy (CSP) and WASM Security`, `Future Improvements Implementation - 2026-02-01`, `Test Coverage Improvements Summary`, `fireCascadeRetire`, `Troubleshooting Guide`, `Memory Leak Prevention`, `DictionaryTypes.ts`, `PatternProcessingTypes.d.ts`, `TypeScript/Rust Optimization Progress Report`, `TranslationInputValidator`, `Pattern Processing Code Review Fixes`, `TranslationEngine.js`, `Dictionary Trie Integration Session Summary`, `ReconcileLibrary.ts`, `DictionaryEngine`, `appFile.ts`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `FallbackManager`, `.new`, `TranslatorControls.tsx`, `ADR-043: Skip a Shared Generation-Guarded-Fill Primitive`, `SegmentedParagraphs.tsx`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `SemanticPatternProcessor.js`, `translation_wasm_core.js`, `eslint-plugin-react-refresh`, `LookupIndexUtils.ts`, `useHighlightingState.ts`, `husky`, `pattern.rs`, `TwoPhasePatternProcessor.js`?**
   _High betweenness centrality (0.074) - this node is a cross-community bridge._
 - **Why does `react` connect `SegmentedParagraphs.tsx` to `SemanticArrayBuilder.ts`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `useOutlineTranslations.ts`, `Systematic Refactoring: Pure Utility Extraction`, `prettier`, `UtilityTypes.d.ts`, `list_dictionaries_with_prefix`, `Content Security Policy (CSP) and WASM Security`, `Tauri Backend Security Audit`, `Future Improvements Implementation - 2026-02-01`, `Test Coverage Improvements Summary`, `EnhancedVirtualizedDictionaryTable.tsx`, `Memory Leak Prevention`, `DictionaryTypes.ts`, `TypeScript/Rust Optimization Progress Report`, `Pattern Processing Code Review Fixes`, `TranslationEngine.js`, `ReconcileLibrary.ts`, `CRITICAL-1: DictionaryManager Missing Cleanup Method`, `Pattern Matching Rust WASM Migration Complete ✅`, `appFile.ts`, `types`, `UITypes.d.ts`, `FallbackManager`, `WASM Code Review Fixes - 2026-01-27`, `BookReader.tsx`, `DictionaryTypes.ts`, `WasmProcessorLifecycle.js`, `TranslatorControls.tsx`, `takeFromExternrefTable0`, `Documentation Index`, `ADR-038: Reject "Deepen RuleMatchesModal to Preview Real Output"`, `useHighlightingState.ts`, `types`, `getSemanticTokens`?**
   _High betweenness centrality (0.060) - this node is a cross-community bridge._

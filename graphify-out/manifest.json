@@ -1085,8 +1085,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790756251.374277,
-    "ast_hash": "64a8d3da500008545a532782f7b62b80",
+    "mtime": 1790756655.1735601,
+    "ast_hash": "6e8f6ad0e2a27246b4a65893a6ac2a6e",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790756251.375912,
-    "ast_hash": "ebc8ecbb5525cf63154dd3cda3979010",
+    "mtime": 1790756655.1739717,
+    "ast_hash": "8a429b9f3eed0463663314f032997cf1",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1790756114.8741603,
-    "ast_hash": "4f1b5d579df5bdc86e1687b8a5d2eb13",
+    "mtime": 1790756350.2803915,
+    "ast_hash": "d541f1f5a4ffcd07bc3d553acb0373c2",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -2330,8 +2330,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/WindowFiller.ts": {
-    "mtime": 1790756185.6643615,
-    "ast_hash": "f2785040577d5d26b78a2b1b1b714f4a",
+    "mtime": 1790756655.171859,
+    "ast_hash": "bc3f0237356720458665f12335561ef3",
     "semantic_hash": ""
   }
 }

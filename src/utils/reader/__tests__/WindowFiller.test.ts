@@ -152,6 +152,31 @@ describe('WindowFiller — planning and filling', () => {
     expect(translateChunk).toHaveBeenCalledTimes(2);
   });
 
+  it('hiding the Reader mid-fill starts no further chunk, clears the indicator, and showing it resumes', async () => {
+    lines = ['你好', '', '再见'];
+    const first = deferred<ChunkTranslationResult>();
+    translateChunk.mockImplementationOnce(() => first.promise);
+    const filler = makeFiller();
+
+    filler.update(inputs({ anchorLine: 0 }));
+    await vi.waitFor(() => expect(translateChunk).toHaveBeenCalledTimes(1));
+
+    filler.update(inputs({ anchorLine: 0, isEnabled: false }));
+    expect(filler.getSnapshot().isTranslating).toBe(false);
+
+    // The chunk already in flight finishes (its gloss included); the next one never starts.
+    first.resolve(chunkResult('Hello'));
+    await vi.waitFor(() => expect(translateGloss).toHaveBeenCalledTimes(1));
+    await flush();
+    expect(translateChunk).toHaveBeenCalledTimes(1);
+    expect(translated(filler, 0)).toBe('Hello');
+    expect(filler.getSnapshot().isTranslating).toBe(false);
+
+    filler.update(inputs({ anchorLine: 0 }));
+    await settled(filler);
+    expect(translated(filler, 2)).toBe('T(再见)');
+  });
+
   it('isEnabled: false never calls the engine', async () => {
     lines = ['你好'];
     const filler = makeFiller();
