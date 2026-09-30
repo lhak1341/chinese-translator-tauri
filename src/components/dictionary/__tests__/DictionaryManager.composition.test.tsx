@@ -15,14 +15,15 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, act } from '@testing-library/react';
+import { render, screen, fireEvent, within, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import DictionaryManager from '../DictionaryManager';
 import { VisibleTabProvider } from '../../VisibleTabContext';
-import { loadAppConfig } from '../../../utils/appConfig';
 
-vi.mock('../../../utils/appConfig', () => ({
-  loadAppConfig: vi.fn(),
+// What is active comes from the binding provider's view, as it does for every Add.
+const loadQuickAddView = vi.hoisted(() => vi.fn());
+vi.mock('../../BookBindingContext', () => ({
+  useBookBinding: () => ({ loadQuickAddView }),
 }));
 
 const {
@@ -70,6 +71,8 @@ const {
   dictionaryTypes: {
     'properNouns-Test': { label: 'Test' },
     'properNouns-Other': { label: 'Other' },
+    'properNouns-Inactive': { label: 'Inactive' },
+    'properNouns-f_Novel': { label: 'Novel' },
   },
 }));
 
@@ -161,10 +164,47 @@ beforeEach(() => {
     return 0;
   });
 
-  vi.mocked(loadAppConfig).mockResolvedValue({
-    engine: { activeProperNouns: ['properNouns-Test', 'properNouns-Other'] },
-    ui: { defaultQuickAddDictionary: null },
-    session: { lastSelectedDictionary: null },
+  loadQuickAddView.mockResolvedValue({
+    activeProperNouns: ['properNouns-Test', 'properNouns-Other'],
+    defaultQuickAddDictionary: null,
+  });
+});
+
+describe('DictionaryManager — which dictionaries the selector lists', () => {
+  const option = (name: string) => screen.queryByRole('option', { name });
+
+  test('lists what the binding view has active, not what config alone says', async () => {
+    // A book is open whose binding adds its fiction dictionary; config never listed it.
+    loadQuickAddView.mockResolvedValue({
+      activeProperNouns: ['properNouns-Test', 'properNouns-f_Novel'],
+      defaultQuickAddDictionary: null,
+    });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+
+    expect(await screen.findByRole('option', { name: 'Novel' })).toBeInTheDocument();
+    expect(option('Inactive')).not.toBeInTheDocument();
+  });
+
+  test('always lists the selected dictionary, active or not, so the selector matches the table', async () => {
+    selectedDictionaryRef.current = 'properNouns-Inactive';
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+
+    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    await waitFor(() => expect(option('Other')).toBeInTheDocument());
+    expect(option('Inactive')).toBeInTheDocument();
+    expect(option('Novel')).not.toBeInTheDocument();
+    expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).value).toBe(
+      'properNouns-Inactive'
+    );
+  });
+
+  test('a view that could not be loaded lists every dictionary', async () => {
+    loadQuickAddView.mockResolvedValue(null);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+
+    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    expect(await screen.findByRole('option', { name: 'Inactive' })).toBeInTheDocument();
+    expect(option('Novel')).toBeInTheDocument();
   });
 });
 

@@ -30,6 +30,8 @@ After touching any CRUD function or `useDictionaryHistory`, audit for:
 
 `undo`/`redo` live in `src/components/dictionary/useDictionaryHistory.ts`: undo commits `invert(edit)`, redo the edit itself, through the same store queue, which refuses one whose keys changed since. History is a ref (plus a version counter for `canUndo`/`canRedo`), so the cursor moves inside the commit turn.
 
+**The Dictionary tab's selector filters with `quickAddChoices`, over `loadQuickAddView()`** (CONTEXT.md "Quick-add choices"). Do not re-add a filter over `loadAppConfig().engine.activeProperNouns`: config is only a cache of what the open book's binding implies, and the old copy of the rule hid the selected dictionary whenever it was not active in config, so the `<select>` showed a different dictionary from the table.
+
 ## Error Handling
 
 **The double-toast guard depends on throwing the right typed error class every time.** If a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast. Same failure mode from the other direction: pre-`try` existence checks (e.g. dict-not-found) that use bare `throw new Error(msg)` bypass the `!isValidationError` guard entirely — always `throw new ValidationError(msg)` there instead.

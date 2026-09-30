@@ -900,8 +900,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
-    "mtime": 1790755208.4862938,
-    "ast_hash": "c32c92ed67264a3add86530d7dcf56ca",
+    "mtime": 1790756915.7756321,
+    "ast_hash": "58a4feef601c9b6c52cac93a78306b93",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
@@ -1085,8 +1085,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790756655.1735601,
-    "ast_hash": "6e8f6ad0e2a27246b4a65893a6ac2a6e",
+    "mtime": 1790756936.0781007,
+    "ast_hash": "4f3a8f2c7477f1a1e18b049cee285c71",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1790755789.3821561,
-    "ast_hash": "c86f990369aeaa2c717835de6bbde65d",
+    "mtime": 1790756936.0789268,
+    "ast_hash": "78618b60f9f795a51b7fd79064711047",
     "semantic_hash": ""
   },
   "public/vite.svg": {

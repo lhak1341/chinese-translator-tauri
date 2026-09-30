@@ -22,16 +22,10 @@ import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
-import {
-  isProperNounsDict,
-  findConflictingEntries,
-  toProperNounsId,
-  isPairedPatternsId,
-  getMoveFamily,
-  type DuplicateRow,
-} from '../../utils/dictionary';
+import { findConflictingEntries, getMoveFamily, type DuplicateRow } from '../../utils/dictionary';
+import { quickAddChoices, type QuickAddView } from '../../utils/dictionary/QuickAddTarget';
 import { toast } from '../ToastContext';
-import { loadAppConfig } from '../../utils/appConfig';
+import { useBookBinding } from '../BookBindingContext';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -104,7 +98,10 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
   // Filter state for showing all dictionaries
   const [showAllDictionaries, setShowAllDictionaries] = useState<boolean>(false);
-  const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
+  // What is active, as every Add sees it: config as the open book's binding implies it
+  // (`loadQuickAddView`). `null` is a config that could not be read.
+  const { loadQuickAddView } = useBookBinding();
+  const [activeView, setActiveView] = useState<QuickAddView | null>(null);
 
   // Duplicate detection mode. The rows are derived from live dictionary state rather than
   // snapshotted, so an edit / move / delete made from the duplicate view shows up immediately
@@ -122,20 +119,28 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   }, [showDuplicatesMode, duplicateRows.length]);
 
-  // Which proper-nouns dictionaries are active — the list itself comes from the store.
+  // Which dictionaries are active — the list itself comes from the store. Reloaded each time
+  // the tab is shown: bindings, renames and activation all happen on other tabs.
   useEffect(() => {
-    const loadActiveDictionaries = async (): Promise<void> => {
+    let cancelled = false;
+    const loadActiveView = async (): Promise<void> => {
       try {
-        const config = await loadAppConfig();
-        setActiveDictionaries(config.engine.activeProperNouns);
+        const view = await loadQuickAddView();
+        if (!cancelled) setActiveView(view);
       } catch (error) {
         logger.error('Failed to load active dictionaries:', error);
-        setError('Failed to load dictionary settings. Please try again.');
+        if (!cancelled) {
+          setActiveView(null);
+          setError('Failed to load dictionary settings. Please try again.');
+        }
       }
     };
 
-    loadActiveDictionaries();
-  }, [refreshTimestamp]);
+    loadActiveView();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTimestamp, loadQuickAddView]);
 
   // If the selected dictionary no longer exists (renamed), switch to the first one that does.
   useEffect(() => {
@@ -150,10 +155,10 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     setRefreshTimestamp(Date.now());
   }, []);
 
-  // Reload configuration when the tab becomes active (to pick up changes from Configuration tab)
+  // Reload the active view when the tab becomes active (to pick up changes from other tabs)
   useEffect(() => {
     if (isActive) {
-      // The refreshTimestamp bump re-runs the effect above, which reloads config
+      // The refreshTimestamp bump re-runs the effect above, which reloads the view
       setRefreshTimestamp(Date.now());
     }
   }, [isActive]);
@@ -249,34 +254,15 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     setError(null);
   };
 
-  // Filter dictionary types based on "Show all dictionaries" checkbox
-  const filteredDictionaryTypes = React.useMemo(() => {
-    if (showAllDictionaries) {
-      // Show all dictionaries
-      return dictionaryTypes;
-    }
-
-    // Filter: show base dictionaries + active proper nouns + active fiction patterns only
-    const filtered: DictionaryTypesCollection = {};
-    for (const [id, type] of Object.entries(dictionaryTypes)) {
-      if (isProperNounsDict(id)) {
-        // Include only active proper nouns dictionaries
-        if (activeDictionaries.includes(id)) {
-          filtered[id] = type;
-        }
-      } else if (isPairedPatternsId(id)) {
-        // Include a paired pattern dict only if its properNouns half is active
-        const pairedProperNouns = toProperNounsId(id);
-        if (activeDictionaries.includes(pairedProperNouns)) {
-          filtered[id] = type;
-        }
-      } else {
-        // Always include base dictionaries (patterns, phrases, characters, etc.)
-        filtered[id] = type;
-      }
-    }
-    return filtered;
-  }, [dictionaryTypes, showAllDictionaries, activeDictionaries]);
+  // The dropdown lists what the Add form would offer (`quickAddChoices`, one rule for both),
+  // always including the selected dictionary, so the <select> never shows a different one
+  // from the table. A view that could not be loaded shows everything: this is the tab a user
+  // comes to when something is wrong.
+  const filteredDictionaryTypes = React.useMemo((): DictionaryTypesCollection => {
+    if (showAllDictionaries || activeView === null) return dictionaryTypes;
+    const visible = quickAddChoices(activeView, Object.keys(dictionaryTypes), selectedDictionary);
+    return Object.fromEntries(visible.map((id) => [id, dictionaryTypes[id]]));
+  }, [dictionaryTypes, showAllDictionaries, activeView, selectedDictionary]);
 
   // Sort dictionary entries for dropdown: A-Z by ID
   const sortedDictionaryEntries = React.useMemo(() => {
