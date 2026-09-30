@@ -15,7 +15,7 @@ const dictionaries: Record<string, DictionaryData> = {
 function makeParams(overrides: Partial<Parameters<typeof useEntryEditAndMove>[0]> = {}) {
   return {
     dictionaries,
-    updateEntry: vi.fn().mockResolvedValue(undefined),
+    renameEntry: vi.fn().mockResolvedValue(undefined),
     patchEntry: vi.fn().mockResolvedValue(undefined),
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
       await fn();
@@ -96,34 +96,16 @@ describe('useEntryEditAndMove — onContextMenuMove', () => {
   });
 });
 
-describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
-  it('calls updateEntry with correct arguments', async () => {
-    const updateEntry = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() => useEntryEditAndMove(makeParams({ updateEntry })));
+describe('useEntryEditAndMove — scroll-preserving edits', () => {
+  it('calls renameEntry with the dictionary and both sources', async () => {
+    const renameEntry = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useEntryEditAndMove(makeParams({ renameEntry })));
 
     await act(async () => {
-      await result.current.updateEntryWithScrollPreservation(DICT_ID, SOURCE, '龍', TRANSLATION);
+      await result.current.renameEntryWithScrollPreservation(DICT_ID, SOURCE, '龍');
     });
 
-    expect(updateEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, '龍', TRANSLATION, undefined);
-  });
-
-  it('calls updateEntry with metadata when provided', async () => {
-    const updateEntry = vi.fn().mockResolvedValue(undefined);
-    const metadata = { allowAsPatternVariable: true };
-    const { result } = renderHook(() => useEntryEditAndMove(makeParams({ updateEntry })));
-
-    await act(async () => {
-      await result.current.updateEntryWithScrollPreservation(
-        DICT_ID,
-        SOURCE,
-        SOURCE,
-        TRANSLATION,
-        metadata
-      );
-    });
-
-    expect(updateEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, SOURCE, TRANSLATION, metadata);
+    expect(renameEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, '龍');
   });
 
   it('delegates to withScrollPreservation', async () => {
@@ -135,7 +117,7 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
     );
 
     await act(async () => {
-      await result.current.updateEntryWithScrollPreservation(DICT_ID, SOURCE, SOURCE, TRANSLATION);
+      await result.current.renameEntryWithScrollPreservation(DICT_ID, SOURCE, '龍');
     });
 
     expect(withScrollPreservation).toHaveBeenCalledOnce();
@@ -160,22 +142,17 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
     expect(patchEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, { semanticType: 'concept' });
   });
 
-  it('propagates updateEntry rejection', async () => {
-    const updateEntry = vi.fn().mockRejectedValue(new Error('save failed'));
-    const { result } = renderHook(() => useEntryEditAndMove(makeParams({ updateEntry })));
+  it('propagates renameEntry rejection', async () => {
+    const renameEntry = vi.fn().mockRejectedValue(new Error('save failed'));
+    const { result } = renderHook(() => useEntryEditAndMove(makeParams({ renameEntry })));
 
     await expect(
       act(async () => {
-        await result.current.updateEntryWithScrollPreservation(
-          DICT_ID,
-          SOURCE,
-          SOURCE,
-          TRANSLATION
-        );
+        await result.current.renameEntryWithScrollPreservation(DICT_ID, SOURCE, '龍');
       })
     ).rejects.toThrow('save failed');
 
-    expect(updateEntry).toHaveBeenCalled();
+    expect(renameEntry).toHaveBeenCalled();
   });
 });
 

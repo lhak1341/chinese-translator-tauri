@@ -129,6 +129,11 @@ export interface DictionaryContextInterface {
     source: string,
     patch: EntryPatch | ((current: EntryFields) => EntryPatch)
   ) => Promise<void>;
+  /**
+   * Re-key an entry to a new source, keeping every other field as stored when the commit runs.
+   * Like `patchEntry`, it reads the current value itself; callers pass no snapshot.
+   */
+  renameEntry: (dictionaryId: string, oldSource: string, newSource: string) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   /** Delete multiple entries from a dictionary in one operation */

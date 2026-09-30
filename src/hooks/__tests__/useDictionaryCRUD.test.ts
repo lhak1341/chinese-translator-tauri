@@ -317,6 +317,51 @@ describe('patchEntry', () => {
 
 // ─── deleteEntry / bulkDeleteEntries ─────────────────────────────────────────
 
+// ─── renameEntry ─────────────────────────────────────────────────────────────
+
+describe('renameEntry', () => {
+  it('re-keys the entry, keeping every field as stored', async () => {
+    const result = makeHook({
+      [DICT_ID]: {
+        [SOURCE]: { ...phraseEntry, allowAsPatternVariable: true, semanticType: 'concept' },
+      },
+    });
+    await act(async () => {
+      await result.current.renameEntry(DICT_ID, SOURCE, SOURCE_B);
+    });
+    expect(memory[DICT_ID][SOURCE]).toBeUndefined();
+    expect(memory[DICT_ID][SOURCE_B]).toEqual({
+      translation: TRANSLATION,
+      allowAsPatternVariable: true,
+      semanticType: 'concept',
+    });
+    expect(record).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the value inside its commit, so a patch queued just before it is kept', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+    // Both issued in one turn, as a VAR click then a rename can be before the row re-renders:
+    // the rename must not carry the VAR it saw at render back over the patch.
+    await act(async () => {
+      await Promise.all([
+        result.current.patchEntry(DICT_ID, SOURCE, { allowAsPatternVariable: true }),
+        result.current.renameEntry(DICT_ID, SOURCE, SOURCE_B),
+      ]);
+    });
+    expect(memory[DICT_ID][SOURCE]).toBeUndefined();
+    expect(memory[DICT_ID][SOURCE_B]).toMatchObject({ allowAsPatternVariable: true });
+  });
+
+  it('refuses an entry that is not there, with one toast', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
+    await act(async () => {
+      await expect(result.current.renameEntry(DICT_ID, SOURCE, SOURCE_B)).rejects.toThrow();
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(toastCount()).toBe(1);
+  });
+});
+
 describe('deleteEntry', () => {
   it('deletes and records (I1)', async () => {
     const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });

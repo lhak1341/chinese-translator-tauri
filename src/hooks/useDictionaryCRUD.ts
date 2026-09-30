@@ -28,6 +28,7 @@ export type DictionaryCRUDAPI = Pick<
   | 'addEntry'
   | 'updateEntry'
   | 'patchEntry'
+  | 'renameEntry'
   | 'deleteEntry'
   | 'bulkDeleteEntries'
   | 'moveEntry'
@@ -233,6 +234,45 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     [committer, record]
   );
 
+  // A source rename keeps every other field as it is stored when the commit runs — like
+  // patchEntry, and unlike updateEntry, whose caller supplies the value. A row that built the
+  // value from its props could write back a field a patch queued just before had changed.
+  const renameEntry = useCallback(
+    async (dictionaryId: string, oldSource: string, newSource: string): Promise<void> => {
+      try {
+        await commitOrThrow(
+          committer,
+          record,
+          (d) => {
+            const value = d[dictionaryId]?.[oldSource];
+            if (value === undefined) {
+              return { invalid: `Entry '${oldSource}' does not exist in '${dictionaryId}'` };
+            }
+            const current = entryFields(value);
+            const { cleanSource, targetValue } = prepareMutationEntry(
+              dictionaryId,
+              newSource,
+              current.translation,
+              buildEntryMetadata(current)
+            );
+            return planUpdate(d, dictionaryId, oldSource, cleanSource, targetValue);
+          },
+          'Failed to save dictionary changes'
+        );
+        toast.success('Entry updated successfully');
+      } catch (error) {
+        logger.error('Error renaming dictionary entry:', error);
+        if (isValidationError(error)) {
+          toast.error(error.message);
+        } else if (!isSaveError(error)) {
+          toast.error(`Could not rename entry: ${extractErrorMessage(error)}`);
+        }
+        throw error;
+      }
+    },
+    [committer, record]
+  );
+
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
       try {
@@ -346,6 +386,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     addEntry,
     updateEntry,
     patchEntry,
+    renameEntry,
     deleteEntry,
     bulkDeleteEntries,
     moveEntry,

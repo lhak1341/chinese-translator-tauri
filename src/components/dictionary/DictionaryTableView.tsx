@@ -129,7 +129,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
   emptyState,
   onSelectionChange,
 }) => {
-  const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, patchEntry } = useDictionary();
+  const { dictionaries, deleteEntry, bulkDeleteEntries, renameEntry, patchEntry } = useDictionary();
 
   const {
     selectedEntries,
@@ -168,13 +168,13 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
     moveEntry,
     closeEdit,
     closeMove,
-    updateEntryWithScrollPreservation,
+    renameEntryWithScrollPreservation,
     patchEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,
   } = useEntryEditAndMove({
     dictionaries,
-    updateEntry,
+    renameEntry,
     patchEntry,
     withScrollPreservation: scroll.withScrollPreservation,
   });
@@ -332,7 +332,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
                         translation={translation}
                         isSelected={selectedEntries.has(source)}
                         selectedDictionary={selectedDictionary}
-                        onUpdateEntry={updateEntryWithScrollPreservation}
+                        onRenameEntry={renameEntryWithScrollPreservation}
                         onPatchEntry={patchEntryWithScrollPreservation}
                         onSelectEntry={handleSelectEntry}
                         onContextMenu={handleContextMenu}

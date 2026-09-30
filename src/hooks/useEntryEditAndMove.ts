@@ -10,13 +10,7 @@ import { entryFields } from '../utils/dictionary';
 
 interface UseEntryEditAndMoveParams {
   dictionaries: Record<string, DictionaryData>;
-  updateEntry: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: any
-  ) => Promise<void>;
+  renameEntry: DictionaryContextInterface['renameEntry'];
   patchEntry: DictionaryContextInterface['patchEntry'];
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
 }
@@ -26,13 +20,7 @@ export interface UseEntryEditAndMoveResult {
   moveEntry: MoveEntryData | null;
   closeEdit: () => void;
   closeMove: () => void;
-  updateEntryWithScrollPreservation: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: any
-  ) => Promise<void>;
+  renameEntryWithScrollPreservation: DictionaryContextInterface['renameEntry'];
   patchEntryWithScrollPreservation: DictionaryContextInterface['patchEntry'];
   onContextMenuEdit: (entry: ContextMenuEntry) => void;
   onContextMenuMove: (entry: ContextMenuEntry) => void;
@@ -40,26 +28,18 @@ export interface UseEntryEditAndMoveResult {
 
 export function useEntryEditAndMove({
   dictionaries,
-  updateEntry,
+  renameEntry,
   patchEntry,
   withScrollPreservation,
 }: UseEntryEditAndMoveParams): UseEntryEditAndMoveResult {
   const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
 
-  const updateEntryWithScrollPreservation = useCallback(
-    async (
-      dictionaryId: string,
-      oldSource: string,
-      newSource: string,
-      translation: string,
-      metadata?: any
-    ): Promise<void> => {
-      await withScrollPreservation(() =>
-        updateEntry(dictionaryId, oldSource, newSource, translation, metadata)
-      );
+  const renameEntryWithScrollPreservation = useCallback<DictionaryContextInterface['renameEntry']>(
+    async (dictionaryId, oldSource, newSource) => {
+      await withScrollPreservation(() => renameEntry(dictionaryId, oldSource, newSource));
     },
-    [updateEntry, withScrollPreservation]
+    [renameEntry, withScrollPreservation]
   );
 
   const patchEntryWithScrollPreservation = useCallback<DictionaryContextInterface['patchEntry']>(
@@ -101,7 +81,7 @@ export function useEntryEditAndMove({
     moveEntry,
     closeEdit,
     closeMove,
-    updateEntryWithScrollPreservation,
+    renameEntryWithScrollPreservation,
     patchEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,

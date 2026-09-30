@@ -3,7 +3,6 @@ import {
   isPatternsDict,
   isPhrasesDict,
   isProperNounsDict,
-  buildEntryMetadata,
   entryFields,
   toggleVariableType,
 } from '../../utils/dictionary';
@@ -43,14 +42,9 @@ export interface VirtualRowProps {
   translation: DictionaryEntryValue;
   isSelected: boolean;
   selectedDictionary: string;
-  /** Only for a source rename, which re-keys the entry; every other edit is `onPatchEntry`. */
-  onUpdateEntry: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: any
-  ) => Promise<void>;
+  /** A source rename, which re-keys the entry. It reads the other fields from the store as the
+   * commit runs, so the row passes none (every other edit is `onPatchEntry`). */
+  onRenameEntry: DictionaryContextInterface['renameEntry'];
   /** Changes some fields of this entry; the rest is read from the store, not these props. */
   onPatchEntry: DictionaryContextInterface['patchEntry'];
   onSelectEntry: (source: string, isSelected: boolean) => void;
@@ -68,7 +62,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     translation,
     isSelected,
     selectedDictionary,
-    onUpdateEntry,
+    onRenameEntry,
     onPatchEntry,
     onSelectEntry,
     onContextMenu,
@@ -80,15 +74,9 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       allowedVariableTypes,
     } = entryFields(translation);
 
-    const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
-      await onUpdateEntry(
-        selectedDictionary,
-        source,
-        newSource,
-        translationText,
-        buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes })
-      );
-    });
+    const sourceEdit = useInlineFieldEdit(source, (newSource) =>
+      onRenameEntry(selectedDictionary, source, newSource)
+    );
 
     const translEdit = useInlineFieldEdit(translationText, (newTranslation) =>
       onPatchEntry(selectedDictionary, source, { translation: newTranslation })

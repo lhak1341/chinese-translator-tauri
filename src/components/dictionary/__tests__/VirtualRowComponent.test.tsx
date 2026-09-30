@@ -31,7 +31,7 @@ function makeProps(overrides: Partial<VirtualRowProps> = {}) {
     translation: 'của X Y' as DictionaryEntryValue,
     isSelected: false,
     selectedDictionary: 'patterns',
-    onUpdateEntry: vi.fn().mockResolvedValue(undefined),
+    onRenameEntry: vi.fn().mockResolvedValue(undefined),
     onPatchEntry: vi.fn().mockResolvedValue(undefined),
     onSelectEntry: vi.fn(),
     onContextMenu: vi.fn(),
@@ -208,68 +208,23 @@ describe('VirtualRowComponent', () => {
     });
   });
 
-  describe('source rename carries the metadata through buildEntryMetadata', () => {
-    it('sends the base metadata shape for a plain dictionary like characters — prepareMutationEntry (useDictionaryCRUD.ts) discards it into a plain string regardless, so no dict-type gate is needed here', async () => {
-      const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
-      render(
-        <VirtualRowComponent
-          {...makeProps({
-            selectedDictionary: 'characters',
-            source: '你',
-            translation: 'you',
-            onUpdateEntry,
-          })}
-        />
-      );
-
-      await sourceOnCommit()('妳');
-
-      expect(onUpdateEntry).toHaveBeenCalledWith('characters', '你', '妳', 'you', {
-        allowAsPatternVariable: false,
-      });
-    });
-
-    it('sends metadata for a phrases dictionary entry', async () => {
-      const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
+  describe('source rename sends only the keys', () => {
+    it('passes the dictionary, old and new source — renameEntry reads the other fields from the store', async () => {
+      const onRenameEntry = vi.fn().mockResolvedValue(undefined);
       render(
         <VirtualRowComponent
           {...makeProps({
             selectedDictionary: 'phrases',
             source: '你好',
-            translation: {
-              translation: 'xin chào',
-              allowAsPatternVariable: true,
-            },
-            onUpdateEntry,
+            translation: { translation: 'xin chào', allowAsPatternVariable: true },
+            onRenameEntry,
           })}
         />
       );
 
       await sourceOnCommit()('你好呀');
 
-      expect(onUpdateEntry).toHaveBeenCalledWith('phrases', '你好', '你好呀', 'xin chào', {
-        allowAsPatternVariable: true,
-      });
-    });
-
-    it('sends metadata for a properNouns dictionary entry', async () => {
-      const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
-      render(
-        <VirtualRowComponent
-          {...makeProps({
-            selectedDictionary: 'properNouns',
-            source: '孔宣',
-            translation: { translation: 'Khong Tuyen' },
-            onUpdateEntry,
-          })}
-        />
-      );
-
-      await sourceOnCommit()('孔宣氏');
-
-      expect(onUpdateEntry).toHaveBeenCalledWith('properNouns', '孔宣', '孔宣氏', 'Khong Tuyen', {
-        allowAsPatternVariable: false,
-      });
+      expect(onRenameEntry).toHaveBeenCalledWith('phrases', '你好', '你好呀');
     });
   });
 
