@@ -1,16 +1,15 @@
-import { entryCapabilities, showsSemanticType } from '../../utils/dictionary';
 import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import styles from '../../styles/RuleMatchesModal.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
-import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
+import { RowShell } from '../dictionary/TableBuildingBlocks';
+import { EntryVarCell, EntrySemanticCell, entryPatcher } from '../dictionary/EntryCells';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
-import { ControlledEditableCell } from './EditableCell';
+import { ControlledEditableCell } from '../EditableCell';
 import EntryContextMenu from '../dictionary/EntryContextMenu';
 import MoveDialog from '../dictionary/MoveDialog';
 import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
-import { logger } from '../../utils/logger';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
@@ -36,32 +35,6 @@ type OnRowContextMenu = (
   dictionaryId: string
 ) => void;
 
-/** properNouns entries are always usable as variables — unlike phrases, where it's a
- * real per-entry toggle. Same badge look, but not clickable, with a title explaining why
- * instead of MetadataBadge's own (wrong, for this case) "click to disallow" tooltip. */
-function VarBadge({
-  dictionaryId,
-  active,
-  onToggle,
-}: {
-  dictionaryId: string;
-  active: boolean;
-  onToggle: () => void;
-}) {
-  if (entryCapabilities(dictionaryId).variableFlag === 'always') {
-    return (
-      <span
-        className={dictStyles.metadataBadge}
-        title="Proper noun entries are always usable as variables — not toggleable here"
-        style={{ background: '#059669', color: 'white', border: 'none', cursor: 'default' }}
-      >
-        ✓ VAR
-      </span>
-    );
-  }
-  return <MetadataBadge type="variable" active={active} onClick={onToggle} />;
-}
-
 function MatchRow({
   row,
   patchEntry,
@@ -74,15 +47,7 @@ function MatchRow({
   const translEdit = useInlineFieldEdit(row.translation, (translation) =>
     patchEntry(row.dictionaryId, row.source, { translation })
   );
-  // patchEntry toasts its own failures; the catch only keeps the rejection handled.
-  const patch = (fields: Parameters<PatchEntry>[2]): void => {
-    patchEntry(row.dictionaryId, row.source, fields).catch((error: unknown) =>
-      logger.error('Failed to update entry:', error)
-    );
-  };
-
-  // The same rule as the Dictionary table's rows: `showsSemanticType`.
-  const showSemantic = showsSemanticType(row.dictionaryId, row.allowAsPatternVariable);
+  const patch = entryPatcher(patchEntry, row.dictionaryId, row.source);
 
   return (
     <RowShell
@@ -101,23 +66,24 @@ function MatchRow({
           spanClassName={dictStyles.clickableText}
         />
         {!translEdit.editing && (
-          <div className={dictStyles.badgeContainer}>
-            <VarBadge
-              dictionaryId={row.dictionaryId}
-              active={row.allowAsPatternVariable}
-              onToggle={() => patch({ allowAsPatternVariable: !row.allowAsPatternVariable })}
-            />
-          </div>
+          // A rule's matches span dictionaries, so a proper noun's always-on VAR is shown.
+          <EntryVarCell
+            dictionaryId={row.dictionaryId}
+            active={row.allowAsPatternVariable}
+            onToggle={() => patch({ allowAsPatternVariable: !row.allowAsPatternVariable })}
+            mixedKinds
+          />
         )}
       </div>
       <div role="cell" className={styles.colSemantic}>
-        {showSemantic ? (
-          <SemanticTypeToggleCell
-            activeType={row.semanticType}
-            onSelect={(semanticType) => patch({ semanticType })}
-            width="100%"
-          />
-        ) : null}
+        <EntrySemanticCell
+          dictionaryId={row.dictionaryId}
+          source={row.source}
+          allowAsPatternVariable={row.allowAsPatternVariable}
+          semanticType={row.semanticType}
+          onSelect={(semanticType) => patch({ semanticType })}
+          width="100%"
+        />
       </div>
       <div
         role="cell"

@@ -157,6 +157,32 @@ describe('VirtualRowComponent', () => {
     });
   });
 
+  describe('proper nouns and accessible cells', () => {
+    it('shows no VAR badge on a proper-noun row — one dictionary per table, so it would be on every row', () => {
+      render(
+        <VirtualRowComponent
+          {...makeProps({
+            selectedDictionary: 'properNouns-f_Novel',
+            source: '孔宣',
+            translation: 'Khổng Tuyên',
+          })}
+        />
+      );
+      expect(screen.queryByText('VAR')).not.toBeInTheDocument();
+      expect(screen.queryByText('✓ VAR')).not.toBeInTheDocument();
+    });
+
+    it('labels the source and translation cells by the entry', () => {
+      render(
+        <VirtualRowComponent
+          {...makeProps({ selectedDictionary: 'phrases', source: '你好', translation: 'xin chào' })}
+        />
+      );
+      expect(screen.getByLabelText('Source for 你好')).toBeInTheDocument();
+      expect(screen.getByLabelText('Translation for 你好')).toHaveTextContent('xin chào');
+    });
+  });
+
   describe('translation edit patches only the translation', () => {
     it('sends no snapshot of the other fields — patchEntry reads them from the store', async () => {
       const onPatchEntry = vi.fn().mockResolvedValue(undefined);

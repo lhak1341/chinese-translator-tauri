@@ -3,30 +3,17 @@ import {
   isPatternsDict,
   isPhrasesDict,
   isProperNounsDict,
-  showsSemanticType,
   buildEntryMetadata,
   entryFields,
   toggleVariableType,
 } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
-import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
-import { logger } from '../../utils/logger';
-import {
-  SEMANTIC_TYPE_COLORS,
-  SEMANTIC_TYPE_ABBREVIATIONS,
-  SEMANTIC_TYPE_LIST,
-} from '../../constants/SemanticTypes';
-import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { highlightPatternVariables } from '../../utils/text';
-import {
-  RowShell,
-  CheckboxCell,
-  MetadataBadge,
-  SemanticTypeToggleCell,
-  BadgeChip,
-} from './TableBuildingBlocks';
+import { RowShell, CheckboxCell } from './TableBuildingBlocks';
+import { ControlledEditableCell } from '../EditableCell';
+import { EntryVarCell, EntrySemanticCell, EntryTypeCells, entryPatcher } from './EntryCells';
 
 /** Width of the per-row Semantic-type column (patterns/phrases/properNouns). Shared constant
  * rather than a CSS class because `SemanticTypeToggleCell`'s width is a JS prop — it's reused
@@ -35,76 +22,21 @@ import {
  * grilling). */
 export const DICTIONARY_SEMANTIC_COLUMN_WIDTH = '15%';
 
-const TypeToggleCell: React.FC<{
-  varName: string;
-  hasVariable: boolean;
-  activeTypes: string[];
-  onToggle: (varName: string, type: string) => void;
-}> = ({ varName, hasVariable, activeTypes, onToggle }) => {
-  if (!hasVariable) {
-    return (
-      <div
-        className={styles.patternsTypeCol}
-        style={{
-          padding: '0 0.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>--</span>
-      </div>
-    );
+/** Each kind's Source/Translation column classes — layout only; see
+ * EnhancedVirtualizedDictionaryTable.module.css's "Column widths" comment block, which this
+ * shares with the header. What else a row shows comes from `EntryCells`. */
+function columnClasses(dictionaryId: string): { source: string; translation: string } {
+  if (isPatternsDict(dictionaryId)) {
+    return { source: styles.patternsSourceCol, translation: styles.patternsTranslationCol };
   }
-  return (
-    <div
-      className={styles.patternsTypeCol}
-      style={{
-        padding: '0 0.25rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '2px',
-        flexWrap: 'nowrap',
-      }}
-    >
-      {SEMANTIC_TYPE_LIST.map((type) => {
-        const isActive = activeTypes.includes(type);
-        return (
-          <BadgeChip
-            key={type}
-            label={SEMANTIC_TYPE_ABBREVIATIONS[type]}
-            active={isActive}
-            activeColor={SEMANTIC_TYPE_COLORS[type as SemanticType]}
-            onClick={() => onToggle(varName, type)}
-            title={`${isActive ? 'Remove' : 'Add'} ${type} for ${varName}`}
-          />
-        );
-      })}
-    </div>
-  );
-};
-
-/** Toggles between the inline `<input>` and a clickable display span. Wrapping div/width/className is the caller's concern. */
-const EditableCell: React.FC<{
-  edit: InlineFieldEdit;
-  renderDisplay: () => React.ReactNode;
-}> = ({ edit, renderDisplay }) =>
-  edit.editing ? (
-    <input
-      type="text"
-      value={edit.tempValue}
-      onChange={(e) => edit.handleChange(e.target.value)}
-      onBlur={edit.commitEdit}
-      onKeyDown={edit.onKeyDown}
-      autoFocus
-      className={styles.inlineEditInput}
-    />
-  ) : (
-    <span onClick={edit.startEdit} className={styles.clickableText} title="Click to edit">
-      {renderDisplay()}
-    </span>
-  );
+  if (isPhrasesDict(dictionaryId)) {
+    return { source: styles.phrasesSourceCol, translation: styles.phrasesTranslationCol };
+  }
+  if (isProperNounsDict(dictionaryId)) {
+    return { source: styles.properNounsSourceCol, translation: styles.properNounsTranslationCol };
+  }
+  return { source: styles.simpleSourceCol, translation: styles.simpleTranslationCol };
+}
 
 export interface VirtualRowProps {
   source: string;
@@ -148,12 +80,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       allowedVariableTypes,
     } = entryFields(translation);
 
-    const isPatterns = isPatternsDict(selectedDictionary);
-    const isPhrases = isPhrasesDict(selectedDictionary);
-    const isProperNouns = isProperNounsDict(selectedDictionary);
-    // The kind branches below are layout; whether the Semantic cell shows is the capability rule.
-    const showSemantic = showsSemanticType(selectedDictionary, allowAsPatternVariable);
-
     const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
       await onUpdateEntry(
         selectedDictionary,
@@ -168,142 +94,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       onPatchEntry(selectedDictionary, source, { translation: newTranslation })
     );
 
-    // onPatchEntry toasts its own failures; the catch only keeps the rejection handled.
-    const patch = (fields: Parameters<VirtualRowProps['onPatchEntry']>[2]): void => {
-      onPatchEntry(selectedDictionary, source, fields).catch((error: unknown) =>
-        logger.error('Failed to update entry:', error)
-      );
-    };
-    const setAllowAsPatternVariable = (value: boolean): void =>
-      patch({ allowAsPatternVariable: value });
-    const handleSetSemanticType = (value: string): void => patch({ semanticType: value });
-    const handleToggleVariableType = (varName: string, type: string): void =>
-      patch((current) => ({
-        allowedVariableTypes: toggleVariableType(current.allowedVariableTypes, varName, type),
-      }));
-
-    // Patterns layout — see EnhancedVirtualizedDictionaryTable.module.css's "Column widths"
-    // comment block for the full column-by-column layout this shares with the header.
-    if (isPatterns) {
-      const hasX = source.includes('X');
-      const hasY = source.includes('Y');
-      return (
-        <RowShell
-          onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
-          isSelected={isSelected}
-        >
-          <CheckboxCell
-            checked={isSelected}
-            onChange={(checked) => onSelectEntry(source, checked)}
-          />
-
-          <div className={`${styles.cell} ${styles.patternsSourceCol}`}>
-            <EditableCell
-              edit={sourceEdit}
-              renderDisplay={() => highlightPatternVariables(source)}
-            />
-          </div>
-
-          <div className={`${styles.cellEditable} ${styles.patternsTranslationCol}`}>
-            <EditableCell edit={translEdit} renderDisplay={() => translationText} />
-            {!translEdit.editing && (
-              <div className={styles.badgeContainer}>
-                <MetadataBadge
-                  type="variable"
-                  active={allowAsPatternVariable}
-                  onClick={() => setAllowAsPatternVariable(!allowAsPatternVariable)}
-                />
-              </div>
-            )}
-          </div>
-
-          {showSemantic ? (
-            <SemanticTypeToggleCell
-              activeType={semanticType}
-              onSelect={handleSetSemanticType}
-              width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
-              patternSource={source}
-            />
-          ) : (
-            <div
-              style={{
-                width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                minWidth: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-              }}
-            />
-          )}
-
-          <TypeToggleCell
-            varName="X"
-            hasVariable={hasX}
-            activeTypes={allowedVariableTypes['X'] || []}
-            onToggle={handleToggleVariableType}
-          />
-
-          <TypeToggleCell
-            varName="Y"
-            hasVariable={hasY}
-            activeTypes={allowedVariableTypes['Y'] || []}
-            onToggle={handleToggleVariableType}
-          />
-        </RowShell>
-      );
-    }
-
-    // Phrases layout — see EnhancedVirtualizedDictionaryTable.module.css's "Column widths"
-    // comment block for the full column-by-column layout this shares with the header.
-    if (isPhrases) {
-      return (
-        <RowShell
-          onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
-          isSelected={isSelected}
-        >
-          <CheckboxCell
-            checked={isSelected}
-            onChange={(checked) => onSelectEntry(source, checked)}
-          />
-
-          <div className={`${styles.cell} ${styles.phrasesSourceCol}`}>
-            <EditableCell edit={sourceEdit} renderDisplay={() => source} />
-          </div>
-
-          <div className={`${styles.cellEditable} ${styles.phrasesTranslationCol}`}>
-            <EditableCell edit={translEdit} renderDisplay={() => translationText} />
-            {!translEdit.editing && (
-              <div className={styles.badgeContainer}>
-                <MetadataBadge
-                  type="variable"
-                  active={allowAsPatternVariable}
-                  onClick={() => setAllowAsPatternVariable(!allowAsPatternVariable)}
-                />
-              </div>
-            )}
-          </div>
-
-          {showSemantic ? (
-            <SemanticTypeToggleCell
-              activeType={semanticType}
-              onSelect={handleSetSemanticType}
-              width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
-            />
-          ) : (
-            <div
-              style={{
-                width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                minWidth: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-              }}
-            />
-          )}
-        </RowShell>
-      );
-    }
-
-    // Simple dictionaries (characters, properNouns, etc.) — see
-    // EnhancedVirtualizedDictionaryTable.module.css's "Column widths" comment block.
-    const sourceColClass = isProperNouns ? styles.properNounsSourceCol : styles.simpleSourceCol;
-    const translationColClass = isProperNouns
-      ? styles.properNounsTranslationCol
-      : styles.simpleTranslationCol;
+    const patch = entryPatcher(onPatchEntry, selectedDictionary, source);
+    const columns = columnClasses(selectedDictionary);
 
     return (
       <RowShell
@@ -312,21 +104,57 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       >
         <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 
-        <div className={`${styles.cell} ${sourceColClass}`}>
-          <EditableCell edit={sourceEdit} renderDisplay={() => source} />
-        </div>
-
-        <div className={`${styles.cellEditable} ${translationColClass}`}>
-          <EditableCell edit={translEdit} renderDisplay={() => translationText} />
-        </div>
-
-        {showSemantic && (
-          <SemanticTypeToggleCell
-            activeType={semanticType}
-            onSelect={handleSetSemanticType}
-            width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
+        <div className={`${styles.cell} ${columns.source}`}>
+          <ControlledEditableCell
+            edit={sourceEdit}
+            value={source}
+            label={`Source for ${source}`}
+            display={
+              isPatternsDict(selectedDictionary) ? highlightPatternVariables(source) : undefined
+            }
+            inputClassName={styles.inlineEditInput}
+            spanClassName={styles.clickableText}
           />
-        )}
+        </div>
+
+        <div className={`${styles.cellEditable} ${columns.translation}`}>
+          <ControlledEditableCell
+            edit={translEdit}
+            value={translationText}
+            label={`Translation for ${source}`}
+            inputClassName={styles.inlineEditInput}
+            spanClassName={styles.clickableText}
+          />
+          {!translEdit.editing && (
+            // One dictionary per table: every row's VAR works the same way.
+            <EntryVarCell
+              dictionaryId={selectedDictionary}
+              active={allowAsPatternVariable}
+              onToggle={() => patch({ allowAsPatternVariable: !allowAsPatternVariable })}
+              mixedKinds={false}
+            />
+          )}
+        </div>
+
+        <EntrySemanticCell
+          dictionaryId={selectedDictionary}
+          source={source}
+          allowAsPatternVariable={allowAsPatternVariable}
+          semanticType={semanticType}
+          onSelect={(value) => patch({ semanticType: value })}
+          width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
+        />
+
+        <EntryTypeCells
+          dictionaryId={selectedDictionary}
+          source={source}
+          allowedVariableTypes={allowedVariableTypes}
+          onToggle={(varName, type) =>
+            patch((current) => ({
+              allowedVariableTypes: toggleVariableType(current.allowedVariableTypes, varName, type),
+            }))
+          }
+        />
       </RowShell>
     );
   }

@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, test, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import EditableCell, { ControlledEditableCell } from '../EditableCell';
-import { useInlineFieldEdit } from '../../../hooks/useInlineFieldEdit';
+import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 
 describe('EditableCell — internal edit state (RuleRow usage)', () => {
   test('shows value as a clickable span, then an input on click', () => {

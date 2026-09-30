@@ -1,5 +1,6 @@
-import styles from '../../styles/RulesManager.module.css';
-import { useInlineFieldEdit, type InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
+import type React from 'react';
+import styles from '../styles/RulesManager.module.css';
+import { useInlineFieldEdit, type InlineFieldEdit } from '../hooks/useInlineFieldEdit';
 
 interface RenderProps {
   value: string;
@@ -10,6 +11,8 @@ interface RenderProps {
   spanClassName?: string;
   title?: string;
   maxLength?: number;
+  /** What the span shows instead of the plain value (a pattern's highlighted variables). */
+  display?: React.ReactNode;
 }
 
 function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
@@ -22,6 +25,7 @@ function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
     spanClassName,
     title = 'Click to edit',
     maxLength,
+    display,
   } = props;
 
   if (edit.editing) {
@@ -50,12 +54,13 @@ function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
       title={title}
       aria-label={label}
     >
-      {value || placeholder || '—'}
+      {display ?? (value || placeholder || '—')}
     </span>
   );
 }
 
-/** Click-to-edit text/number cell — the same interaction Dictionary's table uses. */
+/** Click-to-edit text/number cell, shared by the Rules tab's forms and the Dictionary tab's
+ * and Rule Matches' entry rows. */
 function EditableCell({
   value,
   onCommit,

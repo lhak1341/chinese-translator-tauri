@@ -4,11 +4,11 @@ import {
   RowShell,
   CheckboxCell,
   SelectAllCheckboxHeaderCell,
-  SemanticTypeToggleCell,
   ITEM_HEIGHT,
 } from './TableBuildingBlocks';
+import { EntrySemanticCell } from './EntryCells';
 import { DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import { createDuplicateKey, isPatternsDict, showsSemanticType } from '../../utils/dictionary';
+import { createDuplicateKey } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
@@ -162,25 +162,15 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                   >
                     {row.dictionaryLabel}
                   </div>
-                  {showsSemanticType(
-                    row.dictionaryId,
-                    row.metadata?.allowAsPatternVariable === true
-                  ) ? (
-                    <SemanticTypeToggleCell
-                      activeType={row.metadata?.semanticType ?? ''}
-                      onSelect={(type) => onSetSemanticType?.(row, type)}
-                      width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
-                      patternSource={isPatternsDict(row.dictionaryId) ? row.source : undefined}
-                      rowLabel={`${row.source} in ${row.dictionaryLabel}`}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                        minWidth: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                      }}
-                    />
-                  )}
+                  <EntrySemanticCell
+                    dictionaryId={row.dictionaryId}
+                    source={row.source}
+                    allowAsPatternVariable={row.metadata?.allowAsPatternVariable === true}
+                    semanticType={row.metadata?.semanticType ?? ''}
+                    onSelect={(type) => onSetSemanticType?.(row, type)}
+                    width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
+                    rowLabel={`${row.source} in ${row.dictionaryLabel}`}
+                  />
                 </RowShell>
               </div>
             );

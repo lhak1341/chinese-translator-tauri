@@ -6,7 +6,7 @@ import {
   SemanticTypeToggleCell,
   BinaryToggleChips,
 } from '../dictionary/TableBuildingBlocks';
-import EditableCell from './EditableCell';
+import EditableCell from '../EditableCell';
 import {
   commitRuleField,
   type RuleTextField,

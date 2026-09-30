@@ -19,7 +19,7 @@ import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySele
 import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
 import type { UseVirtualScrollRangeResult } from '../../hooks/useVirtualScrollRange';
 import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
-import { logger } from '../../utils/logger';
+import { entryPatcher } from './EntryCells';
 
 export interface DictionaryTableViewProps {
   selectedDictionary: string;
@@ -93,7 +93,12 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
   if (isProperNounsDict(dictionaryId)) {
     return [
       { label: 'Source', className: styles.properNounsSourceCol },
-      { label: 'Translation', className: styles.properNounsTranslationCol },
+      // Stated once here rather than as the same badge on every row (EntryVarCell).
+      {
+        label: 'Translation',
+        className: styles.properNounsTranslationCol,
+        title: 'Proper nouns are always usable as variables',
+      },
       ...capabilityColumns('Semantic type'),
     ];
   }
@@ -193,11 +198,14 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
 
   // Duplicate view's Semantic column — keyed by the row's own dictionary.
   const handleSetDuplicateSemanticType = useCallback(
-    (row: DuplicateRow, type: string): void => {
-      patchEntryWithScrollPreservation(row.dictionaryId, row.source, { semanticType: type }).catch(
-        (error: unknown) => logger.error('Failed to set semantic type:', error)
-      );
-    },
+    (row: DuplicateRow, type: string): void =>
+      entryPatcher(
+        patchEntryWithScrollPreservation,
+        row.dictionaryId,
+        row.source
+      )({
+        semanticType: type,
+      }),
     [patchEntryWithScrollPreservation]
   );
 

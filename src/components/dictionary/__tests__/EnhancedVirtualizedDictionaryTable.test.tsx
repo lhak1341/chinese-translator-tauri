@@ -398,3 +398,13 @@ describe('dictionary switch — what resets and what carries over', () => {
     expect(screen.getByText(/^Rows 1–/)).toBeTruthy();
   });
 });
+
+describe('proper-noun table header', () => {
+  test('the Translation header says once that proper nouns are always usable as variables', () => {
+    setDict('properNouns-f_Novel', { 孔宣: { translation: 'Khổng Tuyên' } });
+    render(<EnhancedVirtualizedDictionaryTable selectedDictionary="properNouns-f_Novel" />);
+    expect(screen.getByTitle('Proper nouns are always usable as variables')).toHaveTextContent(
+      'Translation'
+    );
+  });
+});
