@@ -44,27 +44,34 @@ vi.mock('../../utils/appConfig', () => ({
   invalidateAppConfig: vi.fn(),
 }));
 
-const { setBookBinding, renameBoundDictionary } = vi.hoisted(() => ({
+const { setBookBinding, renameBoundDictionary, unbindDictionary } = vi.hoisted(() => ({
   setBookBinding: vi.fn().mockResolvedValue(undefined),
   renameBoundDictionary: vi.fn().mockResolvedValue(undefined),
+  unbindDictionary: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../../utils/reader/BookRecordsBackend', () => ({
   setBookBinding,
   renameBoundDictionary,
+  unbindDictionary,
 }));
 
 const listProperNounsDictionaryIds = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/dictionary/DictionaryBackend', () => ({ listProperNounsDictionaryIds }));
 
-const { reinitializeEngine, loadDictionary, applyRename, dictionaries } = vi.hoisted(() => ({
-  reinitializeEngine: vi.fn().mockResolvedValue(true),
-  loadDictionary: vi.fn().mockResolvedValue(undefined),
-  applyRename: vi.fn().mockResolvedValue(undefined),
-  dictionaries: { properNouns: {} },
-}));
+const { reinitializeEngine, loadDictionary, applyRename, dictionaries, getDictionaries } =
+  vi.hoisted(() => {
+    const dictionaries = { properNouns: {} };
+    return {
+      reinitializeEngine: vi.fn().mockResolvedValue(true),
+      loadDictionary: vi.fn().mockResolvedValue(undefined),
+      applyRename: vi.fn().mockResolvedValue(undefined),
+      dictionaries,
+      getDictionaries: vi.fn(() => dictionaries),
+    };
+  });
 vi.mock('../EngineContext', () => ({ useEngine: () => ({ reinitializeEngine }) }));
 vi.mock('../dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries, loadDictionary, applyRename }),
+  useDictionary: () => ({ dictionaries, loadDictionary, applyRename, getDictionaries }),
 }));
 
 const createFictionDictionaryPair = vi.fn();
@@ -379,6 +386,110 @@ describe('renaming a fiction dictionary', () => {
   });
 });
 
+describe('moving a dictionary between fiction and generic', () => {
+  /** What Rust's rename does to config: substitute the id wherever it is named. */
+  function renameLikeRust(): void {
+    renameProperNounsDictionary.mockImplementation(async (oldId: string, newId: string) => {
+      config.engine.activeProperNouns = config.engine.activeProperNouns.map((id) =>
+        id === oldId ? newId : id
+      );
+      if (config.ui.defaultQuickAddDictionary === oldId) {
+        config.ui.defaultQuickAddDictionary = newId;
+      }
+      return { success: true };
+    });
+  }
+
+  test('promoting moves the pair, unbinds the open book, and rebuilds under the new tier', async () => {
+    renameLikeRust();
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDo'));
+    reinitializeEngine.mockClear();
+
+    let response: { success: boolean; newId: string | null } | undefined;
+    await act(async () => {
+      response = await result.current.moveDictionaryTier('properNouns-f_TapDo');
+    });
+
+    expect(response).toEqual({ success: true, filesMoved: true, newId: 'properNouns-_TapDo' });
+    expect(applyRename).toHaveBeenCalledWith([
+      ['properNouns-f_TapDo', 'properNouns-_TapDo'],
+      ['patterns-f_TapDo', 'patterns-_TapDo'],
+    ]);
+    expect(unbindDictionary).toHaveBeenCalledWith('properNouns-f_TapDo');
+    // Answered "none", not unanswered: the offer must not come back.
+    expect(result.current.binding).toEqual({ fictionDictionary: null });
+    expect(config.engine.activeProperNouns).toContain('properNouns-_TapDo');
+    // Same list, different tier: its trie priority changed, so the engine is rebuilt.
+    expect(reinitializeEngine).toHaveBeenCalledTimes(1);
+  });
+
+  test('promoting an inactive fiction dictionary activates it, so its books keep its names', async () => {
+    renameLikeRust();
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.moveDictionaryTier('properNouns-f_TruTien');
+    });
+
+    expect(lastSavedActive()).toEqual([
+      'properNouns',
+      'properNouns-_AiCap',
+      'properNouns-_TruTien',
+    ]);
+    expect(reinitializeEngine).toHaveBeenCalledTimes(1);
+  });
+
+  test('demoting with a book open leaves the fiction slice to its binding', async () => {
+    renameLikeRust();
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDo'));
+
+    let response: { success: boolean; newId: string | null } | undefined;
+    await act(async () => {
+      response = await result.current.moveDictionaryTier('properNouns-_AiCap');
+    });
+
+    expect(response?.newId).toBe('properNouns-f_AiCap');
+    expect(unbindDictionary).not.toHaveBeenCalled();
+    expect(config.engine.activeProperNouns).toEqual(['properNouns', 'properNouns-f_TapDo']);
+    expect(result.current.binding).toEqual({ fictionDictionary: 'properNouns-f_TapDo' });
+  });
+
+  test('a name the other tier already has is refused before anything moves', async () => {
+    renameProperNounsDictionary.mockResolvedValue({ success: false, error: 'already exists' });
+    const { result } = setup();
+
+    let response: { success: boolean; filesMoved: boolean } | undefined;
+    await act(async () => {
+      response = await result.current.moveDictionaryTier('properNouns-f_TapDo');
+    });
+
+    expect(response).toMatchObject({ success: false, filesMoved: false });
+    expect(unbindDictionary).not.toHaveBeenCalled();
+    expect(saveAppConfig).not.toHaveBeenCalled();
+    expect(reinitializeEngine).not.toHaveBeenCalled();
+  });
+
+  test('root and custom dictionaries have no other tier', async () => {
+    const { result } = setup();
+
+    let response: { success: boolean; newId: string | null } | undefined;
+    await act(async () => {
+      response = await result.current.moveDictionaryTier('properNouns-Custom');
+    });
+
+    expect(response).toMatchObject({ success: false, newId: null });
+    expect(renameProperNounsDictionary).not.toHaveBeenCalled();
+  });
+});
+
 describe('creating a fiction dictionary from the Configuration tab', () => {
   test('creates the pair, loads both halves, and refreshes the list, binding nothing', async () => {
     const { result } = setup();
@@ -457,6 +568,33 @@ describe('creating a dictionary from the dialog', () => {
     expect(setBookBinding).toHaveBeenCalledWith('fp1', {
       fictionDictionary: 'properNouns-f_DaiBatHau',
     });
+  });
+
+  test('the rebuild sees the pair it just loaded, whether or not React has re-rendered', async () => {
+    // The store gains the pair as each load resolves; the render snapshot (`dictionaries`)
+    // never does here — the case where no re-render lands between the load and the rebuild.
+    const store: Record<string, object> = { properNouns: {} };
+    loadDictionary.mockImplementation(async (id: string) => {
+      store[id] = {};
+    });
+    getDictionaries.mockImplementation(() => ({ ...store }));
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, null);
+    });
+    reinitializeEngine.mockClear();
+
+    await act(async () => {
+      await result.current.createAndBind('Đại bát hầu');
+    });
+
+    expect(reinitializeEngine).toHaveBeenCalledTimes(1);
+    expect(Object.keys(reinitializeEngine.mock.calls[0][0])).toEqual(
+      expect.arrayContaining(['properNouns-f_DaiBatHau', 'patterns-f_DaiBatHau'])
+    );
+    // clearAllMocks keeps implementations: put the shared defaults back.
+    loadDictionary.mockResolvedValue(undefined);
+    getDictionaries.mockImplementation(() => dictionaries);
   });
 
   test('a failed create binds nothing and surfaces the error', async () => {

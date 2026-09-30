@@ -1,5 +1,5 @@
 import { isPatternsDict, entryCapabilities } from '../../utils/dictionary';
-import React, { useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import { dictionaryOptionLabel } from './DictionaryTypes';
@@ -11,6 +11,11 @@ import { VariableHighlightInput } from './VariableHighlightInput';
 import { PATTERN_VARIABLE_COLORS } from '../../utils/text';
 import { useDictionaryEntryForm } from '../../hooks/useDictionaryEntryForm';
 import type { QuickAddShortlist, QuickAddView } from '../../utils/dictionary/QuickAddTarget';
+import { markHiddenEdges, revealInRow } from '../../utils/ui/RevealInRow';
+
+/** Pixels a revealed quick-switch chip keeps from the row's edge — wider than the row's 1rem
+ * edge fade (`.shortlist` in `DictionaryEntry.module.css`), so the chip lands clear of it. */
+const SHORTLIST_REVEAL_MARGIN = 24;
 
 interface DictionaryEntryProps {
   /** Entry to edit (undefined for new entry) */
@@ -61,6 +66,34 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   // Cmd/Ctrl-Enter clicks Save from anywhere in the form — a click, so the button's own
   // disabled state (invalid or saving) gates it exactly as it gates the mouse.
   const submitButtonRef = useRef<HTMLButtonElement>(null);
+
+  // The quick-switch row scrolls sideways with no scrollbar, so keep the active chip in
+  // view whenever it changes — a keyboard switch can pick one beyond either edge. Layout
+  // effect: scrolled before paint, so the row never shows a frame with the chip cut off.
+  const shortlistRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = shortlistRef.current;
+    const active = row?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!row) return;
+    if (active) revealInRow(row, active, SHORTLIST_REVEAL_MARGIN);
+    markHiddenEdges(row);
+  }, [form.activeDictionary, showShortlist]);
+
+  // With the scrollbar hidden, a soft fade at an edge is what says more chips lie past it.
+  // Re-marked on scroll (trackpad, or the reveal above) and on resize (the dialog or the
+  // chips changing width).
+  useEffect(() => {
+    const row = shortlistRef.current;
+    if (!row) return undefined;
+    const mark = (): void => markHiddenEdges(row);
+    row.addEventListener('scroll', mark, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(mark);
+    observer?.observe(row);
+    return () => {
+      row.removeEventListener('scroll', mark);
+      observer?.disconnect();
+    };
+  }, [showShortlist]);
 
   const handleShortlistKey = (e: React.KeyboardEvent): void => {
     if (!shortlist) return;
@@ -119,7 +152,12 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               <>
                 <span className={styles.headLabel}>Add to</span>
                 {showShortlist && (
-                  <div className={styles.shortlist} role="group" aria-label="Quick switch">
+                  <div
+                    ref={shortlistRef}
+                    className={styles.shortlist}
+                    role="group"
+                    aria-label="Quick switch"
+                  >
                     {shortlist.ids.map((id, i) => (
                       <button
                         key={id}

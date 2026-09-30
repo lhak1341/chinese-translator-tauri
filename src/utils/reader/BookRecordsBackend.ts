@@ -175,22 +175,37 @@ export function setBookBinding(fingerprint: string, binding: BookBinding): Promi
  * Rust's (file, paired patterns file, config); book records are TS-owned, so this runs
  * after it, under the same lock as every other records write.
  *
- * This is the one write to a reader's answer that the reader did not make, and it is not
- * a refresh: it keeps the answer the reader gave, under the dictionary's new name.
+ * One of two writes to a reader's answer that the reader did not make (`unbindDictionary`
+ * is the other), and it is not a refresh: it keeps the answer the reader gave, under the
+ * dictionary's new name.
  */
 export function renameBoundDictionary(oldId: string, newId: string): Promise<void> {
+  return replaceBoundDictionary(oldId, newId);
+}
+
+/**
+ * Answer "no fiction dictionary" for every book bound to one that stopped being fiction —
+ * promoted to generic, where every book reads it without a binding. Like a rename, a write
+ * to the reader's answer the reader did not make; unlike one, it cannot keep the answer,
+ * since a book binds only to fiction.
+ */
+export function unbindDictionary(dictionaryId: string): Promise<void> {
+  return replaceBoundDictionary(dictionaryId, null);
+}
+
+function replaceBoundDictionary(oldId: string, next: string | null): Promise<void> {
   return transformRecords((records) => {
     let changed = false;
-    const next: BookRecords = {};
+    const updated: BookRecords = {};
     for (const [fingerprint, record] of Object.entries(records)) {
       if (record.binding?.fictionDictionary === oldId) {
-        next[fingerprint] = { ...record, binding: { fictionDictionary: newId } };
+        updated[fingerprint] = { ...record, binding: { fictionDictionary: next } };
         changed = true;
       } else {
-        next[fingerprint] = record;
+        updated[fingerprint] = record;
       }
     }
-    return { records: changed ? next : records, result: undefined };
+    return { records: changed ? updated : records, result: undefined };
   });
 }
 

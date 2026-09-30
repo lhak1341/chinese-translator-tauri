@@ -1,8 +1,108 @@
-import React from 'react';
-import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
-import { tierOf, isFictionProperNounsId } from '../../utils/dictionary/DictionaryIdClassifier';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  PlusCircle,
+  Loader,
+  AlertCircle,
+  Pencil,
+  Check,
+  X,
+  Bookmark,
+  CircleArrowUp,
+  CircleArrowDown,
+} from 'lucide-react';
+import {
+  tierOf,
+  isFictionProperNounsId,
+  otherPairedTierId,
+} from '../../utils/dictionary/DictionaryIdClassifier';
 import styles from '../../styles/ConfigurationManager.module.css';
+import menuStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { useDictionaryConfigManagement } from './useDictionaryConfigManagement';
+
+interface TierMenuProps {
+  dictionaryId: string;
+  x: number;
+  y: number;
+  /** Every dictionary id listed, to refuse a move onto a name the other tier already has. */
+  existingIds: readonly string[];
+  onMove: (dictionaryId: string) => void;
+  onClose: () => void;
+}
+
+/** Right-click menu for a fiction or generic row: promote to generic, or demote to fiction.
+ * Either moves the pair — proper nouns and its patterns half — under the same name. */
+const TierMenu: React.FC<TierMenuProps> = ({
+  dictionaryId,
+  x,
+  y,
+  existingIds,
+  onMove,
+  onClose,
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const targetId = otherPairedTierId(dictionaryId);
+  const promoting = isFictionProperNounsId(dictionaryId);
+  const taken = targetId !== null && existingIds.includes(targetId);
+
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    document.addEventListener('click', onClose);
+    return () => document.removeEventListener('click', onClose);
+  }, [onClose]);
+
+  if (!targetId) return null;
+  const targetName = targetId.replace('properNouns-', '');
+
+  return (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Dictionary actions"
+      style={{
+        position: 'fixed',
+        top: y,
+        left: x,
+        backgroundColor: 'var(--background-color)',
+        border: '1px solid var(--border-color)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        zIndex: 2000,
+        minWidth: '180px',
+        overflow: 'hidden',
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' || e.key === 'Tab') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <button
+        role="menuitem"
+        tabIndex={0}
+        className={menuStyles.contextMenuItem}
+        disabled={taken}
+        aria-disabled={taken}
+        style={taken ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+        title={
+          taken
+            ? `${targetName} already exists`
+            : promoting
+              ? `Move to Generic as ${targetName}, with its patterns. Books bound to it are unbound; every book reads it.`
+              : `Move to Fiction as ${targetName}, with its patterns. Books can then bind to it.`
+        }
+        onClick={() => {
+          onClose();
+          onMove(dictionaryId);
+        }}
+      >
+        {promoting ? <CircleArrowUp size={14} /> : <CircleArrowDown size={14} />}
+        <span>{promoting ? 'Promote to Generic' : 'Demote to Fiction'}</span>
+      </button>
+    </div>
+  );
+};
 
 /**
  * ConfigurationManager Component
@@ -37,7 +137,14 @@ const ConfigurationManager: React.FC = () => {
     handleSetDefaultQuickAdd,
     isFictionLockedByBook,
     openBookTitle,
+    availableDictionaries,
+    handleMoveTier,
   } = useDictionaryConfigManagement();
+
+  const [tierMenu, setTierMenu] = useState<{ dictionaryId: string; x: number; y: number } | null>(
+    null
+  );
+  const closeTierMenu = useCallback(() => setTierMenu(null), []);
 
   // Render a single dictionary row (minimal style, no card borders)
   const renderDictionaryRow = (dictionaryId: string) => {
@@ -58,7 +165,18 @@ const ConfigurationManager: React.FC = () => {
     };
 
     return (
-      <div key={dictionaryId} className={styles.dictionaryRow}>
+      <div
+        key={dictionaryId}
+        className={styles.dictionaryRow}
+        onContextMenu={
+          otherPairedTierId(dictionaryId) && !isRenaming
+            ? (e) => {
+                e.preventDefault();
+                setTierMenu({ dictionaryId, x: e.clientX, y: e.clientY });
+              }
+            : undefined
+        }
+      >
         {isRenaming ? (
           // Rename mode
           <div className={styles.renameContainer}>
@@ -253,6 +371,15 @@ const ConfigurationManager: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {tierMenu && (
+        <TierMenu
+          {...tierMenu}
+          existingIds={availableDictionaries}
+          onMove={handleMoveTier}
+          onClose={closeTierMenu}
+        />
+      )}
 
       {showNewDictionaryModal && (
         <div className={styles.modalOverlay}>

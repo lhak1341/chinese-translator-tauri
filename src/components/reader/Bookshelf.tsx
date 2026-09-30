@@ -7,6 +7,7 @@ import {
   FileWarning,
   LayoutGrid,
   List,
+  BookOpen,
 } from 'lucide-react';
 import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
 import { useBookRecords } from '../../hooks/useBookRecords';
@@ -27,6 +28,9 @@ interface BookshelfProps {
   notice: string | null;
   /** File name of the book currently loaded, if any. */
   openFileName: string | null;
+  /** The book opened most recently, if it is still on the shelf — offered above the list
+   * as "Continue reading". */
+  continueBook: ShelfBook | null;
   onOpen: (book: LibraryBook) => void;
   onChooseFolder: () => void;
   onUseDefaultFolder: () => void;
@@ -112,6 +116,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   isLoading,
   notice,
   openFileName,
+  continueBook,
   onOpen,
   onChooseFolder,
   onUseDefaultFolder,
@@ -204,6 +209,21 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           <AlertCircle size={15} />
           Reading progress couldn't be loaded — Rescan to retry.
         </div>
+      )}
+
+      {!isLoading && continueBook && (
+        <button
+          className={styles.continueCard}
+          onClick={() => onOpen(continueBook)}
+          title={`Continue reading ${continueBook.title}`}
+        >
+          <BookOpen size={18} className={styles.continueIcon} />
+          <span className={styles.continueLabel}>Continue reading</span>
+          <span className={styles.continueTitle}>{continueBook.title}</span>
+          <span className={styles.bookProgress}>
+            {formatProgress(records[continueBook.fingerprint])}
+          </span>
+        </button>
       )}
 
       {!isLoading && books.length > 0 && (

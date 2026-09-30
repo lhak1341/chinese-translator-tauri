@@ -9,6 +9,7 @@ import {
   setManualChapterPattern,
   setBookBinding,
   renameBoundDictionary,
+  unbindDictionary,
   recordBookOpened,
   subscribeBookRecords,
   getBookRecordsSnapshot,
@@ -350,6 +351,35 @@ describe('renameBoundDictionary', () => {
     await renameBoundDictionary('properNouns-f_Old', 'properNouns-f_New');
 
     expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('unbindDictionary', () => {
+  test('answers "none" for every record bound to it, leaving the rest alone', async () => {
+    const bound = makeBookRecord({
+      fingerprint: 'fpA',
+      binding: { fictionDictionary: 'properNouns-f_Old' },
+    });
+    const other = makeBookRecord({
+      fingerprint: 'fpC',
+      binding: { fictionDictionary: 'properNouns-f_Other' },
+    });
+    const unanswered = makeBookRecord({ fingerprint: 'fpD', binding: null });
+    window.electronAPI.loadBookRecords = vi.fn().mockResolvedValue({
+      success: true,
+      data: { fpA: bound, fpC: other, fpD: unanswered },
+    });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await unbindDictionary('properNouns-f_Old');
+
+    // `{ fictionDictionary: null }`, never `null`: the book answered, so no offer returns.
+    expect(saveFn).toHaveBeenCalledWith({
+      fpA: { ...bound, binding: { fictionDictionary: null } },
+      fpC: other,
+      fpD: unanswered,
+    });
   });
 });
 

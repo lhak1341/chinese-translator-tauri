@@ -48,6 +48,7 @@ function renderShelf(
       isLoading={false}
       notice={null}
       openFileName={null}
+      continueBook={null}
       onOpen={vi.fn()}
       onChooseFolder={vi.fn()}
       onUseDefaultFolder={vi.fn()}
@@ -216,5 +217,39 @@ describe('Bookshelf unavailable books', () => {
     renderShelf([{ fingerprint: 'fp2', title: 'Gone', lastKnownPath: 'gone.txt' }]);
     expect(screen.getByText('KimDung')).toBeTruthy();
     expect(screen.getByText('40 chapters')).toBeTruthy();
+  });
+});
+
+describe('Continue reading', () => {
+  test('offers the last book with its progress, and opens it on click', async () => {
+    await act(() =>
+      seedRecords({ fp1: makeBookRecord({ lineCount: 200, position: { line: 41, fraction: 0 } }) })
+    );
+    const onOpen = vi.fn();
+    render(
+      <Bookshelf
+        outcome={{ kind: 'loaded', libraryPath: '/library', books: [book], unavailableBooks: [] }}
+        libraryPath="/library"
+        isUsingDefaultPath={false}
+        isLoading={false}
+        notice={null}
+        openFileName={null}
+        continueBook={book}
+        onOpen={onOpen}
+        onChooseFolder={vi.fn()}
+        onUseDefaultFolder={vi.fn()}
+        onRescan={vi.fn()}
+      />
+    );
+
+    const card = screen.getByRole('button', { name: /Continue reading/ });
+    expect(card).toHaveTextContent('Line 42 of 200');
+    fireEvent.click(card);
+    expect(onOpen).toHaveBeenCalledWith(book);
+  });
+
+  test('shows nothing when there is no last book', () => {
+    renderShelf();
+    expect(screen.queryByText('Continue reading')).toBeNull();
   });
 });

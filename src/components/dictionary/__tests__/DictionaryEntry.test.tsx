@@ -421,6 +421,50 @@ describe('DictionaryEntry — quick-add shortlist', () => {
     fireEvent.keyDown(input, { code: 'Digit3', key: '£', altKey: true });
     expect(formStateRef.current.selectDictionary).toHaveBeenLastCalledWith('properNouns-_B');
   });
+
+  test('switching to a chip beyond the right edge scrolls the row to show it', () => {
+    // jsdom has no layout: a 150px-wide row of 80px chips, laid out by position in the row.
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const row = this.closest('[role="group"]');
+        if (this === row) return { left: 0, width: 150 } as DOMRect;
+        const index = row ? Array.from(row.children).indexOf(this) : 0;
+        return { left: index * 80 - (row?.scrollLeft ?? 0), width: 80 } as DOMRect;
+      });
+    const widthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
+    const scrollWidthSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+      .mockReturnValue(240);
+    try {
+      const { rerender } = renderWith();
+      const row = screen.getByRole('group', { name: 'Quick switch' });
+      expect(row.scrollLeft).toBe(0);
+      // At the start, chips hide past the right edge only.
+      expect(row).toHaveAttribute('data-fade-right');
+      expect(row).not.toHaveAttribute('data-fade-left');
+
+      formStateRef.current = makeFormState({ activeDictionary: 'properNouns-_B' });
+      rerender(
+        <DictionaryEntry
+          onClose={vi.fn()}
+          selectedDictionary="properNouns"
+          quickAddView={null}
+          shortlist={shortlist}
+        />
+      );
+
+      // Chip _B spans 160–240; with 24px to spare (clear of the fade) the row scrolls to
+      // 264 − 150. Now at the end: the fade moves to the left edge.
+      expect(row.scrollLeft).toBe(114);
+      expect(row).toHaveAttribute('data-fade-left');
+      expect(row).not.toHaveAttribute('data-fade-right');
+    } finally {
+      rectSpy.mockRestore();
+      widthSpy.mockRestore();
+      scrollWidthSpy.mockRestore();
+    }
+  });
 });
 
 describe('shortlistKeyTarget', () => {

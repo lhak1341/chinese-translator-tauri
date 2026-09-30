@@ -32,6 +32,7 @@ export function useDictionaryConfigManagement() {
     fictionDictionaries,
     createFictionDictionary,
     renameFictionDictionary,
+    moveDictionaryTier,
   } = useBookBinding();
   const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
@@ -238,6 +239,30 @@ export function useDictionaryConfigManagement() {
     }
   };
 
+  /**
+   * Promote a fiction dictionary to generic, or demote a generic one to fiction. The binding
+   * context does the move (it reaches book records and the engine); afterwards this screen
+   * re-reads config, since the move can change the active list and the Cmd-5 default in
+   * ways that depend on the open book.
+   */
+  const handleMoveTier = async (dictionaryId: string): Promise<void> => {
+    try {
+      const result = await moveDictionaryTier(dictionaryId);
+      const { newId } = result;
+      if (result.filesMoved && newId) {
+        setAvailableDictionaries((prev) =>
+          sortDictionaries(prev.map((id) => (id === dictionaryId ? newId : id)))
+        );
+        const config = await loadAppConfig();
+        setActiveDictionaries(config.engine.activeProperNouns);
+        setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
+      }
+      if (!result.success) throw new Error(result.error);
+    } catch (err) {
+      setError(formatErrorMessage('Dictionary move', err));
+    }
+  };
+
   const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
     try {
       // If clicking the same dictionary, unset it (toggle off)
@@ -275,5 +300,6 @@ export function useDictionaryConfigManagement() {
     handleCancelRename,
     handleConfirmRename,
     handleSetDefaultQuickAdd,
+    handleMoveTier,
   };
 }

@@ -175,6 +175,9 @@ export interface DictionaryContextInterface {
   /** Apply renames Rust already made on disk — load each new id, drop each old one — in one
    * turn of the store's queue. Clears history: its edits name the old ids. */
   applyRename: (renames: ReadonlyArray<readonly [string, string]>) => Promise<void>;
+  /** What memory holds right now, read from the store rather than the last render — for a
+   * caller that rebuilds the engine right after a store operation, before React re-renders. */
+  getDictionaries: () => { [key: string]: DictionaryData };
   /** Re-read every dictionary for force reload; resolves to what memory then holds. */
   reloadAllDictionaries: () => Promise<{ [key: string]: DictionaryData }>;
   /** Re-read every dictionary after import rewrote the files: invalidates the engine for each,

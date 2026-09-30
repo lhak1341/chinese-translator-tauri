@@ -3433,7 +3433,16 @@ export class TranslationEngine {
     // Space after closing quotes before content (mirrors processSequence trailing-space logic).
     // Dict translation has already run, so Chinese 》→» etc. are in their translated form.
     // Collapse any resulting double-spaces via the [ \t]+ rule below.
-    result = result.replace(/([”’»>])(?!\s|$)/g, '$1 ');
+    // A ’ with a letter on both sides is an apostrophe inside a word ("Thori’dal", "don’t"),
+    // not a closing quote: spacing it split dictionary translations, and the inserted char
+    // shifted every click-to-highlight position after it.
+    result = result.replace(/([”’»>])(?!\s|$)/g, (match, quote, offset, string) =>
+      quote === '’' &&
+      /\p{L}/u.test(string[offset - 1] ?? '') &&
+      /\p{L}/u.test(string[offset + 1] ?? '')
+        ? match
+        : quote + ' '
+    );
 
     // Skip detailed spacing rules when called from chunking (chunks handle their own spacing)
     if (options.useChunking !== false) {

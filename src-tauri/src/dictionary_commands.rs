@@ -3814,6 +3814,36 @@ mod tests {
     }
 
     #[test]
+    fn test_rename_across_tiers_moves_the_pair_and_config() {
+        // Promote (fiction -> generic) is a rename across tiers: the patterns half follows
+        // the new id's tier, and config names the new id.
+        let dir = temp_test_dir("rename_across_tiers");
+        fs::write(dir.join("properNouns-f_X.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-f_X.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_X"]}"#).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-f_X",
+            "properNouns-_X",
+        );
+
+        assert!(result.unwrap().success);
+        assert!(dir.join("properNouns-_X.json").exists());
+        assert!(dir.join("patterns-_X.json").exists());
+        assert!(!dir.join("patterns-f_X.json").exists());
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-_X"]));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn test_has_paired_patterns_covers_fiction_and_generic_only() {
         assert!(has_paired_patterns("properNouns-f_X"));
         assert!(has_paired_patterns("properNouns-_X"));

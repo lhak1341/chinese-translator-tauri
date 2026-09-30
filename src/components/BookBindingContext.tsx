@@ -13,7 +13,10 @@ import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
-import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
+import {
+  isFictionProperNounsId,
+  otherPairedTierId,
+} from '../utils/dictionary/DictionaryIdClassifier';
 import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
 import {
@@ -23,7 +26,11 @@ import {
 } from '../utils/reader/BindingActivation';
 import { toFictionDictionaryId } from '../utils/reader/FictionDictionarySuggestion';
 import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
-import { renameBoundDictionary, setBookBinding } from '../utils/reader/BookRecordsBackend';
+import {
+  renameBoundDictionary,
+  setBookBinding,
+  unbindDictionary,
+} from '../utils/reader/BookRecordsBackend';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { useEngine } from './EngineContext';
 
@@ -33,6 +40,12 @@ export interface FictionRenameResult {
   success: boolean;
   error?: string;
   filesMoved: boolean;
+}
+
+/** What moving a dictionary between the fiction and generic tiers did. `newId` is the
+ * dictionary's id after the move; `null` when the id has no other tier. */
+export interface TierMoveResult extends FictionRenameResult {
+  newId: string | null;
 }
 
 /** Whether a bound dictionary is still on disk. A failed listing trusts the record: it
@@ -114,6 +127,15 @@ export interface BookBindingContextValue {
    * If the book records could not be updated, those books open with their binding
    * reported missing. */
   renameFictionDictionary: (oldId: string, newId: string) => Promise<FictionRenameResult>;
+  /**
+   * Move a fiction pair to the generic tier (`properNouns-f_X` → `properNouns-_X`, promote)
+   * or a generic pair to fiction (demote), patterns half included. Promoting unbinds every
+   * book bound to it — a book binds only to fiction, and every book reads a generic one —
+   * and activates it, so those books keep its names. Demoting leaves the fiction slice to
+   * the open book's binding. Rebuilds the engine whenever the dictionary is in use: its trie
+   * priority follows its tier.
+   */
+  moveDictionaryTier: (dictionaryId: string) => Promise<TierMoveResult>;
 }
 
 const BookBindingContext = createContext<BookBindingContextValue | undefined>(undefined);
@@ -141,7 +163,7 @@ export function BookBindingProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { dictionaries, loadDictionary, applyRename } = useDictionary();
+  const { loadDictionary, applyRename, getDictionaries } = useDictionary();
   const { reinitializeEngine } = useEngine();
 
   const [openBook, setOpenBook] = useState<OpenBookIdentity | null>(null);
@@ -153,11 +175,6 @@ export function BookBindingProvider({
   const [error, setError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
 
-  // Read at call time, never closed over: `dictionaries` changes identity on every
-  // dictionary edit, and re-creating `bind`/`announceOpenBook` on each of those would
-  // re-run the Reader's announce effect for no reason.
-  const dictionariesRef = useRef(dictionaries);
-  dictionariesRef.current = dictionaries;
   const openBookRef = useRef<OpenBookIdentity | null>(null);
   openBookRef.current = openBook;
   const bindingRef = useRef<BookBinding | null>(null);
@@ -213,12 +230,15 @@ export function BookBindingProvider({
       });
       if (!activeChanged) return;
 
-      await reinitializeEngine(dictionariesRef.current, {
+      // The store's map, read at call time: `createAndBind` rebuilds right after loading a
+      // new pair, and the render's `dictionaries` has it only once React re-renders. Also
+      // stable, so `bind`/`announceOpenBook` do not change identity on every edit.
+      await reinitializeEngine(getDictionaries(), {
         forceConfigReload: true,
         debugLevel: DEBUG_LEVELS.ERROR,
       });
     },
-    [reinitializeEngine]
+    [getDictionaries, reinitializeEngine]
   );
 
   /** `writeAnswer`, recording whether the dictionaries actually switched — see
@@ -416,6 +436,102 @@ export function BookBindingProvider({
     [enqueue, loadDictionary, refreshFictionDictionaries, applyRename]
   );
 
+  const moveDictionaryTier = useCallback(
+    (dictionaryId: string): Promise<TierMoveResult> =>
+      enqueue(async () => {
+        const newId = otherPairedTierId(dictionaryId);
+        if (!newId) {
+          return {
+            success: false,
+            error: `"${dictionaryId}" is neither a fiction nor a generic dictionary`,
+            filesMoved: false,
+            newId: null,
+          };
+        }
+        const promoting = isFictionProperNounsId(dictionaryId);
+        const wasActive = (await loadAppConfig()).engine.activeProperNouns.includes(dictionaryId);
+
+        // Rust moves both halves and substitutes the id in config; a name already taken in
+        // the target tier is refused there, before anything moves.
+        const result = await renameDictionary(dictionaryId, newId, { loadDictionary, applyRename });
+        if (!result.success)
+          return { success: false, error: result.error, filesMoved: false, newId };
+
+        // Both failures below are reported, not rolled back: the files did move.
+        const failures: string[] = [];
+        if (promoting) {
+          try {
+            await unbindDictionary(dictionaryId);
+          } catch (cause) {
+            logger.error('Failed to unbind books from a promoted dictionary:', cause);
+            failures.push(`books bound to it still name it: ${extractErrorMessage(cause)}`);
+          }
+          if (bindingRef.current?.fictionDictionary === dictionaryId) {
+            if (failures.length > 0) {
+              missingRef.current = dictionaryId;
+              setMissingFictionDictionary(dictionaryId);
+            } else {
+              const next: BookBinding = { fictionDictionary: null };
+              bindingRef.current = next;
+              setBinding(next);
+            }
+          }
+        }
+        await refreshFictionDictionaries();
+
+        try {
+          const config = await loadAppConfig();
+          let nextActive = config.engine.activeProperNouns;
+          let nextQuickAdd = config.ui.defaultQuickAddDictionary;
+          if (promoting && !nextActive.includes(newId)) nextActive = [...nextActive, newId];
+          // With a book open the fiction slice is its binding's: a demoted dictionary the
+          // book is not bound to leaves the active list rather than join it as a second
+          // fiction dictionary.
+          if (openBookRef.current) {
+            const bound = missingRef.current
+              ? null
+              : (bindingRef.current?.fictionDictionary ?? null);
+            nextActive = activeProperNounsForBinding(nextActive, bound);
+            nextQuickAdd = quickAddTargetForBinding(bound, nextQuickAdd);
+          }
+          const activeChanged = !sameList(config.engine.activeProperNouns, nextActive);
+          if (activeChanged || nextQuickAdd !== config.ui.defaultQuickAddDictionary) {
+            await saveAppConfig({
+              engine: { activeProperNouns: nextActive },
+              ui: { defaultQuickAddDictionary: nextQuickAdd },
+            });
+          }
+          // Read from the store, not the last render: the rename just landed there.
+          if (wasActive || activeChanged) {
+            await reinitializeEngine(getDictionaries(), {
+              forceConfigReload: true,
+              debugLevel: DEBUG_LEVELS.ERROR,
+            });
+          }
+        } catch (cause) {
+          logger.error('Failed to apply a dictionary tier move:', cause);
+          failures.push(`the dictionaries in use were not updated: ${extractErrorMessage(cause)}`);
+        }
+
+        return failures.length > 0
+          ? {
+              success: false,
+              error: `Moved to ${newId}, but ${failures.join('; ')}`,
+              filesMoved: true,
+              newId,
+            }
+          : { success: true, filesMoved: true, newId };
+      }),
+    [
+      enqueue,
+      loadDictionary,
+      applyRename,
+      getDictionaries,
+      refreshFictionDictionaries,
+      reinitializeEngine,
+    ]
+  );
+
   const loadQuickAddView = useCallback(async (): Promise<QuickAddView | null> => {
     const config = await loadQuickAddConfig();
     if (!openBookRef.current) return config;
@@ -455,6 +571,7 @@ export function BookBindingProvider({
       createAndBind,
       createFictionDictionary,
       renameFictionDictionary,
+      moveDictionaryTier,
       loadQuickAddView,
     }),
     [
@@ -474,6 +591,7 @@ export function BookBindingProvider({
       createAndBind,
       createFictionDictionary,
       renameFictionDictionary,
+      moveDictionaryTier,
       loadQuickAddView,
     ]
   );

@@ -90,6 +90,19 @@ export function toPatternsId(properNounsId: string): string {
 }
 
 /**
+ * The id a paired proper-nouns dictionary takes in the other paired tier: fiction
+ * `properNouns-f_X` → generic `properNouns-_X` (promote), and back (demote). The name after
+ * the marker is kept. `null` for root and custom, which have no other tier to move to.
+ */
+export function otherPairedTierId(properNounsId: string): string | null {
+  if (!hasPairedPatterns(properNounsId)) return null;
+  const name = properNounsId.slice('properNouns-'.length);
+  return isFictionProperNounsId(properNounsId)
+    ? `properNouns-_${name.slice('f_'.length)}`
+    : `${FICTION_PROPER_NOUNS_PREFIX}${name.slice('_'.length)}`;
+}
+
+/**
  * Derives the paired proper-nouns dict ID from a structural-pattern ID (ADR-027
  * naming-convention coupling), e.g. "patterns-f_X" -> "properNouns-f_X".
  * Assumes the caller has already verified `isPairedPatternsId(patternsId)`.

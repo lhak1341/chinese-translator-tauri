@@ -442,4 +442,29 @@ describe('TranslationEngine Regression Tests', () => {
       expect(cleanup('Dòng một \n。')).toBe('Dòng một\n。');
     });
   });
+
+  describe('Bug Fix: cleanupFormatting spacing an apostrophe inside a word', () => {
+    // 索瑞达尔 → "Thori’dal" (U+2019 as an apostrophe) came out "Thori’ dal": the
+    // space-after-closing-quote rule took every ’ for a closing quote. The inserted char also
+    // shifted every click-to-highlight position after it.
+    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
+    const cleanup = (text, options = {}) =>
+      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, options);
+
+    it.each([{}, { useChunking: false, isParallelChunk: true }])(
+      'keeps a letter-flanked ’ inside its word (options %o)',
+      (options) => {
+        expect(cleanup('Chủ thành Thori’dal tiếp thụ', options)).toBe(
+          'Chủ thành Thori’dal tiếp thụ'
+        );
+        expect(cleanup('don’t', options)).toBe('don’t');
+      }
+    );
+
+    it('still spaces a closing quote off the word after it', () => {
+      expect(cleanup('“Đi.”Hắn nói')).toBe('“Đi.” Hắn nói');
+      expect(cleanup('‘Đi.’Hắn nói')).toBe('‘Đi.’ Hắn nói');
+      expect(cleanup('«Sách»hay')).toBe('«Sách» hay');
+    });
+  });
 });

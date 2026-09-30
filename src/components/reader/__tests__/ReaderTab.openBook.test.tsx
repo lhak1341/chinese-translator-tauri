@@ -95,14 +95,17 @@ vi.mock('../Bookshelf', () => ({
   default: ({
     outcome,
     notice,
+    continueBook,
     onOpen,
   }: {
     outcome: { kind: string; books?: LibraryBook[] } | null;
     notice: string | null;
+    continueBook: LibraryBook | null;
     onOpen: (b: LibraryBook) => void;
   }) => (
     <div>
       <span>notice:{notice ?? 'none'}</span>
+      <span>continue:{continueBook?.fileName ?? 'none'}</span>
       {(outcome?.books ?? []).map((b) => (
         <button key={b.fileName} onClick={() => onOpen(b)}>
           open:{b.fileName}
@@ -475,5 +478,82 @@ describe('ReaderTab openBook', () => {
     // The open error shows on the shelf, and the scan's shelf stays beside it.
     await waitFor(() => expect(screen.getByText('notice:disk exploded')).toBeTruthy());
     expect(screen.getByText('open:novel.txt')).toBeTruthy();
+  });
+});
+
+describe('ReaderTab remembers the last book across launches', () => {
+  beforeEach(() => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      position: null,
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: null,
+    });
+    appConfig.saveAppConfig.mockResolvedValue(undefined);
+  });
+
+  it('opening a book remembers it; Back keeps it as last but stops resuming', async () => {
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    await screen.findByText('reading:novel.txt');
+    expect(appConfig.saveAppConfig).toHaveBeenLastCalledWith({
+      reader: { lastBook: 'fp-1', resumeOnLaunch: true },
+    });
+
+    fireEvent.click(screen.getByText('back'));
+    expect(appConfig.saveAppConfig).toHaveBeenLastCalledWith({
+      reader: { resumeOnLaunch: false },
+    });
+    // The shelf offers it back.
+    expect(await screen.findByText('continue:novel.txt')).toBeInTheDocument();
+  });
+
+  it('a launch after quitting mid-book reopens it with no click', async () => {
+    appConfig.loadAppConfig.mockResolvedValue({
+      reader: { libraryPath: null, lastBook: 'fp-1', resumeOnLaunch: true },
+    });
+
+    render(<ReaderTab isActive={true} />);
+
+    await screen.findByText('reading:novel.txt');
+    expect(tauriAPI.openBook).toHaveBeenCalledTimes(1);
+    expect(announceOpenBook).toHaveBeenCalledWith(
+      { fingerprint: 'fp-1', fileName: 'novel.txt', title: 'novel' },
+      null
+    );
+  });
+
+  it('a launch after going Back to the shelf stays on the shelf, offering the book', async () => {
+    appConfig.loadAppConfig.mockResolvedValue({
+      reader: { libraryPath: null, lastBook: 'fp-1', resumeOnLaunch: false },
+    });
+
+    render(<ReaderTab isActive={true} />);
+
+    expect(await screen.findByText('continue:novel.txt')).toBeInTheDocument();
+    expect(tauriAPI.openBook).not.toHaveBeenCalled();
+  });
+
+  it('a last book no longer on the shelf is neither reopened nor offered', async () => {
+    appConfig.loadAppConfig.mockResolvedValue({
+      reader: { libraryPath: null, lastBook: 'fp-gone', resumeOnLaunch: true },
+    });
+
+    render(<ReaderTab isActive={true} />);
+
+    await screen.findByText('open:novel.txt');
+    await waitFor(() => expect(appConfig.loadAppConfig).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('continue:none')).toBeInTheDocument();
+    expect(tauriAPI.openBook).not.toHaveBeenCalled();
+  });
+
+  it('a failed remember write does not stop the book opening', async () => {
+    appConfig.saveAppConfig.mockRejectedValue(new Error("Couldn't read config.json"));
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+
+    expect(await screen.findByText('reading:novel.txt')).toBeInTheDocument();
   });
 });

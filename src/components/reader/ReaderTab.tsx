@@ -1,7 +1,9 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import tauriAPI from '../../tauriAPI';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
+import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { findLastBook } from '../../utils/reader/LastBook';
 import type {
   BookRecord,
   EncodingChoiceTrigger,
@@ -61,6 +63,18 @@ function identityOf(book: OpenBook): OpenBookIdentity {
  */
 const NO_BOOKS: LibraryBook[] = [];
 
+/** Remember what is on screen for the next launch — `lastBook` and `resumeOnLaunch` in
+ * `ReaderConfig`. Best-effort: a failed write costs only the next launch's resume. */
+function rememberReading(reader: { lastBook?: string; resumeOnLaunch: boolean }): void {
+  void (async () => {
+    try {
+      await saveAppConfig({ reader });
+    } catch (cause) {
+      logger.warn('Could not remember the open book for the next launch:', cause);
+    }
+  })();
+}
+
 const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const library = useLibrary();
   const { configuredPath } = library;
@@ -71,6 +85,13 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [open, setOpen] = useState<OpenState | null>(null);
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
+  /** Fingerprint of the book opened most recently, this session or a past one — what the
+   * shelf's "Continue reading" card offers. */
+  const [lastBook, setLastBook] = useState<string | null>(null);
+  // Read by the launch resume, which must not replace a book the reader opened while the
+  // config load was still in flight.
+  const isReadingRef = useRef(false);
+  isReadingRef.current = isReading;
   const { announceOpenBook, announceClosedBook } = useBookBinding();
   // The Reader's engine queue lives here, above every `BookReader` instance — see
   // `useReaderEngine`.
@@ -105,6 +126,8 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         } catch (cause) {
           logger.error('Failed to refresh the book record on reopen:', cause);
         }
+        rememberReading({ lastBook: open.book.fingerprint, resumeOnLaunch: true });
+        setLastBook(open.book.fingerprint);
         setIsReading(true);
         return;
       }
@@ -128,6 +151,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           // No book on screen while the encoding is chosen, so the previous one stops
           // holding the fiction slice; picking an encoding announces the new book.
           announceClosedBook();
+          rememberReading({ resumeOnLaunch: false });
           setIsReading(true);
           return;
         }
@@ -156,6 +180,8 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         // the silent wrong-dictionary failure the binding exists to prevent.
         announceOpenBook(identityOf(result.book), record.binding);
         setOpen({ book: result.book, encoding: result.encoding, record });
+        rememberReading({ lastBook: result.book.fingerprint, resumeOnLaunch: true });
+        setLastBook(result.book.fingerprint);
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
@@ -209,8 +235,37 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     // The book stays decoded so coming back is instant, but it stops holding the fiction
     // slice of the active dictionaries — reopening it announces it again.
     announceClosedBook();
+    rememberReading({ resumeOnLaunch: false });
     setIsReading(false);
   }, [announceClosedBook]);
+
+  /**
+   * Launch resume: once the first scan lands, reopen the book that was on screen when the
+   * app last quit. Quitting runs no Back, so `resumeOnLaunch` is still true then; a reader
+   * who went Back to the shelf first finds the shelf. Runs once — a rescan is not a launch.
+   */
+  const resumeCheckedRef = useRef(false);
+  useEffect(() => {
+    if (resumeCheckedRef.current || library.outcome === null) return;
+    resumeCheckedRef.current = true;
+    const outcome = library.outcome;
+    void (async () => {
+      try {
+        const { reader } = await loadAppConfig();
+        setLastBook(reader.lastBook);
+        if (!reader.resumeOnLaunch || isReadingRef.current) return;
+        const book = findLastBook(outcome, reader.lastBook);
+        if (book) await openBook(book);
+      } catch (cause) {
+        logger.warn('Could not reopen the last book:', cause);
+      }
+    })();
+  }, [library.outcome, openBook]);
+
+  const continueBook = useMemo(
+    () => findLastBook(library.outcome, lastBook),
+    [library.outcome, lastBook]
+  );
 
   /** What the open book's palette offers from the shelf — one record, so `BookReader`
    * carries it without reading it. */
@@ -263,6 +318,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         isLoading={library.isScanning}
         notice={openError ?? library.folderError}
         openFileName={open?.book.fileName ?? null}
+        continueBook={continueBook}
         onOpen={(book) => void openBook(book)}
         onChooseFolder={() => void library.changeFolder()}
         onUseDefaultFolder={() => void library.resetToDefaultFolder()}

@@ -19,6 +19,13 @@ export interface ReaderConfig {
    * resolves (and reports back) rather than the frontend hard-coding a path.
    */
   libraryPath: string | null;
+  /** Fingerprint of the book opened most recently — kept after Back, for the shelf's
+   * "Continue reading" card. */
+  lastBook: string | null;
+  /** True while a book is on screen, cleared by Back. Quitting the app runs no Back (the
+   * window closes without unmounting anything), so this still says "reading" at the next
+   * launch, and the Reader reopens `lastBook`. */
+  resumeOnLaunch: boolean;
 }
 
 export interface AppConfig {
@@ -51,6 +58,8 @@ function fromRaw(raw: Record<string, unknown>): AppConfig {
     },
     reader: {
       libraryPath: typeof raw.libraryPath === 'string' ? raw.libraryPath : null,
+      lastBook: typeof raw.lastBook === 'string' ? raw.lastBook : null,
+      resumeOnLaunch: raw.resumeOnLaunch === true,
     },
   };
 }
@@ -61,6 +70,8 @@ function toRaw(config: AppConfig): AppConfiguration {
     defaultQuickAddDictionary: config.ui.defaultQuickAddDictionary,
     lastSelectedDictionary: config.session.lastSelectedDictionary,
     libraryPath: config.reader.libraryPath,
+    lastBook: config.reader.lastBook,
+    resumeOnLaunch: config.reader.resumeOnLaunch,
   } as unknown as AppConfiguration;
 }
 

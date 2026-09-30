@@ -212,6 +212,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [store, clearHistory]
   );
 
+  const getDictionaries = useCallback(() => store.getSnapshot().dictionaries, [store]);
+
   const reloadAllDictionaries = useCallback(
     async () => (await store.loadAll()).dictionaries,
     [store]
@@ -249,6 +251,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       clearHistory,
       loadDictionary,
       applyRename,
+      getDictionaries,
       reloadAllDictionaries,
       reloadAfterImport,
       selectedDictionary,
@@ -278,6 +281,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       clearHistory,
       loadDictionary,
       applyRename,
+      getDictionaries,
       reloadAllDictionaries,
       reloadAfterImport,
       selectedDictionary,

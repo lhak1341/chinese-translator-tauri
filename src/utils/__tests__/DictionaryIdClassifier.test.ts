@@ -9,6 +9,7 @@ import {
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,
+  otherPairedTierId,
   entryCapabilities,
   showsSemanticType,
 } from '../dictionary/DictionaryIdClassifier';
@@ -50,6 +51,24 @@ describe('toPatternsId', () => {
   test('derives paired patterns id from a generic proper-nouns id', () => {
     expect(toPatternsId('properNouns-_AiCap')).toBe('patterns-_AiCap');
   });
+});
+
+describe('otherPairedTierId', () => {
+  test('promotes fiction to generic under the same name', () => {
+    expect(otherPairedTierId('properNouns-f_DuongThan')).toBe('properNouns-_DuongThan');
+  });
+  test('demotes generic to fiction under the same name', () => {
+    expect(otherPairedTierId('properNouns-_AiCap')).toBe('properNouns-f_AiCap');
+  });
+  test('round-trips', () => {
+    expect(otherPairedTierId(otherPairedTierId('properNouns-f_X')!)).toBe('properNouns-f_X');
+  });
+  test.each(['properNouns', 'properNouns-Custom', 'patterns-f_X', 'phrases'])(
+    '%s has no other tier',
+    (id) => {
+      expect(otherPairedTierId(id)).toBeNull();
+    }
+  );
 });
 
 describe('toProperNounsId', () => {
