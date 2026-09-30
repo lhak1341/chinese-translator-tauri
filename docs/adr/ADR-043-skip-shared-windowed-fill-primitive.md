@@ -27,3 +27,7 @@ Do not build a shared primitive. Instead, apply the one genuinely portable impro
 ## Consequence
 
 Future architecture reviews should not re-flag these two hooks' "duplicated cache-and-generation shape" on sight. Revisit only with new evidence — e.g. a third windowed-fill consumer whose shape actually matches one of the two closely enough to share, or a concrete bug proven to come from the duplication itself rather than from either hook's own domain logic. Absent that, each hook owns its own fill loop, same as `TranslationChunkCache` (LRU, eviction) and `useOutlineTranslations`'s plain `Map` (no eviction) were correctly never unified — they solve different caching problems, not the same one twice.
+
+## Addendum (2026-09-30)
+
+The viewport fill's plan lifecycle moved out of `useWindowedTranslation`'s effect into a plain `WindowFiller` class (`src/utils/reader/WindowFiller.ts`, architecture review candidate #2). That deepens one hook and shares nothing with `useOutlineTranslations`; this decision stands. A later review should not read the filler as the start of a shared primitive and try to fold the outline loop into it.

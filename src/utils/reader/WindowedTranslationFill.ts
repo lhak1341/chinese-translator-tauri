@@ -68,8 +68,8 @@ export type FillEvent =
  * A chunk that throws is `yield`ed as `skipped`, not thrown — the caller logs it and the
  * loop moves on to the next chunk. One bad passage no longer blocks translating the rest
  * of the visible window (changed 2026-09-19; previously the whole plan aborted on the
- * first error, see `useWindowedTranslation.ts`'s test suite for the old behavior pinned
- * before this change).
+ * first error). The plan lifecycle around this loop is `WindowFiller`'s; its tests pin
+ * the isolation from the caller's side.
  */
 export async function* fillPlan(
   cache: TranslationChunkCache,

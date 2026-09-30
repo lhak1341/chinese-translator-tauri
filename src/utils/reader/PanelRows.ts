@@ -18,7 +18,7 @@
  *   whatever part of a line no run covers.
  * - A blank line is decided from the Chinese, so all three panels collapse the same rows.
  *
- * Pure — no engine, no DOM, no React. `useWindowedTranslation` owns when to project.
+ * Pure — no engine, no DOM, no React. The Window Filler (`WindowFiller.ts`) owns when to project.
  */
 
 import type { CachedChunk } from './TranslationChunkCache';

@@ -826,6 +826,14 @@ _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous 
 
 **`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding, paging, and fetching the book's pages around what the master is about to paint (`requestRange`, 600 lines of slack each way). It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.
 
+### Window Filler
+
+Translates the region the reader is in, on demand, as the anchor moves (architecture review 2026-09-30, candidate #2). `WindowFiller` in `src/utils/reader/WindowFiller.ts`, a plain class built once per book instance with the Reader's two engine calls; `useWindowedTranslation` is its React adapter (one effect calls `update`, `useSyncExternalStore` reads it, unmount calls `dispose`) and keeps only the row getters and `contentVersion`.
+
+`update(inputs)` re-plans: it marks the cache stale on a new `dictionaryVersion` (even while disabled), prunes to the keep band, plans the fetch band nearest the anchor first (`TranslationWindow.ts`), and runs `fillPlan` (`WindowedTranslationFill.ts`) over the missing chunks, re-projecting rows (`PanelRows.ts`) as each lands. It owns the chunk cache, the rows snapshot (`{rows, version, isTranslating}`) and the two staleness counters — `generation` (every plan; `isStale`) and `lifetime` (dispose only; `isAbandoned`), which must stay separate (`src/utils/reader/CLAUDE.md`). `isTranslating` clears in two places, both inside it: a plan that finds nothing missing, and the end of the newest plan's fill.
+
+Not shared with `useOutlineTranslations` (ADR-043). Tested without React in `WindowFiller.test.ts`.
+
 ### Reader Commands
 
 Everything the reader can ask the Reader to do: step a chapter, open the outline, page, reload or bind dictionaries, add an entry, switch books. Each is **one action**, named by the hotkey dispatch table's own action type (`previousChapter`, `quickAddCharacter`, …), and reachable by up to three **routes**: a palette row, a hotkey, or a button. Every route runs the same function, so a palette row and the key its hint advertises cannot do different things.

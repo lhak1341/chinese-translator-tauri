@@ -915,8 +915,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryContext.tsx": {
-    "mtime": 1790755166.5526156,
-    "ast_hash": "bbb416d56d025c0a7eed5ed527d497dd",
+    "mtime": 1790755789.403356,
+    "ast_hash": "5b7bed6b9ab8a660756320073c4e92fb",
     "semantic_hash": ""
   },
   "src/components/dictionary/SemanticTypePicker.tsx": {
@@ -1085,8 +1085,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790755755.3912554,
-    "ast_hash": "9b1ef211568f5f204dc538f4e6e8db0e",
+    "mtime": 1790756251.374277,
+    "ast_hash": "64a8d3da500008545a532782f7b62b80",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790755755.3939526,
-    "ast_hash": "b2eed12c5a30f73ca78d56cdc293cbc6",
+    "mtime": 1790755788.4594142,
+    "ast_hash": "e2b0fd594b18a5f36773ac9b55d11f03",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1790755762.705861,
-    "ast_hash": "e975c7ab2c35d8947be08b3ad2ac484f",
+    "mtime": 1790755789.3821561,
+    "ast_hash": "c86f990369aeaa2c717835de6bbde65d",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790702684.3121345,
-    "ast_hash": "1023244bb6591857fae246b8b0850e34",
+    "mtime": 1790756251.375912,
+    "ast_hash": "ebc8ecbb5525cf63154dd3cda3979010",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1790699675.1883602,
-    "ast_hash": "a8b86b1e0dfe43cc762764a7acaea4f4",
+    "mtime": 1790756114.8741603,
+    "ast_hash": "4f1b5d579df5bdc86e1687b8a5d2eb13",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -1975,8 +1975,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationWindow.ts": {
-    "mtime": 1790701111.914864,
-    "ast_hash": "77972b195dcd8421a611fdcf92d0cbe7",
+    "mtime": 1790756268.6442506,
+    "ast_hash": "a9ec9b18f2bc5f7feed984a41e96fef8",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
@@ -2080,13 +2080,13 @@
     "semantic_hash": ""
   },
   "src/utils/reader/WindowedTranslationFill.ts": {
-    "mtime": 1790699824.371636,
-    "ast_hash": "d4ec0beff860d30d7b598b2c96ba1411",
+    "mtime": 1790756268.644827,
+    "ast_hash": "a78c47707e04d41d3fbe9079d2ca78f7",
     "semantic_hash": ""
   },
   "docs/adr/ADR-043-skip-shared-windowed-fill-primitive.md": {
-    "mtime": 1789827138.5083015,
-    "ast_hash": "ff9e63fff844dd0d10368153de4dcef5",
+    "mtime": 1790756251.3766828,
+    "ast_hash": "5b1023edee29edcdfd32a03fa41a07f2",
     "semantic_hash": ""
   },
   "docs/adr/ADR-044-skip-splitting-openbook.md": {
@@ -2280,8 +2280,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
-    "mtime": 1790701214.7620683,
-    "ast_hash": "fe1cab50e48d4784e7517c0653fd1c72",
+    "mtime": 1790756268.645228,
+    "ast_hash": "aec129d435b0e0c6b5c4e5c28874e271",
     "semantic_hash": ""
   },
   "src/hooks/useLibrary.ts": {
@@ -2320,13 +2320,18 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryStore.ts": {
-    "mtime": 1790755642.7787251,
-    "ast_hash": "ab5f2255e26711057d4e78de62972e0f",
+    "mtime": 1790755789.5228286,
+    "ast_hash": "a32ca1744cf13b7cb740c61c53ef0d79",
     "semantic_hash": ""
   },
   "docs/adr/ADR-055-dictionary-store-one-queue-for-every-write.md": {
     "mtime": 1790755703.9782999,
     "ast_hash": "e6962e0071007dee721aeaef611c3ab8",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/WindowFiller.ts": {
+    "mtime": 1790756185.6643615,
+    "ast_hash": "f2785040577d5d26b78a2b1b1b714f4a",
     "semantic_hash": ""
   }
 }

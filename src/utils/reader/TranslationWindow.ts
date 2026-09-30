@@ -3,7 +3,7 @@
  * and reassembly of a chunk's translated text back into per-line strings.
  *
  * Pure by design — anchor plus geometry plus book metadata in, ranges plus chunk plan
- * out. No DOM, no engine, no React. The React side (`useWindowedTranslation`) owns the
+ * out. No DOM, no engine, no React. The Window Filler (`WindowFiller.ts`) owns the
  * scheduling, the engine calls and the cache; everything it decides is computed here.
  */
 
