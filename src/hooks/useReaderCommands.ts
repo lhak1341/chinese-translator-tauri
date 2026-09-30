@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 import { resolveQuickAddSource, type QuickAddSource } from '../utils/highlighting/SelectionMapping';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
-import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
+import type { PaletteCommand, ShelfNavigation } from '../utils/reader/PaletteCommands';
 import type { ReaderActions } from '../utils/reader/ReaderActions';
 import { useDictionaryModals } from './useDictionaryModals';
 import type { HotkeyHandlerOptions } from './useHotkeyHandler';
@@ -12,15 +12,14 @@ import type { HotkeyHandlerOptions } from './useHotkeyHandler';
 const EMPTY_SOURCE: QuickAddSource = { kind: 'source', text: '' };
 
 export interface UseReaderCommandsOptions {
-  books: readonly PaletteBook[];
+  /** The shelf's rows and actions for the palette — see `ShelfNavigation`. */
+  shelf: ShelfNavigation;
   currentFileName: string;
   goToChapter: (direction: -1 | 1) => void;
   /** Open the chapter outline with its search focused. */
   openOutline: () => void;
   pageBy: (direction: 1 | -1) => void;
   openBindingDialog: () => void;
-  onSwitchBook: (fileName: string) => void;
-  onReopenWithEncoding: () => void;
 }
 
 export interface ReaderCommands {
@@ -40,14 +39,12 @@ export interface ReaderCommands {
  * both built, so a row and the key its hint names cannot run different code.
  */
 export function useReaderCommands({
-  books,
+  shelf,
   currentFileName,
   goToChapter,
   openOutline,
   pageBy,
   openBindingDialog,
-  onSwitchBook,
-  onReopenWithEncoding,
 }: UseReaderCommandsOptions): ReaderCommands {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   /** What the palette's Add rows start from, resolved as the palette opens — the same
@@ -109,15 +106,15 @@ export function useReaderCommands({
   const paletteCommands = useMemo(
     () =>
       buildPaletteCommands({
-        books,
+        books: shelf.books,
         currentFileName,
         actions,
         source: paletteSource,
         onRefused: (reason) => toast.error(reason),
-        onSwitchBook,
-        onReopenWithEncoding,
+        onSwitchBook: shelf.switchBook,
+        onReopenWithEncoding: shelf.reopenWithEncoding,
       }),
-    [actions, books, currentFileName, onReopenWithEncoding, onSwitchBook, paletteSource]
+    [actions, shelf, currentFileName, paletteSource]
   );
 
   return {

@@ -38,6 +38,20 @@ export interface PaletteBook {
   title: string;
 }
 
+/**
+ * The shelf's navigation, as the open book's palette needs it: every book, the shelf's own
+ * open path, and reopening this book decoded differently. Built by `ReaderTab`, which owns
+ * the shelf, and handed through `BookReader` to `useReaderCommands` as one prop.
+ */
+export interface ShelfNavigation {
+  /** Every book on the shelf, including the open one; the palette drops its own row. */
+  books: readonly PaletteBook[];
+  /** Open another book by file name, with its binding applied as from a shelf click. */
+  switchBook: (fileName: string) => void;
+  /** Show the encoding choice for the open book, to reopen it decoded differently. */
+  reopenWithEncoding: () => void;
+}
+
 export interface BuildPaletteCommandsInput {
   /** Every book on the shelf, including the open one. */
   books: readonly PaletteBook[];

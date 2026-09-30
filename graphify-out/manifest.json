@@ -1085,8 +1085,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790757182.583244,
-    "ast_hash": "c1932e95042630502ef598726dd192fb",
+    "mtime": 1790757395.013225,
+    "ast_hash": "3f3d7b54104e5b45c7d047cf7fc05ec8",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790757166.9951055,
-    "ast_hash": "12074d0911c0a97a25178ab522519141",
+    "mtime": 1790757240.7747257,
+    "ast_hash": "1ec5ea60a3ef45551515efb02e9b2d1b",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1860,8 +1860,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790702262.580807,
-    "ast_hash": "29a13a77fe0ad677c650e22f7f5a11ee",
+    "mtime": 1790757344.100454,
+    "ast_hash": "9bcdba44b6ca16740d428b7eb6c8e678",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1875,8 +1875,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1790701574.562401,
-    "ast_hash": "fdaaf1bbfe5031ff0757bc677aedd0c0",
+    "mtime": 1790757357.5311031,
+    "ast_hash": "6e60d1641877ad406477de7d94c2377b",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -2035,8 +2035,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PaletteCommands.ts": {
-    "mtime": 1790563475.7950685,
-    "ast_hash": "8d97b19ebdfe516d928a153ebe9d8080",
+    "mtime": 1790757339.4971097,
+    "ast_hash": "e8e6ec71be0f4bd1b7e9633c983157ac",
     "semantic_hash": ""
   },
   "src/hooks/useAppearanceVersion.ts": {
@@ -2130,8 +2130,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790704387.1276145,
-    "ast_hash": "d0eccb2ae1d688f99e5958337342fc96",
+    "mtime": 1790757339.4977338,
+    "ast_hash": "67cc0e1a39f5fc65fe5c9cc61b0a1a4b",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {

@@ -75,13 +75,16 @@ import type { ReaderActions } from '../../utils/reader/ReaderActions';
 function setup(fictionDictionary: string | null) {
   openBook.bound = fictionDictionary;
   const options: UseReaderCommandsOptions = {
-    books: [{ fileName: 'open.txt', title: 'Open' }],
+    shelf: {
+      books: [{ fileName: 'open.txt', title: 'Open' }],
+      switchBook: vi.fn(),
+      reopenWithEncoding: vi.fn(),
+    },
     currentFileName: 'open.txt',
     goToChapter: vi.fn(),
     openOutline: vi.fn(),
     pageBy: vi.fn(),
     openBindingDialog: vi.fn(),
-    onSwitchBook: vi.fn(),
   };
   const result = { current: null as unknown as ReturnType<typeof useReaderCommands> };
   function Reader() {

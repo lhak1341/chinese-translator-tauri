@@ -17,7 +17,7 @@ import { useBookBinding } from '../BookBindingContext';
 import { BindingButton, BindingNotices, BookBindingDialog } from './ReaderBinding';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
-import type { PaletteBook } from '../../utils/reader/PaletteCommands';
+import type { ShelfNavigation } from '../../utils/reader/PaletteCommands';
 import type { ReaderEngineCalls } from '../../utils/reader/ReaderEngine';
 import ReaderEngineErrorBanner from './ReaderEngineErrorBanner';
 import ReaderPanel from './ReaderPanel';
@@ -38,14 +38,9 @@ interface BookReaderProps {
   /** Every engine call the Reader makes, serialized onto one queue — see
    * `createReaderEngine`. Owned by `ReaderTab` so the queue outlives this component. */
   engine: ReaderEngineCalls;
-  /** The whole shelf, so the palette can switch books without going back to it. The open
-   * book is in here too; the palette drops its own row. */
-  books: readonly PaletteBook[];
-  /** Open another book by file name — the shelf's own open path, so the book arrives with
-   * its binding applied exactly as it would from a click on the shelf. */
-  onSwitchBook: (fileName: string) => void;
-  /** Show the encoding choice for this book, to reopen it decoded differently. */
-  onReopenWithEncoding: () => void;
+  /** The shelf's navigation, for the palette's Books rows — not read here, handed to
+   * `useReaderCommands` whole (`ShelfNavigation`). */
+  shelf: ShelfNavigation;
   onBack: () => void;
 }
 
@@ -67,9 +62,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   record,
   isActive,
   engine,
-  books,
-  onSwitchBook,
-  onReopenWithEncoding,
+  shelf,
   onBack,
 }) => {
   const { getLine, linesVersion, requestRange, error } = useBookLines(
@@ -175,14 +168,12 @@ const BookReader: React.FC<BookReaderProps> = ({
   }, []);
 
   const { actions, paletteCommands, hotkeyProps, palette, quickAddDialog } = useReaderCommands({
-    books,
+    shelf,
     currentFileName: book.fileName,
     goToChapter: chapters.step,
     openOutline: openOutlineForSearch,
     pageBy,
     openBindingDialog: openDialog,
-    onSwitchBook,
-    onReopenWithEncoding,
   });
 
   const syncFollowers = panels.translation.onScroll;

@@ -24,16 +24,19 @@ import type { UseReaderCommandsOptions } from '../useReaderCommands';
 
 function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
   const options: UseReaderCommandsOptions = {
-    books: [
-      { fileName: 'open.txt', title: 'Open' },
-      { fileName: 'other.txt', title: 'Other' },
-    ],
+    shelf: {
+      books: [
+        { fileName: 'open.txt', title: 'Open' },
+        { fileName: 'other.txt', title: 'Other' },
+      ],
+      switchBook: vi.fn(),
+      reopenWithEncoding: vi.fn(),
+    },
     currentFileName: 'open.txt',
     goToChapter: vi.fn(),
     openOutline: vi.fn(),
     pageBy: vi.fn(),
     openBindingDialog: vi.fn(),
-    onSwitchBook: vi.fn(),
     ...overrides,
   };
   return { options, view: renderHook(() => useReaderCommands(options)) };

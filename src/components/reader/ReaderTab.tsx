@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import tauriAPI from '../../tauriAPI';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
@@ -17,6 +17,7 @@ import { useReaderEngine } from '../../hooks/useReaderEngine';
 import { useLibrary } from '../../hooks/useLibrary';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
+import type { ShelfNavigation } from '../../utils/reader/PaletteCommands';
 import EncodingPrompt from './EncodingPrompt';
 import styles from '../../styles/Reader.module.css';
 
@@ -211,6 +212,13 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     setIsReading(false);
   }, [announceClosedBook]);
 
+  /** What the open book's palette offers from the shelf — one record, so `BookReader`
+   * carries it without reading it. */
+  const shelf = useMemo<ShelfNavigation>(
+    () => ({ books, switchBook, reopenWithEncoding }),
+    [books, switchBook, reopenWithEncoding]
+  );
+
   if (isReading && encodingChoice) {
     return (
       <div className={styles.container}>
@@ -239,9 +247,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           record={open.record}
           isActive={isActive}
           engine={readerEngine}
-          books={books}
-          onSwitchBook={switchBook}
-          onReopenWithEncoding={reopenWithEncoding}
+          shelf={shelf}
           onBack={backToShelf}
         />
       </div>

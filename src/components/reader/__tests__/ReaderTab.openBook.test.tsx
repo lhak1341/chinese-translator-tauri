@@ -121,15 +121,13 @@ vi.mock('../BookReader', async () => {
       record,
       engine,
       onBack,
-      onSwitchBook,
-      onReopenWithEncoding,
+      shelf,
     }: {
       book: OpenBook;
       record: { position: unknown };
       engine: unknown;
       onBack: () => void;
-      onSwitchBook: (fileName: string) => void;
-      onReopenWithEncoding: () => void;
+      shelf: { switchBook: (fileName: string) => void; reopenWithEncoding: () => void };
     }) => {
       // Mount-only on purpose: a re-render with a new book must not look like a mount.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,8 +137,8 @@ vi.mock('../BookReader', async () => {
           <span>reading:{book.fileName}</span>
           <span>position:{JSON.stringify(record.position)}</span>
           <button onClick={onBack}>back</button>
-          <button onClick={() => onSwitchBook('other.txt')}>switch:other.txt</button>
-          <button onClick={onReopenWithEncoding}>reopen-encoding</button>
+          <button onClick={() => shelf.switchBook('other.txt')}>switch:other.txt</button>
+          <button onClick={shelf.reopenWithEncoding}>reopen-encoding</button>
         </div>
       );
     },
