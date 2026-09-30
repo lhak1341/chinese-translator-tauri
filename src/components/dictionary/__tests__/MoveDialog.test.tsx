@@ -16,19 +16,18 @@ vi.mock('../DictionaryContext', () => ({
   useDictionary: () => mockUseDictionary(),
 }));
 
-vi.mock('../DictionaryTypes', () => ({
-  getDictionaryTypes: vi.fn().mockResolvedValue({
-    characters: { label: 'Characters' },
-    phrases: { label: 'Phrases' },
-    properNouns: { label: 'General Purpose Dictionary' },
-    'properNouns-NovelName': { label: 'Proper Nouns - NovelName' },
-    'properNouns-Unloaded': { label: 'Proper Nouns - Unloaded' },
-    patterns: { label: 'Patterns' },
-    'patterns-f_NovelName': { label: 'Pattern - f_NovelName' },
-    conversion: { label: 'Conversion' },
-    punctuation: { label: 'Punctuation' },
-  }),
-}));
+// The Dictionary Store's list of every dictionary.
+const mockDictionaryTypes = {
+  characters: { label: 'Characters' },
+  phrases: { label: 'Phrases' },
+  properNouns: { label: 'General Purpose Dictionary' },
+  'properNouns-NovelName': { label: 'Proper Nouns - NovelName' },
+  'properNouns-Unloaded': { label: 'Proper Nouns - Unloaded' },
+  patterns: { label: 'Patterns' },
+  'patterns-f_NovelName': { label: 'Pattern - f_NovelName' },
+  conversion: { label: 'Conversion' },
+  punctuation: { label: 'Punctuation' },
+};
 
 describe('MoveDialog', () => {
   const mockMoveEntry = vi.fn();
@@ -62,6 +61,7 @@ describe('MoveDialog', () => {
     vi.clearAllMocks();
     mockUseDictionary.mockReturnValue({
       dictionaries: mockDictionaries,
+      dictionaryTypes: mockDictionaryTypes,
       moveEntry: mockMoveEntry,
       bulkMoveEntries: mockBulkMoveEntries,
       loadDictionary: mockLoadDictionary,
@@ -456,10 +456,10 @@ describe('MoveDialog', () => {
     });
 
     test('shows empty-state message when no other dictionary is available', async () => {
-      const { getDictionaryTypes } = await import('../DictionaryTypes');
-      vi.mocked(getDictionaryTypes).mockResolvedValueOnce({
-        characters: { label: 'Characters' },
-      } as any);
+      mockUseDictionary.mockReturnValue({
+        ...mockUseDictionary(),
+        dictionaryTypes: { characters: { label: 'Characters' } },
+      });
 
       render(
         <MoveDialog

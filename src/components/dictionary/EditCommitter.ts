@@ -2,12 +2,14 @@
  * Commits Dictionary Edits (CONTEXT.md "Dictionary Edit", ADR-052): the one save protocol for
  * every change to user dictionaries — CRUD, undo and redo alike.
  *
- * All commits run through one queue. A commit plans against the dictionaries as the previous
- * commit left them, refuses if any key it would replace has changed since the edit was
- * planned, applies to memory first, saves each touched dictionary, and on a failed save rolls
- * memory back and writes the old contents back to every dictionary that did save.
+ * A commit plans against the dictionaries as the previous operation left them, refuses if any
+ * key it would replace has changed since the edit was planned, applies to memory first, saves
+ * each touched dictionary, and on a failed save rolls memory back and writes the old contents
+ * back to every dictionary that did save.
  *
- * No React: the provider supplies the dependencies, so tests run it against a fake disk.
+ * The queue is not here: `commitEdit` runs one commit, and the Dictionary Store
+ * (`DictionaryStore.ts`, ADR-055) runs it as one kind of operation on the queue every write
+ * to the in-memory dictionaries shares. Tests go through the store, against a fake disk.
  */
 
 import { sortDictionaryEntries } from '../../utils/dictionary';
@@ -46,6 +48,7 @@ export interface EditCommitterDeps {
   isUnread?: (dictionaryId: string) => boolean;
 }
 
+/** What CRUD and history commit through — the Dictionary Store satisfies it. */
 export interface EditCommitter {
   /**
    * Plans against the current dictionaries at this commit's turn in the queue, then commits.
@@ -83,66 +86,56 @@ async function trySave(
   }
 }
 
-export function createEditCommitter(deps: EditCommitterDeps): EditCommitter {
-  let tail: Promise<unknown> = Promise.resolve();
-
-  async function run(
-    plan: (dicts: Dictionaries) => PlanResult,
-    onCommitted?: (edit: DictionaryEdit) => void
-  ): Promise<CommitResult> {
-    const dicts = deps.read();
-    const planned = plan(dicts);
-    if (isInvalidPlan(planned)) {
-      const id = planned.missingDictionaryId;
-      const reason =
-        id !== undefined && deps.isUnread?.(id)
-          ? unreadFileError(`${id}.json`).message
-          : planned.invalid;
-      return { status: 'invalid', reason };
-    }
-
-    const changed = changedKeys(planned, dicts);
-    if (changed.length > 0) return { status: 'refused', changedKeys: changed };
-    if (planned.changes.length === 0) return { status: 'ok', edit: planned };
-
-    const ids = touchedDictionaries(planned);
-    const applied = applyEdit(dicts, planned);
-    const next: Dictionaries = {};
-    for (const id of ids) {
-      const [changedKey, oldKey] = sortHint(planned.changes.filter((c) => c.dictionaryId === id));
-      next[id] = sortDictionaryEntries(applied[id], id, changedKey, oldKey);
-    }
-    const previous: Dictionaries = Object.fromEntries(ids.map((id) => [id, dicts[id]]));
-
-    deps.write(next);
-    const saved = await Promise.all(ids.map((id) => trySave(deps.save, id, next[id])));
-
-    if (saved.every(Boolean)) {
-      onCommitted?.(planned);
-      for (const id of ids) await deps.invalidate(id);
-      return { status: 'ok', edit: planned };
-    }
-
-    deps.write(previous);
-    const writtenBack = await Promise.all(
-      ids.map((id, i) => (saved[i] ? trySave(deps.save, id, previous[id]) : true))
-    );
-    const rolledBack = writtenBack.every(Boolean);
-    if (!rolledBack) {
-      logger.error(
-        `Dictionary edit half-applied on disk: could not restore ${ids
-          .filter((_, i) => !writtenBack[i])
-          .join(', ')}`
-      );
-    }
-    return { status: 'saveFailed', rolledBack };
+/** One commit. The caller runs it inside its turn in the queue — never two at once. */
+export async function commitEdit(
+  deps: EditCommitterDeps,
+  plan: (dicts: Dictionaries) => PlanResult,
+  onCommitted?: (edit: DictionaryEdit) => void
+): Promise<CommitResult> {
+  const dicts = deps.read();
+  const planned = plan(dicts);
+  if (isInvalidPlan(planned)) {
+    const id = planned.missingDictionaryId;
+    const reason =
+      id !== undefined && deps.isUnread?.(id)
+        ? unreadFileError(`${id}.json`).message
+        : planned.invalid;
+    return { status: 'invalid', reason };
   }
 
-  return {
-    commit(plan, onCommitted) {
-      const result = tail.then(() => run(plan, onCommitted));
-      tail = result.catch(() => undefined);
-      return result;
-    },
-  };
+  const changed = changedKeys(planned, dicts);
+  if (changed.length > 0) return { status: 'refused', changedKeys: changed };
+  if (planned.changes.length === 0) return { status: 'ok', edit: planned };
+
+  const ids = touchedDictionaries(planned);
+  const applied = applyEdit(dicts, planned);
+  const next: Dictionaries = {};
+  for (const id of ids) {
+    const [changedKey, oldKey] = sortHint(planned.changes.filter((c) => c.dictionaryId === id));
+    next[id] = sortDictionaryEntries(applied[id], id, changedKey, oldKey);
+  }
+  const previous: Dictionaries = Object.fromEntries(ids.map((id) => [id, dicts[id]]));
+
+  deps.write(next);
+  const saved = await Promise.all(ids.map((id) => trySave(deps.save, id, next[id])));
+
+  if (saved.every(Boolean)) {
+    onCommitted?.(planned);
+    for (const id of ids) await deps.invalidate(id);
+    return { status: 'ok', edit: planned };
+  }
+
+  deps.write(previous);
+  const writtenBack = await Promise.all(
+    ids.map((id, i) => (saved[i] ? trySave(deps.save, id, previous[id]) : true))
+  );
+  const rolledBack = writtenBack.every(Boolean);
+  if (!rolledBack) {
+    logger.error(
+      `Dictionary edit half-applied on disk: could not restore ${ids
+        .filter((_, i) => !writtenBack[i])
+        .join(', ')}`
+    );
+  }
+  return { status: 'saveFailed', rolledBack };
 }

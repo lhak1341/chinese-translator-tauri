@@ -56,17 +56,15 @@ vi.mock('../../utils/reader/BookRecordsBackend', () => ({
 const listProperNounsDictionaryIds = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/dictionary/DictionaryBackend', () => ({ listProperNounsDictionaryIds }));
 
-const { reinitializeEngine, loadDictionary, removeDictionaryKey, dictionaries } = vi.hoisted(
-  () => ({
-    reinitializeEngine: vi.fn().mockResolvedValue(true),
-    loadDictionary: vi.fn().mockResolvedValue(undefined),
-    removeDictionaryKey: vi.fn(),
-    dictionaries: { properNouns: {} },
-  })
-);
+const { reinitializeEngine, loadDictionary, applyRename, dictionaries } = vi.hoisted(() => ({
+  reinitializeEngine: vi.fn().mockResolvedValue(true),
+  loadDictionary: vi.fn().mockResolvedValue(undefined),
+  applyRename: vi.fn().mockResolvedValue(undefined),
+  dictionaries: { properNouns: {} },
+}));
 vi.mock('../EngineContext', () => ({ useEngine: () => ({ reinitializeEngine }) }));
 vi.mock('../dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries, loadDictionary, removeDictionaryKey }),
+  useDictionary: () => ({ dictionaries, loadDictionary, applyRename }),
 }));
 
 const createFictionDictionaryPair = vi.fn();
@@ -330,10 +328,10 @@ describe('renaming a fiction dictionary', () => {
       'properNouns-f_TapDo',
       'properNouns-f_TapDoMoi'
     );
-    expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_TapDoMoi');
-    expect(loadDictionary).toHaveBeenCalledWith('patterns-f_TapDoMoi');
-    expect(removeDictionaryKey).toHaveBeenCalledWith('properNouns-f_TapDo');
-    expect(removeDictionaryKey).toHaveBeenCalledWith('patterns-f_TapDo');
+    expect(applyRename).toHaveBeenCalledWith([
+      ['properNouns-f_TapDo', 'properNouns-f_TapDoMoi'],
+      ['patterns-f_TapDo', 'patterns-f_TapDoMoi'],
+    ]);
     expect(result.current.binding).toEqual({ fictionDictionary: 'properNouns-f_TapDoMoi' });
     expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDoMoi');
     // Rust already renamed the config's entry, and the dictionary's data is unchanged.
@@ -354,7 +352,7 @@ describe('renaming a fiction dictionary', () => {
 
     expect(response).toEqual({ success: false, error: 'already exists', filesMoved: false });
     expect(renameBoundDictionary).not.toHaveBeenCalled();
-    expect(removeDictionaryKey).not.toHaveBeenCalled();
+    expect(applyRename).not.toHaveBeenCalled();
   });
 
   test('a failed records rewrite is reported, and the open book shows its binding missing', async () => {

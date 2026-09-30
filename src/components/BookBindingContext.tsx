@@ -141,7 +141,7 @@ export function BookBindingProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { dictionaries, loadDictionary, removeDictionaryKey } = useDictionary();
+  const { dictionaries, loadDictionary, applyRename } = useDictionary();
   const { reinitializeEngine } = useEngine();
 
   const [openBook, setOpenBook] = useState<OpenBookIdentity | null>(null);
@@ -335,12 +335,12 @@ export function BookBindingProvider({
    */
   const createPair = useCallback(
     async (dictionaryId: string): Promise<ProperNounsListResult> => {
-      const result = await createDictionary(dictionaryId, { loadDictionary, removeDictionaryKey });
+      const result = await createDictionary(dictionaryId, { loadDictionary, applyRename });
       if (!result.success) return result;
       await refreshFictionDictionaries();
       return result;
     },
-    [loadDictionary, refreshFictionDictionaries, removeDictionaryKey]
+    [loadDictionary, refreshFictionDictionaries, applyRename]
   );
 
   const createAndBind = useCallback(
@@ -383,7 +383,7 @@ export function BookBindingProvider({
         // Moves both files and brings `dictionaries` along (`DictionaryPairs`).
         const result = await renameDictionary(oldId, newId, {
           loadDictionary,
-          removeDictionaryKey,
+          applyRename,
         });
         if (!result.success) return { success: false, error: result.error, filesMoved: false };
 
@@ -413,7 +413,7 @@ export function BookBindingProvider({
             }
           : { success: true, filesMoved: true };
       }),
-    [enqueue, loadDictionary, refreshFictionDictionaries, removeDictionaryKey]
+    [enqueue, loadDictionary, refreshFictionDictionaries, applyRename]
   );
 
   const loadQuickAddView = useCallback(async (): Promise<QuickAddView | null> => {

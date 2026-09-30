@@ -117,14 +117,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 // ============================================================================
 
 const Translator = ({ isActive = true }) => {
-  const {
-    dictionaries,
-    unreadDictionaryIds,
-    isLoading,
-    loadError,
-    loadDictionary,
-    registerCacheInvalidator,
-  } = useDictionary();
+  const { isLoading, loadError, reloadAllDictionaries, registerCacheInvalidator } = useDictionary();
 
   // Performance monitoring hook (extracted)
   const { report, recordTranslation, refreshReport } = usePerformanceMonitoring();
@@ -837,9 +830,7 @@ const Translator = ({ isActive = true }) => {
     isDictionaryReloading,
     inputText,
     isLoading,
-    dictionaries,
-    unreadDictionaryIds,
-    loadDictionary
+    reloadAllDictionaries
   );
 
   // Redo this tab's own translation when it is next shown, rather than during a reload

@@ -181,18 +181,39 @@ describe('DictionaryContext — undo against a changed dictionary', () => {
     expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('张三'));
   });
 
-  test('removing a dictionary from memory (a pair rename) clears history', async () => {
+  test('a rename clears history, inside its turn in the queue', async () => {
     const result = await ready();
     await act(async () => {
       await result.current.addEntry(A, '赵六', 'Triệu Lục');
     });
     expect(result.current.canUndo).toBe(true);
 
-    act(() => {
-      result.current.removeDictionaryKey(B);
+    disk['properNouns-B2'] = disk[B];
+    await act(async () => {
+      await result.current.applyRename([[B, 'properNouns-B2']]);
     });
 
     expect(result.current.canUndo).toBe(false);
+  });
+
+  test('a reload of one dictionary keeps history; an undo it made stale is refused', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry(A, '赵六', 'Triệu Lục');
+    });
+    disk[A] = { ...disk[A], 赵六: entry('changed on disk') };
+    await act(async () => {
+      await result.current.loadDictionary(A);
+    });
+    expect(result.current.canUndo).toBe(true);
+
+    let undone = true;
+    await act(async () => {
+      undone = await result.current.undo();
+    });
+
+    expect(undone).toBe(false);
+    expect(result.current.dictionaries[A]['赵六']).toEqual(entry('changed on disk'));
   });
 
   test('clearHistory forgets every edit', async () => {

@@ -9,7 +9,7 @@
  *
  * Also covers the DictionaryContext refresh added to close the Cmd-6 staleness gap
  * (architecture review 2026-07-17): every successful create/migrate/rename path must call
- * loadDictionary (and, for rename, removeDictionaryKey) so DictionaryContext.dictionaries
+ * loadDictionary (and, for rename, applyRename) so DictionaryContext.dictionaries
  * never lags behind what ConfigurationManager just wrote to disk.
  */
 
@@ -40,9 +40,9 @@ vi.mock('../../../utils/appConfig', () => ({
 }));
 
 const loadDictionary = vi.fn();
-const removeDictionaryKey = vi.fn();
+const applyRename = vi.fn();
 vi.mock('../../dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ loadDictionary, removeDictionaryKey }),
+  useDictionary: () => ({ loadDictionary, applyRename }),
 }));
 
 // No book open: these tests are about creating and renaming dictionaries, not about the
@@ -236,19 +236,13 @@ describe('ConfigurationManager handleConfirmRename', () => {
     fireEvent.click(screen.getByTitle('Confirm rename'));
   }
 
-  test('non-fiction rename loads the new ID before removing the old one, in order', async () => {
+  test('non-fiction rename swaps the ids in memory as one store operation', async () => {
     listProperNounsDictionaries.mockResolvedValue({
       success: true,
       dictionaries: ['properNouns-Old'],
     });
 
-    const callOrder: string[] = [];
-    loadDictionary.mockImplementation(async (id: string) => {
-      callOrder.push(`load:${id}`);
-    });
-    removeDictionaryKey.mockImplementation((id: string) => {
-      callOrder.push(`remove:${id}`);
-    });
+    applyRename.mockResolvedValue(undefined);
 
     render(<ConfigurationManager />);
     await openRenameAndConfirm('Old', 'New');
@@ -256,8 +250,10 @@ describe('ConfigurationManager handleConfirmRename', () => {
     await waitFor(() =>
       expect(renameProperNounsDictionary).toHaveBeenCalledWith('properNouns-Old', 'properNouns-New')
     );
-    await waitFor(() => expect(callOrder).toContain('remove:properNouns-Old'));
-    expect(callOrder).toEqual(['load:properNouns-New', 'remove:properNouns-Old']);
+    await waitFor(() =>
+      expect(applyRename).toHaveBeenCalledWith([['properNouns-Old', 'properNouns-New']])
+    );
+    expect(loadDictionary).not.toHaveBeenCalled();
     expect(invalidateAppConfig).toHaveBeenCalled();
   });
 
@@ -303,7 +299,7 @@ describe('ConfigurationManager handleConfirmRename', () => {
       ).toBeInTheDocument()
     );
     expect(loadDictionary).not.toHaveBeenCalled();
-    expect(removeDictionaryKey).not.toHaveBeenCalled();
+    expect(applyRename).not.toHaveBeenCalled();
     expect(invalidateAppConfig).not.toHaveBeenCalled();
   });
 });

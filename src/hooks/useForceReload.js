@@ -2,69 +2,6 @@ import { useCallback } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { parallelDictionaryLoader } from '../utils/dictionary';
-
-/**
- * @typedef {Object} NormalizedLoadResultItem
- * @property {string} id - Dictionary id/name.
- * @property {boolean} success
- * @property {Object} [data] - Raw dictionary data (present when success).
- * @property {number} [entryCount] - Present when success.
- * @property {unknown} [error] - Present when !success.
- */
-
-/**
- * Loads one dictionary from storage. Throws on failure — required by
- * ParallelDictionaryLoader.loadDictionariesParallel, which wraps calls to its
- * loadFunction in its own try/catch to build {name, success, result|error}.
- * The manual Promise.all fallback below has no such wrapper, so it catches
- * this itself and builds the same normalized shape by hand.
- *
- * @param {string} dictId
- * @returns {Promise<{data: Object, entryCount: number}>}
- */
-async function loadDictionaryOrThrow(dictId) {
-  logger.log(`Force loading dictionary from storage: ${dictId}`);
-  const result = await window.electronAPI.loadDictionary(dictId);
-  if (!result.success) {
-    throw new Error(result.error || 'Unknown error');
-  }
-  return {
-    data: result.data,
-    entryCount: Object.keys(result.data || {}).length,
-  };
-}
-
-/**
- * Shared accumulate-and-log step for both dictionary-load branches in handleForceReload
- * (parallelDictionaryLoader primary path and the manual Promise.all fallback). The two
- * branches source their results differently and normalize into this common item shape
- * before calling here — this function only owns turning that normalized list into
- * {freshDictionaries, successCount} plus the per-item ✅/❌ log line. Each branch keeps its
- * own final summary log (duration vs "(fallback)" differ genuinely, not worth unifying).
- *
- * @param {NormalizedLoadResultItem[]} items
- * @returns {{freshDictionaries: Record<string, any>, successCount: number}}
- */
-function accumulateLoadResults(items) {
-  const freshDictionaries = {};
-  let successCount = 0;
-
-  for (const item of items) {
-    if (item.success) {
-      freshDictionaries[item.id] = item.data;
-      successCount++;
-      logger.log(`✅ Loaded ${item.id}: ${item.entryCount} entries`);
-    } else {
-      logger.error(`Failed to load dictionary ${item.id}:`, item.error);
-    }
-  }
-
-  return { freshDictionaries, successCount };
-}
-
-/** @type {string[]} */
-const NO_UNREAD = [];
 
 /**
  * @typedef {import('./useReloadExecutionContexts.js').ForceReloadContext} ForceReloadContext
@@ -88,11 +25,10 @@ const NO_UNREAD = [];
  * @param {boolean} isDictionaryReloading
  * @param {string} inputText
  * @param {boolean} isLoading
- * @param {Record<string, any>} dictionaries
- * @param {string[]} [unreadDictionaryIds] - Dictionaries whose file failed to load; absent from
- *   `dictionaries`, so without this a reload would never retry them (CONTEXT.md "Unread dictionary").
- * @param {(dictionaryId: string) => Promise<void>} [reloadDictionary] - The provider's
- *   `loadDictionary`: a clean read there is what makes an unread dictionary writable again.
+ * @param {() => Promise<Record<string, any>>} reloadAllDictionaries - The provider's: re-reads
+ *   every dictionary through the Dictionary Store, unread ones included, and resolves to what
+ *   memory then holds — so the new engine and the dictionaries the next edit saves are the
+ *   same copy (ADR-055).
  * @returns {(options?: {retranslateInput?: boolean}) => Promise<void>}
  */
 export function useForceReload(
@@ -100,9 +36,7 @@ export function useForceReload(
   isDictionaryReloading,
   inputText,
   isLoading,
-  dictionaries,
-  unreadDictionaryIds = NO_UNREAD,
-  reloadDictionary = undefined
+  reloadAllDictionaries
 ) {
   const handleForceReload = useCallback(
     async (options = {}) => {
@@ -146,76 +80,14 @@ export function useForceReload(
         ctx.setStatus('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
         ctx.destroyEngine();
 
-        // Steps 3-4: Force reload all dictionaries from storage (direct IPC — not on protocol)
+        // Steps 3-4: Force reload all dictionaries from storage, through the store, so memory
+        // and the new engine hold the same copy. Unread dictionaries are retried with the rest.
         logger.log('Step 4: Force reloading all dictionaries from storage...');
-        // Unread dictionaries are retried too — both here, for the engine, and through the
-        // provider, which is what lifts the refusal to save once the file reads cleanly.
-        const unreadIds = unreadDictionaryIds.filter((id) => !(id in (dictionaries || {})));
-        if (reloadDictionary) await Promise.all(unreadIds.map((id) => reloadDictionary(id)));
-        const allDictionaryIds = [...Object.keys(dictionaries || {}), ...unreadIds];
         ctx.setStatus(
-          `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
+          '🔄 Dictionary reload in progress...\n\nStep 3: Loading dictionaries in parallel...'
         );
-
-        let freshDictionaries = {};
-        let successCount = 0;
-
-        try {
-          const dictionariesToLoad = allDictionaryIds.map((dictId) => ({
-            name: dictId,
-            path: dictId,
-          }));
-
-          const loadFunction = (name, _path) => loadDictionaryOrThrow(name);
-
-          const loadResult = await parallelDictionaryLoader.loadDictionariesParallel(
-            dictionariesToLoad,
-            loadFunction
-          );
-
-          const normalizedItems = loadResult.results.map(({ name, success, result, error }) => ({
-            id: name,
-            success: success && !!result,
-            data: result?.data,
-            entryCount: result?.entryCount,
-            error,
-          }));
-          ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
-
-          logger.log(
-            `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (${loadResult.duration.toFixed(0)}ms)`
-          );
-        } catch (loaderError) {
-          logger.warn(
-            'ParallelDictionaryLoader failed, falling back to manual loading:',
-            loaderError
-          );
-
-          // Per-item failure logging happens once, in accumulateLoadResults below — do not
-          // log here too (this branch used to double-log before that was unified).
-          const loadPromises = allDictionaryIds.map(async (dictId) => {
-            try {
-              const { data, entryCount } = await loadDictionaryOrThrow(dictId);
-              return { dictId, data, success: true, entryCount };
-            } catch (error) {
-              return { dictId, error: error.message, success: false };
-            }
-          });
-
-          const results = await Promise.all(loadPromises);
-          const normalizedItems = results.map(({ dictId, data, success, entryCount, error }) => ({
-            id: dictId,
-            success,
-            data,
-            entryCount,
-            error,
-          }));
-          ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
-
-          logger.log(
-            `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (fallback)`
-          );
-        }
+        const freshDictionaries = await reloadAllDictionaries();
+        logger.log(`📥 Loaded ${Object.keys(freshDictionaries).length} dictionaries`);
 
         // Step 5: UI state
         logger.log('Step 5: Updating UI state...');
@@ -229,11 +101,8 @@ export function useForceReload(
         ctx.setStatus(
           '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
         );
-        const dictionariesToUse =
-          Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
-
-        if (!isLoading && dictionariesToUse) {
-          const engineReady = await ctx.reinitializeEngine(dictionariesToUse, {
+        if (!isLoading) {
+          const engineReady = await ctx.reinitializeEngine(freshDictionaries, {
             forceConfigReload: true,
             debugLevel: DEBUG_LEVELS.ERROR,
           });
@@ -296,14 +165,7 @@ export function useForceReload(
         }, 100);
       }
     },
-    [
-      isDictionaryReloading,
-      inputText,
-      isLoading,
-      dictionaries,
-      unreadDictionaryIds,
-      reloadDictionary,
-    ]
+    [isDictionaryReloading, inputText, isLoading, reloadAllDictionaries]
   ); // ctx excluded — all stable
 
   return handleForceReload;

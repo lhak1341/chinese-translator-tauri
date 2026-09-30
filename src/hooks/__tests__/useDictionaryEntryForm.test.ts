@@ -5,7 +5,6 @@ import type { DictionaryEntryFormDeps } from '../useDictionaryEntryForm';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import React from 'react';
 import { loadAppConfig } from '../../utils/appConfig';
-import { getDictionaryTypes } from '../../components/dictionary/DictionaryTypes';
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -21,12 +20,6 @@ vi.mock('../../components/dictionary/DictionaryTypes', () => ({
     phrases: { label: 'Phrases', description: '' },
     patterns: { label: 'Patterns', description: '' },
   },
-  getDictionaryTypes: vi.fn().mockResolvedValue({
-    characters: { label: 'Characters', description: '' },
-    phrases: { label: 'Phrases', description: '' },
-    patterns: { label: 'Patterns', description: '' },
-    'properNouns-Novel': { label: 'Novel Proper Nouns', description: '' },
-  }),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -56,11 +49,20 @@ function wireTransformRulesIpc(): void {
 
 const CHARACTERS_DICT: DictionaryData = { 你: 'you', 好: 'good' };
 
+/** The Dictionary Store's list, one identity for every render. */
+const ALL_DICTIONARY_TYPES = {
+  characters: { label: 'Characters', description: '' },
+  phrases: { label: 'Phrases', description: '' },
+  patterns: { label: 'Patterns', description: '' },
+  'properNouns-Novel': { label: 'Novel Proper Nouns', description: '' },
+} as unknown as NonNullable<DictionaryEntryFormDeps['dictionaryTypes']>;
+
 function makeDeps(overrides: Partial<DictionaryEntryFormDeps> = {}): DictionaryEntryFormDeps {
   return {
     updateEntry: vi.fn().mockResolvedValue(undefined),
     addEntry: vi.fn().mockResolvedValue(undefined),
     dictionaries: { characters: CHARACTERS_DICT },
+    dictionaryTypes: ALL_DICTIONARY_TYPES,
     ...overrides,
   };
 }
@@ -200,7 +202,6 @@ describe('no initialSource', () => {
     const readText = vi.fn().mockResolvedValue('你好');
     vi.stubGlobal('navigator', { clipboard: { readText } });
     const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
-    await waitFor(() => expect(getDictionaryTypes).toHaveBeenCalled());
     expect(result.current.source).toBe('');
     expect(readText).not.toHaveBeenCalled();
   });
@@ -786,7 +787,6 @@ describe('availableDictionaries', () => {
 
   it('offers no dropdown without a view', async () => {
     const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
-    await waitFor(() => expect(getDictionaryTypes).toHaveBeenCalled());
     expect(result.current.availableDictionaries).toEqual([]);
   });
 });

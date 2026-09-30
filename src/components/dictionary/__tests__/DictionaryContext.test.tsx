@@ -1,17 +1,21 @@
 /**
- * Direct tests for DictionaryContext's removeDictionaryKey — added alongside
- * ConfigurationManager's create/rename refresh wiring (architecture review 2026-07-17).
- * `loadDictionary` never deletes a key (it only adds/overwrites); rename needs a
- * companion operation to drop the old ID once the new one has loaded.
+ * The provider's store operations beyond edits — rename, import and force reload — through
+ * the real DictionaryProvider and Dictionary Store (ADR-055), over a fake disk. The store's
+ * ordering rules are tested without React in DictionaryStore.test.ts.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { DictionaryProvider, useDictionary } from '../DictionaryContext';
+import type { DictionaryData } from '../../../types/DictionaryTypes';
+
+let disk: Record<string, DictionaryData>;
 
 vi.mock('../DictionaryTypes', () => ({
-  getDictionaryTypes: vi.fn().mockResolvedValue({ 'properNouns-Test': {} }),
+  getDictionaryTypes: vi.fn(async () =>
+    Object.fromEntries(Object.keys(disk).map((id) => [id, { id, label: id }]))
+  ),
 }));
 vi.mock('../../../utils/appConfig', () => ({
   loadAppConfig: vi.fn().mockResolvedValue({
@@ -25,47 +29,105 @@ vi.mock('../../../utils/dictionary/DictionaryBackend', () => ({
   loadAllDictionaries: (ids: string[]) => loadAllDictionaries(ids),
 }));
 
+const saveDictionary = vi.fn();
+
 function wrapper({ children }: { children: React.ReactNode }) {
   return <DictionaryProvider>{children}</DictionaryProvider>;
 }
 
+async function ready() {
+  const { result } = renderHook(() => useDictionary(), { wrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  return result;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  disk = {
+    properNouns: { 张三: 'Trương Tam' },
+    'properNouns-Test': { 李四: 'Lý Tứ' },
+  };
   loadAllDictionaries.mockImplementation(async (ids: string[]) => ({
-    loadedDictionaries: Object.fromEntries(ids.map((id) => [id, { entry: `${id}-value` }])),
+    loadedDictionaries: Object.fromEntries(ids.map((id) => [id, structuredClone(disk[id] ?? {})])),
     stillFailedIds: [],
     total: ids.length,
   }));
+  saveDictionary.mockImplementation(async (id: string, data: DictionaryData) => {
+    disk[id] = structuredClone(data);
+    return { success: true };
+  });
+  (window as any).electronAPI = { saveDictionary };
 });
 
-describe('DictionaryContext — removeDictionaryKey', () => {
-  test('removes an existing key, leaving other keys untouched', async () => {
-    const { result } = renderHook(() => useDictionary(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.dictionaries).toHaveProperty('properNouns-Test');
-
+describe('DictionaryContext — applyRename', () => {
+  test('swaps the old id for the new one, lists it, and clears history', async () => {
+    const result = await ready();
     await act(async () => {
-      await result.current.loadDictionary('properNouns-Other');
+      await result.current.addEntry('properNouns', '王五', 'Vương Ngũ');
     });
-    expect(result.current.dictionaries).toHaveProperty('properNouns-Other');
+    expect(result.current.canUndo).toBe(true);
 
-    act(() => {
-      result.current.removeDictionaryKey('properNouns-Test');
+    disk['properNouns-Renamed'] = disk['properNouns-Test'];
+    delete disk['properNouns-Test'];
+    await act(async () => {
+      await result.current.applyRename([['properNouns-Test', 'properNouns-Renamed']]);
     });
 
     expect(result.current.dictionaries).not.toHaveProperty('properNouns-Test');
-    expect(result.current.dictionaries).toHaveProperty('properNouns-Other');
+    expect(result.current.dictionaries['properNouns-Renamed']).toEqual({ 李四: 'Lý Tứ' });
+    expect(Object.keys(result.current.dictionaryTypes).sort()).toEqual(
+      ['properNouns', 'properNouns-Renamed'].sort()
+    );
+    expect(result.current.canUndo).toBe(false);
   });
+});
 
-  test('is a no-op when the key is absent', async () => {
-    const { result } = renderHook(() => useDictionary(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+describe('DictionaryContext — reloadAfterImport', () => {
+  test('re-reads every dictionary, so an edit to one that was not selected keeps the import', async () => {
+    const result = await ready();
+    expect(result.current.selectedDictionary).toBe('properNouns');
 
-    const before = result.current.dictionaries;
-    act(() => {
-      result.current.removeDictionaryKey('properNouns-DoesNotExist');
+    disk['properNouns-Test'] = { 李四: 'imported', 赵六: 'imported too' };
+    await act(async () => {
+      await result.current.reloadAfterImport();
+    });
+    await act(async () => {
+      await result.current.addEntry('properNouns-Test', '王五', 'Vương Ngũ');
     });
 
-    expect(result.current.dictionaries).toBe(before);
+    expect(Object.keys(disk['properNouns-Test']).sort()).toEqual(['李四', '王五', '赵六'].sort());
+    expect(disk['properNouns-Test']['李四']).toBe('imported');
+  });
+
+  test('clears history', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry('properNouns', '王五', 'Vương Ngũ');
+    });
+
+    await act(async () => {
+      await result.current.reloadAfterImport();
+    });
+
+    expect(result.current.canUndo).toBe(false);
+  });
+});
+
+describe('DictionaryContext — reloadAllDictionaries', () => {
+  test('resolves to what memory holds after reading every file, and keeps history', async () => {
+    const result = await ready();
+    await act(async () => {
+      await result.current.addEntry('properNouns', '王五', 'Vương Ngũ');
+    });
+    disk['properNouns-Test'] = { 李四: 'changed on disk' };
+
+    let reloaded: Record<string, DictionaryData> = {};
+    await act(async () => {
+      reloaded = await result.current.reloadAllDictionaries();
+    });
+
+    expect(reloaded['properNouns-Test']).toEqual({ 李四: 'changed on disk' });
+    expect(result.current.dictionaries).toEqual(reloaded);
+    expect(result.current.canUndo).toBe(true);
   });
 });

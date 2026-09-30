@@ -68,7 +68,7 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 **Never `throw` inside a state updater** (`setState(prev => { throw … })`): React 18 Concurrent Mode may call updaters more than once, and throws bypass the `await` chain. Do existence checks on the closed-over variable before `setState`.
 
-**Never assign a `let` inside an updater for use outside it** — it may run twice. Compute from the closed-over snapshot first. For undo/redo-style history read a ref's `.current` directly instead of a closure variable (dictionary undo/redo uses `dictionariesRef.current`; `bulkDeleteEntries` computes `oldData`/`sortedDictionary` before calling `setDictionaries`).
+**Never assign a `let` inside an updater for use outside it** — it may run twice. Compute from the closed-over snapshot first. For undo/redo-style history read a ref's `.current` directly instead of a closure variable (dictionary history keeps its list and cursor in a ref; the dictionaries themselves live in the Dictionary Store, outside React state).
 
 ## Context providers
 

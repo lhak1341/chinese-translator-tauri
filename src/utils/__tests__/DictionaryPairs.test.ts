@@ -27,8 +27,8 @@ function fakeOps() {
       loadDictionary: vi.fn(async (id: string) => {
         events.push(`load ${id}`);
       }),
-      removeDictionaryKey: vi.fn((id: string) => {
-        events.push(`remove ${id}`);
+      applyRename: vi.fn(async (renames: ReadonlyArray<readonly [string, string]>) => {
+        events.push(`rename ${renames.map(([from, to]) => `${from}>${to}`).join(', ')}`);
       }),
     },
   };
@@ -78,7 +78,7 @@ describe('createDictionary', () => {
 });
 
 describe('renameDictionary', () => {
-  test('a pair loads each new half before dropping its old one', async () => {
+  test('a pair renames both halves in one store operation', async () => {
     api.renameProperNounsDictionary.mockResolvedValue({ success: true });
     const { ops, events } = fakeOps();
 
@@ -86,10 +86,7 @@ describe('renameDictionary', () => {
       success: true,
     });
     expect(events).toEqual([
-      'load properNouns-_New',
-      'remove properNouns-_Old',
-      'load patterns-_New',
-      'remove patterns-_Old',
+      'rename properNouns-_Old>properNouns-_New, patterns-_Old>patterns-_New',
     ]);
   });
 
@@ -99,7 +96,7 @@ describe('renameDictionary', () => {
 
     await renameDictionary('properNouns-Old', 'properNouns-New', ops);
 
-    expect(events).toEqual(['load properNouns-New', 'remove properNouns-Old']);
+    expect(events).toEqual(['rename properNouns-Old>properNouns-New']);
   });
 
   test('a failed rename touches nothing in memory', async () => {

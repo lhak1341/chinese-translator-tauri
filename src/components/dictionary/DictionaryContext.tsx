@@ -1,6 +1,6 @@
 /**
  * @file DictionaryContext.tsx
- * Eager-loading dictionary context. Loads all dictionaries on mount.
+ * Eager-loading dictionary context over the Dictionary Store. Loads all dictionaries on mount.
  */
 
 import React, {
@@ -11,20 +11,21 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
 } from 'react';
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { getDictionaryTypes } from './DictionaryTypes';
-import { sortDictionaryEntries, getSortingStats, resetSortingStats } from '../../utils/dictionary';
+import { getSortingStats, resetSortingStats } from '../../utils/dictionary';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig } from '../../utils/appConfig';
-import type { DictionaryData, DictionaryContextInterface } from '../../types/DictionaryTypes';
+import type { DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from '../../hooks/useDictionaryCRUD';
-import { createEditCommitter } from './EditCommitter';
+import { createDictionaryStore } from './DictionaryStore';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
@@ -91,20 +92,15 @@ async function invokeEngineInvalidator(
 /**
  * DictionaryProvider Component
  *
- * Provides dictionary context with:
- * - Upfront loading of all dictionaries in parallel
- * - Undo/redo functionality
- * - Dictionary CRUD operations
- *
- * Note: This loads ALL dictionaries at startup, unlike LazyDictionaryProvider
- * which loads on-demand. Use this for better UX when all dictionaries are needed.
+ * Exposes the Dictionary Store (CONTEXT.md "Dictionary Store", ADR-055) to React: every
+ * dictionary is loaded at startup (ADR-005), and every write to them — edits, undo/redo,
+ * reloads, renames, import — is an operation on the store's one queue. This provider owns
+ * only what is React's: loading and error flags, the startup toast, the selection, history.
  *
  * @param props - Component props
  * @returns Dictionary context provider
  */
 export function DictionaryProvider({ children }: DictionaryProviderProps): React.ReactElement {
-  // State management for dictionaries and UI
-  const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Registered by Translator.jsx when engine is ready; cleared on engine teardown
@@ -119,39 +115,23 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     },
     []
   );
-  // Ref-mirror the committer reads from. Its own writes land here immediately, ahead of the
-  // re-render, so a queued commit plans against the previous commit's result.
-  const dictionariesRef = useRef(dictionaries);
-  dictionariesRef.current = dictionaries;
-  // Dictionaries whose file failed to load (CONTEXT.md "Unread dictionary", ADR-053). Each is
-  // left out of `dictionaries`, so every plan refuses it and nothing saves over the file.
-  const [unreadDictionaryIds, setUnreadDictionaryIds] = useState<string[]>([]);
-  const unreadRef = useRef(unreadDictionaryIds);
-  unreadRef.current = unreadDictionaryIds;
 
-  // The one save protocol for every dictionary edit, CRUD and undo/redo alike (ADR-052).
-  const [committer] = useState(() =>
-    createEditCommitter({
-      read: () => dictionariesRef.current,
-      write: (updates) => {
-        dictionariesRef.current = { ...dictionariesRef.current, ...updates };
-        setDictionaries((prev) => ({ ...prev, ...updates }));
-      },
+  // The one writer of the in-memory dictionaries; its queue orders every write (ADR-055).
+  const [store] = useState(() =>
+    createDictionaryStore({
+      listDictionaries: () => getDictionaryTypes() as Promise<DictionaryTypesCollection>,
+      load: loadAllDictionaries,
       save: (dictionaryId, entries) => window.electronAPI.saveDictionary(dictionaryId, entries),
       invalidate: (dictionaryId) =>
         invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
-      isUnread: (dictionaryId) => unreadRef.current.includes(dictionaryId),
     })
   );
+  const { dictionaries, unreadDictionaryIds, dictionaryTypes } = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot
+  );
 
-  const {
-    record,
-    undo,
-    redo,
-    clear: clearHistory,
-    canUndo,
-    canRedo,
-  } = useDictionaryHistory(committer);
+  const { record, undo, redo, clear: clearHistory, canUndo, canRedo } = useDictionaryHistory(store);
 
   const {
     addEntry,
@@ -162,39 +142,25 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     bulkDeleteEntries,
     moveEntry,
     bulkMoveEntries,
-  } = useDictionaryCRUD(committer, record);
+  } = useDictionaryCRUD(store, record);
 
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
-  // Load initial dictionaries and configuration
+  // Load initial dictionaries and configuration — the store's first operation, so an edit
+  // made before it finishes waits behind it.
   useEffect(() => {
     const loadInitialState = async (): Promise<void> => {
       setIsLoading(true);
       setLoadError(null);
-      const loadedDictionaries: { [key: string]: DictionaryData } = {};
 
       try {
-        // First, load all available dictionary types
-        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
+        const { stillFailedIds, total } = await store.loadAll();
 
         // Restore saved dictionary selection if it still exists
         const config = await loadAppConfig();
-        if (config.session.lastSelectedDictionary && types[config.session.lastSelectedDictionary]) {
-          setSelectedDictionary(config.session.lastSelectedDictionary);
-        }
-
-        // Use Rust's parallel batch loading with automatic serial retry for cold-launch failures.
-        const dictionaryIds = Object.keys(types);
-        const {
-          loadedDictionaries: rawDictionaries,
-          stillFailedIds,
-          total,
-        } = await loadAllDictionaries(dictionaryIds);
-
-        // Apply sort to each loaded dictionary
-        for (const [id, data] of Object.entries(rawDictionaries)) {
-          loadedDictionaries[id] =
-            Object.keys(data).length > 0 ? sortDictionaryEntries(data, id) : data;
+        const saved = config.session.lastSelectedDictionary;
+        if (saved && store.getSnapshot().dictionaryTypes[saved]) {
+          setSelectedDictionary(saved);
         }
 
         const outcome = classifyLoadResult(stillFailedIds, total);
@@ -213,9 +179,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             id: TOAST_IDS.DICT_LOAD_FAILED,
           });
         }
-
-        setDictionaries(loadedDictionaries);
-        setUnreadDictionaryIds(stillFailedIds);
       } catch (error) {
         const msg = `Failed to load dictionaries: ${extractErrorMessage(error)}`;
         logger.error('Failed to load initial state:', error);
@@ -230,67 +193,34 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     };
 
     loadInitialState();
-  }, []);
+  }, [store]);
 
   // Persist selected dictionary to configuration
   usePersistSelectedDictionary(selectedDictionary, isLoading);
 
-  // Reload a single dictionary — same protocol as loadInitialState (parallel+retry via DictionaryBackend).
-  // A Reload trusts the disk: if the file now fails to load, the in-memory copy is dropped and
-  // the dictionary becomes unread, or the next edit would save that copy over the file.
-  const loadDictionary = useCallback(async (dictionaryId: string): Promise<void> => {
-    try {
-      const { loadedDictionaries, stillFailedIds } = await loadAllDictionaries([dictionaryId]);
-      if (stillFailedIds.includes(dictionaryId)) {
-        logger.error(`Failed to reload dictionary ${dictionaryId}; it is unread until it loads`);
-        if (dictionaryId in dictionariesRef.current) {
-          const next = { ...dictionariesRef.current };
-          delete next[dictionaryId];
-          dictionariesRef.current = next;
-          setDictionaries((prev) => {
-            if (!(dictionaryId in prev)) return prev;
-            const without = { ...prev };
-            delete without[dictionaryId];
-            return without;
-          });
-        }
-        setUnreadDictionaryIds((prev) =>
-          prev.includes(dictionaryId) ? prev : [...prev, dictionaryId]
-        );
-        return;
-      }
-      const data = loadedDictionaries[dictionaryId];
-      if (data) {
-        setDictionaries((prev) => ({
-          ...prev,
-          [dictionaryId]:
-            Object.keys(data).length > 0 ? sortDictionaryEntries(data, dictionaryId) : data,
-        }));
-        setUnreadDictionaryIds((prev) =>
-          prev.includes(dictionaryId) ? prev.filter((id) => id !== dictionaryId) : prev
-        );
-      }
-    } catch (error) {
-      logger.error(`Error loading dictionary ${dictionaryId}:`, error);
-    }
-  }, []);
-
-  // Removes one key from in-memory state without touching disk. Used after an external rename
-  // (DictionaryPairs) once the new ID has already been loaded via loadDictionary, so the old
-  // ID doesn't linger as a stale duplicate entry. History is cleared with it: its edits name
-  // the old ID, so none of them could be undone.
-  const removeDictionaryKey = useCallback(
-    (dictionaryId: string): void => {
-      setDictionaries((prev) => {
-        if (!(dictionaryId in prev)) return prev;
-        const next = { ...prev };
-        delete next[dictionaryId];
-        return next;
-      });
-      clearHistory();
-    },
-    [clearHistory]
+  // A Reload trusts the disk: a failed read drops the in-memory copy and makes the dictionary
+  // unread, or the next edit would save that copy over the file (ADR-053).
+  const loadDictionary = useCallback(
+    (dictionaryId: string): Promise<void> => store.reload(dictionaryId),
+    [store]
   );
+
+  // History is cleared inside the rename's turn: its edits name the old ids.
+  const applyRename = useCallback(
+    (renames: ReadonlyArray<readonly [string, string]>): Promise<void> =>
+      store.rename(renames, clearHistory),
+    [store, clearHistory]
+  );
+
+  const reloadAllDictionaries = useCallback(
+    async () => (await store.loadAll()).dictionaries,
+    [store]
+  );
+
+  // Import rewrote the files outside history, so no edit in it can be undone.
+  const reloadAfterImport = useCallback(async (): Promise<void> => {
+    await store.loadAll({ invalidate: true, onApplied: clearHistory });
+  }, [store, clearHistory]);
 
   // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
   // no useCallback wrapper needed; pass them directly in the value object below.
@@ -301,6 +231,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     (): DictionaryContextValue => ({
       dictionaries,
       unreadDictionaryIds,
+      dictionaryTypes,
       isLoading,
       loadError,
       addEntry,
@@ -317,7 +248,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       canRedo,
       clearHistory,
       loadDictionary,
-      removeDictionaryKey,
+      applyRename,
+      reloadAllDictionaries,
+      reloadAfterImport,
       selectedDictionary,
       setSelectedDictionary,
       getSortingStats,
@@ -327,6 +260,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [
       dictionaries,
       unreadDictionaryIds,
+      dictionaryTypes,
       isLoading,
       loadError,
       addEntry,
@@ -343,7 +277,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       canRedo,
       clearHistory,
       loadDictionary,
-      removeDictionaryKey,
+      applyRename,
+      reloadAllDictionaries,
+      reloadAfterImport,
       selectedDictionary,
       registerCacheInvalidator,
     ]

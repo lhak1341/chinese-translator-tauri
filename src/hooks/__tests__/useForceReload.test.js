@@ -14,7 +14,6 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useForceReload } from '../useForceReload.js';
-import { parallelDictionaryLoader } from '../../utils/dictionary';
 
 vi.mock('../../utils/toast', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -25,14 +24,9 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../utils/TranslationEngine.js', () => ({
   DEBUG_LEVELS: { ERROR: 'error' },
 }));
-vi.mock('../../utils/dictionary', () => ({
-  parallelDictionaryLoader: {
-    loadDictionariesParallel: vi.fn().mockResolvedValue({
-      results: [],
-      duration: 0,
-    }),
-  },
-}));
+
+/** The provider's `reloadAllDictionaries`: the Dictionary Store's reload of every dictionary. */
+const reloadAll = vi.fn();
 
 /** Build a minimal ctx with all 10 ForceReloadContext methods. */
 function makeCtx(overrides = {}) {
@@ -52,10 +46,8 @@ function makeCtx(overrides = {}) {
 }
 
 beforeEach(() => {
-  global.window.electronAPI = {
-    loadDictionary: vi.fn().mockResolvedValue({ success: true, data: {} }),
-  };
   vi.clearAllMocks();
+  reloadAll.mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -68,7 +60,7 @@ describe('useForceReload — early-return guard', () => {
   test('isDictionaryReloading=true → returns immediately, no work done', async () => {
     const ctx = makeCtx();
     const { result } = renderHook(() =>
-      useForceReload(ctx, /* isDictionaryReloading */ true, 'text', false, {})
+      useForceReload(ctx, /* isDictionaryReloading */ true, 'text', false, reloadAll)
     );
 
     await act(async () => {
@@ -103,7 +95,7 @@ describe('CRITICAL-3: cancelTranslations resolves before destroyEngine fires', (
       reinitializeEngine: vi.fn().mockResolvedValue(false), // stop early so test stays fast
     });
 
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
 
     vi.useFakeTimers();
     const done = act(async () => {
@@ -133,7 +125,7 @@ describe('CRITICAL-3: cancelTranslations resolves before destroyEngine fires', (
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -164,7 +156,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -188,7 +180,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -207,7 +199,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -226,7 +218,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -249,7 +241,7 @@ describe('useForceReload — engine init failure', () => {
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -269,7 +261,7 @@ describe('useForceReload — engine init failure', () => {
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -289,7 +281,9 @@ describe('useForceReload — retranslate path', () => {
     const ctx = makeCtx();
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, 'hello world', false, reloadAll)
+    );
     const done = act(async () => {
       result.current();
     });
@@ -305,7 +299,7 @@ describe('useForceReload — retranslate path', () => {
     const ctx = makeCtx();
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -321,7 +315,7 @@ describe('useForceReload — retranslate path', () => {
     const ctx = makeCtx();
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '   \n ', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '   \n ', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -339,7 +333,7 @@ describe('useForceReload — retranslate path', () => {
     });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'text', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, 'text', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -360,7 +354,7 @@ describe('useForceReload — isLoading guard', () => {
 
     vi.useFakeTimers();
     const { result } = renderHook(() =>
-      useForceReload(ctx, false, 'text', /* isLoading */ true, {})
+      useForceReload(ctx, false, 'text', /* isLoading */ true, reloadAll)
     );
     const done = act(async () => {
       result.current();
@@ -371,68 +365,6 @@ describe('useForceReload — isLoading guard', () => {
     await done;
 
     expect(ctx.reinitializeEngine).not.toHaveBeenCalled();
-  });
-});
-
-// ── Fallback dictionary-load path (accumulateLoadResults parity) ───────────────
-
-describe('useForceReload — parallelDictionaryLoader fallback path', () => {
-  test('when loadDictionariesParallel rejects, the manual Promise.all fallback still builds freshDictionaries/successCount correctly', async () => {
-    parallelDictionaryLoader.loadDictionariesParallel.mockRejectedValueOnce(
-      new Error('loader unavailable')
-    );
-
-    global.window.electronAPI.loadDictionary = vi.fn((dictId) => {
-      if (dictId === 'dictB') {
-        return Promise.resolve({ success: false, error: 'boom' });
-      }
-      return Promise.resolve({ success: true, data: { 你好: 'xin chào' } });
-    });
-
-    const ctx = makeCtx();
-    vi.useFakeTimers();
-    const { result } = renderHook(() =>
-      useForceReload(ctx, false, '', false, { dictA: {}, dictB: {}, dictC: {} })
-    );
-    const done = act(async () => {
-      result.current();
-    });
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-    await done;
-
-    expect(ctx.reinitializeEngine).toHaveBeenCalledWith(
-      { dictA: { 你好: 'xin chào' }, dictC: { 你好: 'xin chào' } },
-      expect.objectContaining({ forceConfigReload: true })
-    );
-  });
-
-  test('fallback path does not double-log a per-item failure (accumulateLoadResults is the sole logger)', async () => {
-    const { logger } = await import('../../utils/logger');
-    parallelDictionaryLoader.loadDictionariesParallel.mockRejectedValueOnce(
-      new Error('loader unavailable')
-    );
-    global.window.electronAPI.loadDictionary = vi.fn().mockResolvedValue({
-      success: false,
-      error: 'boom',
-    });
-
-    const ctx = makeCtx();
-    vi.useFakeTimers();
-    const { result } = renderHook(() => useForceReload(ctx, false, '', false, { dictA: {} }));
-    const done = act(async () => {
-      result.current();
-    });
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-    await done;
-
-    const failureLogs = logger.error.mock.calls.filter(
-      (call) => typeof call[0] === 'string' && call[0].includes('dictA')
-    );
-    expect(failureLogs).toHaveLength(1);
   });
 });
 
@@ -462,7 +394,9 @@ describe('useForceReload — retranslateInput: false', () => {
 
   test('skips the retranslate step even when there is input to redo', async () => {
     const ctx = makeCtx();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, 'hello world', false, reloadAll)
+    );
 
     await runReload(result, { retranslateInput: false });
 
@@ -471,7 +405,9 @@ describe('useForceReload — retranslateInput: false', () => {
 
   test('still reloads and reinitializes — only the last step is skipped', async () => {
     const ctx = makeCtx();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, 'hello world', false, reloadAll)
+    );
 
     await runReload(result, { retranslateInput: false });
 
@@ -482,7 +418,9 @@ describe('useForceReload — retranslateInput: false', () => {
 
   test('says the visible translation is stale rather than claiming it is current', async () => {
     const ctx = makeCtx();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, 'hello world', false, reloadAll)
+    );
 
     await runReload(result, { retranslateInput: false });
 
@@ -492,7 +430,9 @@ describe('useForceReload — retranslateInput: false', () => {
 
   test('defaults to retranslating when called with no options at all', async () => {
     const ctx = makeCtx();
-    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, 'hello world', false, reloadAll)
+    );
 
     await runReload(result, undefined);
 
@@ -501,7 +441,7 @@ describe('useForceReload — retranslateInput: false', () => {
 
   test('empty input reports plain completion, not staleness', async () => {
     const ctx = makeCtx();
-    const { result } = renderHook(() => useForceReload(ctx, false, '   ', false, {}));
+    const { result } = renderHook(() => useForceReload(ctx, false, '   ', false, reloadAll));
 
     await runReload(result, { retranslateInput: false });
 
@@ -511,17 +451,15 @@ describe('useForceReload — retranslateInput: false', () => {
   });
 });
 
-// ── Unread dictionaries ───────────────────────────────────────────────────────
+// ── Dictionaries come from the Dictionary Store ────────────────────────────────
 
-describe('unread dictionaries (CONTEXT.md "Unread dictionary")', () => {
-  test('a reload retries each unread dictionary, for the engine and for the provider', async () => {
+describe('dictionaries come from the Dictionary Store (ADR-055)', () => {
+  test('the engine is rebuilt from what the store reloaded, unread ones retried with the rest', async () => {
     const ctx = makeCtx();
-    const reloadDictionary = vi.fn().mockResolvedValue(undefined);
+    reloadAll.mockResolvedValue({ phrases: { 你好: 'xin chào' } });
 
     vi.useFakeTimers();
-    const { result } = renderHook(() =>
-      useForceReload(ctx, false, '', false, { properNouns: {} }, ['phrases'], reloadDictionary)
-    );
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
     const done = act(async () => {
       result.current();
     });
@@ -530,8 +468,34 @@ describe('unread dictionaries (CONTEXT.md "Unread dictionary")', () => {
     });
     await done;
 
-    const [toLoad] = vi.mocked(parallelDictionaryLoader.loadDictionariesParallel).mock.calls[0];
-    expect(toLoad.map((d) => d.name)).toEqual(['properNouns', 'phrases']);
-    expect(reloadDictionary).toHaveBeenCalledWith('phrases');
+    expect(reloadAll).toHaveBeenCalledOnce();
+    expect(ctx.reinitializeEngine).toHaveBeenCalledWith(
+      { phrases: { 你好: 'xin chào' } },
+      expect.objectContaining({ forceConfigReload: true })
+    );
+  });
+
+  test('the store reloads only after translations stopped and the engine was destroyed', async () => {
+    const order = [];
+    const ctx = makeCtx({
+      cancelTranslations: vi.fn(async () => order.push('cancel')),
+      destroyEngine: vi.fn(() => order.push('destroy')),
+    });
+    reloadAll.mockImplementation(async () => {
+      order.push('reload');
+      return {};
+    });
+
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
+    const done = act(async () => {
+      result.current();
+    });
+    await act(async () => {
+      vi.runAllTimersAsync();
+    });
+    await done;
+
+    expect(order).toEqual(['cancel', 'destroy', 'reload']);
   });
 });

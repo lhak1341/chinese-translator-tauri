@@ -38,6 +38,8 @@ const {
   undo,
   redo,
   loadDictionary,
+  reloadAfterImport,
+  dictionaryTypes,
 } = vi.hoisted(() => ({
   dictionariesRef: {
     current: {
@@ -63,6 +65,12 @@ const {
   undo: vi.fn().mockResolvedValue(true),
   redo: vi.fn().mockResolvedValue(true),
   loadDictionary: vi.fn().mockResolvedValue(undefined),
+  reloadAfterImport: vi.fn().mockResolvedValue(undefined),
+  // The Dictionary Store's list, one identity across renders.
+  dictionaryTypes: {
+    'properNouns-Test': { label: 'Test' },
+    'properNouns-Other': { label: 'Other' },
+  },
 }));
 
 vi.mock('../DictionaryContext', () => ({
@@ -82,19 +90,10 @@ vi.mock('../DictionaryContext', () => ({
     canUndo: false,
     canRedo: false,
     loadDictionary,
+    reloadAfterImport,
+    dictionaryTypes,
   }),
 }));
-
-vi.mock('../DictionaryTypes', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../DictionaryTypes')>();
-  return {
-    ...actual,
-    getDictionaryTypes: vi.fn().mockResolvedValue({
-      'properNouns-Test': { label: 'Test' },
-      'properNouns-Other': { label: 'Other' },
-    }),
-  };
-});
 
 vi.mock('../../ToastContext', () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -180,6 +179,34 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
 
     fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /Reload/ }));
     expect(loadDictionary).toHaveBeenCalledWith('properNouns-Test');
+  });
+
+  test('switching dictionaries reads nothing from disk: memory is the source of truth', async () => {
+    const { rerender } = render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    selectedDictionaryRef.current = 'properNouns-Other';
+    await act(async () => {
+      rerender(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    });
+
+    await screen.findByText('Bye');
+    expect(loadDictionary).not.toHaveBeenCalled();
+  });
+
+  test('import re-reads every dictionary through the store, not only the selected one', async () => {
+    const importDictionaries = vi.fn().mockResolvedValue({ success: true, message: 'Imported' });
+    (window as unknown as { electronAPI: object }).electronAPI = { importDictionaries };
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Import/ }));
+    });
+
+    expect(importDictionaries).toHaveBeenCalled();
+    expect(reloadAfterImport).toHaveBeenCalledOnce();
+    expect(loadDictionary).not.toHaveBeenCalled();
   });
 
   test('selecting a row lifts SelectionState to DictionaryManager, which renders bulk buttons', async () => {

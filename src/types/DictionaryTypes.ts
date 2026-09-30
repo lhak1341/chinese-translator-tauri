@@ -4,6 +4,7 @@
 
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
 import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
+import type { DictionaryTypesCollection } from './ComponentTypes';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -165,10 +166,20 @@ export interface DictionaryContextInterface {
   canRedo: boolean;
   /** Forget undo history — after dictionaries were rewritten outside it (import) */
   clearHistory: () => void;
-  /** Load a specific dictionary */
+  /** Every dictionary that exists, with its label — kept by the Dictionary Store, refreshed by
+   * the operations that can change it (reload of a new id, rename, reload all). */
+  dictionaryTypes: DictionaryTypesCollection;
+  /** Read one dictionary from disk (CONTEXT.md "Dictionary Store"). A failed read makes it
+   * unread; a new id is listed. */
   loadDictionary: (dictionaryId: string) => Promise<void>;
-  /** Remove one dictionary key from in-memory state without touching disk (e.g. after an external rename) */
-  removeDictionaryKey: (dictionaryId: string) => void;
+  /** Apply renames Rust already made on disk — load each new id, drop each old one — in one
+   * turn of the store's queue. Clears history: its edits name the old ids. */
+  applyRename: (renames: ReadonlyArray<readonly [string, string]>) => Promise<void>;
+  /** Re-read every dictionary for force reload; resolves to what memory then holds. */
+  reloadAllDictionaries: () => Promise<{ [key: string]: DictionaryData }>;
+  /** Re-read every dictionary after import rewrote the files: invalidates the engine for each,
+   * and clears history in the same turn. */
+  reloadAfterImport: () => Promise<void>;
   /** Currently selected dictionary */
   selectedDictionary: string;
   /** Get sorting statistics */

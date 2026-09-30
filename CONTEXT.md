@@ -131,7 +131,7 @@ One of the four JSON files the app keeps beside the dictionaries: `config.json`,
 - **Read once, cached, observable.** `read()` loads on first use. `subscribe`/`snapshot` report every change to the cache; the shelf reads book records this way.
 - **One write: `transform(fn)`.** It runs under one lock per file against the freshest value, and returning the value unchanged saves nothing. A file's own save functions are transforms: `saveAppConfig(patch)` merges, and appearance and rules replace the whole value.
 - **`writeExternally(fn)`** is for a Rust command that writes the file itself (config's `callRustConfigWrite`). It runs on the same lock and drops the cache on success.
-- **Dictionaries are not App Files.** Their writes go through `EditCommitter` (ADR-052), and a failed load never falls back to defaults (ADR-053, "Unread dictionary").
+- **Dictionaries are not App Files.** Every write to them goes through the Dictionary Store's one queue (ADR-052, ADR-055), and a failed load never falls back to defaults (ADR-053, "Unread dictionary").
 
 ### Unreadable app files
 
@@ -144,7 +144,7 @@ The protocol is pinned once by `appFile.test.ts`, each file's wiring by `UnreadF
 
 ## Unread dictionary
 
-A dictionary whose file exists but failed to load: invalid JSON, over 10 MB or 50,000 entries, nested too deep, or a read error that survived the serial retry. It is **left out of the provider's `dictionaries`** and listed in `unreadDictionaryIds` (`DictionaryContext.tsx`), and nothing saves over its file until a Reload reads it cleanly (decided 2026-09-29, architecture review candidate #1 grilling; ADR-053). Until then the load protocol put `{}` in its place, the planners accepted it as an empty dictionary, and the next Add saved a one-entry file over everything it held.
+A dictionary whose file exists but failed to load: invalid JSON, over 10 MB or 50,000 entries, nested too deep, or a read error that survived the serial retry. It is **left out of the provider's `dictionaries`** and listed in `unreadDictionaryIds` (both kept by the Dictionary Store), and nothing saves over its file until a Reload reads it cleanly (decided 2026-09-29, architecture review candidate #1 grilling; ADR-053). Until then the load protocol put `{}` in its place, the planners accepted it as an empty dictionary, and the next Add saved a one-entry file over everything it held.
 
 - **Not quarantined**, unlike the app files: the file stays where it is. You fix it by hand and press Reload (the Dictionary tab's notice, or force reload, which retries every unread id).
 - **Every edit refuses it for free**: the plans already reject a dictionary that is not in memory, and `EditCommitter` names the reason ("Couldn't read X.json; not saving over it"). Undo and redo refuse too, since the dictionary counts as changed.
@@ -255,7 +255,7 @@ Entry point: `src/utils/text/ProperNounCapitalizationMap.ts` — `buildProperNou
 
 Dictionary undo/redo: a list of committed Dictionary Edits (`DictionaryEdit[]`), a cursor, a `MAX_HISTORY = 100` cap. `record(edit)` (drops the redo tail), `undo()` commits `invert(edits[cursor])`, `redo()` commits `edits[cursor + 1]`, `clear()`. Both go through the provider's `EditCommitter`, so a stale undo — one whose keys changed since — is refused with a warning toast naming the keys, and the cursor stays put.
 
-The list and cursor live in a ref, not state: the edit an undo picks and the cursor move after it both happen inside the undo's turn in the commit queue, so a queued edit never records itself between them. A version counter re-renders `canUndo`/`canRedo`. Cleared on dictionary import (`DictionaryManager`) and when a dictionary leaves memory (`removeDictionaryKey`, after a pair rename) — both rewrite dictionaries outside history.
+The list and cursor live in a ref, not state: the edit an undo picks and the cursor move after it both happen inside the undo's turn in the commit queue, so a queued edit never records itself between them. A version counter re-renders `canUndo`/`canRedo`. Cleared on dictionary import and after a pair rename — both rewrite dictionaries outside history — inside that operation's turn in the Dictionary Store's queue (`onApplied`). A reload of one dictionary keeps it.
 
 Entry point: `src/components/dictionary/useDictionaryHistory.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
 
@@ -358,7 +358,7 @@ Interface: `loadAllDictionaries(dictionaryIds: string[]): Promise<BatchLoadResul
 
 No React, no toast, no sorting. Testable as a plain async function — stub `window.electronAPI` and verify retry+classification behavior directly without mounting the provider.
 
-Entry point: `src/utils/dictionary/DictionaryBackend.ts`. Called from `loadInitialState` (startup) and `loadDictionary` (single reload) in `DictionaryContext.tsx` — both use the same parallel+retry protocol.
+Entry point: `src/utils/dictionary/DictionaryBackend.ts`. The Dictionary Store's `load` dependency, so the startup load, a single reload, a rename, force reload and import all use the same parallel+retry protocol.
 
 ## Dictionary Edit
 
@@ -366,7 +366,19 @@ One change to user dictionaries, described as data (architecture review 2026-09-
 
 Pure half, `src/utils/dictionary/DictionaryEdit.ts`: `planAdd/planUpdate/planDelete/planMove(dicts, …) → DictionaryEdit | {invalid: reason}`, `invert`, `applyEdit`, and `changedKeys(edit, dicts)` (keys whose current value no longer equals what the edit expects, compared field by field by `sameEntryValue`). Tested by a round-trip over every plan type: `applyEdit(applyEdit(d, e), invert(e))` equals `d`.
 
-Committing half, `EditCommitter` (`src/components/dictionary/EditCommitter.ts`, plain module; the provider builds one): `commit(plan, onCommitted?)` plans against the current dictionaries at its turn in one global queue (ADR-052); refuses the whole edit if any key changed since (`{refused, changedKeys}`); otherwise applies to memory first, sorts (incremental hint only for a one-key change or a rename), saves every touched dictionary, and on a failed save rolls memory back and writes the old contents back to every dictionary that did save (`{saveFailed, rolledBack}`); on success runs `onCommitted` (history's `record`, or its cursor move) and invalidates the engine per touched dictionary. The one save protocol for CRUD and undo/redo alike; it replaced `DictionaryOperationReverter`, `HistoryOperation`, `useDictionaryPersistence` and `commitMutation`.
+Committing half, `commitEdit` (`src/components/dictionary/EditCommitter.ts`, plain module), run by the Dictionary Store as one kind of operation on its queue (ADR-052, ADR-055); CRUD and history reach it through the `EditCommitter` interface (`commit(plan, onCommitted?)`), which the store satisfies. A commit plans against the current dictionaries at its turn in the queue; refuses the whole edit if any key changed since (`{refused, changedKeys}`); otherwise applies to memory first, sorts (incremental hint only for a one-key change or a rename), saves every touched dictionary, and on a failed save rolls memory back and writes the old contents back to every dictionary that did save (`{saveFailed, rolledBack}`); on success runs `onCommitted` (history's `record`, or its cursor move) and invalidates the engine per touched dictionary. The one save protocol for CRUD and undo/redo alike; it replaced `DictionaryOperationReverter`, `HistoryOperation`, `useDictionaryPersistence` and `commitMutation`.
+
+## Dictionary Store
+
+The user dictionaries in memory, the unread ones, and the list of dictionaries that exist (`dictionaryTypes`), with one queue for every write to them (architecture review 2026-09-30, candidate #1; ADR-055). `createDictionaryStore(deps)` in `src/components/dictionary/DictionaryStore.ts`, a plain module; `DictionaryProvider` builds one and reads it through `useSyncExternalStore`.
+
+Operations, each one turn of the queue: `loadAll(options?)` (startup, force reload, and import with `invalidate: true`), `commit(plan, onCommitted?)` (a Dictionary Edit), `reload(id)` (the Reload button, a created dictionary; a failed read makes it unread, a new id is listed), and `rename(renames, onApplied?)` (a pair rename: loads each new id and drops each old one together). `onApplied` runs inside the turn — import and rename clear history there, so no undo queued before them runs after them.
+
+- **Memory is the source of truth.** Selecting a dictionary reads nothing from disk; duplicate mode reloads nothing. Until 2026-09-30 every selection re-read the dictionary, and import reloaded only the selected one, so the next edit to any other saved its stale copy over the imported file.
+- **A reload of one dictionary keeps history.** An undo whose keys the reload changed is refused by the changed-key check, like any stale undo.
+- **Every operation that changes a dictionary's contents invalidates the engine for it** — commit, reload, rename, import. The startup load and force reload do not: the engine is built from their result (`reloadAllDictionaries` resolves to it).
+
+Deps: `listDictionaries` (`getDictionaryTypes`), `load` (`loadAllDictionaries`), `save`, `invalidate`. Tested without React over a fake disk (`DictionaryStore.test.ts`, `EditCommitter.test.ts`, `__tests__/fakeDictionaryDisk.ts`).
 
 ## MoveDialog
 
@@ -526,7 +538,7 @@ Entry point: `src/components/configuration/useDictionaryConfigManagement.ts`. So
 
 ## Dictionary pair
 
-A fiction (`properNouns-f_X`) or generic (`properNouns-_X`) proper-nouns dictionary together with its patterns half (`patterns-f_X` / `patterns-_X`), coupled by name (ADR-027, ADR-048); a custom `properNouns-Foo` is a single file. Rust creates and renames a pair as one operation; `src/utils/dictionary/DictionaryPairs.ts` is the one place that also brings the app's in-memory `dictionaries` along: `createDictionary(id, ops)` (pair or single file by `hasPairedPatterns`, then loads every half), `renameDictionary(oldId, newId, ops)` (loads each new half before dropping its old one — which halves moved is decided by the old id, as Rust's cascade is), and `createMissingPatternHalves(ids, ops)` (the mount-time migration for dictionaries made before their tier was paired). `ops` is `DictionaryContext`'s `loadDictionary`/`removeDictionaryKey`, injected. Callers: the Configuration tab (generic and custom) and `BookBindingContext` (fiction, which adds its queue, book records and fiction-list refresh around the same calls). Before 2026-09-26 both callers re-derived the halves by hand.
+A fiction (`properNouns-f_X`) or generic (`properNouns-_X`) proper-nouns dictionary together with its patterns half (`patterns-f_X` / `patterns-_X`), coupled by name (ADR-027, ADR-048); a custom `properNouns-Foo` is a single file. Rust creates and renames a pair as one operation; `src/utils/dictionary/DictionaryPairs.ts` is the one place that also brings the app's in-memory `dictionaries` along: `createDictionary(id, ops)` (pair or single file by `hasPairedPatterns`, then loads every half), `renameDictionary(oldId, newId, ops)` (swaps every half in memory as one Dictionary Store operation — which halves moved is decided by the old id, as Rust's cascade is), and `createMissingPatternHalves(ids, ops)` (the mount-time migration for dictionaries made before their tier was paired). `ops` is `DictionaryContext`'s `loadDictionary`/`applyRename`, injected. Callers: the Configuration tab (generic and custom) and `BookBindingContext` (fiction, which adds its queue, book records and fiction-list refresh around the same calls). Before 2026-09-26 both callers re-derived the halves by hand.
 
 ## DictionaryListOrganizer
 
@@ -622,16 +634,6 @@ Two small dedup extractions from `TranslationEngine.js` (architecture review 202
 `emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Was hand-copied at 8 sites across 5 methods (`translateWithCharactersOnly`, `translateWithSegments`, `translateWithProgressiveBatches` ×4, `translateWithChunking`, `getBatchSemanticArrays`) before being unified. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
 
 `_logUnpositionedSegments(contextSuffix)` — the `translationSegments.filter(s => s.translatedStart === -1)` + warn-if-any-found diagnostic. Was hand-copied at 3 sites across 2 methods (`translateWithSegments`, `translateWithProgressiveBatches` ×2 — "in batch processing" / "in final processing"), not the 3-sites-in-one-method the initial report card claimed (re-verified directly against the file during grilling). Needs `this.translationSegments`/`this.log` — stays a private TranslationEngine method, unlike `emptySemanticArrays`. Do NOT confuse with the single-line `if (translationSegment.translatedStart === -1)` guard elsewhere in the file (~line 4239, inside the position-assignment loop) — structurally different (a set-once guard, not a filter+warn diagnostic) and correctly left untouched.
-
-## accumulateLoadResults
-
-The shared accumulate-and-log step for `useForceReload.js`'s two dictionary-load branches (`parallelDictionaryLoader` primary path, manual `Promise.all` catch-fallback). Extracted 2026-07-29 — both branches independently built `freshDictionaries`/`successCount` and logged per-item ✅/❌, and the fallback branch's per-item failure logging (inline inside its `loadPromises` map) was removed in the same pass since `accumulateLoadResults` is now the sole logger for failures — the fallback branch used to double-log before this.
-
-The two branches source result items in different shapes (`{name, success, result:{data,entryCount}, error}` vs `{dictId, data, success, entryCount, error}`) — each branch normalizes its own shape into `{id, success, data, entryCount, error}` via an inline `.map()` before calling here. The final one-line summary log (`📥 Loaded X/Y...`) stays branch-local — the two messages genuinely differ (duration vs a `(fallback)` label) and weren't worth forcing into one shape.
-
-Interface: `accumulateLoadResults(items: NormalizedLoadResultItem[]) → {freshDictionaries, successCount}`.
-
-Entry point: `src/hooks/useForceReload.js`, module-level, not exported — both callers live inside the same file's `handleForceReload`.
 
 ## _findInDictionaries
 

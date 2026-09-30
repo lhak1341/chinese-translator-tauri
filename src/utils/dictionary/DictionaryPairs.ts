@@ -9,8 +9,8 @@
  * generic and custom dictionaries, `BookBindingContext` for fiction. This module is that
  * rule, once: the command plus its memory side.
  *
- * `ops` is `DictionaryContext`'s own `loadDictionary`/`removeDictionaryKey`, injected so the
- * module is testable with fakes.
+ * `ops` is `DictionaryContext`'s own `loadDictionary`/`applyRename` — operations on the
+ * Dictionary Store's queue (ADR-055) — injected so the module is testable with fakes.
  */
 
 import { callRustConfigWrite } from '../appConfig';
@@ -20,7 +20,8 @@ import type { ProperNounsListResult } from '../../types/ElectronTypes';
 
 export interface DictionaryPairOps {
   loadDictionary: (dictionaryId: string) => Promise<void>;
-  removeDictionaryKey: (dictionaryId: string) => void;
+  /** Loads each new id and drops each old one, in one turn of the store's queue. */
+  applyRename: (renames: ReadonlyArray<readonly [string, string]>) => Promise<void>;
 }
 
 /** Every file a proper-nouns dictionary consists of: itself, then its patterns half if paired. */
@@ -50,9 +51,9 @@ export async function createDictionary(
 }
 
 /**
- * Rename a proper-nouns dictionary. Rust moves both halves of a pair; this then loads each
- * new id before dropping its old one, so `dictionaries` never briefly holds neither. A
- * failed rename touches nothing in memory.
+ * Rename a proper-nouns dictionary. Rust moves both halves of a pair; this then swaps every
+ * half in memory as one store operation, so no edit plans against a map holding old and new
+ * ids at once. A failed rename touches nothing in memory.
  */
 export async function renameDictionary(
   oldId: string,
@@ -66,10 +67,7 @@ export async function renameDictionary(
   // Which halves moved is the old id's question — Rust cascades by what the file was.
   const moves: [string, string][] = [[oldId, newId]];
   if (hasPairedPatterns(oldId)) moves.push([toPatternsId(oldId), toPatternsId(newId)]);
-  for (const [from, to] of moves) {
-    await ops.loadDictionary(to);
-    ops.removeDictionaryKey(from);
-  }
+  await ops.applyRename(moves);
   return { success: true };
 }
 

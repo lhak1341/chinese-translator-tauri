@@ -40,11 +40,13 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   quickAddView,
   shortlist,
 }) => {
-  const { updateEntry, addEntry, dictionaries, unreadDictionaryIds } = useDictionary();
+  const { updateEntry, addEntry, dictionaries, dictionaryTypes, unreadDictionaryIds } =
+    useDictionary();
   const form = useDictionaryEntryForm(entry, selectedDictionary, {
     updateEntry,
     addEntry,
     dictionaries,
+    dictionaryTypes,
     initialSource,
     onDictionaryChange,
     quickAddView,

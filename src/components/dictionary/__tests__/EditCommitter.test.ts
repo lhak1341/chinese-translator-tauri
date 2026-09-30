@@ -1,9 +1,14 @@
+/**
+ * The commit protocol (`commitEdit`), through the Dictionary Store that queues it (ADR-055).
+ * The store's other operations are in `DictionaryStore.test.ts`.
+ */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { createEditCommitter } from '../EditCommitter';
-import type { EditCommitterDeps } from '../EditCommitter';
+import { createDictionaryStore } from '../DictionaryStore';
+import type { DictionaryStore } from '../DictionaryStore';
 import { planAdd, planMove, planDelete, invert } from '../../../utils/dictionary/DictionaryEdit';
 import type { Dictionaries, DictionaryEdit } from '../../../utils/dictionary/DictionaryEdit';
 import type { DictionaryData } from '../../../types/DictionaryTypes';
+import { fakeDictionaryDisk } from './fakeDictionaryDisk';
 
 vi.mock('../../../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), log: vi.fn() },
@@ -16,20 +21,14 @@ function entry(translation: string) {
   return { translation, allowAsPatternVariable: false };
 }
 
-let memory: Dictionaries;
 let disk: Dictionaries;
 let save: ReturnType<typeof vi.fn>;
 let invalidate: ReturnType<typeof vi.fn>;
+let committer: DictionaryStore;
+let unreadable: Set<string>;
 
-function deps(): EditCommitterDeps {
-  return {
-    read: () => memory,
-    write: (updates) => {
-      memory = { ...memory, ...updates };
-    },
-    save,
-    invalidate,
-  };
+function memory(): Dictionaries {
+  return committer.getSnapshot().dictionaries;
 }
 
 function diskSave(id: string, data: DictionaryData) {
@@ -37,19 +36,28 @@ function diskSave(id: string, data: DictionaryData) {
   return Promise.resolve({ success: true });
 }
 
-beforeEach(() => {
-  memory = {
+beforeEach(async () => {
+  const fake = fakeDictionaryDisk({
     [A]: { 张三: entry('Trương Tam'), 李四: entry('Lý Tứ') },
     [B]: { 张三: entry('Trương Tam (B)') },
-  };
-  disk = structuredClone(memory);
+  });
+  disk = fake.files;
+  unreadable = fake.unreadable;
   save = vi.fn(diskSave);
   invalidate = vi.fn().mockResolvedValue(undefined);
+  committer = createDictionaryStore({ ...fake.deps, save, invalidate });
+  await committer.loadAll();
 });
 
-describe('EditCommitter', () => {
+/** Rebuilds the store with `ids` present on disk but unreadable. */
+async function withUnread(...ids: string[]): Promise<void> {
+  for (const id of ids) unreadable.add(id);
+  await committer.loadAll();
+}
+
+describe('EditCommitter, through the Dictionary Store', () => {
   test('an edit to an unread dictionary is refused as unread, and nothing is saved', async () => {
-    const committer = createEditCommitter({ ...deps(), isUnread: (id) => id === 'phrases' });
+    await withUnread('phrases');
     const result = await committer.commit((d) => planAdd(d, 'phrases', '再见', entry('tạm biệt')));
 
     expect(result).toEqual({
@@ -60,7 +68,7 @@ describe('EditCommitter', () => {
   });
 
   test('a move whose target is unread names the unread target', async () => {
-    const committer = createEditCommitter({ ...deps(), isUnread: (id) => id === 'properNouns-C' });
+    await withUnread('properNouns-C');
     const result = await committer.commit((d) => planMove(d, A, 'properNouns-C', ['李四']));
 
     expect(result).toEqual({
@@ -70,17 +78,15 @@ describe('EditCommitter', () => {
   });
 
   test('commits to memory and disk, then invalidates each touched dictionary', async () => {
-    const committer = createEditCommitter(deps());
     const result = await committer.commit((d) => planMove(d, A, B, ['李四']));
 
     expect(result.status).toBe('ok');
-    expect(memory[B]['李四']).toEqual(entry('Lý Tứ'));
-    expect(disk).toEqual(memory);
+    expect(memory()[B]['李四']).toEqual(entry('Lý Tứ'));
+    expect(disk).toEqual(memory());
     expect(invalidate.mock.calls.map(([id]) => id)).toEqual([A, B]);
   });
 
   test('an invalid plan touches nothing', async () => {
-    const committer = createEditCommitter(deps());
     const result = await committer.commit((d) => planAdd(d, 'properNouns-X', 'k', entry('v')));
 
     expect(result).toEqual({
@@ -91,7 +97,6 @@ describe('EditCommitter', () => {
   });
 
   test('an edit with no changes saves nothing and does not call onCommitted', async () => {
-    const committer = createEditCommitter(deps());
     const onCommitted = vi.fn();
     const result = await committer.commit((d) => planDelete(d, A, ['无']), onCommitted);
 
@@ -101,7 +106,6 @@ describe('EditCommitter', () => {
   });
 
   test('refuses an undo whose keys changed since, naming them', async () => {
-    const committer = createEditCommitter(deps());
     const added = await committer.commit((d) => planAdd(d, A, '张三', entry('mới')));
     const edit = (added as { edit: DictionaryEdit }).edit;
     await committer.commit((d) => planAdd(d, A, '张三', entry('someone else')));
@@ -111,12 +115,11 @@ describe('EditCommitter', () => {
 
     expect(result).toEqual({ status: 'refused', changedKeys: ['张三'] });
     expect(save).not.toHaveBeenCalled();
-    expect(memory[A]['张三']).toEqual(entry('someone else'));
+    expect(memory()[A]['张三']).toEqual(entry('someone else'));
   });
 
   test('a failed second save rolls memory back and writes the saved dictionary back', async () => {
-    const committer = createEditCommitter(deps());
-    const before = structuredClone(memory);
+    const before = structuredClone(memory());
     save.mockImplementation((id: string, data: DictionaryData) =>
       id === B ? Promise.resolve({ success: false }) : diskSave(id, data)
     );
@@ -125,24 +128,22 @@ describe('EditCommitter', () => {
     const result = await committer.commit((d) => planMove(d, A, B, ['李四']), onCommitted);
 
     expect(result).toEqual({ status: 'saveFailed', rolledBack: true });
-    expect(memory).toEqual(before);
+    expect(memory()).toEqual(before);
     expect(disk).toEqual(before);
     expect(onCommitted).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalled();
   });
 
   test('a throwing save counts as a failed save', async () => {
-    const committer = createEditCommitter(deps());
     save.mockRejectedValue(new Error('ipc down'));
 
     const result = await committer.commit((d) => planAdd(d, A, '赵六', entry('Triệu Lục')));
 
     expect(result).toEqual({ status: 'saveFailed', rolledBack: true });
-    expect(memory[A]['赵六']).toBeUndefined();
+    expect(memory()[A]['赵六']).toBeUndefined();
   });
 
   test('a failed write-back reports rolledBack: false', async () => {
-    const committer = createEditCommitter(deps());
     let aSaves = 0;
     save.mockImplementation((id: string, data: DictionaryData) => {
       if (id === B) return Promise.resolve({ success: false });
@@ -156,7 +157,6 @@ describe('EditCommitter', () => {
   });
 
   test('commits run one at a time, each planning against the previous result', async () => {
-    const committer = createEditCommitter(deps());
     let release!: () => void;
     const firstSave = new Promise<void>((r) => (release = r));
     save.mockImplementationOnce(async (id: string, data: DictionaryData) => {
@@ -187,11 +187,10 @@ describe('EditCommitter', () => {
   });
 
   test('a bulk change is fully sorted, keeping every entry', async () => {
-    const committer = createEditCommitter(deps());
     await committer.commit((d) => planAdd(d, A, '甲', entry('x')));
     await committer.commit((d) => planMove(d, A, B, ['张三', '李四']));
 
-    expect(Object.keys(memory[B]).sort()).toEqual(['张三', '李四'].sort());
-    expect(Object.keys(memory[A])).toEqual(['甲']);
+    expect(Object.keys(memory()[B]).sort()).toEqual(['张三', '李四'].sort());
+    expect(Object.keys(memory()[A])).toEqual(['甲']);
   });
 });

@@ -1,8 +1,9 @@
 /**
  * Wiring tests for useDictionaryCRUD: each method plans a Dictionary Edit, commits it through
- * a real EditCommitter over a fake disk, and turns the outcome into a message or a typed
- * throw. What an edit does to the dictionaries — and how undo reverses it — is tested once,
- * in DictionaryEdit.test.ts and EditCommitter.test.ts.
+ * the real commit protocol (`commitEdit`) over a fake disk, and turns the outcome into a
+ * message or a typed throw. What an edit does to the dictionaries — and how undo reverses it —
+ * is tested once, in DictionaryEdit.test.ts and EditCommitter.test.ts; the queue in front of
+ * it, in DictionaryStore.test.ts.
  *
  * Invariants kept from the pre-commit-queue hook:
  *
@@ -16,7 +17,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDictionaryCRUD } from '../useDictionaryCRUD';
-import { createEditCommitter } from '../../components/dictionary/EditCommitter';
+import { commitEdit } from '../../components/dictionary/EditCommitter';
+import type { EditCommitter } from '../../components/dictionary/EditCommitter';
 import toast from '../../utils/toast';
 import { validatePersistEntry } from '../../utils/dictionary/PersistTimeValidator';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
@@ -71,14 +73,18 @@ function makeHook(initial: Record<string, DictionaryData>) {
   save = vi.fn().mockResolvedValue({ success: true });
   invalidate = vi.fn().mockResolvedValue(undefined);
   record = vi.fn();
-  const committer = createEditCommitter({
+  const deps = {
     read: () => memory,
-    write: (updates) => {
+    write: (updates: Record<string, DictionaryData>) => {
       memory = { ...memory, ...updates };
     },
     save,
     invalidate,
-  });
+  };
+  // No queue: each test awaits one call at a time.
+  const committer: EditCommitter = {
+    commit: (plan, onCommitted) => commitEdit(deps, plan, onCommitted),
+  };
   const { result } = renderHook(() => useDictionaryCRUD(committer, record));
   return result;
 }

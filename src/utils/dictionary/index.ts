@@ -16,7 +16,6 @@ export { DictionaryWasmLookup } from './DictionaryWasmLookup';
 
 // --- Loading ---
 export { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader';
-export { parallelDictionaryLoader } from './ParallelDictionaryLoader';
 
 // --- Sorting ---
 export { dictionarySorter };

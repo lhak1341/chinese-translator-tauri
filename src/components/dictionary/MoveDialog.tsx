@@ -45,10 +45,8 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const { moveEntry, bulkMoveEntries, dictionaries, loadDictionary } = useDictionary();
-  const { availableDictionaries, sourceLabel: sourceDictionaryLabel } = useMoveTargetDictionaries(
-    currentDictionary,
-    setError
-  );
+  const { availableDictionaries, sourceLabel: sourceDictionaryLabel } =
+    useMoveTargetDictionaries(currentDictionary);
 
   const isSingle = entries.length === 1;
 

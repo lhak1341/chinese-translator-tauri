@@ -14,7 +14,7 @@ import {
   X,
   RotateCw,
 } from 'lucide-react';
-import { DICTIONARY_TYPES, dictionaryOptionLabel, getDictionaryTypes } from './DictionaryTypes';
+import { dictionaryOptionLabel } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
 import DictionaryEntry from './DictionaryEntry';
@@ -85,18 +85,17 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     redo,
     canUndo,
     canRedo,
-    clearHistory,
     isLoading,
     dictionaries: _dictionaries,
     unreadDictionaryIds,
+    dictionaryTypes,
     loadDictionary,
+    reloadAfterImport,
     selectedDictionary,
     setSelectedDictionary,
   } = useDictionary();
 
   // Local state management for UI controls and feedback
-  const [dictionaryTypes, setDictionaryTypes] =
-    useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [showAddEntry, setShowAddEntry] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
@@ -123,63 +122,41 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   }, [showDuplicatesMode, duplicateRows.length]);
 
-  // Load dictionary types including active proper nouns dictionaries
+  // Which proper-nouns dictionaries are active — the list itself comes from the store.
   useEffect(() => {
-    const loadDictionaryTypes = async (): Promise<void> => {
+    const loadActiveDictionaries = async (): Promise<void> => {
       try {
-        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
-        setDictionaryTypes(types);
-
-        // Load active dictionaries from config
         const config = await loadAppConfig();
         setActiveDictionaries(config.engine.activeProperNouns);
-
-        // If the currently selected dictionary is no longer available,
-        // switch to the first available dictionary
-        if (!types[selectedDictionary]) {
-          setSelectedDictionary(Object.keys(types)[0]);
-        }
       } catch (error) {
-        logger.error('Failed to load dictionary types:', error);
-        setError('Failed to load dictionary types. Please try again.');
+        logger.error('Failed to load active dictionaries:', error);
+        setError('Failed to load dictionary settings. Please try again.');
       }
     };
 
-    loadDictionaryTypes();
-  }, [selectedDictionary, refreshTimestamp, setSelectedDictionary]);
+    loadActiveDictionaries();
+  }, [refreshTimestamp]);
+
+  // If the selected dictionary no longer exists (renamed), switch to the first one that does.
+  useEffect(() => {
+    const ids = Object.keys(dictionaryTypes);
+    if (ids.length > 0 && !dictionaryTypes[selectedDictionary]) {
+      setSelectedDictionary(ids[0]);
+    }
+  }, [dictionaryTypes, selectedDictionary, setSelectedDictionary]);
 
   // Refresh effect when component mounts
   useEffect(() => {
     setRefreshTimestamp(Date.now());
   }, []);
 
-  // Reload configuration and dictionary types when tab becomes active (to pick up changes from Configuration tab)
+  // Reload configuration when the tab becomes active (to pick up changes from Configuration tab)
   useEffect(() => {
     if (isActive) {
-      // Trigger full reload of dictionary types and configuration —
-      // the refreshTimestamp bump re-runs the effect above, which reloads config too
+      // The refreshTimestamp bump re-runs the effect above, which reloads config
       setRefreshTimestamp(Date.now());
     }
   }, [isActive]);
-
-  // Load selected dictionary when it changes
-  useEffect(() => {
-    const loadSelectedDictionary = async (): Promise<void> => {
-      if (selectedDictionary && !isLoading) {
-        setIsLoadingDictionary(true);
-        try {
-          await loadDictionary(selectedDictionary);
-        } catch (error) {
-          logger.error('Failed to load dictionary:', error);
-          setError('Failed to load dictionary. Please try again.');
-        } finally {
-          setIsLoadingDictionary(false);
-        }
-      }
-    };
-
-    loadSelectedDictionary();
-  }, [selectedDictionary, isLoading, loadDictionary]);
 
   // Handle undo operation with error handling
   const handleUndo = async (): Promise<void> => {
@@ -238,18 +215,17 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       const result = await window.electronAPI.importDictionaries();
       if (result.success) {
         toast.success(result.message ?? 'Import complete');
-        // Import rewrote dictionary files outside history, so no edit in it can be undone.
-        clearHistory();
-
-        // Selective refresh: reload dictionary types and current dictionary
-        // This preserves user context (no full page reload)
-        setRefreshTimestamp(Date.now());
-
-        // Reload the currently selected dictionary to pick up any changes
+        // Import rewrote files outside the app: every dictionary is re-read, not only the
+        // selected one, or the next edit to another would save its stale copy over the
+        // imported file. The store also clears history, in the same turn.
+        setIsLoadingDictionary(true);
         try {
-          await loadDictionary(selectedDictionary);
+          await reloadAfterImport();
         } catch (reloadError) {
-          logger.error('Failed to reload dictionary after import:', reloadError);
+          logger.error('Failed to reload dictionaries after import:', reloadError);
+          setError('Imported, but the dictionaries could not be reloaded. Use Reload Dictionary.');
+        } finally {
+          setIsLoadingDictionary(false);
         }
       } else {
         setError(`Import failed: ${result.error}`);
@@ -260,29 +236,12 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   };
 
-  // Enter duplicate mode. Every dictionary must be in memory first — conflicts are found across
-  // all of them, and delete/move from the duplicate view needs the owning dictionary loaded.
-  const handleFindDuplicates = useCallback(async (): Promise<void> => {
-    setIsLoadingDictionary(true);
+  // Enter duplicate mode. Every dictionary is already in memory (ADR-005), and the rows are
+  // derived from it, so there is nothing to load.
+  const handleFindDuplicates = useCallback((): void => {
     setError(null);
-    try {
-      // CRITICAL FIX: Load ALL available dictionaries before analyzing
-      // This ensures deletion works for entries from any dictionary
-      // CODE REVIEW FIX 2026-02-09 (CRITICAL): Load dictionaries in parallel for better performance
-      const allTypes = await getDictionaryTypes();
-      const allDictionaryIds = Object.keys(allTypes);
-
-      // Load all dictionaries in parallel (much faster than sequential)
-      await Promise.all(allDictionaryIds.map((dictId) => loadDictionary(dictId)));
-
-      setShowDuplicatesMode(true);
-    } catch (error) {
-      setError(`Failed to analyze duplicates: ${(error as Error).message}`);
-      logger.error('Error finding duplicates:', error);
-    } finally {
-      setIsLoadingDictionary(false);
-    }
-  }, [loadDictionary]);
+    setShowDuplicatesMode(true);
+  }, []);
 
   // Handle exiting duplicate mode
   const handleExitDuplicateMode = (): void => {

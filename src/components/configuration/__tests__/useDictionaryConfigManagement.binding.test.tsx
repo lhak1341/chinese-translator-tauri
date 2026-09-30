@@ -30,7 +30,7 @@ vi.mock('../../../utils/appConfig', () => ({
 // `loadDictionary`, so a fresh function per render re-runs it forever.
 const dictionaryContext = vi.hoisted(() => ({
   loadDictionary: vi.fn(),
-  removeDictionaryKey: vi.fn(),
+  applyRename: vi.fn(),
 }));
 vi.mock('../../dictionary/DictionaryContext', () => ({
   useDictionary: () => dictionaryContext,

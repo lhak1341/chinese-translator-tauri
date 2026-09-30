@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type React from 'react';
 import type { RefObject } from 'react';
-import { DICTIONARY_TYPES, getDictionaryTypes } from '../components/dictionary/DictionaryTypes';
+import { DICTIONARY_TYPES } from '../components/dictionary/DictionaryTypes';
 import type { DictionaryTypesCollection } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
@@ -39,6 +39,10 @@ export interface DictionaryEntryFormDeps {
     metadata?: DictionaryEntryMetadata
   ) => Promise<void>;
   dictionaries: { [key: string]: DictionaryData };
+  /** Every dictionary's label, unfiltered (the Dictionary Store's list): the existing-entry
+   * notice names whichever dictionary holds the match, and the dropdown filters these by the
+   * quick-add view. Defaults to the built-in set. */
+  dictionaryTypes?: DictionaryTypesCollection;
   initialSource?: string;
   onDictionaryChange?: (dict: string) => void;
   /** The quick-add view the opening surface decided its target over. Present — even `null`,
@@ -96,8 +100,15 @@ export function useDictionaryEntryForm(
   selectedDictionary: string,
   deps: DictionaryEntryFormDeps
 ): DictionaryEntryFormState {
-  const { updateEntry, addEntry, dictionaries, initialSource, onDictionaryChange, quickAddView } =
-    deps;
+  const {
+    updateEntry,
+    addEntry,
+    dictionaries,
+    dictionaryTypes: allDictionaryTypes = DICTIONARY_TYPES,
+    initialSource,
+    onDictionaryChange,
+    quickAddView,
+  } = deps;
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const [source, setSource] = useState<string>(entry?.source ?? '');
@@ -123,8 +134,6 @@ export function useDictionaryEntryForm(
   const translationInputRef = useRef<HTMLInputElement>(null);
   const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
   const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [allDictionaryTypes, setAllDictionaryTypes] =
-    useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [existingEntry, setExistingEntry] = useState<ExistingEntryData | null>(null);
   const [showExistingEntryNotification, setShowExistingEntryNotification] =
     useState<boolean>(false);
@@ -152,24 +161,6 @@ export function useDictionaryEntryForm(
       if (debouncedValidateRef.current) {
         clearTimeout(debouncedValidateRef.current);
       }
-    };
-  }, []);
-
-  // Every dictionary's label, unfiltered: the existing-entry notice names whichever
-  // dictionary holds the match, and the dropdown filters these by the quick-add view.
-  useEffect(() => {
-    let isMounted = true;
-    const loadAllDictionaries = async (): Promise<void> => {
-      try {
-        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
-        if (isMounted) setAllDictionaryTypes(types);
-      } catch (err) {
-        if (isMounted) logger.error('Failed to load dictionary types:', err);
-      }
-    };
-    loadAllDictionaries();
-    return () => {
-      isMounted = false;
     };
   }, []);
 

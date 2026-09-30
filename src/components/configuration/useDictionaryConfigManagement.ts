@@ -22,7 +22,7 @@ import { activeProperNounsForBinding } from '../../utils/reader/BindingActivatio
  * keeps rendering only.
  */
 export function useDictionaryConfigManagement() {
-  const { loadDictionary, removeDictionaryKey } = useDictionary();
+  const { loadDictionary, applyRename } = useDictionary();
   // While a book is open it owns the fiction slice — see `BindingActivation`. Generic and
   // theme dictionaries stay fully editable here either way.
   const {
@@ -158,7 +158,7 @@ export function useDictionaryConfigManagement() {
       // files and their in-memory halves come from `DictionaryPairs`.
       const result = isFictionProperNounsId(dictionaryId)
         ? await createFictionDictionary(dictionaryId)
-        : await createDictionary(dictionaryId, { loadDictionary, removeDictionaryKey });
+        : await createDictionary(dictionaryId, { loadDictionary, applyRename });
 
       if (result.success) {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
@@ -208,7 +208,7 @@ export function useDictionaryConfigManagement() {
       } else {
         const response = await renameDictionary(renamingDictionaryId, newDictionaryId, {
           loadDictionary,
-          removeDictionaryKey,
+          applyRename,
         });
         result = { ...response, filesMoved: response.success };
       }
