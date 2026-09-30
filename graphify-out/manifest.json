@@ -1085,8 +1085,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790756936.0781007,
-    "ast_hash": "4f3a8f2c7477f1a1e18b049cee285c71",
+    "mtime": 1790757182.583244,
+    "ast_hash": "c1932e95042630502ef598726dd192fb",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790755788.4594142,
-    "ast_hash": "e2b0fd594b18a5f36773ac9b55d11f03",
+    "mtime": 1790757166.9951055,
+    "ast_hash": "12074d0911c0a97a25178ab522519141",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1510,13 +1510,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/NewRuleModal.tsx": {
-    "mtime": 1790565920.1418188,
-    "ast_hash": "6f8cd561ef23d50c313b776968881669",
-    "semantic_hash": ""
-  },
-  "src/components/rules/RuleFieldValidation.ts": {
-    "mtime": 1788877315.3592005,
-    "ast_hash": "12e93998154951e17e343a1dcc9f0f1d",
+    "mtime": 1790757126.5631726,
+    "ast_hash": "24479ad90c90ef166f015647c901e4a6",
     "semantic_hash": ""
   },
   "src/components/rules/RuleMatchesModal.tsx": {
@@ -1530,8 +1525,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1790697413.5485737,
-    "ast_hash": "4ac863673f880b5ecbbd679d9c6fdb8e",
+    "mtime": 1790757126.5626595,
+    "ast_hash": "0abfe73056c1af4f7aaf0f2a5c7b6c14",
     "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
@@ -1745,8 +1740,8 @@
     "semantic_hash": "cd01a757867adf6d75735d2bbf94cf36"
   },
   "src/components/rules/CLAUDE.md": {
-    "mtime": 1790731627.8761034,
-    "ast_hash": "37bca33629b72763ffd2587cec38d46b",
+    "mtime": 1790757166.9947019,
+    "ast_hash": "6a9e98e396368865b8538923a2b6debe",
     "semantic_hash": ""
   },
   "src/components/SearchFilterHeader.tsx": {
@@ -1825,8 +1820,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleValidation.ts": {
-    "mtime": 1790559578.8709526,
-    "ast_hash": "5a562e7e6747394791942607d312e513",
+    "mtime": 1790757126.5622463,
+    "ast_hash": "d5d69a7b1ac0555f3f7a7e5cf39489df",
     "semantic_hash": ""
   },
   "src/components/dictionary/TableBuildingBlocks.tsx": {
@@ -2332,6 +2327,11 @@
   "src/utils/reader/WindowFiller.ts": {
     "mtime": 1790756655.171859,
     "ast_hash": "bc3f0237356720458665f12335561ef3",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-056-skip-rule-draft-module.md": {
+    "mtime": 1790757166.5097828,
+    "ast_hash": "ec781e72c176b08ec285c89f3dee3119",
     "semantic_hash": ""
   }
 }

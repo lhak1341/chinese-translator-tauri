@@ -13,8 +13,11 @@ import {
   compareRulePrecedence,
   deriveCapitalizeExceptNForKeyEdit,
 } from '../../utils/dictionary/TransformRuleEngine';
-import { extractHanChars } from './RuleFieldValidation';
-import { commitRuleDraft } from '../../utils/dictionary/TransformRuleValidation';
+import {
+  commitRuleDraft,
+  draftAsRule,
+  extractHanChars,
+} from '../../utils/dictionary/TransformRuleValidation';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
@@ -46,9 +49,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const [draft, setDraft] = useState<Omit<TransformRule, 'id'> | null>(null);
   const [viewingMatches, setViewingMatches] = useState<TransformRule | null>(null);
 
-  const conflict = draft
-    ? checkConflict({ id: '__new__', matchKind: draft.matchKind, key: draft.key.trim() })
-    : undefined;
+  const conflict = draft ? checkConflict(draftAsRule(draft)) : undefined;
   const conflictLabel = conflict ? conflict.label || conflict.key : null;
 
   const [searchTerm, setSearchTerm] = useState('');

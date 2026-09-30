@@ -8,6 +8,8 @@ import {
   commitRuleField,
   commitRuleDraft,
   ruleDraftProblem,
+  draftAsRule,
+  DRAFT_RULE_ID,
 } from '../TransformRuleValidation';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 
@@ -314,5 +316,19 @@ describe('ruleDraftProblem', () => {
       'The length limit must be at least 1.'
     );
     expect(ruleDraftProblem(draft, null)).toBeNull();
+  });
+});
+
+describe('draftAsRule', () => {
+  test('trims the key as Save will, and carries the draft id, for the conflict check and preview alike', () => {
+    const draft = {
+      matchKind: 'suffix' as const,
+      key: ' 城 ',
+      relocate: false,
+      capitalizeExceptN: 1,
+      semanticType: 'location' as const,
+      enabled: true,
+    };
+    expect(draftAsRule(draft)).toEqual({ ...draft, key: '城', id: DRAFT_RULE_ID });
   });
 });

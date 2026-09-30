@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { extractHanChars } from '../RuleFieldValidation';
+import { extractHanChars } from '../TransformRuleValidation';
 
 describe('extractHanChars', () => {
   test('extracts Han characters found anywhere in the text, skipping others', () => {

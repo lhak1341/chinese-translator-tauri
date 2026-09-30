@@ -29,6 +29,21 @@ export function parseValidatedKey(value: string): string | null {
   return chars.every((c) => HAN_CHAR.test(c)) ? trimmed : null;
 }
 
+/** Extracts up to `max` Chinese characters found anywhere in `text`, in order,
+ * skipping non-Han characters rather than rejecting the whole string — for
+ * turning arbitrary prefill text (clipboard/selection) into a usable key draft.
+ * Same `HAN_CHAR` as `parseValidatedKey`, so a prefilled key is always one it accepts. */
+export function extractHanChars(text: string, max: number): string {
+  const result: string[] = [];
+  for (const c of text) {
+    if (HAN_CHAR.test(c)) {
+      result.push(c);
+      if (result.length >= max) break;
+    }
+  }
+  return result.join('');
+}
+
 export function isValidMatchKind(v: unknown): v is TransformRuleMatchKind {
   return typeof v === 'string' && (MATCH_KINDS as string[]).includes(v);
 }
@@ -38,7 +53,7 @@ export function isValidSemanticType(v: unknown): v is SemanticType {
 }
 
 /** Validates one persisted Transform Rule at load time — the load-time counterpart to
- * the form-time field checks in `src/components/rules/RuleFieldValidation.ts` (reuses
+ * the form-time field checks (`commitRuleField`/`ruleDraftProblem` below; reuses
  * `parseValidatedKey`/`parseValidatedNumber` from here so both surfaces enforce the same
  * key/number contract). Whole-rule drop on any invalid field — `key`/`matchKind`/
  * `semanticType` are identity fields with no meaningful default to repair to, so a
@@ -176,6 +191,15 @@ export function commitRuleDraft(draft: RuleDraft): RuleDraft | null {
     optionalText(draft.moveReplacement ?? '')
   );
   return withOptional(withReplacement, 'label', optionalText(draft.label ?? ''));
+}
+
+/** The id a draft carries while it is checked against saved rules — never a saved rule's. */
+export const DRAFT_RULE_ID = '__new__';
+
+/** The draft as its conflict check and its preview see it: the key trimmed, as Save will
+ * store it (`commitRuleDraft`). One place, so the two can't disagree about what it matches. */
+export function draftAsRule(draft: RuleDraft): TransformRule {
+  return { ...draft, key: draft.key.trim(), id: DRAFT_RULE_ID };
 }
 
 /** Why the draft can't be saved, most urgent first, or `null` when it can. `conflictLabel`

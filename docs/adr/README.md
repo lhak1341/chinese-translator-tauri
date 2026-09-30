@@ -119,6 +119,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-053](./ADR-053-unread-dictionaries-are-refused-not-quarantined.md)          | Unread dictionaries are refused, not quarantined           | Decided                           | A dictionary that failed to load is left out of memory and its edits refused; unlike app files, it is not set aside.  |
 | [ADR-054](./ADR-054-skip-book-record-field-schema.md)                            | Skip a Book Record field schema                            | Decided                           | The compiler already checks three of four sites; only the chapter pattern ids needed one declaration and a Rust pin.  |
 | [ADR-055](./ADR-055-dictionary-store-one-queue-for-every-write.md)               | Dictionary Store: one queue for every write                | Decided                           | Reloads, renames, import and force reload join commits on one queue; memory is the source of truth.                   |
+| [ADR-056](./ADR-056-skip-rule-draft-module.md)                                   | Skip a rule-draft module                                   | Decided                           | The draft's rules already have one owner; only `HAN_CHAR` and the key trim were duplicated.                           |
 
 ## ADR Format
 
@@ -168,5 +169,5 @@ Write an ADR when making decisions about:
 - **2026-09-26**: Index filled in for ADR-005 and ADR-007 through ADR-045; ADR-046; ADR-047; ADR-048; ADR-049
 - **2026-09-27**: ADR-050; ADR-051
 - **2026-09-29**: ADR-052; ADR-053
-- **2026-09-30**: ADR-054; ADR-055
+- **2026-09-30**: ADR-054; ADR-055; ADR-056
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

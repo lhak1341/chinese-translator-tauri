@@ -12,8 +12,11 @@ so the load-time validator in the same file, `validateTransformRule`, enforces t
 identical key/number/enum contract instead of redefining it) or `TransformRuleEngine.ts`
 (derived-default/domain policy: `compareRulePrecedence`, `applyRule`,
 `deriveCapitalizeExceptNForKeyEdit`) — never hand-roll the same check/derivation inline in
-just one component. `RuleFieldValidation.ts` (this directory) now holds only
-`extractHanChars`, a UI-only clipboard-prefill helper with no load-time counterpart.
+just one component. `extractHanChars` (the clipboard-prefill helper) lives there too since
+2026-09-30, on the same `HAN_CHAR` as `parseValidatedKey`; `RuleFieldValidation.ts` is gone.
+`draftAsRule(draft)` is the one trimmed view of a new-rule draft, read by both the conflict
+check (`RulesManager`) and the preview (`NewRuleModal`). A module owning the whole draft was
+considered and skipped (ADR-056): `draft`/`setDraft` stay the modal's interface.
 
 **What an edited value means is one function, not two components** (2026-09-28, architecture
 review candidate #5): `commitRuleField(rule, field, raw)` for `RuleRow`'s text cells and

@@ -5,6 +5,7 @@ import styles from '../../styles/RulesManager.module.css';
 import entryStyles from '../../styles/DictionaryEntry.module.css';
 import { RequiredSemanticTypeRow } from '../dictionary/SemanticTypePicker';
 import {
+  draftAsRule,
   parseValidatedNumber,
   parseValidatedKey,
   ruleDraftProblem,
@@ -75,11 +76,9 @@ function NewRuleModal({
     draft.charCount === undefined || parseValidatedNumber(String(draft.charCount), 1) !== null;
   const suffix = draft.matchKind === 'suffix';
 
-  // The preview matches on the key as it will be saved — trimmed.
-  const rule: TransformRule = useMemo(
-    () => ({ ...draft, key: draft.key.trim(), id: 'new-rule' }),
-    [draft]
-  );
+  // The preview matches on the key as it will be saved — the same trimmed rule the conflict
+  // check sees.
+  const rule: TransformRule = useMemo(() => draftAsRule(draft), [draft]);
   const matches = useMemo(
     () => (keyValid && charCountValid ? findRuleMatchingEntries(rule, dictionaries) : []),
     // The search reads only the match criteria; the transform fields don't change what matches.
