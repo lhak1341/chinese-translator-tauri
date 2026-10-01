@@ -110,3 +110,100 @@ describe('useLibrary', () => {
     expect(result.current.isUsingDefaultPath).toBe(true);
   });
 });
+
+describe('overlapping scans', () => {
+  // Rescan, Choose folder and Use default stay enabled while a scan runs, so a second scan
+  // can start before the first resolves. Whichever *started* last is what the shelf shows.
+  const loaded = (libraryPath: string) => ({
+    kind: 'loaded',
+    libraryPath,
+    books: [],
+    unavailableBooks: [],
+  });
+
+  function heldScan() {
+    let release: (outcome: ReturnType<typeof loaded>) => void = () => {};
+    scanShelf.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
+    );
+    return { release: (outcome: ReturnType<typeof loaded>) => release(outcome) };
+  }
+
+  test('a slow scan of the old folder resolving last does not replace the new folder', async () => {
+    dialog.open.mockResolvedValue('/chosen');
+    const { result } = await renderLibrary();
+    const slow = heldScan();
+
+    let rescanning!: Promise<void>;
+    act(() => {
+      rescanning = result.current.rescan();
+    });
+    await act(() => result.current.changeFolder());
+    expect(result.current.libraryPath).toBe('/chosen');
+
+    await act(async () => {
+      slow.release(loaded('/saved'));
+      await rescanning;
+    });
+
+    expect(result.current.libraryPath).toBe('/chosen');
+    expect(result.current.outcome).toEqual(loaded('/chosen'));
+    expect(result.current.isUsingDefaultPath).toBe(false);
+    expect(result.current.isScanning).toBe(false);
+  });
+
+  test('an earlier rescan resolving after a later one does not replace it', async () => {
+    const { result } = await renderLibrary();
+    const slow = heldScan();
+
+    let first!: Promise<void>;
+    act(() => {
+      first = result.current.rescan();
+    });
+    scanShelf.mockResolvedValueOnce(loaded('/second'));
+    await act(() => result.current.rescan());
+
+    await act(async () => {
+      slow.release(loaded('/first'));
+      await first;
+    });
+
+    expect(result.current.outcome).toEqual(loaded('/second'));
+    expect(result.current.libraryPath).toBe('/second');
+  });
+
+  test('stays scanning until the newest scan lands, not the first to finish', async () => {
+    const { result } = await renderLibrary();
+    const slow = heldScan();
+    let newest!: Promise<void>;
+    act(() => {
+      void result.current.rescan();
+    });
+    // The second scan is the one in flight when the first finishes.
+    let release2: (outcome: ReturnType<typeof loaded>) => void = () => {};
+    scanShelf.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release2 = resolve;
+        })
+    );
+    act(() => {
+      newest = result.current.rescan();
+    });
+
+    await act(async () => {
+      slow.release(loaded('/first'));
+    });
+    expect(result.current.isScanning).toBe(true);
+
+    await act(async () => {
+      release2(loaded('/second'));
+      await newest;
+    });
+    expect(result.current.isScanning).toBe(false);
+    expect(result.current.libraryPath).toBe('/second');
+  });
+});

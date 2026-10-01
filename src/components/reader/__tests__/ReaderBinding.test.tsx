@@ -29,12 +29,14 @@ vi.mock('../../BookBindingContext', () => ({ useBookBinding: () => provider }));
 vi.mock('../BindingDialog', () => ({
   default: (props: {
     suggestion: { dictionaryId: string | null };
+    missingDictionary: string | null;
     onBind: (id: string | null) => void;
     onCreateAndBind: (name: string) => void;
     onClose: () => void;
   }) => (
     <div role="dialog">
       <span>suggestion:{props.suggestion.dictionaryId}</span>
+      <span>missing:{props.missingDictionary}</span>
       <button onClick={() => props.onBind('properNouns-f_TapDo')}>bind</button>
       <button onClick={() => props.onCreateAndBind('Tạp đồ')}>create</button>
       <button onClick={props.onClose}>close</button>
@@ -131,5 +133,13 @@ describe('BookBindingDialog', () => {
     expect(provider.bind).toHaveBeenCalledWith('properNouns-f_TapDo');
     expect(provider.createAndBind).toHaveBeenCalledWith('Tạp đồ');
     expect(provider.closeDialog).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the dialog which recorded dictionary no longer exists', () => {
+    provider.isDialogOpen = true;
+    provider.binding = { fictionDictionary: 'properNouns-f_Gone' } as never;
+    provider.missingFictionDictionary = 'properNouns-f_Gone';
+    render(<BookBindingDialog bookTitle="Tạp đồ" fileName={FILE} chapterOverride={override} />);
+    expect(screen.getByText('missing:properNouns-f_Gone')).toBeTruthy();
   });
 });

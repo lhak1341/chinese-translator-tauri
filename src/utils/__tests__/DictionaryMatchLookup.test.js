@@ -19,7 +19,8 @@ function makeLookup(overrides = {}) {
     wasmLookup: overrides.wasmLookup ?? null,
     enableParallelLookups: overrides.enableParallelLookups ?? true,
     dictionaryParallelThreshold: overrides.dictionaryParallelThreshold ?? 2,
-    getDefaultSearchOrder: overrides.getDefaultSearchOrder || (() => Array.from(dictionaries.keys())),
+    getDefaultSearchOrder:
+      overrides.getDefaultSearchOrder || (() => Array.from(dictionaries.keys())),
     isReady: overrides.isReady || (() => true),
   });
 }

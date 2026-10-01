@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
-import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { logger } from '../../utils/logger';
+import {
+  loadAppConfig,
+  saveAppConfig,
+  subscribeAppConfig,
+  transformAppConfig,
+} from '../../utils/appConfig';
 import { toProperNounsDictionaryId, isFictionProperNounsId } from '../../utils/dictionary';
 import {
   createDictionary,
@@ -107,6 +113,26 @@ export function useDictionaryConfigManagement() {
 
     loadDictionaries();
   }, [loadDictionary]);
+
+  // Every tab stays mounted, so the mount-time read above goes stale the moment anything else
+  // writes config — a book opening rewrites the default quick-add target, a rename rewrites
+  // both. Mirror whatever the file now says.
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribe = subscribeAppConfig(() => {
+      loadAppConfig()
+        .then((config) => {
+          if (!mounted) return;
+          setActiveDictionaries(config.engine.activeProperNouns);
+          setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
+        })
+        .catch((err) => logger.warn('Could not refresh the Configuration tab from config:', err));
+    });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   const openCreateModal = (): void => {
     setShowNewDictionaryModal(true);
@@ -241,9 +267,9 @@ export function useDictionaryConfigManagement() {
 
   /**
    * Promote a fiction dictionary to generic, or demote a generic one to fiction. The binding
-   * context does the move (it reaches book records and the engine); afterwards this screen
-   * re-reads config, since the move can change the active list and the Cmd-5 default in
-   * ways that depend on the open book.
+   * context does the move (it reaches book records and the engine). The move can change the
+   * active list and the Cmd-5 default in ways that depend on the open book; this screen picks
+   * those up from the config subscription, and only renames the row itself.
    */
   const handleMoveTier = async (dictionaryId: string): Promise<void> => {
     try {
@@ -253,9 +279,6 @@ export function useDictionaryConfigManagement() {
         setAvailableDictionaries((prev) =>
           sortDictionaries(prev.map((id) => (id === dictionaryId ? newId : id)))
         );
-        const config = await loadAppConfig();
-        setActiveDictionaries(config.engine.activeProperNouns);
-        setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
       }
       if (!result.success) throw new Error(result.error);
     } catch (err) {
@@ -265,10 +288,15 @@ export function useDictionaryConfigManagement() {
 
   const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
     try {
-      // If clicking the same dictionary, unset it (toggle off)
-      const newDefault = defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
-
-      await saveAppConfig({ ui: { defaultQuickAddDictionary: newDefault } });
+      // Clicking the current default unsets it (toggle off). Decided against the saved
+      // config, not this hook's mirror of it, which a book opening may have moved.
+      const newDefault = await transformAppConfig((current) => {
+        const next = current.ui.defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
+        return {
+          value: { ...current, ui: { ...current.ui, defaultQuickAddDictionary: next } },
+          result: next,
+        };
+      });
       setDefaultQuickAddDictionary(newDefault);
     } catch (err) {
       setError(formatErrorMessage('Default dictionary configuration', err));

@@ -12,7 +12,8 @@ import { useVisibleTab } from './VisibleTabContext';
 import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
 import type { TabId } from '../types/ComponentTypes';
 import { useDictionary } from './dictionary/DictionaryContext';
-import { quickAddTarget, quickAddMissMessage } from '../utils/dictionary/QuickAddTarget';
+import { dictionaryTabNavigation } from '../utils/dictionary/DictionaryTabNavigation';
+import toast from '../utils/toast';
 import { useBookBinding } from './BookBindingContext';
 import styles from '../styles/TabbedInterface.module.css';
 
@@ -44,13 +45,6 @@ const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] =
  *
  * Main application container with tab navigation.
  */
-const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
-  '1': 'characters',
-  '2': 'phrases',
-  '3': 'properNouns',
-  '4': 'patterns',
-};
-
 const TabbedInterface: React.FC = () => {
   const { visibleTab: activeTab, setVisibleTab: setActiveTab } = useVisibleTab();
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
@@ -79,27 +73,17 @@ const TabbedInterface: React.FC = () => {
     rulesManagerRef.current?.openNew(text);
   }, []);
 
+  // Which dictionary a digit means, and when Cmd-6 has nowhere to go, is
+  // `dictionaryTabNavigation`'s; this only applies the answer.
   const handleDictionaryTabHotkey = useCallback(
     async (key: string): Promise<void> => {
-      if (key in DICTIONARY_HOTKEY_MAP) {
-        setSelectedDictionary(DICTIONARY_HOTKEY_MAP[key]);
-        return;
-      }
-      if (key === '5' || key === '6') {
-        const kind = key === '5' ? 'properNoun' : 'structuralPattern';
-        const target = quickAddTarget(
-          kind,
-          await loadQuickAddView(),
-          dictionaries,
-          unreadDictionaryIds
-        );
-        if (target.kind === 'open') {
-          setSelectedDictionary(target.dictionaryId);
-        } else {
-          const { default: toast } = await import('../utils/toast');
-          toast.error(quickAddMissMessage(target));
-        }
-      }
+      const navigation = await dictionaryTabNavigation(key, {
+        loadView: loadQuickAddView,
+        dictionaries,
+        unreadDictionaryIds,
+      });
+      if (navigation?.kind === 'select') setSelectedDictionary(navigation.dictionaryId);
+      else if (navigation?.kind === 'refused') toast.error(navigation.message);
     },
     [setSelectedDictionary, dictionaries, unreadDictionaryIds, loadQuickAddView]
   );

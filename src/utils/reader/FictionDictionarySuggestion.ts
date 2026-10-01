@@ -72,6 +72,55 @@ export function suggestFictionDictionary(
   return { dictionaryId, exists: existingFictionIds.includes(dictionaryId) };
 }
 
+/** Which of the binding dialog's four answers is being composed: an existing dictionary, a
+ * new pair, or none. */
+export type BindingChoice = 'existing' | 'new' | 'none';
+
+export interface BindingDraft {
+  choice: BindingChoice;
+  /** The existing dictionary the select holds; `''` when nothing is chosen yet. */
+  selected: string;
+  /** What the "create a new pair" field holds. */
+  newName: string;
+}
+
+/**
+ * What the binding dialog opens on.
+ *
+ * Whatever answer the book already has; failing that, the suggestion — as an existing
+ * dictionary when one exists under that name, and as a pre-filled create otherwise, which is
+ * the case for a novel being read for the first time.
+ *
+ * A recorded dictionary that no longer exists (`missing`) is no answer to open on: the select
+ * has no option for it, so it would show another dictionary while Save re-bound the dead one,
+ * and the banner that offered "Choose" would lead to a dialog that cannot fix the book. It
+ * opens as if the book had never answered. The answer "none" is an answer, and keeps the
+ * suggestion pre-selected behind it, so switching to "existing" lands on the best guess.
+ */
+export function initialBindingDraft({
+  binding,
+  missing,
+  suggestion,
+  fileName,
+}: {
+  binding: BookBinding | null;
+  /** The recorded dictionary that no longer exists, or `null`. */
+  missing: string | null;
+  suggestion: FictionSuggestion;
+  fileName: string;
+}): BindingDraft {
+  const answer = missing !== null && binding?.fictionDictionary === missing ? null : binding;
+  const suggested = suggestion.exists && suggestion.dictionaryId ? suggestion.dictionaryId : '';
+  const newName = suggestion.exists ? '' : (deriveFictionSlug(fileName) ?? '');
+
+  if (answer?.fictionDictionary) {
+    return { choice: 'existing', selected: answer.fictionDictionary, newName };
+  }
+  if (answer) return { choice: 'none', selected: suggested, newName };
+  if (suggestion.exists) return { choice: 'existing', selected: suggested, newName };
+  return { choice: suggestion.dictionaryId ? 'new' : 'none', selected: '', newName };
+}
+
 /** A fiction dictionary id with its `properNouns-f_` prefix stripped, for display. */
 export function fictionDisplayName(dictionaryId: string): string {
   return dictionaryId.startsWith(FICTION_PREFIX)

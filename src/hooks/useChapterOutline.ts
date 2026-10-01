@@ -70,94 +70,117 @@ export function useChapterOutline({
   const [error, setError] = useState<string | null>(null);
 
   // "Latest ref" pattern: `setOverride` is a stable callback but must always act against
-  // the current elected pattern.
+  // the current elected pattern and override. Both are also written where they change,
+  // not only at render, because the election resolves after an `await` and must see an
+  // override chosen while it ran.
   const electedPatternRef = useRef(electedPattern);
   electedPatternRef.current = electedPattern;
+  const manualPatternRef = useRef(manualPattern);
 
-  // Guards every async resolution in this hook, including across the mount effect and
-  // `setOverride`: whichever fetch *started* last is the only one allowed to apply its
-  // result, regardless of which one *resolves* last. A same-fingerprint check alone
-  // doesn't cover this — the mount effect's own fetch and an override's fetch share the
-  // same fingerprint, so neither trips on the other.
-  const requestIdRef = useRef(0);
+  /**
+   * The newest headers request. Whichever fetch *started* last is the only one allowed to
+   * apply its result, regardless of which one *resolves* last — a same-fingerprint check
+   * alone doesn't cover that, since the mount fetch and an override's fetch share the
+   * fingerprint. It guards headers only: election's own outcome (`candidates` and the
+   * elected pattern) is not an override's to discard, so it has no counter and always lands.
+   */
+  const headersRequestRef = useRef<{
+    id: number;
+    /** The pattern the newest request fetched for; `undefined` before any. */
+    pattern: ChapterPatternId | null | undefined;
+    settled: boolean;
+  }>({ id: 0, pattern: undefined, settled: true });
+  /** True from mount until the first election's result (or failure) arrives. */
+  const electionPendingRef = useRef(cachedOutline === null);
+
+  /** Load `pattern`'s headers (or use `known` ones) as the newest headers request. Loading
+   * ends with the newest request, once no election is still running. */
+  const resolveHeaders = useCallback(
+    async (pattern: ChapterPatternId | null, known?: ChapterHeader[]): Promise<void> => {
+      const request = headersRequestRef.current;
+      const id = (request.id += 1);
+      request.pattern = pattern;
+      request.settled = false;
+      const isNewest = () => request.id === id;
+      try {
+        const next =
+          known ?? (pattern ? await tauriAPI.chapterHeadersForPattern(fingerprint, pattern) : []);
+        if (!isNewest()) return;
+        setHeaders(next);
+      } catch (cause) {
+        if (!isNewest()) return;
+        logger.error('Failed to load chapter headers:', cause);
+        setError(extractErrorMessage(cause));
+      } finally {
+        if (isNewest()) {
+          request.settled = true;
+          if (!electionPendingRef.current) setIsLoading(false);
+        }
+      }
+    },
+    [fingerprint]
+  );
 
   // One resolve per book: run election if this fingerprint has never been elected, else
   // fetch headers for whichever pattern (override or election) already applies to it.
   useEffect(() => {
-    const requestId = (requestIdRef.current += 1);
-
     void (async () => {
+      if (cachedOutline) {
+        await resolveHeaders(patternInEffect(manualPatternRef.current, cachedOutline.pattern));
+        return;
+      }
       try {
-        let nextCandidates = cachedOutline?.candidates ?? [];
-        let nextElected = cachedOutline?.pattern ?? null;
-        // `null` means "not yet resolved" — distinct from a pattern that legitimately
-        // has zero headers, which is a valid resolved answer.
-        let nextHeaders: ChapterHeader[] | null = null;
-
-        if (!cachedOutline) {
-          const outline = await tauriAPI.detectChapterOutline(fingerprint);
-          nextCandidates = outline.candidates;
-          nextElected = outline.elected;
-          // The election call already returns the winner's headers — reuse them instead
-          // of a second round trip when there's no override pointing somewhere else.
-          if (patternInEffect(cachedManualPattern, outline.elected) === outline.elected) {
-            nextHeaders = outline.headers;
-          }
-          try {
-            await setChapterOutline(fingerprint, {
-              pattern: outline.elected,
-              candidates: outline.candidates,
-            });
-          } catch (cause) {
-            logger.error('Failed to cache the chapter outline:', cause);
-          }
+        const outline = await tauriAPI.detectChapterOutline(fingerprint);
+        // Election's outcome lands whatever was chosen meanwhile.
+        electedPatternRef.current = outline.elected;
+        setCandidates(outline.candidates);
+        setElectedPattern(outline.elected);
+        try {
+          await setChapterOutline(fingerprint, {
+            pattern: outline.elected,
+            candidates: outline.candidates,
+          });
+        } catch (cause) {
+          logger.error('Failed to cache the chapter outline:', cause);
         }
+        electionPendingRef.current = false;
 
-        const effectivePattern = patternInEffect(cachedManualPattern, nextElected);
-        nextHeaders ??= effectivePattern
-          ? await tauriAPI.chapterHeadersForPattern(fingerprint, effectivePattern)
-          : [];
-
-        if (requestIdRef.current !== requestId) return;
-        setCandidates(nextCandidates);
-        setElectedPattern(nextElected);
-        setHeaders(nextHeaders);
+        // Against the override as it is now, not as the book opened: one chosen while
+        // election ran has already fetched its own pattern's headers, and going back to Auto
+        // meanwhile fetched none (nothing was elected yet to fetch).
+        const effective = patternInEffect(manualPatternRef.current, outline.elected);
+        if (headersRequestRef.current.pattern === effective) {
+          if (headersRequestRef.current.settled) setIsLoading(false);
+        } else {
+          // The election call already returns the winner's headers — reuse them instead of
+          // a second round trip when nothing points somewhere else.
+          await resolveHeaders(
+            effective,
+            effective === outline.elected ? outline.headers : undefined
+          );
+        }
       } catch (cause) {
-        if (requestIdRef.current !== requestId) return;
+        electionPendingRef.current = false;
         logger.error('Failed to load the chapter outline:', cause);
         setError(extractErrorMessage(cause));
-      } finally {
-        if (requestIdRef.current === requestId) setIsLoading(false);
+        if (headersRequestRef.current.settled) setIsLoading(false);
       }
     })();
 
-    // cachedOutline/cachedManualPattern are read only at the moment a book opens, and
-    // `fingerprint` is fixed for this instance — the effect never re-runs because the cache
-    // values themselves changed identity.
+    // cachedOutline is read only at the moment a book opens, and `fingerprint` is fixed for
+    // this instance — the effect never re-runs because the cache values themselves changed
+    // identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fingerprint]);
 
   const setOverride = useCallback(
     (pattern: ChapterPatternId | null): void => {
-      const requestId = (requestIdRef.current += 1);
+      manualPatternRef.current = pattern;
       setManualPatternState(pattern);
       setIsLoading(true);
       setError(null);
       void (async () => {
-        try {
-          const effectivePattern = patternInEffect(pattern, electedPatternRef.current);
-          const nextHeaders = effectivePattern
-            ? await tauriAPI.chapterHeadersForPattern(fingerprint, effectivePattern)
-            : [];
-          if (requestIdRef.current !== requestId) return;
-          setHeaders(nextHeaders);
-        } catch (cause) {
-          if (requestIdRef.current !== requestId) return;
-          logger.error('Failed to load headers for the chosen pattern:', cause);
-          setError(extractErrorMessage(cause));
-        } finally {
-          if (requestIdRef.current === requestId) setIsLoading(false);
-        }
+        await resolveHeaders(patternInEffect(pattern, electedPatternRef.current));
         try {
           await setManualChapterPattern(fingerprint, pattern);
         } catch (cause) {
@@ -165,7 +188,7 @@ export function useChapterOutline({
         }
       })();
     },
-    [fingerprint]
+    [fingerprint, resolveHeaders]
   );
 
   return {

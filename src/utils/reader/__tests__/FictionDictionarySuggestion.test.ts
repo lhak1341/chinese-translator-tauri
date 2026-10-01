@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   bindingLabel,
+  initialBindingDraft,
   deriveFictionSlug,
   suggestFictionDictionary,
   fictionDisplayName,
@@ -196,5 +197,76 @@ describe('bindingLabel', () => {
   test("never answered reads as the caller's own text", () => {
     expect(bindingLabel(null, 'Not bound')).toBe('Not bound');
     expect(bindingLabel(null, 'Bind dictionaries')).toBe('Bind dictionaries');
+  });
+});
+
+describe('initialBindingDraft', () => {
+  const FILE = 'Tạp đồ 杂图.txt';
+  const exists = { dictionaryId: 'properNouns-f_TapDo', exists: true };
+  const fresh = { dictionaryId: 'properNouns-f_TapDo', exists: false };
+  const none = { dictionaryId: null, exists: false };
+  const draft = (
+    binding: Parameters<typeof initialBindingDraft>[0]['binding'],
+    suggestion: Parameters<typeof initialBindingDraft>[0]['suggestion'],
+    missing: string | null = null
+  ) => initialBindingDraft({ binding, missing, suggestion, fileName: FILE });
+
+  test('a bound book opens on its own dictionary, whatever the file name suggests', () => {
+    expect(draft({ fictionDictionary: 'properNouns-f_TruTien' }, exists)).toEqual({
+      choice: 'existing',
+      selected: 'properNouns-f_TruTien',
+      newName: '',
+    });
+  });
+
+  test('the answer "none" opens on none, with the suggestion waiting behind it', () => {
+    expect(draft({ fictionDictionary: null }, exists)).toEqual({
+      choice: 'none',
+      selected: 'properNouns-f_TapDo',
+      newName: '',
+    });
+    // Nothing to wait behind it when the suggestion is not a dictionary yet.
+    expect(draft({ fictionDictionary: null }, fresh)).toEqual({
+      choice: 'none',
+      selected: '',
+      newName: 'TapDo',
+    });
+  });
+
+  test('a book that never answered opens on a suggestion that exists, as that dictionary', () => {
+    expect(draft(null, exists)).toEqual({
+      choice: 'existing',
+      selected: 'properNouns-f_TapDo',
+      newName: '',
+    });
+  });
+
+  test('a suggestion that does not exist yet opens as a create, pre-filled with the slug', () => {
+    expect(draft(null, fresh)).toEqual({ choice: 'new', selected: '', newName: 'TapDo' });
+  });
+
+  test('a file name with nothing to derive opens on none, with nothing pre-filled', () => {
+    expect(
+      initialBindingDraft({ binding: null, missing: null, suggestion: none, fileName: '杂图.txt' })
+    ).toEqual({ choice: 'none', selected: '', newName: '' });
+  });
+
+  describe('a recorded dictionary that no longer exists', () => {
+    const recorded = { fictionDictionary: 'properNouns-f_Gone' };
+
+    test('is no answer: it opens as if the book had never answered', () => {
+      expect(draft(recorded, exists, 'properNouns-f_Gone')).toEqual(draft(null, exists));
+      expect(draft(recorded, fresh, 'properNouns-f_Gone')).toEqual(draft(null, fresh));
+      expect(draft(recorded, none, 'properNouns-f_Gone')).toEqual(draft(null, none));
+    });
+
+    test('is only dead when it is the one the record names', () => {
+      // A different dictionary missing says nothing about this book's binding.
+      expect(draft(recorded, exists, 'properNouns-f_Other')).toEqual({
+        choice: 'existing',
+        selected: 'properNouns-f_Gone',
+        newName: '',
+      });
+    });
   });
 });

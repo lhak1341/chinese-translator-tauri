@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -33,10 +33,17 @@ export function useLibrary(): Library {
   const [isScanning, setIsScanning] = useState(true);
   const [folderError, setFolderError] = useState<string | null>(null);
 
+  /** Counts scans as they start. Rescan, Choose folder and Use default stay enabled while a
+   * scan runs, so two can overlap; whichever *started* last is what the shelf shows, however
+   * the two resolve, or an old folder's slow scan would replace the one just chosen. */
+  const latestScanRef = useRef(0);
+
   const scan = useCallback(async (path: string | null): Promise<void> => {
+    const id = (latestScanRef.current += 1);
     setIsScanning(true);
     setFolderError(null);
     const next = await scanShelf(path);
+    if (latestScanRef.current !== id) return;
     if (next.kind !== 'scanFailed') setLibraryPath(next.libraryPath);
     setOutcome(next);
     setIsScanning(false);

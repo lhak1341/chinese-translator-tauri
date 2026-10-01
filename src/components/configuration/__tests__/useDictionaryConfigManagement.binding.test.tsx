@@ -14,17 +14,10 @@ import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-li
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 import { useDictionaryConfigManagement } from '../useDictionaryConfigManagement';
+import { callRustConfigWrite, saveAppConfig } from '../../../utils/appConfig';
+import { installFakeConfigDisk } from '../../../test/fakeConfigDisk';
 
-const { saveAppConfig, loadAppConfig } = vi.hoisted(() => ({
-  saveAppConfig: vi.fn().mockResolvedValue(undefined),
-  loadAppConfig: vi.fn(),
-}));
-vi.mock('../../../utils/appConfig', () => ({
-  loadAppConfig,
-  saveAppConfig,
-  invalidateAppConfig: vi.fn(),
-  callRustConfigWrite: vi.fn(async (fn: () => Promise<unknown>) => fn()),
-}));
+let disk: ReturnType<typeof installFakeConfigDisk>;
 
 // Stable across renders, as the real context's are: the hook's mount effect depends on
 // `loadDictionary`, so a fresh function per render re-runs it forever.
@@ -43,6 +36,7 @@ const binding = vi.hoisted(() => ({
   fictionDictionaries: ['properNouns-f_TapDo', 'properNouns-f_TruTien'],
   renameFictionDictionary: vi.fn(),
   createFictionDictionary: vi.fn(),
+  moveDictionaryTier: vi.fn(),
 }));
 vi.mock('../../BookBindingContext', () => ({
   useBookBinding: () => binding,
@@ -59,14 +53,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   binding.isBookOpen = true;
   binding.boundFictionDictionary = 'properNouns-f_TapDo';
-  loadAppConfig.mockResolvedValue({
-    // Deliberately stale and wrong for the open book: the previous book's fiction
-    // dictionary is still in the saved list. What the reader sees must come from the
-    // binding, not from this.
-    engine: { activeProperNouns: ['properNouns', 'properNouns-f_TruTien'] },
-    ui: { defaultQuickAddDictionary: null },
-    session: { lastSelectedDictionary: null },
-  });
   (window as unknown as { electronAPI: unknown }).electronAPI = {
     listProperNounsDictionaries: vi
       .fn()
@@ -77,6 +63,13 @@ beforeEach(() => {
     createFictionDictionaryPair: vi.fn().mockResolvedValue({ success: true }),
     createProperNounsDictionary: vi.fn().mockResolvedValue({ success: true }),
   };
+  // Deliberately stale and wrong for the open book: the previous book's fiction
+  // dictionary is still in the saved list. What the reader sees must come from the
+  // binding, not from this.
+  disk = installFakeConfigDisk({
+    activeProperNouns: ['properNouns', 'properNouns-f_TruTien'],
+    defaultQuickAddDictionary: null,
+  });
   binding.renameFictionDictionary.mockResolvedValue({ success: true, filesMoved: true });
   binding.createFictionDictionary.mockResolvedValue({ success: true });
 });
@@ -103,7 +96,7 @@ describe('Configuration while a book is open', () => {
     expect(checkboxFor('f_TruTien').disabled).toBe(true);
 
     fireEvent.click(checkboxFor('f_TruTien'));
-    expect(saveAppConfig).not.toHaveBeenCalled();
+    expect(disk.saveConfiguration).not.toHaveBeenCalled();
   });
 
   test('generic and theme rows stay fully editable', async () => {
@@ -115,13 +108,13 @@ describe('Configuration while a book is open', () => {
 
     fireEvent.click(checkboxFor('_AiCap'));
     await waitFor(() =>
-      expect(saveAppConfig).toHaveBeenCalledWith({
-        engine: {
+      expect(disk.saveConfiguration).toHaveBeenCalledWith(
+        expect.objectContaining({
           // The open book's dictionary, not the stale one the saved config still lists:
           // a generic toggle must not resurrect the previous book's fiction entry.
           activeProperNouns: ['properNouns', 'properNouns-f_TapDo', 'properNouns-_AiCap'],
-        },
-      })
+        })
+      )
     );
   });
 
@@ -142,6 +135,82 @@ describe('Configuration with no book open', () => {
     // Straight from config again, with no binding overlaying it.
     expect(checkboxFor('f_TruTien').checked).toBe(true);
     expect(checkboxFor('f_TruTien').disabled).toBe(false);
+  });
+});
+
+describe('the Configuration tab after the open book rewrote config', () => {
+  // Every tab stays mounted, so the tab read config once and is still showing it when
+  // announcing a book rewrites the default quick-add target.
+  test('shows the default quick-add target the book set, and a click then clears it', async () => {
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.defaultQuickAddDictionary).toBeNull();
+
+    await act(async () => {
+      await saveAppConfig({ ui: { defaultQuickAddDictionary: 'properNouns-f_TapDo' } });
+    });
+    await waitFor(() =>
+      expect(result.current.defaultQuickAddDictionary).toBe('properNouns-f_TapDo')
+    );
+
+    // Toggling the marker the reader sees must turn it off, not set it again.
+    await act(async () => {
+      await result.current.handleSetDefaultQuickAdd('properNouns-f_TapDo');
+    });
+    expect(disk.disk.raw.defaultQuickAddDictionary).toBeNull();
+    expect(result.current.defaultQuickAddDictionary).toBeNull();
+  });
+});
+
+describe('a tier move from the Configuration tab', () => {
+  // The binding context does the move: Rust renames the files and rewrites config, then the
+  // context may save again. This tab only has to end up showing what the file now says.
+  test('renames the row and shows the active list and quick-add default the move left', async () => {
+    binding.isBookOpen = false;
+    binding.boundFictionDictionary = null;
+    disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-_AiCap'];
+    disk.disk.raw.defaultQuickAddDictionary = 'properNouns-_AiCap';
+    binding.moveDictionaryTier.mockImplementation(async () => {
+      await callRustConfigWrite(async () => {
+        disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-f_AiCap'];
+        disk.disk.raw.defaultQuickAddDictionary = 'properNouns-f_AiCap';
+        return { success: true };
+      });
+      return { success: true, filesMoved: true, newId: 'properNouns-f_AiCap' };
+    });
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+
+    await act(async () => {
+      await result.current.handleMoveTier('properNouns-_AiCap');
+    });
+
+    await waitFor(() => {
+      expect(result.current.availableDictionaries).toContain('properNouns-f_AiCap');
+      expect(result.current.activeDictionaries).toEqual(['properNouns', 'properNouns-f_AiCap']);
+      expect(result.current.defaultQuickAddDictionary).toBe('properNouns-f_AiCap');
+    });
+    expect(result.current.availableDictionaries).not.toContain('properNouns-_AiCap');
+  });
+
+  test('a refused move changes nothing on screen', async () => {
+    binding.moveDictionaryTier.mockResolvedValue({
+      success: false,
+      error: 'already exists',
+      filesMoved: false,
+      newId: 'properNouns-f_AiCap',
+    });
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.handleMoveTier('properNouns-_AiCap');
+    });
+
+    expect(result.current.error).toContain('already exists');
+    expect(result.current.availableDictionaries).toContain('properNouns-_AiCap');
+    expect(result.current.availableDictionaries).not.toContain('properNouns-f_AiCap');
   });
 });
 

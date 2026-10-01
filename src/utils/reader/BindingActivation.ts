@@ -1,5 +1,6 @@
 import { isFictionProperNounsId } from '../dictionary/DictionaryIdClassifier';
 import type { QuickAddView } from '../dictionary/QuickAddTarget';
+import type { BookBinding } from '../../types/ReaderTypes';
 
 /**
  * Turning a book's binding into the config the engine initializes from.
@@ -44,6 +45,72 @@ export function quickAddTargetForBinding(
 ): string | null {
   if (bound) return bound;
   return currentDefault && isFictionProperNounsId(currentDefault) ? null : currentDefault;
+}
+
+/**
+ * The fiction dictionary in use for the open book: the recorded answer, unless its dictionary
+ * no longer exists on disk (`missing`), in which case the book reads with none. What
+ * anything filing or reading "this book's names" decides from — never `binding` itself.
+ */
+export function dictionaryInUse(
+  binding: BookBinding | null,
+  missing: string | null
+): string | null {
+  return missing ? null : (binding?.fictionDictionary ?? null);
+}
+
+/** The two config fields a binding writes. */
+export interface BindingConfigFields {
+  activeProperNouns: readonly string[];
+  defaultQuickAddDictionary: string | null;
+}
+
+export interface BindingConfigChange {
+  activeProperNouns: string[];
+  defaultQuickAddDictionary: string | null;
+  /** The active list differs from `current`'s: the engine's dictionary set changed. */
+  activeChanged: boolean;
+  /** Either field differs from `current`'s. A quick-add default that moved on its own is a
+   * config write with no engine consequence — the engine never reads that key. */
+  changed: boolean;
+}
+
+/**
+ * The config a binding implies, from `current`, and what that changed — the one place the
+ * "diff the active list and the quick-add default" step lives, for an answer (`binding`) and
+ * for a tier move (`activate`, then the binding if a book is open).
+ *
+ * `activate` adds a dictionary to the active list when it is not there (promoting a fiction
+ * dictionary activates the generic it becomes, so its books keep its names). `binding`
+ * applies a book's answer on top; leave it out when no book is open, since only an open book
+ * is authoritative for the fiction slice. Changes are measured against `current`, not
+ * against the list after `activate`.
+ */
+export function bindingConfigChange(
+  current: BindingConfigFields,
+  edit: { activate?: string; binding?: { bound: string | null } }
+): BindingConfigChange {
+  let activeProperNouns = [...current.activeProperNouns];
+  let defaultQuickAddDictionary = current.defaultQuickAddDictionary;
+  if (edit.activate && !activeProperNouns.includes(edit.activate)) {
+    activeProperNouns.push(edit.activate);
+  }
+  if (edit.binding) {
+    activeProperNouns = activeProperNounsForBinding(activeProperNouns, edit.binding.bound);
+    defaultQuickAddDictionary = quickAddTargetForBinding(
+      edit.binding.bound,
+      defaultQuickAddDictionary
+    );
+  }
+  const activeChanged =
+    activeProperNouns.length !== current.activeProperNouns.length ||
+    activeProperNouns.some((id, index) => id !== current.activeProperNouns[index]);
+  return {
+    activeProperNouns,
+    defaultQuickAddDictionary,
+    activeChanged,
+    changed: activeChanged || defaultQuickAddDictionary !== current.defaultQuickAddDictionary,
+  };
 }
 
 /** Whether `bound` names a fiction dictionary. A binding can only ever name one, but the

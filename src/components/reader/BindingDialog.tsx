@@ -8,14 +8,12 @@ import {
   formatRegularity,
 } from '../../utils/reader/ChapterPatternLabels';
 import {
-  deriveFictionSlug,
   fictionDisplayName,
+  initialBindingDraft,
+  type BindingChoice,
   type FictionSuggestion,
 } from '../../utils/reader/FictionDictionarySuggestion';
 import styles from '../../styles/Reader.module.css';
-
-/** Which of the four answers the reader is currently composing. */
-type Choice = 'existing' | 'new' | 'none';
 
 interface BindingDialogProps {
   bookTitle: string;
@@ -25,6 +23,8 @@ interface BindingDialogProps {
    * one computation, one answer, rather than two sites deriving it from the same inputs. */
   suggestion: FictionSuggestion;
   currentBinding: BookBinding | null;
+  /** The recorded dictionary that no longer exists, if the book's is the one. */
+  missingDictionary: string | null;
   isApplying: boolean;
   error: string | null;
   /** The chapter-structure choice — its election stats are the numbers that make an
@@ -52,6 +52,7 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
   fictionDictionaries,
   suggestion,
   currentBinding,
+  missingDictionary,
   isApplying,
   error,
   chapterOverride,
@@ -60,24 +61,18 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
   onClose,
 }) => {
   const { candidates, activePattern, isOverridden, set: onSetOverride } = chapterOverride;
-  // The dialog opens on whatever answer the book already has; failing that, on the
-  // suggestion — as an existing dictionary when one exists under that name, and as a
-  // pre-filled create otherwise, which is the case for a novel being read for the
-  // first time.
-  const [choice, setChoice] = useState<Choice>(() => {
-    if (currentBinding?.fictionDictionary) return 'existing';
-    if (currentBinding) return 'none';
-    if (suggestion.exists) return 'existing';
-    return suggestion.dictionaryId ? 'new' : 'none';
-  });
-  const [selected, setSelected] = useState<string>(
-    () =>
-      currentBinding?.fictionDictionary ??
-      (suggestion.exists && suggestion.dictionaryId ? suggestion.dictionaryId : '')
+  // One decision, three pieces of state: `initialBindingDraft` says what it opens on.
+  const [initial] = useState(() =>
+    initialBindingDraft({
+      binding: currentBinding,
+      missing: missingDictionary,
+      suggestion,
+      fileName,
+    })
   );
-  const [newName, setNewName] = useState<string>(() =>
-    suggestion.exists ? '' : (deriveFictionSlug(fileName) ?? '')
-  );
+  const [choice, setChoice] = useState<BindingChoice>(initial.choice);
+  const [selected, setSelected] = useState<string>(initial.selected);
+  const [newName, setNewName] = useState<string>(initial.newName);
 
   const canSave =
     !isApplying &&

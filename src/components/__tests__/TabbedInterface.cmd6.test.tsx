@@ -82,24 +82,9 @@ beforeEach(() => {
   hotkeyRef.current = null;
 });
 
+// Which dictionary each digit means is `DictionaryTabNavigation.test.ts`'s. These two only
+// check the container applies an answer: a selection, and a refusal as a toast.
 describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
-  test('switches to the resolved patterns dict when it exists in DictionaryContext', async () => {
-    (loadAppConfig as any).mockResolvedValue(
-      makeConfig({
-        activeProperNouns: ['properNouns-f_Novel'],
-        defaultQuickAddDictionary: 'properNouns-f_Novel',
-      })
-    );
-    dictionariesRef.current = { 'patterns-f_Novel': {} };
-
-    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
-    expect(hotkeyRef.current).not.toBeNull();
-    await hotkeyRef.current!('6');
-
-    expect(setSelectedDictionary).toHaveBeenCalledWith('patterns-f_Novel');
-    expect(toastError).not.toHaveBeenCalled();
-  });
-
   test('toasts and does not switch when the resolved dict is not in DictionaryContext yet', async () => {
     (loadAppConfig as any).mockResolvedValue(
       makeConfig({
@@ -117,28 +102,6 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
       'The structural pattern dictionary patterns-f_Novel is missing'
     );
   });
-
-  test('switches to root patterns when no paired proper-noun dictionary is active', async () => {
-    (loadAppConfig as any).mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    dictionariesRef.current = { 'patterns-f_Unrelated': {} };
-
-    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
-    await hotkeyRef.current!('6');
-
-    expect(setSelectedDictionary).toHaveBeenCalledWith('patterns');
-    expect(toastError).not.toHaveBeenCalled();
-  });
-
-  test('config load failure decides with no config: root patterns', async () => {
-    (loadAppConfig as any).mockRejectedValue(new Error('disk read failed'));
-    dictionariesRef.current = {};
-
-    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
-    await hotkeyRef.current!('6');
-
-    expect(setSelectedDictionary).toHaveBeenCalledWith('patterns');
-    expect(toastError).not.toHaveBeenCalled();
-  });
 });
 
 describe('TabbedInterface — Cmd-5 (proper noun quick nav)', () => {
@@ -152,13 +115,5 @@ describe('TabbedInterface — Cmd-5 (proper noun quick nav)', () => {
     render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('5');
     expect(setSelectedDictionary).toHaveBeenCalledWith('properNouns-_Theme');
-  });
-
-  test('with nothing usable, switches to the root proper-nouns table (same answer as the Translator)', async () => {
-    (loadAppConfig as any).mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    render(<TabbedInterface />, { wrapper: VisibleTabProvider });
-    await hotkeyRef.current!('5');
-    expect(setSelectedDictionary).toHaveBeenCalledWith('properNouns');
-    expect(toastError).not.toHaveBeenCalled();
   });
 });

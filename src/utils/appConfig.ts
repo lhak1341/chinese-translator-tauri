@@ -95,6 +95,18 @@ export async function loadAppConfig(): Promise<AppConfig> {
   return (await configFile.read()).value;
 }
 
+/**
+ * The one write: once every write queued ahead of it has settled, `fn` gets the freshest
+ * config and returns the next one plus a result for the caller. Returning `current`
+ * unchanged saves nothing. Decide from `current`, not from an earlier `loadAppConfig`: a
+ * write that lands between the read and the save is otherwise overwritten.
+ */
+export function transformAppConfig<R>(
+  fn: (current: AppConfig) => { value: AppConfig; result: R }
+): Promise<R> {
+  return configFile.transform(fn);
+}
+
 /** Merges `patch` into the saved config, under the file's lock — callers give only the fields
  * they own. */
 export function saveAppConfig(patch: {
@@ -103,7 +115,7 @@ export function saveAppConfig(patch: {
   session?: Partial<SessionConfig>;
   reader?: Partial<ReaderConfig>;
 }): Promise<void> {
-  return configFile.transform((current) => ({
+  return transformAppConfig((current) => ({
     value: {
       engine: { ...current.engine, ...patch.engine },
       ui: { ...current.ui, ...patch.ui },
@@ -112,6 +124,12 @@ export function saveAppConfig(patch: {
     },
     result: undefined,
   }));
+}
+
+/** Called after every change to the cached config: a load, a save, an invalidate. A reader
+ * that mirrors the config re-reads with `loadAppConfig` on each call. */
+export function subscribeAppConfig(listener: () => void): () => void {
+  return configFile.subscribe(listener);
 }
 
 export function invalidateAppConfig(): void {

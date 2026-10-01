@@ -210,3 +210,55 @@ describe('useChapterOutline', () => {
     expect(result.current.headers).toEqual([]);
   });
 });
+
+describe('an override set while the first election is still running', () => {
+  /** Holds the election until `release()`. */
+  function heldElection() {
+    let release: (outline: ChapterOutline) => void = () => {};
+    detectChapterOutline.mockImplementationOnce(
+      () =>
+        new Promise<ChapterOutline>((resolve) => {
+          release = resolve;
+        })
+    );
+    return { release: (outline: ChapterOutline) => release(outline) };
+  }
+
+  it('going back to Auto does not cost the election its candidates, elected pattern or headers', async () => {
+    const election = heldElection();
+    const { result } = renderHook(() =>
+      useChapterOutline({ fingerprint: 'fp1', cachedOutline: null, cachedManualPattern: 'volume' })
+    );
+
+    act(() => result.current.setOverride(null));
+    await waitFor(() => expect(result.current.isOverridden).toBe(false));
+    await act(async () => {
+      election.release(FULL_ELECTION);
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.candidates).toEqual(FULL_ELECTION.candidates);
+    expect(result.current.activePattern).toBe('chapter');
+    expect(result.current.headers).toEqual(FULL_ELECTION.headers);
+  });
+
+  it('a chosen pattern keeps its own headers when the election lands, and the election still lands', async () => {
+    const election = heldElection();
+    chapterHeadersForPattern.mockResolvedValue([{ line: 5, title: 'Volume 1' }]);
+    const { result } = renderHook(() =>
+      useChapterOutline({ fingerprint: 'fp1', cachedOutline: null, cachedManualPattern: null })
+    );
+
+    act(() => result.current.setOverride('volume'));
+    await waitFor(() => expect(result.current.headers).toEqual([{ line: 5, title: 'Volume 1' }]));
+    await act(async () => {
+      election.release(FULL_ELECTION);
+    });
+    await waitFor(() => expect(result.current.candidates).toEqual(FULL_ELECTION.candidates));
+
+    expect(result.current.activePattern).toBe('volume');
+    expect(result.current.isOverridden).toBe(true);
+    expect(result.current.headers).toEqual([{ line: 5, title: 'Volume 1' }]);
+    expect(result.current.isLoading).toBe(false);
+  });
+});

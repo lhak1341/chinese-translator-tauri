@@ -17,27 +17,9 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
+import { installFakeConfigDisk } from '../../../test/fakeConfigDisk';
 
-const { invalidateAppConfig, callRustConfigWrite } = vi.hoisted(() => {
-  const invalidateAppConfig = vi.fn();
-  // Mirrors the real callRustConfigWrite: run fn, invalidate only on success.
-  const callRustConfigWrite = vi.fn(async (fn: () => Promise<{ success: boolean }>) => {
-    const result = await fn();
-    if (result.success) invalidateAppConfig();
-    return result;
-  });
-  return { invalidateAppConfig, callRustConfigWrite };
-});
-vi.mock('../../../utils/appConfig', () => ({
-  loadAppConfig: vi.fn().mockResolvedValue({
-    engine: { activeProperNouns: [] },
-    ui: { defaultQuickAddDictionary: null },
-    session: { lastSelectedDictionary: null },
-  }),
-  saveAppConfig: vi.fn().mockResolvedValue(undefined),
-  invalidateAppConfig,
-  callRustConfigWrite,
-}));
+let disk: ReturnType<typeof installFakeConfigDisk>;
 
 const loadDictionary = vi.fn();
 const applyRename = vi.fn();
@@ -89,7 +71,13 @@ beforeEach(() => {
     createStructuralPatternsDictionary,
     renameProperNounsDictionary,
   };
+  disk = installFakeConfigDisk({ activeProperNouns: [] });
 });
+
+/** A successful Rust-side config write drops the cached config, so the tab re-reads it. */
+async function expectConfigReread(): Promise<void> {
+  await waitFor(() => expect(disk.loadConfiguration.mock.calls.length).toBeGreaterThan(1));
+}
 
 async function openModalAndCreate(name: string) {
   await waitFor(() => expect(screen.getByText('New')).toBeInTheDocument());
@@ -127,7 +115,7 @@ describe('ConfigurationManager handleCreateDictionary', () => {
     expect(loadDictionary).not.toHaveBeenCalledWith(expect.stringMatching(/^patterns-/));
   });
 
-  test('create syncs the checkbox from the response active list and invalidates the config cache', async () => {
+  test('create syncs the checkbox from the response active list and re-reads the config', async () => {
     createProperNounsDictionary.mockResolvedValue({
       success: true,
       dictionaries: ['properNouns-Test'],
@@ -139,7 +127,7 @@ describe('ConfigurationManager handleCreateDictionary', () => {
     // Regression: creation also activates on disk (Rust-side); the checkbox must reflect
     // that immediately from the response instead of rendering unchecked until a second click.
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Test/ })).toBeChecked());
-    expect(invalidateAppConfig).toHaveBeenCalled();
+    await expectConfigReread();
   });
 
   test('create does not force-check when the response omits dictionaries', async () => {
@@ -254,7 +242,7 @@ describe('ConfigurationManager handleConfirmRename', () => {
       expect(applyRename).toHaveBeenCalledWith([['properNouns-Old', 'properNouns-New']])
     );
     expect(loadDictionary).not.toHaveBeenCalled();
-    expect(invalidateAppConfig).toHaveBeenCalled();
+    await expectConfigReread();
   });
 
   test('fiction rename is done by the binding context, and the row follows it', async () => {
@@ -300,6 +288,7 @@ describe('ConfigurationManager handleConfirmRename', () => {
     );
     expect(loadDictionary).not.toHaveBeenCalled();
     expect(applyRename).not.toHaveBeenCalled();
-    expect(invalidateAppConfig).not.toHaveBeenCalled();
+    // A refused rename wrote nothing, so the cached config was never dropped.
+    expect(disk.loadConfiguration).toHaveBeenCalledTimes(1);
   });
 });

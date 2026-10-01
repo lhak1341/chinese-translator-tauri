@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, vi } from 'vitest';
 import {
   loadAppConfig,
   saveAppConfig,
+  transformAppConfig,
+  subscribeAppConfig,
   invalidateAppConfig,
   callRustConfigWrite,
 } from '../appConfig';
@@ -103,5 +105,65 @@ describe('callRustConfigWrite / saveAppConfig serialization', () => {
       .calls[1][0];
     expect(secondCallArg.activeProperNouns).toEqual(['properNouns', 'properNouns-a']);
     expect(secondCallArg.defaultQuickAddDictionary).toBe('properNouns-b');
+  });
+});
+
+describe('transformAppConfig', () => {
+  test('hands back the transform result and saves the value it returns', async () => {
+    const result = await transformAppConfig((current) => ({
+      value: { ...current, ui: { ...current.ui, defaultQuickAddDictionary: 'properNouns-x' } },
+      result: current.ui.defaultQuickAddDictionary,
+    }));
+
+    expect(result).toBeNull();
+    expect(window.electronAPI.saveConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultQuickAddDictionary: 'properNouns-x' })
+    );
+  });
+
+  test('returning the config it was given saves nothing', async () => {
+    const result = await transformAppConfig((current) => ({ value: current, result: 'kept' }));
+
+    expect(result).toBe('kept');
+    expect(window.electronAPI.saveConfiguration).not.toHaveBeenCalled();
+  });
+
+  test('decides against a write queued ahead of it, not against the config it started from', async () => {
+    await loadAppConfig();
+    const firstSave = deferred<{ success: boolean }>();
+    window.electronAPI.saveConfiguration = vi
+      .fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValueOnce({ success: true });
+
+    const first = saveAppConfig({
+      engine: { activeProperNouns: ['properNouns', 'properNouns-a'] },
+    });
+    const seen = transformAppConfig((current) => ({
+      value: current,
+      result: current.engine.activeProperNouns,
+    }));
+    firstSave.resolve({ success: true });
+    await first;
+
+    expect(await seen).toEqual(['properNouns', 'properNouns-a']);
+  });
+});
+
+describe('subscribeAppConfig', () => {
+  test('is told of a save, of a Rust-side write, and stops after unsubscribe', async () => {
+    await loadAppConfig();
+    const listener = vi.fn();
+    const unsubscribe = subscribeAppConfig(listener);
+
+    await saveAppConfig({ ui: { defaultQuickAddDictionary: 'properNouns-x' } });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    await callRustConfigWrite(async () => ({ success: true }));
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    await saveAppConfig({ ui: { defaultQuickAddDictionary: null } });
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });

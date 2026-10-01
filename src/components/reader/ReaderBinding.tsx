@@ -102,6 +102,7 @@ export const BookBindingDialog: React.FC<BookBindingDialogProps> = ({
       fictionDictionaries={fictionDictionaries}
       suggestion={offer.suggestion}
       currentBinding={binding}
+      missingDictionary={offer.missingDictionary}
       isApplying={isApplying}
       error={error}
       chapterOverride={chapterOverride}
