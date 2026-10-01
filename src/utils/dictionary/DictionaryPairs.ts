@@ -15,6 +15,7 @@
 
 import { callRustConfigWrite } from '../appConfig';
 import { logger } from '../logger';
+import { listFictionPatternDictionaryIds } from './DictionaryBackend';
 import { hasPairedPatterns, toPatternsId } from './DictionaryIdClassifier';
 import type { ProperNounsListResult } from '../../types/ElectronTypes';
 
@@ -81,10 +82,7 @@ export async function createMissingPatternHalves(
   ops: Pick<DictionaryPairOps, 'loadDictionary'>
 ): Promise<void> {
   try {
-    const listed = await window.electronAPI.listFictionPatternDictionaries();
-    const existing = new Set<string>(
-      listed.success ? (listed.dictionaries as unknown as string[]) : []
-    );
+    const existing = new Set(await listFictionPatternDictionaryIds());
     for (const id of properNounsIds.filter(hasPairedPatterns)) {
       const patternsId = toPatternsId(id);
       if (existing.has(patternsId)) continue;

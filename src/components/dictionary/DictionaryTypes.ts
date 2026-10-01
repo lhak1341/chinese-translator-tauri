@@ -9,6 +9,10 @@ import toast from '../../utils/toast';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import type { DictionaryData } from '../../types/DictionaryTypes.js';
 import { baseValidation, validatePatternEntry } from '../../utils/dictionary/PersistTimeValidator';
+import {
+  listFictionPatternDictionaryIds,
+  listProperNounsDictionaryIds,
+} from '../../utils/dictionary/DictionaryBackend';
 
 interface DictionaryTypeDefinition {
   id: string;
@@ -71,20 +75,11 @@ export function dictionaryOptionLabel(
 
 export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTypeDefinition>> => {
   try {
-    // Run both list calls in parallel
-    const [listResult, patternsListResult] = await Promise.all([
-      window.electronAPI.listProperNounsDictionaries(),
-      window.electronAPI.listFictionPatternDictionaries(),
+    // Run both list calls in parallel. A failed list throws into the catch below.
+    const [allProperNouns, allFictionPatterns] = await Promise.all([
+      listProperNounsDictionaryIds(),
+      listFictionPatternDictionaryIds(),
     ]);
-
-    // The runtime API returns string[] IDs; ElectronTypes.d.ts mistypes it as DictionaryInfo[]
-    const allProperNouns: string[] = listResult.success
-      ? (listResult.dictionaries as unknown as string[])
-      : ['properNouns'];
-
-    const allFictionPatterns: string[] = patternsListResult.success
-      ? (patternsListResult.dictionaries as unknown as string[])
-      : [];
 
     // Create proper nouns dictionary types for all available dictionaries
     const properNounsTypes: Record<string, DictionaryTypeDefinition> = {};
@@ -131,7 +126,8 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
         id: TOAST_IDS.DICT_LOAD_FAILED,
       }
     );
-    return baseDictionaryTypes;
+    // The built-in set includes the general `properNouns` dictionary.
+    return DICTIONARY_TYPES;
   }
 };
 

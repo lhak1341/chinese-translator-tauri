@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  activeProperNounsAfterToggle,
   activeProperNounsForBinding,
   bindingConfigChange,
   dictionaryInUse,
@@ -79,6 +80,35 @@ describe('dictionaryInUse', () => {
     expect(
       dictionaryInUse({ fictionDictionary: 'properNouns-f_Gone' }, 'properNouns-f_Gone')
     ).toBeNull();
+  });
+});
+
+describe('activeProperNounsAfterToggle', () => {
+  const saved = ['properNouns', 'properNouns-f_TruTien'];
+
+  test('with no book open, adds an inactive entry and removes an active one', () => {
+    expect(activeProperNounsAfterToggle(saved, 'properNouns-_AiCap', null)).toEqual([
+      'properNouns',
+      'properNouns-f_TruTien',
+      'properNouns-_AiCap',
+    ]);
+    expect(activeProperNounsAfterToggle(saved, 'properNouns', null)).toEqual([
+      'properNouns-f_TruTien',
+    ]);
+  });
+
+  test('with a book open, starts from the list the binding implies, not the saved one', () => {
+    // The saved list still carries the previous book's fiction dictionary.
+    expect(
+      activeProperNounsAfterToggle(saved, 'properNouns-_AiCap', { bound: 'properNouns-f_TapDo' })
+    ).toEqual(['properNouns', 'properNouns-f_TapDo', 'properNouns-_AiCap']);
+  });
+
+  test('with a book open and no fiction dictionary bound, drops every fiction entry', () => {
+    expect(activeProperNounsAfterToggle(saved, 'properNouns-_AiCap', { bound: null })).toEqual([
+      'properNouns',
+      'properNouns-_AiCap',
+    ]);
   });
 });
 

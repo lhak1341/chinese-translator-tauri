@@ -117,7 +117,7 @@ bun run tauri:dev  # catches dynamic import() breakage — type-check/tests miss
 
 ## Related Guides
 
-- [Architecture Guide](./architecture.md) - System architecture and WASM acceleration
+- [Architecture Guide](./architecture.md) - Execution paths, semantic arrays, token contracts
 - [Performance Guide](./performance.md) - Performance monitoring and optimization
 - [Deleted Symbols](./deleted-symbols.md) - What's already been removed, and why
 - [Troubleshooting Guide](./troubleshooting.md) - Debugging steps and resolved bug postmortems

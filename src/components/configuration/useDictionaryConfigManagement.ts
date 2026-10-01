@@ -1,12 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import {
-  loadAppConfig,
-  saveAppConfig,
-  subscribeAppConfig,
-  transformAppConfig,
-} from '../../utils/appConfig';
+import { loadAppConfig, subscribeAppConfig, transformAppConfig } from '../../utils/appConfig';
 import { toProperNounsDictionaryId, isFictionProperNounsId } from '../../utils/dictionary';
 import {
   createDictionary,
@@ -20,7 +15,10 @@ import {
 import { listProperNounsDictionaryIds } from '../../utils/dictionary/DictionaryBackend';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useBookBinding } from '../BookBindingContext';
-import { activeProperNounsForBinding } from '../../utils/reader/BindingActivation';
+import {
+  activeProperNounsAfterToggle,
+  activeProperNounsForBinding,
+} from '../../utils/reader/BindingActivation';
 
 /**
  * All state, load/migration effect, and CRUD/rename/quick-add handlers for the
@@ -157,17 +155,21 @@ export function useDictionaryConfigManagement() {
     // would then silently overwrite on its next apply.
     if (isBookOpen && isFictionProperNounsId(dictionaryId)) return;
     try {
-      // Toggles start from the *effective* list, not the raw one this hook read at mount.
-      // A generic toggle computed from a stale raw list would write the previous book's
-      // fiction dictionary back into config — the engine's next reinitialization would
-      // then load it, which is the silent wrong-dictionary failure from the far side.
-      const current = effectiveActiveDictionaries;
-      const newActiveDictionaries = current.includes(dictionaryId)
-        ? current.filter((id) => id !== dictionaryId)
-        : [...current, dictionaryId];
-
-      await saveAppConfig({ engine: { activeProperNouns: newActiveDictionaries } });
-      setActiveDictionaries(newActiveDictionaries);
+      // Decided against the config as it is when this write's turn comes, not against the
+      // React state at click time: a second click before the first save resolved would
+      // otherwise start from the list the first had not yet changed and overwrite it. The
+      // `subscribeAppConfig` mirror above carries the result back into `activeDictionaries`.
+      await transformAppConfig((config) => {
+        const activeProperNouns = activeProperNounsAfterToggle(
+          config.engine.activeProperNouns,
+          dictionaryId,
+          isBookOpen ? { bound: boundFictionDictionary } : null
+        );
+        return {
+          value: { ...config, engine: { ...config.engine, activeProperNouns } },
+          result: undefined,
+        };
+      });
     } catch (err) {
       setError(formatErrorMessage('Configuration update', err));
     }

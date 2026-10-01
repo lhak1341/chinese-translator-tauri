@@ -1,0 +1,83 @@
+{
+  "_comment": "Shared by src/utils/__tests__/DictionaryIdRules.parity.test.ts (DictionaryIdClassifier, appConfig.ts) and the parity tests in src-tauri/src/dictionary_commands.rs (has_paired_patterns, to_patterns_id, substitute_dictionary_reference). ADR-060. configKeys lists every key appConfig.ts toRaw writes to config.json: dictionaryReference keys hold a dictionary id (shape: string, or an array of ids) and a rename must rewrite them; other keys must be left alone. Adding a key to toRaw fails the TS test until it is classified here.",
+  "ids": [
+    {
+      "id": "properNouns",
+      "kind": "properNouns",
+      "tier": "root",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "properNouns-f_DuongThan",
+      "kind": "properNouns",
+      "tier": "fiction",
+      "hasPairedPatterns": true,
+      "patternsId": "patterns-f_DuongThan"
+    },
+    {
+      "id": "properNouns-_AiCap",
+      "kind": "properNouns",
+      "tier": "generic",
+      "hasPairedPatterns": true,
+      "patternsId": "patterns-_AiCap"
+    },
+    {
+      "id": "properNouns-HarryPotter",
+      "kind": "properNouns",
+      "tier": "custom",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "properNouns-",
+      "kind": "properNouns",
+      "tier": "custom",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "patterns",
+      "kind": "patterns",
+      "tier": "root",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "patterns-f_DuongThan",
+      "kind": "patterns",
+      "tier": "fiction",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "phrases",
+      "kind": "phrases",
+      "tier": "root",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "characters",
+      "kind": "lookupTable",
+      "tier": "root",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    },
+    {
+      "id": "someUnknownId",
+      "kind": "lookupTable",
+      "tier": "root",
+      "hasPairedPatterns": false,
+      "patternsId": null
+    }
+  ],
+  "configKeys": {
+    "activeProperNouns": { "role": "dictionaryReference", "shape": "array" },
+    "lastSelectedDictionary": { "role": "dictionaryReference", "shape": "string" },
+    "defaultQuickAddDictionary": { "role": "dictionaryReference", "shape": "string" },
+    "libraryPath": { "role": "other" },
+    "lastBook": { "role": "other" },
+    "resumeOnLaunch": { "role": "other" }
+  }
+}

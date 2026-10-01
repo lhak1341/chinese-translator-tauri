@@ -69,15 +69,15 @@ function splitBookTitle(title: string): { vietnamese: string; chinese: string } 
   return { vietnamese, chinese };
 }
 
-/** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
- * hasn't been opened, just seen on a scan). Read off the live record, never a copy taken
- * at scan time, so Back from reading shows where the reader got to. */
 /** What a book shows for progress, binding and chapters when the scan could not be
  * reconciled against the records (`recordsUnknown`) — unknown, not "Not started". */
 const UNKNOWN_LABEL = '—';
 const NO_UNAVAILABLE: UnavailableBook[] = [];
 const NO_BOOKS: LibraryBook[] = [];
 
+/** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
+ * hasn't been opened, just seen on a scan). Read off the live record, never a copy taken
+ * at scan time, so Back from reading shows where the reader got to. */
 function formatProgress(record: BookRecord | undefined): string {
   if (!record?.position) return 'Not started';
   if (record.lineCount > 0) {
@@ -102,6 +102,27 @@ function formatChapterCount(record: BookRecord | undefined): string | null {
   const count = outline.candidates.find((candidate) => candidate.pattern === pattern)?.hitCount;
   if (count === undefined) return null;
   return `${count.toLocaleString()} ${count === 1 ? 'chapter' : 'chapters'}`;
+}
+
+/**
+ * What one shelf row shows for a book. The one place the unknown-identity rule lives: when
+ * the scan could not be reconciled against the records, `recordOf` has no record to give and
+ * every column reads `UNKNOWN_LABEL` rather than "Not started" or "Not bound". `chapters` is
+ * `null` for a book with no outline; each layout decides how to show `UNKNOWN_LABEL` (the
+ * list prints it, the card drops the row — see the card's footer).
+ */
+function rowLabels(
+  record: BookRecord | undefined,
+  identityKnown: boolean
+): { binding: string; chapters: string | null; progress: string } {
+  if (!identityKnown) {
+    return { binding: UNKNOWN_LABEL, chapters: UNKNOWN_LABEL, progress: UNKNOWN_LABEL };
+  }
+  return {
+    binding: formatBinding(record),
+    chapters: formatChapterCount(record),
+    progress: formatProgress(record),
+  };
 }
 
 /**
@@ -211,6 +232,8 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         </div>
       )}
 
+      {/* No identity guard: `continueBook` is a ShelfBook, which only a `loaded` outcome has
+          (`findLastBook`), so its record is always known. */}
       {!isLoading && continueBook && (
         <button
           className={styles.continueCard}
@@ -258,8 +281,8 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
             const split = splitBookTitle(book.title);
-            const record = recordOf(book);
-            const chapterCount = identityKnown ? formatChapterCount(record) : null;
+            const labels = rowLabels(recordOf(book), identityKnown);
+            const chapterCount = labels.chapters === UNKNOWN_LABEL ? null : labels.chapters;
             return (
               <button
                 key={book.fileName}
@@ -288,14 +311,10 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   </div>
                 )}
                 <div className={styles.bookCardFooter}>
-                  <span className={styles.bookMeta}>
-                    {identityKnown ? formatBinding(record) : UNKNOWN_LABEL}
-                  </span>
+                  <span className={styles.bookMeta}>{labels.binding}</span>
                   {/* A flex column, not a grid: an empty span here would only add a gap. */}
                   {chapterCount && <span className={styles.bookMeta}>{chapterCount}</span>}
-                  <span className={styles.bookProgress}>
-                    {identityKnown ? formatProgress(record) : UNKNOWN_LABEL}
-                  </span>
+                  <span className={styles.bookProgress}>{labels.progress}</span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                 </div>
               </button>
@@ -307,7 +326,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
             const split = splitBookTitle(book.title);
-            const record = recordOf(book);
+            const labels = rowLabels(recordOf(book), identityKnown);
             return (
               <li key={book.fileName}>
                 <button
@@ -326,15 +345,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   ) : (
                     <span className={styles.bookTitle}>{book.title}</span>
                   )}
-                  <span className={styles.bookMeta}>
-                    {identityKnown ? formatBinding(record) : UNKNOWN_LABEL}
-                  </span>
-                  <span className={styles.bookMeta}>
-                    {identityKnown ? formatChapterCount(record) : UNKNOWN_LABEL}
-                  </span>
-                  <span className={styles.bookProgress}>
-                    {identityKnown ? formatProgress(record) : UNKNOWN_LABEL}
-                  </span>
+                  <span className={styles.bookMeta}>{labels.binding}</span>
+                  <span className={styles.bookMeta}>{labels.chapters}</span>
+                  <span className={styles.bookProgress}>{labels.progress}</span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                   {isOpen && <span className={styles.openBadge}>open</span>}
                 </button>
@@ -344,6 +357,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         </ul>
       )}
 
+      {/* No identity guard: `unavailableBooks` is empty unless the outcome is `loaded`. */}
       {unavailableBooks.length > 0 && (
         <div className={styles.unavailableSection}>
           <div className={styles.unavailableTitle}>Unavailable</div>

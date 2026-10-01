@@ -138,6 +138,18 @@ describe('createMissingPatternHalves', () => {
     expect(events).toEqual(['load patterns-f_Lacks', 'load patterns-_Theme']);
   });
 
+  test('a list that reports failure creates and loads nothing', async () => {
+    // A failed listing says nothing about what exists. Read as "none exist" it would try to
+    // create every patterns half (Rust refuses each) and reload every one into memory.
+    api.listFictionPatternDictionaries.mockResolvedValue({ success: false, error: 'disk' });
+    const { ops, events } = fakeOps();
+
+    await createMissingPatternHalves(['properNouns-f_A', 'properNouns-_B'], ops);
+
+    expect(api.createStructuralPatternsDictionary).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
   test('a failure only logs — the proper-nouns halves work without it', async () => {
     api.listFictionPatternDictionaries.mockRejectedValue(new Error('disk'));
     const { ops } = fakeOps();

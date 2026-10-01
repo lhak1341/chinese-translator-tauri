@@ -102,11 +102,17 @@ export class DictionaryWasmLookup {
     }
   }
 
+  /**
+   * Exact lookup, like the JS path (`DictionaryManager._findInDictionaries`).
+   * `findMatches` returns every prefix match, longest first, so an exact member is
+   * `matches[0]`; a first match that is shorter than `word` means this dictionary has no
+   * entry for it, and the search moves on to the next dictionary.
+   */
   translate(word, dictionaryOrder) {
     for (const dictionaryName of dictionaryOrder) {
       if (!this._adapter.hasDictionary(dictionaryName)) continue;
       const matches = this._adapter.findMatches(dictionaryName, word, 0);
-      if (matches && matches.length > 0) {
+      if (matches && matches.length > 0 && matches[0].word === word) {
         const best = matches[0];
         return {
           word,

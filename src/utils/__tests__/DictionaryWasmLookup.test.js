@@ -155,6 +155,45 @@ describe('DictionaryWasmLookup', () => {
       expect(lookup.translate('xyz', ['characters'])).toBeNull();
     });
 
+    // findMatches returns every PREFIX match, longest first — translate() is an exact
+    // lookup (the JS path's contract), so a shorter prefix member must not answer for the word.
+    it('returns null when only a prefix of the word is a member', async () => {
+      const adapter = makeAdapter({
+        findMatches: vi.fn((dict, text) =>
+          dict === 'properNouns' && text === '我们俩'
+            ? [{ word: '我们', translation: 'chúng tôi', metadata: null }]
+            : []
+        ),
+      });
+      const lookup = new DictionaryWasmLookup(adapter);
+      await lookup.initialize({});
+
+      expect(lookup.translate('我们俩', ['properNouns'])).toBeNull();
+    });
+
+    it('moves on to a later dictionary that holds the exact word', async () => {
+      const adapter = makeAdapter({
+        findMatches: vi.fn((dict) => {
+          if (dict === 'properNouns') return [{ word: '我们', translation: 'chúng tôi' }];
+          if (dict === 'phrases') {
+            return [
+              { word: '我们俩', translation: 'hai chúng ta' },
+              { word: '我们', translation: 'chúng tôi' },
+            ];
+          }
+          return [];
+        }),
+      });
+      const lookup = new DictionaryWasmLookup(adapter);
+      await lookup.initialize({});
+
+      expect(lookup.translate('我们俩', ['properNouns', 'phrases'])).toMatchObject({
+        word: '我们俩',
+        translation: 'hai chúng ta',
+        dictionary: 'phrases',
+      });
+    });
+
     it('skips dictionaries hasDictionary returns false for', async () => {
       const adapter = makeAdapter({ hasDictionary: vi.fn(() => false) });
       const lookup = new DictionaryWasmLookup(adapter);

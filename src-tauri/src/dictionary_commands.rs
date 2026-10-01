@@ -1041,6 +1041,13 @@ fn has_paired_patterns(proper_noun_id: &str) -> bool {
     proper_noun_id.starts_with("properNouns-f_") || proper_noun_id.starts_with("properNouns-_")
 }
 
+/// The paired structural patterns id of a proper-nouns id (ADR-027 naming-convention
+/// coupling): `properNouns-f_X` → `patterns-f_X`. Mirrors the frontend's `toPatternsId`;
+/// assumes `has_paired_patterns(proper_noun_id)`. Both are held to one fixture (ADR-060).
+fn to_patterns_id(proper_noun_id: &str) -> String {
+    format!("patterns-{}", proper_noun_id.strip_prefix("properNouns-").unwrap_or(""))
+}
+
 /// ADR-027/ADR-048: creates a paired proper-nouns dictionary (fiction `properNouns-f_X` or
 /// generic `properNouns-_X`) together with its structural patterns dictionary (`patterns-f_X`
 /// / `patterns-_X`) atomically — either both files exist afterward, or neither does. Mirrors `rename_proper_nouns_dictionary`'s atomicity: the
@@ -1063,8 +1070,7 @@ pub async fn create_fiction_dictionary_pair(
 
     // Derive the paired patterns ID from the naming convention (ADR-027) — not passed by
     // the caller, so the derivation lives in exactly one place per language runtime.
-    let suffix = proper_noun_id.strip_prefix("properNouns-").unwrap_or("");
-    let patterns_id = format!("patterns-{}", suffix);
+    let patterns_id = to_patterns_id(&proper_noun_id);
     validate_dictionary_id(&patterns_id)?;
 
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
@@ -2040,10 +2046,8 @@ fn rename_proper_nouns_dictionary_impl(
 
     // Cascade to paired patterns dict if this is a fiction or generic proper-nouns dict
     if has_paired_patterns(old_dictionary_id) {
-        let old_suffix = old_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
-        let new_suffix = new_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
-        let old_patterns_id = format!("patterns-{}", old_suffix);
-        let new_patterns_id = format!("patterns-{}", new_suffix);
+        let old_patterns_id = to_patterns_id(old_dictionary_id);
+        let new_patterns_id = to_patterns_id(new_dictionary_id);
         let old_patterns_path = dictionary_path.join(format!("{}.json", old_patterns_id));
         let new_patterns_path = dictionary_path.join(format!("{}.json", new_patterns_id));
         if old_patterns_path.exists() {
@@ -3244,6 +3248,61 @@ mod tests {
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_New"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-f_New"));
         assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-f_New"));
+    }
+
+    // ── Parity with the TS half (ADR-060) ───────────────────────────────────
+    // `src/utils/__tests__/DictionaryIdRules.parity.test.ts` reads the same fixture.
+    fn id_rules_fixture() -> serde_json::Value {
+        serde_json::from_str(include_str!("../../src/test/fixtures/dictionary_id_rules.json"))
+            .expect("dictionary_id_rules.json is valid JSON")
+    }
+
+    #[test]
+    fn test_pairing_rules_match_the_shared_fixture() {
+        let fixture = id_rules_fixture();
+        for row in fixture["ids"].as_array().unwrap() {
+            let id = row["id"].as_str().unwrap();
+            // `has_paired_patterns` is only asked about proper-nouns ids.
+            if row["kind"] != "properNouns" {
+                continue;
+            }
+            assert_eq!(
+                has_paired_patterns(id),
+                row["hasPairedPatterns"].as_bool().unwrap(),
+                "has_paired_patterns({id:?})"
+            );
+            if let Some(patterns_id) = row["patternsId"].as_str() {
+                assert_eq!(to_patterns_id(id), patterns_id, "to_patterns_id({id:?})");
+            }
+        }
+    }
+
+    #[test]
+    fn test_substitute_rewrites_exactly_the_fixtures_dictionary_reference_keys() {
+        let fixture = id_rules_fixture();
+        let old = "properNouns-f_Old";
+        let new = "properNouns-f_New";
+        let mut config = serde_json::Map::new();
+        for (key, rule) in fixture["configKeys"].as_object().unwrap() {
+            let value = match rule["shape"].as_str() {
+                Some("array") => serde_json::json!([old]),
+                _ => serde_json::json!(old),
+            };
+            config.insert(key.clone(), value);
+        }
+        let mut config = serde_json::Value::Object(config);
+
+        substitute_dictionary_reference(&mut config, old, new);
+
+        for (key, rule) in fixture["configKeys"].as_object().unwrap() {
+            let rewritten = rule["role"] == "dictionaryReference";
+            let target = if rewritten { new } else { old };
+            let expected = match rule["shape"].as_str() {
+                Some("array") => serde_json::json!([target]),
+                _ => serde_json::json!(target),
+            };
+            assert_eq!(config[key], expected, "config key {key:?} (rewritten: {rewritten})");
+        }
     }
 
     #[test]

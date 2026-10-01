@@ -221,6 +221,6 @@ Verifying at runtime: `window.checkRealMemory()` for real heap %, and `window.tr
 
 ## Related Guides
 
-- [Architecture Guide](./architecture.md) - System architecture and WASM acceleration
+- [Architecture Guide](./architecture.md) - Execution paths, semantic arrays, token contracts
 - [Development Guide](./development.md) - Development guidelines, logging, testing
 - [Troubleshooting Guide](./troubleshooting.md) - Common issues and solutions

@@ -6,7 +6,7 @@ Start at [`CLAUDE.md`](../CLAUDE.md) for critical constraints, then follow which
 
 | Guide                                           | Covers                                                                                    |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [architecture.md](guides/architecture.md)       | 5-phase pipeline, WASM acceleration, semantic arrays, token contracts                     |
+| [architecture.md](guides/architecture.md)       | execution paths, semantic arrays, token contracts                                         |
 | [development.md](guides/development.md)         | Logging, debugging tools, testing conventions, CI/CD, production build requirements       |
 | [deleted-symbols.md](guides/deleted-symbols.md) | What's already been removed and why — check before recreating anything that looks missing |
 | [gotchas.md](guides/gotchas.md)                 | Confirmed pitfalls: RTK/Edit tooling, JS/TS, types, Rust/WASM, testing, CSS               |

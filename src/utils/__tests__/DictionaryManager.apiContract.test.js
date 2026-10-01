@@ -177,20 +177,13 @@ describe('DictionaryManager (WASM adapter) API Contract', () => {
       expect(result.translation).toBe('đó');
     });
 
-    test('Enhanced translate() must fallback to JS during WASM init', () => {
-      // Simulate WASM not yet initialized
-      const originalFlag = manager.wasmInitialized;
-      manager.wasmInitialized = false;
-      manager.wasmInitPromise = Promise.resolve(true);
-
+    test('translate() must answer synchronously from JS when no WASM is ready', () => {
+      // This manager has no WASM adapter, so `translate()` takes the JS path.
       const result = manager.translate('在', ['test_dict']);
 
       // Should still work synchronously via JS fallback
       expect(result).not.toBeInstanceOf(Promise);
       expect(result.translation).toBe('ở');
-
-      // Restore state
-      manager.wasmInitialized = originalFlag;
     });
   });
 
@@ -316,7 +309,7 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
     expect(setLookupSpy).toHaveBeenCalledWith('不存在', manager.getDefaultSearchOrder(), null);
   });
 
-  test('_translateJSDirect never reads or writes the cache (independence required by validateWasmFallback)', async () => {
+  test('_findInDictionaries never reads or writes the cache (the JS oracle for WASM/JS parity)', async () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({ chars: { 在: 'ở' } });
 
@@ -325,7 +318,7 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
     const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
     const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
 
-    const result = manager._translateJSDirect('在');
+    const result = manager._findInDictionaries('在', manager.getDefaultSearchOrder());
 
     expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
     expect(getLookupSpy).not.toHaveBeenCalled();
@@ -334,11 +327,11 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
     expect(setPhraseSpy).not.toHaveBeenCalled();
   });
 
-  test('_translateJSDirect and translate() agree on a cache-cold lookup', async () => {
+  test('_findInDictionaries and translate() agree on a cache-cold lookup', async () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({ chars: { 在: 'ở' } });
 
-    const direct = manager._translateJSDirect('在');
+    const direct = manager._findInDictionaries('在', manager.getDefaultSearchOrder());
     const viaTranslate = manager.translate('在');
 
     expect(direct).toEqual(viaTranslate);

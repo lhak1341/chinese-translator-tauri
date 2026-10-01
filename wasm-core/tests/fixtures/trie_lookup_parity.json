@@ -1,0 +1,25 @@
+{
+  "_comment": "Shared by wasm-core/tests/trie_lookup_parity_test.rs and src/utils/__tests__/DictionaryLookup.parity.test.js. expected = translation DictionaryManager.translate(word) must return, or null. wasmExpected pins what the raw trie returns where DictionaryWasmLookup.translate must differ: find_matches returns every PREFIX match (tokenization needs that), so translate() accepts only matches[0].word === word (ADR-058; asserted in DictionaryWasmLookup.test.js)",
+  "entries": {
+    "我": "tôi",
+    "我们": "chúng tôi",
+    "你好": "xin chào"
+  },
+  "cases": [
+    { "name": "member, single char", "word": "我", "expected": "tôi" },
+    {
+      "name": "member that is a prefix of another member",
+      "word": "我们",
+      "expected": "chúng tôi"
+    },
+    { "name": "member, two chars", "word": "你好", "expected": "xin chào" },
+    { "name": "miss, no prefix in the dictionary", "word": "他", "expected": null },
+    {
+      "name": "miss, a member is a prefix of the word",
+      "word": "我们俩",
+      "expected": null,
+      "wasmExpected": "chúng tôi"
+    },
+    { "name": "miss, only a longer member shares the first char", "word": "你", "expected": null }
+  ]
+}

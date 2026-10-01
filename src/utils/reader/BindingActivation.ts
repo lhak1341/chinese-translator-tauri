@@ -31,6 +31,28 @@ export function activeProperNounsForBinding(
 }
 
 /**
+ * The `activeProperNouns` list after the Configuration tab toggles `dictionaryId` on or off.
+ *
+ * With a book open the toggle starts from the list that book's binding implies, not the
+ * saved one: a saved list can still carry the previous book's fiction dictionary, and
+ * toggling a generic entry on top of it would write that dictionary back into config. With no
+ * book open (`openBook` null) the saved list is the starting point as it stands.
+ *
+ * Only the list changes. A toggle never touches the quick-add default, which is why this is
+ * not a `bindingConfigChange` edit — that one moves both fields together.
+ */
+export function activeProperNounsAfterToggle(
+  current: readonly string[],
+  dictionaryId: string,
+  openBook: { bound: string | null } | null
+): string[] {
+  const start = openBook ? activeProperNounsForBinding(current, openBook.bound) : [...current];
+  return start.includes(dictionaryId)
+    ? start.filter((id) => id !== dictionaryId)
+    : [...start, dictionaryId];
+}
+
+/**
  * The default quick-add dictionary a binding implies.
  *
  * Binding a fiction dictionary points quick-add at it — that is the setting the reader

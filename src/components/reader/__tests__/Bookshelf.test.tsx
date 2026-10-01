@@ -78,6 +78,15 @@ describe('Bookshelf when the book records could not be read', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
+  test('the list shows "—" for binding, chapters and progress; the card has no chapters row', () => {
+    renderShelf([], { recordsUnavailable: true });
+    expect(screen.getAllByText('—')).toHaveLength(3);
+
+    // A card's footer is a flex column, so a placeholder row would only add a gap.
+    fireEvent.click(screen.getByText('Cards'));
+    expect(screen.getAllByText('—')).toHaveLength(2);
+  });
+
   test('says why, and points at Rescan', () => {
     renderShelf([], { recordsUnavailable: true });
     expect(screen.getByText(/Reading progress couldn't be loaded/)).toBeTruthy();

@@ -330,11 +330,10 @@ export class DictionaryManager {
   }
 
   /**
-   * Pure search-order trie walk — no cache reads/writes, no WASM dispatch. Shared by
-   * translate()'s JS-fallback path (which layers caching on top of the result) and
-   * _translateJSDirect (used by validateWasmFallback, which needs an independent,
-   * cache-free JS computation to actually compare against a fresh WASM call — a cache
-   * hit here would mask a live WASM/JS divergence instead of surfacing it).
+   * Pure search-order trie walk — no cache reads/writes, no WASM dispatch. Used by
+   * translate()'s JS-fallback path (which layers caching on top of the result) and as
+   * the cache-free JS oracle for the WASM/JS lookup parity tests — a cache hit would
+   * mask a live WASM/JS divergence instead of surfacing it.
    * @param {string} word
    * @param {Array<string>} searchOrder - Already-resolved dictionary search order.
    * @returns {Object|null} {word, translation, dictionary, metadata} or null
@@ -572,92 +571,6 @@ export class DictionaryManager {
       result.set(name, meta.priority ?? 999);
     }
     return result;
-  }
-
-  /**
-   * Validate WASM produces results identical to JavaScript for a word sample.
-   * Called from Translator.jsx during force-reload diagnostics.
-   */
-  validateWasmFallback(testWords = null, dictionaryOrder = null) {
-    const validation = {
-      wasmAvailable: this.wasmLookup?.isReady() ?? false,
-      status: 'PENDING',
-      reason: null,
-      results: { tested: 0, passed: 0, failed: 0, wasmErrors: 0, jsErrors: 0 },
-      differences: [],
-      errors: [],
-    };
-
-    if (!validation.wasmAvailable) {
-      validation.status = 'SKIPPED';
-      validation.reason = 'WASM not available or in fallback mode';
-      return validation;
-    }
-
-    const wordsToTest = testWords || this._getSampleTestWords(20);
-    this.log(2, `🧪 Starting WASM fallback validation with ${wordsToTest.length} test words...`);
-
-    for (const word of wordsToTest) {
-      validation.results.tested++;
-      let wasmResult = null;
-      let jsResult = null;
-      try {
-        wasmResult = this.wasmLookup.translate(
-          word,
-          dictionaryOrder || this.getDefaultSearchOrder()
-        );
-      } catch (error) {
-        validation.results.wasmErrors++;
-        validation.errors.push({ word, type: 'wasm', error: error.message });
-        continue;
-      }
-      try {
-        jsResult = this._translateJSDirect(word, dictionaryOrder);
-      } catch (error) {
-        validation.results.jsErrors++;
-        validation.errors.push({ word, type: 'js', error: error.message });
-        continue;
-      }
-      if ((wasmResult?.translation ?? null) === (jsResult?.translation ?? null)) {
-        validation.results.passed++;
-      } else {
-        validation.results.failed++;
-        validation.differences.push({
-          word,
-          wasm: wasmResult?.translation ?? null,
-          js: jsResult?.translation ?? null,
-        });
-      }
-    }
-
-    validation.status =
-      validation.results.failed === 0 && validation.results.wasmErrors === 0 ? 'PASSED' : 'FAILED';
-    return validation;
-  }
-
-  _getSampleTestWords(count) {
-    const words = [];
-    for (const [, trie] of this.dictionaries) {
-      if (words.length >= count) break;
-      const node = trie?.root;
-      if (node?.children?.size > 0) {
-        for (const [char, child] of node.children) {
-          if (child?.isEndOfWord) {
-            words.push(char);
-            break;
-          }
-        }
-      }
-    }
-    return words;
-  }
-
-  /**
-   * The pure/direct JS path used by validateWasmFallback — deliberately bypasses
-   * translate()'s cache and WASM dispatch (see _findInDictionaries's doc comment).
-   */
-  _translateJSDirect(word, dictionaryOrder = null) {
-    return this._findInDictionaries(word, dictionaryOrder || this.getDefaultSearchOrder());
   }
 
   getWasmStatus() {

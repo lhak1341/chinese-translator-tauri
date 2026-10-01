@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { loadAllDictionaries } from '../dictionary/DictionaryBackend';
+import {
+  listFictionPatternDictionaryIds,
+  listProperNounsDictionaryIds,
+  loadAllDictionaries,
+} from '../dictionary/DictionaryBackend';
 
 vi.mock('../logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -142,5 +146,35 @@ describe('loadAllDictionaries', () => {
     const result = await loadAllDictionaries(['a', 'b']);
 
     expect(result.total).toBe(2);
+  });
+});
+
+describe.each([
+  ['listProperNounsDictionaryIds', listProperNounsDictionaryIds, 'listProperNounsDictionaries'],
+  [
+    'listFictionPatternDictionaryIds',
+    listFictionPatternDictionaryIds,
+    'listFictionPatternDictionaries',
+  ],
+] as const)('%s', (_name, list, command) => {
+  it('returns plain id strings as they are', async () => {
+    (window as any).electronAPI[command] = vi
+      .fn()
+      .mockResolvedValue({ success: true, dictionaries: ['a', 'b'] });
+    expect(await list()).toEqual(['a', 'b']);
+  });
+
+  it('reads the id off a DictionaryInfo entry', async () => {
+    (window as any).electronAPI[command] = vi
+      .fn()
+      .mockResolvedValue({ success: true, dictionaries: [{ id: 'a' }, 'b'] });
+    expect(await list()).toEqual(['a', 'b']);
+  });
+
+  it('throws on a failed list rather than reporting an empty one', async () => {
+    (window as any).electronAPI[command] = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: 'disk' });
+    await expect(list()).rejects.toThrow('disk');
   });
 });

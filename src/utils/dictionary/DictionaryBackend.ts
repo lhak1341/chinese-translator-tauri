@@ -4,19 +4,44 @@ import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 
 /**
- * Every proper-nouns dictionary id that exists on disk.
+ * The ids a list command returned, or a throw if it failed.
  *
- * The command returns plain id strings at runtime while `ElectronTypes.d.ts` declares
+ * The commands return plain id strings at runtime while `ElectronTypes.d.ts` declares
  * `DictionaryInfo[]`; absorbing that in one place keeps the `typeof entry === 'string'`
- * shrug from being hand-copied at each call site, which is how the two copies that existed
- * before this got the chance to drift.
+ * shrug from being hand-copied at each call site, which is how the copies that existed
+ * before this got the chance to drift. A failed list throws rather than reading as an empty
+ * one: "the listing failed" says nothing about what exists, and callers that treated it as
+ * "none exist" hid dictionaries or re-created ones that were there.
  */
-export async function listProperNounsDictionaryIds(): Promise<string[]> {
-  const result = await window.electronAPI.listProperNounsDictionaries();
+async function listIds(
+  list: () => Promise<{
+    success: boolean;
+    error?: string;
+    dictionaries?: readonly (string | { id: string })[];
+  }>,
+  failure: string
+): Promise<string[]> {
+  const result = await list();
   if (!result.success || !result.dictionaries) {
-    throw new Error(result.error ?? 'Failed to list proper-nouns dictionaries');
+    throw new Error(result.error ?? failure);
   }
   return result.dictionaries.map((entry) => (typeof entry === 'string' ? entry : entry.id));
+}
+
+/** Every proper-nouns dictionary id that exists on disk. */
+export function listProperNounsDictionaryIds(): Promise<string[]> {
+  return listIds(
+    () => window.electronAPI.listProperNounsDictionaries(),
+    'Failed to list proper-nouns dictionaries'
+  );
+}
+
+/** Every structural-patterns dictionary id (`patterns-f_X`, `patterns-_X`) that exists on disk. */
+export function listFictionPatternDictionaryIds(): Promise<string[]> {
+  return listIds(
+    () => window.electronAPI.listFictionPatternDictionaries(),
+    'Failed to list fiction pattern dictionaries'
+  );
 }
 
 export interface BatchLoadResult {

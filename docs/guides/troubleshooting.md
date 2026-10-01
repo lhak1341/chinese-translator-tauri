@@ -189,6 +189,8 @@ Semantic array had two entries — "而" → "mà" (2 chars) and "白色" → "m
 
 `useEngineReinitializer.js`'s WASM-sync-validation status check (`'PASS'`/`'FAIL_DIFFERENCES'`/`'FAIL_ERRORS'`) never matched what `DictionaryManager.validateWasmFallback()` actually returns (`'PENDING'`/`'SKIPPED'`/`'PASSED'`/`'FAILED'`) — only `'SKIPPED'` ever matched. In production this meant the success log never fired on a passing sync, and — more importantly — **the user-facing toast warning on a real WASM/JS mismatch never fired either**, since neither `'FAILED'` nor any of the checked strings matched. `useEngineReinitializer.test.js` masked this by mocking `validateWasmFallback` to return the wrong strings the consumer expected, not what the real implementation produces — tests were green while the integration was broken. The mismatch-count toast also read `syncStatus.results.different`, a field that has never existed on the real `results` object (`{tested, passed, failed, wasmErrors, jsErrors}`) — would have printed "undefined mismatches". Fixed: `useEngineReinitializer.js` now checks the real status strings and branches on `results.wasmErrors`/`jsErrors` (not a nonexistent `FAIL_ERRORS` status) to distinguish the two failure toasts; `results.failed` (not `.different`) feeds the mismatch count. `WasmValidationResult.status` and `WasmValidationResults` in `DictionaryManagerTypes.d.ts` were documenting this same wrong contract — fixed to match the real implementation.
 
+**Update 2026-10-02:** that fix was never live. The whole block was gated on `dictionaryManager.wasmInitialized`, which only `SemanticPatternProcessor` sets, so the validation still never ran. The test again faked the property. The runtime check was deleted (ADR-058) and parity became a shared-fixture test.
+
 ### Pattern substitution and constructor option, 2026-07-30
 
 Found via architecture review candidate #3 grilling — unskipping a stale `TranslationEngine.integration.test.js` block surfaced both:
@@ -261,6 +263,6 @@ Moved out of root `CLAUDE.md` 2026-08-17 (agent-config-hygiene restructure) — 
 
 ## Related Guides
 
-- [Architecture Guide](./architecture.md) - System architecture and WASM acceleration
+- [Architecture Guide](./architecture.md) - Execution paths, semantic arrays, token contracts
 - [Development Guide](./development.md) - Development guidelines, logging, testing
 - [Performance Guide](./performance.md) - Performance monitoring and optimization

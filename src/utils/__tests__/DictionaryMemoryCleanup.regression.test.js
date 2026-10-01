@@ -376,10 +376,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     it('a second loadDictionaries disposes the tries it replaces', async () => {
       const manager = new DictionaryManager();
 
-      // Disable WASM for simpler testing
-      manager.enableWasm = false;
-      manager.wasmInitialized = false;
-
       // Load initial dictionary
       await manager.loadDictionaries({
         characters: { 的: 'của' },

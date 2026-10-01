@@ -124,6 +124,35 @@ describe('Configuration while a book is open', () => {
   });
 });
 
+describe('toggles made before the first save resolves', () => {
+  // A toggle is computed from the config as it is when its write's turn comes. Computed from
+  // React state instead, the second click starts from the list the first one has not yet
+  // changed, and its save overwrites the first.
+  test('both land when two checkboxes are clicked back to back', async () => {
+    binding.isBookOpen = false;
+    binding.boundFictionDictionary = null;
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      const first = result.current.handleToggleDictionary('properNouns-_AiCap');
+      const second = result.current.handleToggleDictionary('properNouns');
+      await Promise.all([first, second]);
+    });
+
+    expect(disk.disk.raw.activeProperNouns).toEqual([
+      'properNouns-f_TruTien',
+      'properNouns-_AiCap',
+    ]);
+    await waitFor(() =>
+      expect(result.current.activeDictionaries).toEqual([
+        'properNouns-f_TruTien',
+        'properNouns-_AiCap',
+      ])
+    );
+  });
+});
+
 describe('Configuration with no book open', () => {
   test('fiction rows go back to being editable', async () => {
     binding.isBookOpen = false;
