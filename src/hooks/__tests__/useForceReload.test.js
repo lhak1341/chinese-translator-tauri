@@ -37,7 +37,7 @@ function makeCtx(overrides = {}) {
     setReloadError: vi.fn(),
     setReloading: vi.fn(),
     clearHighlighting: vi.fn(),
-    reinitializeEngine: vi.fn().mockResolvedValue(true),
+    reinitializeEngine: vi.fn().mockResolvedValue({ ok: true }),
     retranslate: vi.fn().mockResolvedValue(undefined),
     saveScrollPositions: vi.fn().mockReturnValue({ top: 0 }),
     restoreScrollPositions: vi.fn().mockResolvedValue(undefined),
@@ -92,7 +92,7 @@ describe('CRITICAL-3: cancelTranslations resolves before destroyEngine fires', (
       destroyEngine: vi.fn(() => {
         sequence.push('destroy');
       }),
-      reinitializeEngine: vi.fn().mockResolvedValue(false), // stop early so test stays fast
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }), // stop early so test stays fast
     });
 
     const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
@@ -121,7 +121,7 @@ describe('CRITICAL-3: cancelTranslations resolves before destroyEngine fires', (
       destroyEngine: vi.fn(() => {
         callOrder.push('destroy');
       }),
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();
@@ -152,7 +152,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
       setReloading: vi.fn((b) => {
         if (!b) sequence.push('setReloading-false');
       }),
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();
@@ -176,7 +176,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
       setReloading: vi.fn((b) => {
         sequence.push(b ? 'setReloading-true' : 'setReloading-false');
       }),
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();
@@ -195,7 +195,7 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
 
   test('finally (setReloading-false) fires even when reinitializeEngine returns false', async () => {
     const ctx = makeCtx({
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();
@@ -235,9 +235,9 @@ describe('CRITICAL-1: setReloading(false) fires after restoreScrollPositions', (
 // ── reinitializeEngine returns false ─────────────────────────────────────────
 
 describe('useForceReload — engine init failure', () => {
-  test('setReloadError called when reinitializeEngine returns false', async () => {
+  test('setReloadError carries the engine failure message', async () => {
     const ctx = makeCtx({
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();
@@ -250,14 +250,12 @@ describe('useForceReload — engine init failure', () => {
     });
     await done;
 
-    expect(ctx.setReloadError).toHaveBeenCalledWith(
-      expect.stringContaining('reinitializing engine')
-    );
+    expect(ctx.setReloadError).toHaveBeenCalledWith(expect.stringContaining('init boom'));
   });
 
   test('retranslate NOT called when engine init fails', async () => {
     const ctx = makeCtx({
-      reinitializeEngine: vi.fn().mockResolvedValue(false),
+      reinitializeEngine: vi.fn().mockResolvedValue({ ok: false, error: 'init boom' }),
     });
 
     vi.useFakeTimers();

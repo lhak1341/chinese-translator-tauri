@@ -8,6 +8,9 @@ import type { TranslationEngine } from '../types/TranslationEngineTypes';
  * every TypeScript consumer would otherwise destructure `never`. Keep this in step with
  * the provider's `value` object by hand — `checkJs` is off, so nothing checks it for you.
  */
+/** What an engine init resolves to; it never rejects. */
+export type EngineInitOutcome = { ok: true } | { ok: false; error: string };
+
 export interface EngineContextValue {
   enginePhase: 'loading' | 'ready' | 'error';
   engineRef: React.MutableRefObject<TranslationEngine | null>;
@@ -15,15 +18,20 @@ export interface EngineContextValue {
   engineVersion: number;
   initError: string | null;
   activeProperNounsFromConfig: string[] | null;
-  reinitialize: (
+  /**
+   * Builds a new engine from raw dictionaries. Calls serialize: one that arrives mid-init
+   * waits, and waiting calls collapse into one run with the latest arguments.
+   */
+  reinitializeEngine: (
     rawDictionaries: Record<string, unknown>,
     options?: {
       forceConfigReload?: boolean;
       priorities?: Record<string, number>;
       debugLevel?: number;
     }
-  ) => Promise<void>;
-  reinitializeEngine: (...args: unknown[]) => unknown;
+  ) => Promise<EngineInitOutcome>;
+  /** Frees the idle engine early; does nothing while an init runs (that init's engine is half-built). */
+  destroyEngine: () => void;
 }
 
 export declare function EngineProvider(props: { children: React.ReactNode }): React.JSX.Element;

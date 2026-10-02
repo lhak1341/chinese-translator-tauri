@@ -46,7 +46,7 @@ let h: StoresHarness;
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  engine.reinitializeEngine.mockResolvedValue(true);
+  engine.reinitializeEngine.mockResolvedValue({ ok: true });
   renameBoundDictionary.mockResolvedValue(undefined);
   // Deliberately stale and wrong for an open book: the previous book's fiction dictionary is
   // still in the saved list. What the reader sees must come from the binding, not from this.

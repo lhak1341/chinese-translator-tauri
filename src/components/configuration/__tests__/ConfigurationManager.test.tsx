@@ -22,7 +22,7 @@ vi.mock('../../../utils/reader/BookRecordsBackend', () => ({
   unbindDictionary: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../../EngineContext', () => ({
-  useEngine: () => ({ reinitializeEngine: vi.fn().mockResolvedValue(true) }),
+  useEngine: () => ({ reinitializeEngine: vi.fn().mockResolvedValue({ ok: true }) }),
 }));
 
 const holder = vi.hoisted(() => ({ useDictionary: (() => ({})) as () => unknown }));

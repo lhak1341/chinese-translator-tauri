@@ -147,10 +147,12 @@ export function BookBindingProvider({
       // The store's map, read at call time: a pair just loaded or renamed is in it before
       // React re-renders.
       rebuildEngine: async () => {
-        await latest.current.reinitializeEngine(latest.current.getDictionaries(), {
+        const outcome = await latest.current.reinitializeEngine(latest.current.getDictionaries(), {
           forceConfigReload: true,
           debugLevel: DEBUG_LEVELS.ERROR,
         });
+        // The store reports a failed rebuild through a rejection (applyError, tier-move failures).
+        if (!outcome.ok) throw new Error(outcome.error);
       },
     });
   });

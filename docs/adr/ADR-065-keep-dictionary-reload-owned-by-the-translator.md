@@ -26,3 +26,5 @@ Keep reload as one action owned by the Translator, reached from the Reader throu
 ## Consequence
 
 A future review that sees the registry or the `retranslateInput` flag should not re-propose engine-owned reload from that alone. Revisit if a third tab needs to trigger a reload, or if the Reader needs a reload step the Translator's cannot run.
+
+**Addendum 2026-10-02:** `destroyEngine` moved from `useReloadExecutionContexts` into `useTranslatorEngine`, beside the init lock it must respect (a destroy that lands mid-init disposes a half-built engine). This is the engine primitive only. The reload protocol (cancel, destroy, load, reinit, scroll, retranslate) and the `DictionaryReloadRegistry` stay with the Translator, so the decision above stands.

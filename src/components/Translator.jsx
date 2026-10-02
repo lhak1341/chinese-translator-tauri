@@ -177,6 +177,7 @@ const Translator = ({ isActive }) => {
     engineRef,
     initError: initializationError,
     reinitializeEngine,
+    destroyEngine,
   } = useEngine();
   const [activeTranslations, setActiveTranslations] = useState(0);
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
@@ -810,7 +811,7 @@ const Translator = ({ isActive }) => {
   });
 
   const forceReloadCtx = useForceReloadContext({
-    engineRef,
+    destroyEngine,
     cancelAllTranslations,
     isTranslatingRef,
     setIsTranslating,

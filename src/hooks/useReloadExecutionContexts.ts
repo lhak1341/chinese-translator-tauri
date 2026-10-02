@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 import { logger } from '../utils/logger.js';
+import type { EngineInitOutcome } from '../components/EngineContext';
 
 /**
  * Dev-only input-shape guard. Neither `Translator.jsx`'s call site nor
@@ -49,14 +50,14 @@ export interface ForceReloadContext {
   reinitializeEngine: (
     dicts: Record<string, unknown>,
     opts: { forceConfigReload: boolean; debugLevel: string }
-  ) => Promise<boolean>;
+  ) => Promise<EngineInitOutcome>;
   retranslate: (inputText: string) => Promise<void>;
   saveScrollPositions: () => unknown;
   restoreScrollPositions: (saved: unknown) => Promise<void>;
 }
 
 export interface UseForceReloadContextParams {
-  engineRef: MutableRefObject<any>;
+  destroyEngine: () => void;
   cancelAllTranslations: () => { count: number; cleanupComplete: Promise<void> };
   isTranslatingRef: MutableRefObject<boolean>;
   setIsTranslating: (v: boolean) => void;
@@ -72,7 +73,7 @@ export interface UseForceReloadContextParams {
 }
 
 const FORCE_RELOAD_EXPECTED_KEYS = [
-  'engineRef',
+  'destroyEngine',
   'cancelAllTranslations',
   'isTranslatingRef',
   'setIsTranslating',
@@ -94,11 +95,10 @@ const assertForceReloadParamsShape = createShapeGuard<UseForceReloadContextParam
 
 /**
  * Assembles the typed ForceReloadContext consumed by useForceReload. Builds
- * cancelTranslations/destroyEngine internally — the only 2 fields that were
- * previously hand-written inline closures directly in Translator.jsx — and
- * wraps the already-composed pieces (reinitializeEngine from
- * useEngineReinitializer, retranslate from useReloadRetranslate, and the
- * plain setters) into the exact shape useForceReload expects.
+ * cancelTranslations internally — the one field that was previously a
+ * hand-written inline closure directly in Translator.jsx — and
+ * wraps the already-composed pieces (reinitializeEngine and destroyEngine from useEngine(),
+ * retranslate from useReloadRetranslate, and the plain setters) into the exact shape useForceReload expects.
  *
  * Replaces Translator.jsx's inline `forceReloadCtx` object literal.
  * Entry point: architecture review 2026-07-29, candidate #3.
@@ -107,7 +107,7 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
   assertForceReloadParamsShape(params);
 
   const {
-    engineRef,
+    destroyEngine,
     cancelAllTranslations,
     isTranslatingRef,
     setIsTranslating,
@@ -133,18 +133,6 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
     setIsTranslating(false);
     setProgressInfo(null);
   }, [cancelAllTranslations, isTranslatingRef, setIsTranslating, setProgressInfo]);
-
-  const destroyEngine = useCallback(() => {
-    if (engineRef.current) {
-      try {
-        engineRef.current.destroy();
-        engineRef.current = null;
-        logger.log('✅ Engine destroyed and cleared successfully');
-      } catch (engineError) {
-        logger.error('❌ Error clearing engine:', engineError);
-      }
-    }
-  }, [engineRef]);
 
   return {
     cancelTranslations,

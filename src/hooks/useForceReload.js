@@ -102,14 +102,14 @@ export function useForceReload(
           '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
         );
         if (!isLoading) {
-          const engineReady = await ctx.reinitializeEngine(freshDictionaries, {
+          const outcome = await ctx.reinitializeEngine(freshDictionaries, {
             forceConfigReload: true,
             debugLevel: DEBUG_LEVELS.ERROR,
           });
 
-          if (!engineReady) {
+          if (!outcome.ok) {
             ctx.setReloadError(
-              '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
+              `❌ Reload Dictionary failed!\n\nError reinitializing engine: ${outcome.error}`
             );
             toast.error('Failed to reinitialize engine. Try reloading the app.');
             return;

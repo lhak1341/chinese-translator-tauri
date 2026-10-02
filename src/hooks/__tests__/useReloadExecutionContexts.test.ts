@@ -1,7 +1,7 @@
 /**
  * Tests for useForceReloadContext — extracted from Translator.jsx's inline
  * forceReloadCtx object literal (architecture review 2026-07-29, candidate
- * #3). Covers the 2 relocated closures (cancelTranslations, destroyEngine)
+ * #3). Covers the relocated cancelTranslations closure
  * and the dev-only input-shape guard.
  *
  * useTranslationExecutionContext used to live here too (assembly-only,
@@ -20,7 +20,7 @@ vi.mock('../../utils/logger', () => ({
 
 function baseForceReloadParams(overrides = {}) {
   return {
-    engineRef: { current: { destroy: vi.fn() } },
+    destroyEngine: vi.fn(),
     cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete: Promise.resolve() })),
     isTranslatingRef: { current: false },
     setIsTranslating: vi.fn(),
@@ -29,7 +29,7 @@ function baseForceReloadParams(overrides = {}) {
     setTranslationError: vi.fn(),
     setDictionaryReloading: vi.fn(),
     clearHighlighting: vi.fn(),
-    reinitializeEngine: vi.fn(async () => true),
+    reinitializeEngine: vi.fn(async () => ({ ok: true })),
     retranslate: vi.fn(async () => {}),
     saveScrollPositions: vi.fn(() => ({ top: 0 })),
     restoreScrollPositions: vi.fn(async () => {}),
@@ -114,39 +114,6 @@ describe('useForceReloadContext', () => {
     });
   });
 
-  describe('destroyEngine', () => {
-    test('calls destroy() then nulls engineRef.current', () => {
-      const destroy = vi.fn();
-      const params = baseForceReloadParams({ engineRef: { current: { destroy } } });
-      const { result } = renderHook(() => useForceReloadContext(params));
-
-      result.current.destroyEngine();
-
-      expect(destroy).toHaveBeenCalledTimes(1);
-      expect(params.engineRef.current).toBeNull();
-    });
-
-    test('is a no-op when engineRef.current is already null', () => {
-      const params = baseForceReloadParams({ engineRef: { current: null } });
-      const { result } = renderHook(() => useForceReloadContext(params));
-
-      expect(() => result.current.destroyEngine()).not.toThrow();
-    });
-
-    test('when destroy() throws: catches it (does not rethrow) and leaves engineRef.current untouched', () => {
-      const destroy = vi.fn(() => {
-        throw new Error('boom');
-      });
-      const engineInstance = { destroy };
-      const params = baseForceReloadParams({ engineRef: { current: engineInstance } });
-      const { result } = renderHook(() => useForceReloadContext(params));
-
-      expect(() => result.current.destroyEngine()).not.toThrow();
-      // The null-assignment never runs — it's after destroy() in the try block.
-      expect(params.engineRef.current).toBe(engineInstance);
-    });
-  });
-
   describe('dev-only input-shape guard', () => {
     const originalEnv = process.env.NODE_ENV;
 
@@ -158,9 +125,9 @@ describe('useForceReloadContext', () => {
       process.env.NODE_ENV = originalEnv;
     });
 
-    test('throws when engineRef is not ref-shaped', () => {
-      const params = baseForceReloadParams({ engineRef: null });
-      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/engineRef/);
+    test('throws when isTranslatingRef is not ref-shaped', () => {
+      const params = baseForceReloadParams({ isTranslatingRef: null });
+      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/isTranslatingRef/);
     });
 
     test('throws when a required function param is missing', () => {
@@ -170,7 +137,7 @@ describe('useForceReloadContext', () => {
 
     test('does not throw in production even with a wrong-shaped param', () => {
       process.env.NODE_ENV = 'production';
-      const params = baseForceReloadParams({ engineRef: null });
+      const params = baseForceReloadParams({ isTranslatingRef: null });
       expect(() => renderHook(() => useForceReloadContext(params))).not.toThrow();
     });
   });

@@ -1,6 +1,5 @@
 import { createContext, useContext, useMemo } from 'react';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
-import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import ErrorBoundary from './ErrorBoundary';
 
 /**
@@ -16,7 +15,7 @@ import ErrorBoundary from './ErrorBoundary';
  * Wraps children in ErrorBoundary, and names what that boundary's fallback means: it
  * sits above every tab, so any tab failing to render takes all of them down. It never
  * sees an engine-initialization failure — this component's own hooks run outside its
- * boundary, and `reinitialize` reports failures through `initError` rather than
+ * boundary, and `reinitializeEngine` reports failures through `initError` rather than
  * throwing — so each tab shows that itself (the Translator's error panel,
  * `ReaderEngineErrorBanner`).
  */
@@ -34,8 +33,8 @@ export function EngineProvider({ children }) {
     initError,
     activeProperNounsFromConfig,
     reinitialize,
+    destroyEngine,
   } = useTranslatorEngine();
-  const reinitializeEngine = useEngineReinitializer(reinitialize, engineRef);
 
   const value = useMemo(
     () => ({
@@ -44,8 +43,8 @@ export function EngineProvider({ children }) {
       engineVersion,
       initError,
       activeProperNounsFromConfig,
-      reinitialize,
-      reinitializeEngine,
+      reinitializeEngine: reinitialize,
+      destroyEngine,
     }),
     [
       enginePhase,
@@ -54,7 +53,7 @@ export function EngineProvider({ children }) {
       initError,
       activeProperNounsFromConfig,
       reinitialize,
-      reinitializeEngine,
+      destroyEngine,
     ]
   );
 

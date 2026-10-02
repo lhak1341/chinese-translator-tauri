@@ -60,7 +60,7 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  engine.reinitializeEngine = vi.fn().mockResolvedValue(true);
+  engine.reinitializeEngine = vi.fn().mockResolvedValue({ ok: true });
   dictionaryContext.getDictionaries.mockImplementation(() => dictionaries);
   dictionaryContext.dictionaryTypes = {};
   setBookBinding.mockResolvedValue(undefined);
@@ -150,7 +150,7 @@ describe('the engine the store rebuilds', () => {
   test('is the one the latest render handed over, not the first', async () => {
     const first = engine.reinitializeEngine;
     const { result, rerender } = setup();
-    engine.reinitializeEngine = vi.fn().mockResolvedValue(true);
+    engine.reinitializeEngine = vi.fn().mockResolvedValue({ ok: true });
     rerender();
 
     await act(async () => {
@@ -165,6 +165,19 @@ describe('the engine the store rebuilds', () => {
       forceConfigReload: true,
       debugLevel: 0,
     });
+  });
+});
+
+describe('a rebuild the engine reports as failed', () => {
+  test("reaches applyError, through the store's own failure path", async () => {
+    engine.reinitializeEngine = vi.fn().mockResolvedValue({ ok: false, error: 'WASM exploded' });
+    const { result } = setup();
+
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+
+    await waitFor(() => expect(result.current.applyError).toBe('WASM exploded'));
   });
 });
 

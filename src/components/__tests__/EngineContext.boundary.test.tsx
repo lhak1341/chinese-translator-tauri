@@ -16,14 +16,10 @@ const engineHookResult = vi.hoisted(() => ({
   engineVersion: 1,
   initError: null,
   activeProperNounsFromConfig: [],
-  reinitialize: () => Promise.resolve(),
+  reinitialize: () => Promise.resolve({ ok: true }),
 }));
 vi.mock('../../hooks/useTranslatorEngine', () => ({
   useTranslatorEngine: () => engineHookResult,
-}));
-const reinitializeEngine = vi.hoisted(() => () => Promise.resolve());
-vi.mock('../../hooks/useEngineReinitializer', () => ({
-  useEngineReinitializer: () => reinitializeEngine,
 }));
 
 const BrokenTab: React.FC = () => {
