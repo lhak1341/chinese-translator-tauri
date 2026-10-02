@@ -1,12 +1,10 @@
 /**
  * Tests for TranslationCache
  *
- * Covers the critical paths that were previously untested:
- * - Cache invalidation via dictionaryIndex (O(1) path)
+ * The lookup memo's interface, crossed directly:
  * - Multi-dictionary key generation and fast-path caching
- * - Separate character / phrase / pattern / lookup cache namespacing
- * - dispose() idempotency
- * - setEnabled() clearing behaviour
+ * - Invalidation through the per-dictionary key index
+ * - clear(), setEnabled(), dispose() idempotency
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
@@ -19,53 +17,6 @@ import { TranslationCache } from '../dictionary/TranslationCache.js';
 function makeCache(opts = {}) {
   return new TranslationCache(opts);
 }
-
-// ---------------------------------------------------------------------------
-// Basic get / set
-// ---------------------------------------------------------------------------
-
-describe('TranslationCache — basic get/set', () => {
-  let cache;
-  beforeEach(() => {
-    cache = makeCache();
-  });
-
-  test('getCharacter returns undefined on miss', () => {
-    expect(cache.getCharacter('你', 'characters')).toBeUndefined();
-  });
-
-  test('setCharacter / getCharacter round-trip', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    expect(cache.getCharacter('你', 'characters')).toBe('bạn');
-  });
-
-  test('different dictionary names are separate namespaces', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setCharacter('你', 'properNouns-Test', 'Bạn');
-    expect(cache.getCharacter('你', 'characters')).toBe('bạn');
-    expect(cache.getCharacter('你', 'properNouns-Test')).toBe('Bạn');
-  });
-
-  test('setPhrase / getPhrase round-trip', () => {
-    cache.setPhrase('不知道', 'phrases', 'không biết');
-    expect(cache.getPhrase('不知道', 'phrases')).toBe('không biết');
-  });
-
-  test('character cache and phrase cache are separate', () => {
-    cache.setCharacter('好', 'characters', 'tốt');
-    expect(cache.getPhrase('好', 'characters')).toBeUndefined();
-  });
-
-  test('setPattern / getPattern round-trip', () => {
-    cache.setPattern('在X中', '在公园中', { matched: true });
-    expect(cache.getPattern('在X中', '在公园中')).toEqual({ matched: true });
-  });
-
-  test('pattern cache is separate from character cache', () => {
-    cache.setCharacter('在', 'characters', 'ở');
-    expect(cache.getPattern('在', 'characters')).toBeUndefined();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Multi-dictionary lookup cache
@@ -123,32 +74,6 @@ describe('TranslationCache — invalidateDictionary', () => {
     cache = makeCache();
   });
 
-  test('invalidateDictionary removes character entries for that dictionary', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setCharacter('好', 'characters', 'tốt');
-
-    cache.invalidateDictionary('characters');
-
-    expect(cache.getCharacter('你', 'characters')).toBeUndefined();
-    expect(cache.getCharacter('好', 'characters')).toBeUndefined();
-  });
-
-  test('invalidateDictionary does not affect other dictionaries', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setCharacter('你', 'properNouns-Test', 'Bạn');
-
-    cache.invalidateDictionary('characters');
-
-    // properNouns-Test entry should survive
-    expect(cache.getCharacter('你', 'properNouns-Test')).toBe('Bạn');
-  });
-
-  test('invalidateDictionary removes phrase entries', () => {
-    cache.setPhrase('不知道', 'phrases', 'không biết');
-    cache.invalidateDictionary('phrases');
-    expect(cache.getPhrase('不知道', 'phrases')).toBeUndefined();
-  });
-
   test('invalidateDictionary removes lookup entries containing that dictionary', () => {
     cache.setLookup('好', ['characters', 'phrases'], 'result');
     cache.invalidateDictionary('characters');
@@ -175,21 +100,28 @@ describe('TranslationCache — invalidateDictionary', () => {
     expect(() => cache.invalidateDictionary('nonexistent')).not.toThrow();
   });
 
-  test('new entries can be added after invalidation', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
+  test('lookups under another dictionary survive invalidation', () => {
+    cache.setLookup('你', ['characters'], 'bạn');
+    cache.setLookup('你', ['properNouns-Test'], 'Bạn');
+
     cache.invalidateDictionary('characters');
 
-    // Re-add after invalidation
-    cache.setCharacter('你', 'characters', 'bạn-v2');
-    expect(cache.getCharacter('你', 'characters')).toBe('bạn-v2');
+    expect(cache.getLookup('你', ['properNouns-Test'])).toBe('Bạn');
+  });
+
+  test('new entries can be added after invalidation', () => {
+    cache.setLookup('你', ['characters'], 'bạn');
+    cache.invalidateDictionary('characters');
+
+    cache.setLookup('你', ['characters'], 'bạn-v2');
+    expect(cache.getLookup('你', ['characters'])).toBe('bạn-v2');
   });
 
   test('dictionaryIndex is cleared after invalidation', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
+    cache.setLookup('你', ['characters'], 'bạn');
     cache.invalidateDictionary('characters');
 
-    // The index for 'characters' should now be gone
-    expect(cache.dictionaryIndex.character.has('characters')).toBe(false);
+    expect(cache.dictionaryIndex.has('characters')).toBe(false);
   });
 });
 
@@ -204,36 +136,28 @@ describe('TranslationCache — clear', () => {
   });
 
   test('clear removes all cached entries', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setPhrase('不知道', 'phrases', 'không biết');
-    cache.setPattern('在X中', 'text', 'result');
     cache.setLookup('好', ['characters'], 'tốt');
+    cache.setLookup('他', ['phrases'], 'anh ấy');
 
     cache.clear();
 
-    expect(cache.getCharacter('你', 'characters')).toBeUndefined();
-    expect(cache.getPhrase('不知道', 'phrases')).toBeUndefined();
-    expect(cache.getPattern('在X中', 'text')).toBeUndefined();
     expect(cache.getLookup('好', ['characters'])).toBeUndefined();
+    expect(cache.getLookup('他', ['phrases'])).toBeUndefined();
   });
 
-  test('clear resets all dictionaryIndex maps', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setPhrase('好', 'phrases', 'tốt');
+  test('clear empties the dictionary index', () => {
     cache.setLookup('他', ['characters'], 'anh ấy');
 
     cache.clear();
 
-    expect(cache.dictionaryIndex.character.size).toBe(0);
-    expect(cache.dictionaryIndex.phrase.size).toBe(0);
-    expect(cache.dictionaryIndex.lookup.size).toBe(0);
+    expect(cache.dictionaryIndex.size).toBe(0);
   });
 
   test('cache is usable after clear', () => {
-    cache.setCharacter('你', 'characters', 'old');
+    cache.setLookup('你', ['characters'], 'old');
     cache.clear();
-    cache.setCharacter('你', 'characters', 'new');
-    expect(cache.getCharacter('你', 'characters')).toBe('new');
+    cache.setLookup('你', ['characters'], 'new');
+    expect(cache.getLookup('你', ['characters'])).toBe('new');
   });
 });
 
@@ -249,27 +173,27 @@ describe('TranslationCache — setEnabled', () => {
 
   test('disabling cache prevents new entries from being stored', () => {
     cache.setEnabled(false);
-    cache.setCharacter('你', 'characters', 'bạn');
-    expect(cache.getCharacter('你', 'characters')).toBeUndefined();
+    cache.setLookup('你', ['characters'], 'bạn');
+    expect(cache.getLookup('你', ['characters'])).toBeUndefined();
   });
 
   test('disabling cache clears existing entries', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
+    cache.setLookup('你', ['characters'], 'bạn');
     cache.setEnabled(false);
-    expect(cache.getCharacter('你', 'characters')).toBeUndefined();
+    expect(cache.getLookup('你', ['characters'])).toBeUndefined();
   });
 
   test('re-enabling cache allows new entries', () => {
     cache.setEnabled(false);
     cache.setEnabled(true);
-    cache.setCharacter('你', 'characters', 'bạn');
-    expect(cache.getCharacter('你', 'characters')).toBe('bạn');
+    cache.setLookup('你', ['characters'], 'bạn');
+    expect(cache.getLookup('你', ['characters'])).toBe('bạn');
   });
 
-  test('disabled=false constructor option disables cache', () => {
+  test('enabled: false constructor option disables cache', () => {
     const disabledCache = makeCache({ enabled: false });
-    disabledCache.setCharacter('你', 'characters', 'bạn');
-    expect(disabledCache.getCharacter('你', 'characters')).toBeUndefined();
+    disabledCache.setLookup('你', ['characters'], 'bạn');
+    expect(disabledCache.getLookup('你', ['characters'])).toBeUndefined();
   });
 });
 
@@ -283,13 +207,11 @@ describe('TranslationCache — dispose', () => {
     cache = makeCache();
   });
 
-  test('dispose nullifies cache references', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
+  test('dispose nullifies the cache and its index', () => {
+    cache.setLookup('你', ['characters'], 'bạn');
     cache.dispose();
-    expect(cache.characterCache).toBeNull();
-    expect(cache.phraseCache).toBeNull();
-    expect(cache.patternCache).toBeNull();
     expect(cache.lookupCache).toBeNull();
+    expect(cache.dictionaryIndex).toBeNull();
   });
 
   test('dispose sets isEnabled to false', () => {
@@ -303,76 +225,8 @@ describe('TranslationCache — dispose', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getStats()
-// ---------------------------------------------------------------------------
-
-describe('TranslationCache — getStats', () => {
-  let cache;
-  beforeEach(() => {
-    cache = makeCache();
-  });
-
-  test('getStats returns enabled status', () => {
-    expect(cache.getStats().enabled).toBe(true);
-  });
-
-  test('getStats overall hit rate starts at 0', () => {
-    const stats = cache.getStats();
-    expect(stats.overall.totalQueries).toBe(0);
-    expect(stats.overall.totalHits).toBe(0);
-  });
-
-  test('getStats reflects hits after cache population', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.getCharacter('你', 'characters'); // hit
-    cache.getCharacter('好', 'characters'); // miss
-
-    const stats = cache.getStats();
-    expect(stats.overall.totalQueries).toBeGreaterThanOrEqual(2);
-    expect(stats.overall.totalHits).toBeGreaterThanOrEqual(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getMemoryUsage()
-// ---------------------------------------------------------------------------
-
-describe('TranslationCache — getMemoryUsage', () => {
-  let cache;
-  beforeEach(() => {
-    cache = makeCache();
-  });
-
-  test('getMemoryUsage starts at zero total entries', () => {
-    expect(cache.getMemoryUsage().totalEntries).toBe(0);
-  });
-
-  test('getMemoryUsage increments as entries are added', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.setPhrase('不知道', 'phrases', 'không biết');
-    expect(cache.getMemoryUsage().totalEntries).toBe(2);
-  });
-
-  test('getMemoryUsage drops to zero after clear', () => {
-    cache.setCharacter('你', 'characters', 'bạn');
-    cache.clear();
-    expect(cache.getMemoryUsage().totalEntries).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Custom cache sizes
-// ---------------------------------------------------------------------------
-
-describe('TranslationCache — custom sizes', () => {
-  test('respects custom characterCacheSize', () => {
-    const c = makeCache({ characterCacheSize: 10 });
-    expect(c.characterCacheSize).toBe(10);
-  });
-
-  test('respects custom phraseCacheSize', () => {
-    const c = makeCache({ phraseCacheSize: 20 });
-    expect(c.phraseCacheSize).toBe(20);
+describe('TranslationCache — custom size', () => {
+  test('respects custom lookupCacheSize', () => {
+    expect(makeCache({ lookupCacheSize: 10 }).lookupCacheSize).toBe(10);
   });
 });

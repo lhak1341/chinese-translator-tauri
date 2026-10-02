@@ -37,13 +37,6 @@ export const resetSortingStats = (): void => dictionarySorter.resetStats();
 // --- Caching ---
 export { TranslationCache } from './TranslationCache';
 
-// --- Vocabulary warmup ---
-export {
-  extractHighFrequencyVocabulary,
-  generateCharacterCombinations,
-  warmNovelSpecificVocabulary,
-} from './VocabularyWarmup';
-
 // --- Duplicate detection ---
 export type { DuplicateRow } from './DuplicateAnalyzer';
 export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';

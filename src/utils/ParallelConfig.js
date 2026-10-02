@@ -25,7 +25,6 @@ class ParallelConfig {
         parallelThreshold: 2, // Minimum dictionaries for parallel processing
         lookupTimeout: 3000, // Timeout for individual dictionary lookups
         retryAttempts: 1, // Number of retry attempts on failure
-        cachePrewarm: true, // Pre-warm dictionary caches
       },
 
       // Device-specific Configuration

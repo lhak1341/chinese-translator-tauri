@@ -298,6 +298,8 @@
   "296": "Keyboard Shortcuts",
   "297": "Documentation Index",
   "298": "WasmBufferAllocator",
+  "299": "ADR-029: Fiction Structural Pattern Entries Use 'pattern' Source String, Not Dictionary Name",
+  "300": "ADR-066: Skip an Active-Dictionary Snapshot Module",
   "304": "Integration Roadmap (8 Integration Points)",
   "305": "Integration Sequence (Recommended Order)",
   "306": "🚀 Next Steps",

@@ -166,22 +166,15 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       const cache = new TranslationCache();
 
       // Add entries to all caches
-      cache.setCharacter('的', 'characters', { translation: 'của' });
-      cache.setPhrase('你好', 'phrases', { translation: 'xin chào' });
-      cache.setPattern('X和Y', '的和我', { match: true });
       cache.setLookup('测试', ['characters'], { translation: 'test' });
 
       // Verify caches have data
-      expect(cache.getCharacter('的', 'characters')).toBeDefined();
-      expect(cache.getPhrase('你好', 'phrases')).toBeDefined();
+      expect(cache.getLookup('测试', ['characters'])).toBeDefined();
 
       // Dispose
       cache.dispose();
 
       // Verify caches are cleared
-      expect(cache.characterCache).toBeNull();
-      expect(cache.phraseCache).toBeNull();
-      expect(cache.patternCache).toBeNull();
       expect(cache.lookupCache).toBeNull();
     });
 
@@ -197,8 +190,8 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     it('should nullify dictionary indexes', () => {
       const cache = new TranslationCache();
 
-      cache.setCharacter('的', 'characters', { translation: 'của' });
-      expect(cache.dictionaryIndex.character.size).toBeGreaterThan(0);
+      cache.setLookup('的', ['characters'], { translation: 'của' });
+      expect(cache.dictionaryIndex.size).toBeGreaterThan(0);
 
       cache.dispose();
 
@@ -483,11 +476,11 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       });
 
       // Add cache entries
-      manager.cache.setCharacter('的', 'characters', { translation: 'của' });
+      manager.cache.setLookup('的', ['characters'], { translation: 'của' });
 
       // Verify resources exist
       expect(manager.dictionaries.size).toBe(2);
-      expect(manager.cache.characterCache).toBeDefined();
+      expect(manager.cache.lookupCache).toBeDefined();
       expect(manager.ready).toBe(true);
 
       // Dispose everything

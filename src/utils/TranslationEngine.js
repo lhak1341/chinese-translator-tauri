@@ -315,9 +315,6 @@ export class TranslationEngine {
     this.dictionaryManager = new DictionaryManager({
       // Enable caching with optimized cache sizes
       cacheEnabled: true,
-      characterCacheSize: 500,
-      phraseCacheSize: 1000,
-      patternCacheSize: 200,
       lookupCacheSize: 800,
 
       // Phase-level parallelization
@@ -852,7 +849,6 @@ export class TranslationEngine {
       this.log(DEBUG_LEVELS.DEBUG, '🔧 Active proper noun dictionaries:', this.activeProperNouns);
 
       // Load dictionaries into trie structures
-      const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
       // CRITICAL FIX: Deep copy options to prevent mutation leakage
       await this.dictionaryManager.loadDictionaries(dictionaries, {
         ...options,
@@ -860,7 +856,6 @@ export class TranslationEngine {
         lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
         segments: options.segments ? [...options.segments] : undefined,
         activeProperNouns: this.activeProperNouns,
-        preWarmCache: dictionaryConfig.cachePrewarm,
       });
 
       // Cache proper noun translations for capitalization preservation
@@ -910,21 +905,6 @@ export class TranslationEngine {
       // ERROR HANDLING FIX: Clear any previous initialization errors
       this.initializationError = null;
       const initTime = performance.now() - startTime;
-
-      // Pre-warm translation caches with common characters and phrases for better first-translation performance
-      if (options.preWarmCache !== false) {
-        try {
-          const cacheStats = await this.translationCache.preWarmCaches(this.dictionaryManager);
-          if (cacheStats.success) {
-            this.log(
-              DEBUG_LEVELS.INFO,
-              `🔥 Cache pre-warmed: ${cacheStats.charactersWarmed} characters + ${cacheStats.phrasesWarmed} phrases in ${cacheStats.timeMs}ms`
-            );
-          }
-        } catch (error) {
-          this.log(DEBUG_LEVELS.WARN, '⚠️ Cache pre-warming failed:', error.message);
-        }
-      }
 
       this.log(DEBUG_LEVELS.INFO, `✅ Translation Engine initialized in ${initTime.toFixed(2)}ms`);
       this.log(DEBUG_LEVELS.DEBUG, '📊 Engine stats:', this.getEngineStats());

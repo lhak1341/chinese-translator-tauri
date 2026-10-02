@@ -111,12 +111,6 @@ export interface DictionaryPriorities {
 export interface DictionaryManagerConfig {
   /** Enable dictionary result caching */
   cacheEnabled?: boolean;
-  /** Cache size for character dictionary lookups */
-  characterCacheSize?: number;
-  /** Cache size for phrase dictionary lookups */
-  phraseCacheSize?: number;
-  /** Cache size for pattern dictionary lookups */
-  patternCacheSize?: number;
   /** Enable parallel dictionary lookups for performance */
   enableParallelLookups?: boolean;
   /** Enable WASM acceleration for dictionary operations */
@@ -228,8 +222,6 @@ export interface TranslationEngineInitOptions {
   activeProperNouns?: string[];
   /** Debug logging level */
   debugLevel?: DebugLevel;
-  /** Pre-warm translation caches on initialization */
-  preWarmCache?: boolean;
   /** Dictionary manager configuration */
   dictionaryManager?: DictionaryManagerConfig;
   /** Memory pressure thresholds */

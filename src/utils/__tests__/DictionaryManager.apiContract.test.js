@@ -268,34 +268,20 @@ describe('DictionaryManager match sort order', () => {
 });
 
 describe('DictionaryManager translate()/_findInDictionaries cache split (candidate #5 refactor)', () => {
-  test('translate() caches a single-character hit via setCharacter and setLookup', async () => {
+  test('translate() memoizes a hit via setLookup, once per word and search order', async () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+    await manager.loadDictionaries({ chars: { 在: 'ở' }, phrases: { 你好: 'xin chào' } });
 
-    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
-    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
     const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
 
-    const result = manager.translate('在');
+    const single = manager.translate('在');
+    const multi = manager.translate('你好');
 
-    expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
-    expect(setCharacterSpy).toHaveBeenCalledWith('在', 'chars', result);
-    expect(setPhraseSpy).not.toHaveBeenCalled();
-    expect(setLookupSpy).toHaveBeenCalledWith('在', manager.getDefaultSearchOrder(), result);
-  });
-
-  test('translate() caches a multi-character hit via setPhrase, not setCharacter', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({ phrases: { 你好: 'xin chào' } });
-
-    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
-    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
-
-    const result = manager.translate('你好');
-
-    expect(result).toMatchObject({ word: '你好', translation: 'xin chào', dictionary: 'phrases' });
-    expect(setPhraseSpy).toHaveBeenCalledWith('你好', 'phrases', result);
-    expect(setCharacterSpy).not.toHaveBeenCalled();
+    expect(single).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
+    expect(multi).toMatchObject({ word: '你好', translation: 'xin chào', dictionary: 'phrases' });
+    expect(setLookupSpy).toHaveBeenCalledTimes(2);
+    expect(setLookupSpy).toHaveBeenCalledWith('在', manager.getDefaultSearchOrder(), single);
+    expect(setLookupSpy).toHaveBeenCalledWith('你好', manager.getDefaultSearchOrder(), multi);
   });
 
   test('translate() caches a negative result via setLookup(word, searchOrder, null)', async () => {
@@ -315,16 +301,12 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
 
     const getLookupSpy = vi.spyOn(manager.cache, 'getLookup');
     const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
-    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
-    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
 
     const result = manager._findInDictionaries('在', manager.getDefaultSearchOrder());
 
     expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
     expect(getLookupSpy).not.toHaveBeenCalled();
     expect(setLookupSpy).not.toHaveBeenCalled();
-    expect(setCharacterSpy).not.toHaveBeenCalled();
-    expect(setPhraseSpy).not.toHaveBeenCalled();
   });
 
   test('_findInDictionaries and translate() agree on a cache-cold lookup', async () => {

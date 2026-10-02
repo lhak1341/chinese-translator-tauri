@@ -52,9 +52,6 @@ export class DictionaryManager {
 
     // Initialize translation caching system
     this.cache = new TranslationCache({
-      characterCacheSize: options.characterCacheSize || 500,
-      phraseCacheSize: options.phraseCacheSize || 1000,
-      patternCacheSize: options.patternCacheSize || 200,
       lookupCacheSize: options.lookupCacheSize || 800,
       enabled: options.cacheEnabled !== false, // Default to enabled
     });
@@ -244,29 +241,6 @@ export class DictionaryManager {
     this.log(DEBUG_LEVELS.INFO, `✅ Dictionary loading completed in ${this.loadTime.toFixed(2)}ms`);
     this.log(DEBUG_LEVELS.DEBUG, '📊 Dictionary stats:', this.getGlobalStats());
 
-    // Pre-warm cache with novel-specific vocabulary if enabled
-    if (options.preWarmCache !== false) {
-      const activeProperNouns = options.activeProperNouns || [];
-      const preWarmOptions = {
-        novelSpecific: true,
-        activeProperNouns: activeProperNouns,
-      };
-
-      try {
-        const preWarmResult = await this.cache.preWarmCaches(this, preWarmOptions);
-        if (preWarmResult.success) {
-          this.log(
-            DEBUG_LEVELS.INFO,
-            `🔥 Cache pre-warmed: ${preWarmResult.charactersWarmed} characters, ` +
-              `${preWarmResult.phrasesWarmed} phrases, ${preWarmResult.properNounsWarmed} proper nouns ` +
-              `in ${preWarmResult.timeMs}ms`
-          );
-        }
-      } catch (error) {
-        this.log(DEBUG_LEVELS.WARN, `⚠️ Cache pre-warming failed: ${error.message}`);
-      }
-    }
-
     if (this.wasmLookup?.isReady()) {
       try {
         await this.syncDictionariesToWasm();
@@ -309,16 +283,6 @@ export class DictionaryManager {
     const translationResult = this._findInDictionaries(word, searchOrder);
 
     if (translationResult) {
-      // Cache based on word length for future lookups
-      if (word.length === 1) {
-        // Cache single character lookups aggressively
-        this.cache.setCharacter(word, translationResult.dictionary, translationResult);
-      } else {
-        // Cache phrase lookups
-        this.cache.setPhrase(word, translationResult.dictionary, translationResult);
-      }
-
-      // Also cache in multi-dictionary lookup cache
       this.cache.setLookup(word, searchOrder, translationResult);
 
       return translationResult;

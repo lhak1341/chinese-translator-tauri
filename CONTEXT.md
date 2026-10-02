@@ -309,13 +309,11 @@ Interface: `flattenDictionaryEntries(dictionaryData): FlatDictionaryEntry[]`. Pu
 
 Entry point: `src/utils/dictionary/DictionaryEntryFlattener.ts`. Called from `DictionaryManager`'s one dictionary-registration site, the main load loop, alongside `this.dictionaries.set(...)` (a second, `lazyLoadDictionary`, was deleted 2026-09-30).
 
-## VocabularyWarmup
+## TranslationCache
 
-The warmup strategy for novel-specific vocabulary. Owns three pure concerns: (1) `extractHighFrequencyVocabulary(dictionary, dictionaryName)` — DFS traversal of a `DictionaryTrie` root, collecting up to 50 entries sorted by word length (shorter = higher priority); (2) `generateCharacterCombinations(vocabularyEntries)` — cross-products each short proper-noun character with the top 5 function words (`的 了 在 说 看`), capped at 30 pairs; (3) `warmNovelSpecificVocabulary(dictionaryManager, activeProperNouns, limits, cache)` — orchestrates (1) and (2) per dictionary, writes results into `cache` via `setCharacter` and `setPhrase`.
+The lookup memo for `DictionaryManager.translate`. Entry point: `src/utils/dictionary/TranslationCache.js`. Interface: `getLookup(word, searchOrder)`, `setLookup(word, searchOrder, result)`, `invalidateDictionary(name)`, `clear()`, `setEnabled(bool)`, `dispose()`. A key is the word plus the dictionary search order (order matters), and a negative result (`null`) is memoized too. `invalidateDictionary` drops every memoized lookup that searched that dictionary, through a per-dictionary key index.
 
-No cache state owned — `warmNovelSpecificVocabulary` receives `cache` as an injected dependency. Testable by passing a stub `{ setCharacter, setPhrase }` object without constructing a real `TranslationCache`.
-
-Entry point: `src/utils/dictionary/VocabularyWarmup.js`. Called from `TranslationCache.preWarmNovelSpecificVocabulary` (which now delegates entirely). Also exported from `src/utils/dictionary/index.ts` for direct use.
+It was four caches (character, phrase, pattern, lookup) with a pre-warm until 2026-10-03. Only the lookup memo was ever read; the rest, the pre-warm (`preWarmCaches`, `VocabularyWarmup`) and the `cachePrewarm` knob were deleted — see `docs/guides/deleted-symbols.md`. If first-translation latency ever hurts, measure it before designing a pre-warm for this memo.
 
 ## ScrollPositionRecovery
 
