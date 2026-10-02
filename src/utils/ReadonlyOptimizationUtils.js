@@ -10,107 +10,8 @@
  *
  * Expected impact: 5-10% reduction in token processing time
  *
- * @import {
- *   TokenUpdate,
- *   ApplyUpdatesOptions,
- *   ApplyUpdatesResult,
- *   TokenScanOptions,
- *   TokenScanResult,
- * } from '../types/ReadonlyOptimizationTypes'
+ * @import { TokenScanOptions, TokenScanResult } from '../types/ReadonlyOptimizationTypes'
  */
-
-import { logger } from './logger.js';
-
-// Performance metrics tracking
-const metrics = {
-  readOnlyScans: 0,
-  batchUpdates: 0,
-  totalScanTime: 0,
-  totalUpdateTime: 0,
-  estimatedSavings: 0,
-};
-
-/**
- * Apply pending updates to tokens in a single batch
- *
- * Performs all modifications in one pass for better cache locality.
- * V8 can optimize this single write pass better than scattered mutations.
- *
- * @param {Array<*>} tokens - Mutable token array
- * @param {ReadonlyMap<number, TokenUpdate>} updates - Map of pending updates
- * @param {ApplyUpdatesOptions} options - Application options
- * @returns {ApplyUpdatesResult} Result of update operation
- */
-export function applyTokenUpdates(tokens, updates, options = {}) {
-  const startTime = performance.now();
-  const { validate = false, preserveOriginal = false, debugLevel = 0 } = options;
-
-  let applied = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  // Single pass through updates (better cache locality)
-  for (const [index, update] of updates.entries()) {
-    // Validation
-    if (validate && (index < 0 || index >= tokens.length)) {
-      failed++;
-      if (debugLevel >= 2) {
-        logger.warn(`Invalid token index: ${index}`);
-      }
-      continue;
-    }
-
-    const token = tokens[index];
-
-    // Skip if already translated (unless explicitly overriding)
-    // @ts-ignore - forceOverride is a valid runtime option not in the static type
-    if (!options.forceOverride && token.translated !== null && token.translated !== undefined) {
-      skipped++;
-      continue;
-    }
-
-    // Preserve original if requested
-    if (preserveOriginal && !token.original) {
-      token.original = token.value;
-    }
-
-    // Apply update
-    token.translated = update.translated;
-
-    if (update.translationSource) {
-      token.translationSource = update.translationSource;
-    }
-
-    if (update.metadata) {
-      token.metadata = { ...token.metadata, ...update.metadata };
-    }
-
-    applied++;
-  }
-
-  const duration = performance.now() - startTime;
-
-  // Update metrics
-  metrics.batchUpdates++;
-  metrics.totalUpdateTime += duration;
-
-  // Estimate savings vs scattered writes
-  // Assume scattered writes would be ~50% slower due to cache misses
-  metrics.estimatedSavings += duration * 0.5;
-
-  if (debugLevel >= 3) {
-    logger.log(
-      `Applied ${applied} updates, skipped ${skipped}, failed ${failed} in ${duration.toFixed(2)}ms`
-    );
-  }
-
-  return {
-    applied,
-    skipped,
-    failed,
-    duration,
-  };
-}
 
 /**
  * Scan tokens for matches without modification
@@ -126,7 +27,6 @@ export function applyTokenUpdates(tokens, updates, options = {}) {
  * @returns {TokenScanResult} Scan result
  */
 export function scanTokens(tokens, predicate, options = {}) {
-  const startTime = performance.now();
   const { startIndex = 0, endIndex = tokens.length, filter } = options;
 
   const indices = [];
@@ -148,96 +48,9 @@ export function scanTokens(tokens, predicate, options = {}) {
     }
   }
 
-  const duration = performance.now() - startTime;
-
-  // Update metrics
-  metrics.readOnlyScans++;
-  metrics.totalScanTime += duration;
-
   return {
     indices,
     scanned,
     matched: indices.length,
   };
-}
-
-/**
- * Create token update for batch application
- *
- * @param {number} index - Token index
- * @param {string|null} translated - New translation value
- * @param {string} source - Translation source
- * @param {Object} metadata - Optional metadata
- * @returns {TokenUpdate} Token update object
- */
-export function createTokenUpdate(index, translated, source, metadata) {
-  return {
-    index,
-    translated,
-    translationSource: source,
-    metadata,
-  };
-}
-
-/**
- * Find unprocessed tokens using readonly scan
- *
- * Common operation in translation phases - find tokens that haven't
- * been translated yet.
- *
- * @param {ReadonlyArray<*>} tokens - Readonly token array
- * @param {Object} options - Scan options
- * @returns {TokenScanResult} Scan result
- */
-export function findUnprocessedTokens(tokens, options = {}) {
-  return scanTokens(
-    tokens,
-    (/** @type {any} */ token) => token.translated === null || token.translated === undefined,
-    options
-  );
-}
-
-/**
- * Find consecutive unprocessed tokens
- *
- * Useful for phrase/pattern matching where you need spans of untranslated tokens.
- *
- * @param {ReadonlyArray<*>} tokens - Readonly token array
- * @param {number} minLength - Minimum span length
- * @param {number} maxLength - Maximum span length
- * @returns {Array<{start: number, length: number}>} Array of spans
- */
-export function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
-  const spans = [];
-  let spanStart = -1;
-  let spanLength = 0;
-
-  // Single pass readonly scan
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    const isUnprocessed = token.translated === null || token.translated === undefined;
-
-    if (isUnprocessed) {
-      if (spanStart === -1) {
-        spanStart = i;
-        spanLength = 1;
-      } else {
-        spanLength++;
-      }
-    } else {
-      // End of span
-      if (spanStart !== -1 && spanLength >= minLength && spanLength <= maxLength) {
-        spans.push({ start: spanStart, length: spanLength });
-      }
-      spanStart = -1;
-      spanLength = 0;
-    }
-  }
-
-  // Check final span
-  if (spanStart !== -1 && spanLength >= minLength && spanLength <= maxLength) {
-    spans.push({ start: spanStart, length: spanLength });
-  }
-
-  return spans;
 }

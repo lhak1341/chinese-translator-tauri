@@ -3777,18 +3777,12 @@ export class TranslationEngine {
       textLength: options.textLength || 0,
     });
 
-    // Build simplified interface for existing code compatibility
-    this.parallelConfig = {
-      enableParallelChunks: chunkConfig.enabled,
-      maxParallelChunks: chunkConfig.maxParallelChunks,
-      memoryThreshold: maxTokensAllowed,
-      fallbackToSequential: true,
-      chunkParallelThreshold: chunkConfig.parallelThreshold,
-    };
+    // Set once per engine; translateBatchInParallel's guard reads it to know init has run
+    this.parallelConfig = { maxParallelChunks: chunkConfig.maxParallelChunks };
 
     this.log(
       DEBUG_LEVELS.INFO,
-      `🔧 Parallel processing configured via ParallelConfig: chunks=${this.parallelConfig.enableParallelChunks}, ` +
+      `🔧 Parallel processing configured via ParallelConfig: ` +
         `maxConcurrency=${this.parallelConfig.maxParallelChunks}, memoryLimit=${maxTokensAllowed}, ` +
         `batteryOptimization=${parallelConfig.getConfig().device.batteryOptimization}`
     );
@@ -3831,16 +3825,7 @@ export class TranslationEngine {
       this.initializeParallelProcessing(options);
     }
 
-    // Sequential fallback removed — always force parallel processing
-    if (
-      !this.parallelConfig.enableParallelChunks ||
-      batch.length < this.parallelConfig.chunkParallelThreshold
-    ) {
-      this.log(
-        DEBUG_LEVELS.WARNING,
-        '⚠️ Conditions suggest sequential processing, but forcing parallel processing'
-      );
-    }
+    // Chunks in a batch always run in parallel; there is no sequential fallback.
 
     try {
       // MEDIUM FIX: Calculate token counts for each chunk upfront
@@ -4348,14 +4333,12 @@ export class TranslationEngine {
     // Enhanced content analysis for smart chunk size adaptation
     const contentAnalysis = adaptiveChunker.analyzeContentCharacteristics(text, translatableChunks);
 
-    // Calculate optimal chunk size using adaptive analysis and device capabilities
-    const deviceInfo = {
-      memoryPressure: parallelConfig.getConfig().device.memoryPressure,
-      cpuCores: parallelConfig.getConfig().device.hardwareConcurrency,
-    };
+    // No device info: ParallelConfig has no memoryPressure/hardwareConcurrency to give, and
+    // _clampInitialBatchSize below caps the result at maxParallelChunks (<= 5) anyway, under
+    // the chunker's 8-chunk floor.
     let currentBatchSize = adaptiveChunker.calculateOptimalChunkSize(
       contentAnalysis,
-      deviceInfo,
+      {},
       translatableChunks.length
     );
 
