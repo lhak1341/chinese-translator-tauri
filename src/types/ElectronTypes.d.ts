@@ -1,8 +1,9 @@
 /**
- * Electron API types for IPC communication
+ * Result types for the Tauri IPC wrapper (`src/tauriAPI.ts`), and the `window.electronAPI`
+ * declaration. The name is from the Electron days; the global kept it.
  *
- * Type definitions for Electron main/renderer process communication via the electronAPI bridge.
- * This file ensures type safety when using window.electronAPI in renderer process.
+ * `ElectronAPI` is derived from `tauriAPI`, not declared here: a command is declared once, in
+ * the wrapper, so the type cannot drift from what the wrapper implements.
  *
  * Usage: Types are automatically available via global Window interface augmentation.
  */
@@ -10,13 +11,7 @@
 import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
 import type { DictionaryData } from './DictionaryTypes';
 import type { TransformRule } from './TransformRuleTypes';
-import type {
-  BookFingerprint,
-  BookLines,
-  BookRecords,
-  LibraryScan,
-  OpenBookResult,
-} from './ReaderTypes';
+import type { BookRecords } from './ReaderTypes';
 
 // =============================================================================
 // Result Types
@@ -117,8 +112,6 @@ export interface DictionaryOperationResult extends ElectronResult {
 }
 
 // =============================================================================
-// File Selection Types
-// =============================================================================
 
 /**
  * File filter for file selection dialogs
@@ -205,116 +198,14 @@ export interface BatchDictionaryResponse {
   results: BatchDictionaryResult[];
 }
 
-export interface ElectronAPI {
-  // Dictionary operations
-  /** Load a dictionary from file system */
-  loadDictionary: (path: string) => Promise<DictionaryLoadResult>;
-  /** Load multiple dictionaries in parallel (Rust multi-core parallelization) */
-  loadDictionariesParallel: (dictionaryIds: string[]) => Promise<BatchDictionaryResponse>;
-  /** Save dictionary data to file system */
-  saveDictionary: (path: string, data: any) => Promise<SaveResult>;
-  /** List all available proper nouns dictionaries */
-  listProperNounsDictionaries: () => Promise<DictionaryListResult>;
-  /** List all fiction structural pattern dictionaries (patterns-f_*) */
-  listFictionPatternDictionaries: () => Promise<DictionaryListResult>;
-  /** Create a new proper nouns dictionary */
-  createProperNounsDictionary: (id: string) => Promise<DictionaryCreateResult>;
-  /** Create a new fiction structural patterns dictionary (patterns-f_*) */
-  createStructuralPatternsDictionary: (id: string) => Promise<SaveResult>;
-  /** Atomically create a fiction or generic proper nouns dictionary together with its paired patterns-f_* / patterns-_* dictionary (ADR-027, ADR-048) */
-  createFictionDictionaryPair: (properNounId: string) => Promise<DictionaryCreateResult>;
-  /** Rename a proper nouns dictionary (cascades to paired patterns-f_* / patterns-_* file) */
-  renameProperNounsDictionary: (
-    oldDictionaryId: string,
-    newDictionaryId: string
-  ) => Promise<DictionaryOperationResult>;
-  /** Rename a structural patterns dictionary */
-  renameStructuralPatternsDictionary: (
-    oldDictionaryId: string,
-    newDictionaryId: string
-  ) => Promise<DictionaryOperationResult>;
-
-  // Configuration operations
-  /** Load application configuration */
-  loadConfiguration: () => Promise<ConfigurationResult>;
-  /** Save application configuration */
-  saveConfiguration: (config: AppConfiguration) => Promise<SaveResult>;
-
-  // Appearance operations
-  /** Load appearance settings */
-  loadAppearanceSettings: () => Promise<AppearanceResult>;
-  /** Save appearance settings */
-  saveAppearanceSettings: (settings: AppearanceSettings) => Promise<SaveResult>;
-
-  // Transform Rule operations
-  /** Load persisted Transform Rules */
-  loadTransformRules: () => Promise<TransformRulesResult>;
-  /** Save the full Transform Rule list */
-  saveTransformRules: (rules: TransformRule[]) => Promise<SaveResult>;
-
-  // Book record operations
-  /** Load persisted book records, keyed by fingerprint */
-  loadBookRecords: () => Promise<BookRecordsResult>;
-  /** Save the full book records map */
-  saveBookRecords: (records: BookRecords) => Promise<SaveResult>;
-
-  // File operations
-  /** Open file selection dialog */
-  selectFile: (options: FileSelectOptions) => Promise<FileSelectResult>;
-  /** Open directory selection dialog */
-  selectDirectory: (options: DirectorySelectOptions) => Promise<DirectorySelectResult>;
-  /** Open dictionaries folder in system file explorer */
-  openDictionaryFolder: () => Promise<ElectronResult>;
-
-  // Dictionary bulk operations
-  /** Export all dictionaries to ZIP file */
-  exportDictionaries: () => Promise<DictionaryOperationResult>;
-  /** Import dictionaries from ZIP file */
-  importDictionaries: () => Promise<DictionaryOperationResult>;
-
-  // Clipboard operations
-  /** Read text from clipboard */
-  readClipboard: () => Promise<string>;
-  /** Write text to clipboard */
-  writeClipboard: (text: string) => Promise<void>;
-
-  // Window operations
-  /** Minimize application window */
-  minimizeWindow: () => void;
-  /** Maximize/restore application window */
-  maximizeWindow: () => void;
-  /** Close application window */
-  closeWindow: () => void;
-
-  // Reader operations (see src/types/ReaderTypes.ts — these reject on failure rather
-  // than returning a success envelope)
-  /** List every text file in the library folder */
-  scanLibrary: (libraryPath?: string | null) => Promise<LibraryScan>;
-  /** Decode a book into the Rust-side cache */
-  openBook: (
-    fileName: string,
-    libraryPath?: string | null,
-    encodingOverride?: string | null
-  ) => Promise<OpenBookResult>;
-  /** Read lines [start, end) of the open book */
-  readBookLines: (fingerprint: string, start: number, end: number) => Promise<BookLines>;
-  /** Fingerprint one library file without decoding it */
-  fingerprintBook: (fileName: string, libraryPath?: string | null) => Promise<BookFingerprint>;
-
-  // Development tools
-  /** Open developer tools */
-  openDevTools: () => void;
-  /** Reload application window */
-  reloadWindow: () => void;
-}
-
 // =============================================================================
 // Global Window Interface Augmentation
 // =============================================================================
 
 declare global {
   interface Window {
-    /** Electron API bridge for IPC communication */
+    /** The Tauri IPC wrapper (`src/tauriAPI.ts`), installed there. Its type is the module's own,
+     * so a command is declared once, in the wrapper. */
     electronAPI: ElectronAPI;
     /** Translation engine instance (development mode only) */
     translationEngine?: any;
@@ -327,5 +218,5 @@ declare global {
   }
 }
 
-// Export empty object to make this a module
-export {};
+/** The shape of `window.electronAPI`: whatever `tauriAPI.ts` implements. */
+export type ElectronAPI = typeof import('../tauriAPI').default;
