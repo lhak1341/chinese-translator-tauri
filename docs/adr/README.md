@@ -126,6 +126,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-060](./ADR-060-dictionary-id-and-config-key-rules-held-by-a-shared-fixture.md) | Dictionary-id and config-key rules held by a shared fixture  | Decided                           | Tier, pairing and config-key facts live in TS and Rust; one fixture holds both, and Rust keeps editing config during a rename.                       |
 | [ADR-061](./ADR-061-skip-shelf-row-module.md)                                       | Skip a shelf row module                                      | Decided                           | The formatters are single-use and tested through the component; the repeated unknown-identity rule became one local `rowLabels`.                     |
 | [ADR-062](./ADR-062-pair-operations-share-the-binding-queue-and-the-stores-list.md) | Pair operations share the binding queue and the store's list | Decided                           | One queue for every create, rename and move; the Configuration tab and the fiction list read the Dictionary Store's list, with no copy of their own. |
+| [ADR-063](./ADR-063-skip-hotkey-chord-module.md)                                    | Skip a hotkey chord module                                   | Decided                           | Palette hints and `RELOAD_HINT` are already parsed back through `matchHotkey` by tests, and the bindings are literal-pinned on purpose.              |
 
 ## ADR Format
 
@@ -177,5 +178,5 @@ Write an ADR when making decisions about:
 - **2026-09-29**: ADR-052; ADR-053
 - **2026-09-30**: ADR-054; ADR-055; ADR-056
 - **2026-10-01**: ADR-057
-- **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062
+- **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope
