@@ -15,7 +15,6 @@ const engineHookResult = vi.hoisted(() => ({
   engineRef: { current: null },
   engineVersion: 1,
   initError: null,
-  activeProperNounsFromConfig: [],
   reinitialize: () => Promise.resolve({ ok: true }),
 }));
 vi.mock('../../hooks/useTranslatorEngine', () => ({

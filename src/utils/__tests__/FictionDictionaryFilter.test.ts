@@ -1,5 +1,8 @@
 import { describe, test, expect } from 'vitest';
-import { filterDictionariesForEngine } from '../dictionary/FictionDictionaryFilter';
+import {
+  filterDictionariesForEngine,
+  isActiveProperNounSource,
+} from '../dictionary/FictionDictionaryFilter';
 
 describe('filterDictionariesForEngine', () => {
   test('drops inactive properNouns-* dicts, keeps active ones and base dicts', () => {
@@ -138,5 +141,21 @@ describe('filterDictionariesForEngine', () => {
     ]);
 
     expect(result).toEqual({ 'properNouns-f_NoPatterns': { name: 'x' } });
+  });
+});
+
+describe('isActiveProperNounSource', () => {
+  test('the root properNouns dictionary counts even when the list omits it', () => {
+    expect(isActiveProperNounSource('properNouns', [])).toBe(true);
+    expect(isActiveProperNounSource('properNouns', ['properNouns-f_Novel'])).toBe(true);
+  });
+
+  test('another properNouns-* dictionary counts only while it is in the list', () => {
+    expect(isActiveProperNounSource('properNouns-f_Novel', ['properNouns-f_Novel'])).toBe(true);
+    expect(isActiveProperNounSource('properNouns-f_Novel', ['properNouns'])).toBe(false);
+  });
+
+  test('a phase dictionary outside the list is not a proper noun source', () => {
+    expect(isActiveProperNounSource('characters', ['properNouns'])).toBe(false);
   });
 });

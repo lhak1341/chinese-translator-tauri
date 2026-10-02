@@ -129,6 +129,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-063](./ADR-063-skip-hotkey-chord-module.md)                                    | Skip a hotkey chord module                                   | Decided                           | Palette hints and `RELOAD_HINT` are already parsed back through `matchHotkey` by tests, and the bindings are literal-pinned on purpose.              |
 | [ADR-064](./ADR-064-skip-splitting-the-binding-context.md)                          | Skip splitting the binding context                           | Decided                           | The snapshot changes about four times per book open, and an actions-only hook would be a pass-through slice of the same provider.                    |
 | [ADR-065](./ADR-065-keep-dictionary-reload-owned-by-the-translator.md)              | Keep dictionary reload owned by the Translator               | Decided                           | Eight of the reload protocol's ten inputs are the Translator tab's own state, so an engine-owned reload would need a two-phase protocol.             |
+| [ADR-066](./ADR-066-skip-active-dictionary-snapshot.md)                             | Skip an active-dictionary snapshot module                    | Decided                           | The engine's list is what it was built with and the Configuration tab's is saved intent; they differ until a reload on purpose.                      |
 
 ## ADR Format
 
@@ -181,4 +182,5 @@ Write an ADR when making decisions about:
 - **2026-09-30**: ADR-054; ADR-055; ADR-056
 - **2026-10-01**: ADR-057
 - **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063; ADR-064; ADR-065
+- **2026-10-03**: ADR-066
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

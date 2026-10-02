@@ -158,7 +158,10 @@
 
 import { TextTokenizer, TokenType } from './text/TextTokenizer.js';
 import { DictionaryManager } from './dictionary/DictionaryManager.js';
-import { filterDictionariesForEngine } from './dictionary/FictionDictionaryFilter';
+import {
+  filterDictionariesForEngine,
+  isActiveProperNounSource,
+} from './dictionary/FictionDictionaryFilter';
 import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
 import tauriAPI from '../tauriAPI.js';
 import {
@@ -3092,7 +3095,7 @@ export class TranslationEngine {
     // Mark the first token with the translation and create semantic group
     if (tokenSpan > 0) {
       // For proper nouns, preserve original dictionary capitalization exactly
-      if (match.dictionary === 'properNouns' || this.activeProperNouns.includes(match.dictionary)) {
+      if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
         tokens[startIndex].translated = match.translation; // Keep original capitalization
         tokens[startIndex].isProperNoun = true;
         this.log(
@@ -3129,8 +3132,7 @@ export class TranslationEngine {
       const globalTokenIndex = startIndex + (options.chunkOffset || 0);
       // Proper noun dictionaries have their own priority tier — pass match.dictionary as the
       // source so getSourcePriority() resolves them at priority 2, not phrase priority 4.
-      const isProperNounMatch =
-        match.dictionary === 'properNouns' || this.activeProperNouns.includes(match.dictionary);
+      const isProperNounMatch = isActiveProperNounSource(match.dictionary, this.activeProperNouns);
       const semanticSource = isProperNounMatch ? match.dictionary : 'phrases';
       this.semanticArrayBuilder.addUnit(
         match.word, // original text
@@ -3276,8 +3278,7 @@ export class TranslationEngine {
       translationSource: match.dictionary,
       sourceDict: match.dictionary,
       tokenIndices,
-      isProperNoun:
-        match.dictionary === 'properNouns' || this.activeProperNouns.includes(match.dictionary),
+      isProperNoun: isActiveProperNounSource(match.dictionary, this.activeProperNouns),
       metadata: match.metadata || {},
     };
 

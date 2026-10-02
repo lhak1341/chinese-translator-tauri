@@ -26,15 +26,8 @@ const TAB_FAILURE_DESCRIPTION =
   'application is down until it reloads.';
 
 export function EngineProvider({ children }) {
-  const {
-    enginePhase,
-    engineRef,
-    engineVersion,
-    initError,
-    activeProperNounsFromConfig,
-    reinitialize,
-    destroyEngine,
-  } = useTranslatorEngine();
+  const { enginePhase, engineRef, engineVersion, initError, reinitialize, destroyEngine } =
+    useTranslatorEngine();
 
   const value = useMemo(
     () => ({
@@ -42,19 +35,10 @@ export function EngineProvider({ children }) {
       engineRef,
       engineVersion,
       initError,
-      activeProperNounsFromConfig,
       reinitializeEngine: reinitialize,
       destroyEngine,
     }),
-    [
-      enginePhase,
-      engineRef,
-      engineVersion,
-      initError,
-      activeProperNounsFromConfig,
-      reinitialize,
-      destroyEngine,
-    ]
+    [enginePhase, engineRef, engineVersion, initError, reinitialize, destroyEngine]
   );
 
   return (

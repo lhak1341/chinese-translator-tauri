@@ -26,7 +26,6 @@ const ENGINE_PRIORITIES = {
  *   engineRef       — ref to current engine instance (or null)
  *   engineVersion   — increments once per constructed engine; the cache-invalidation signal
  *   initError       — error message string when phase === 'error', else null
- *   activeProperNounsFromConfig — loaded from disk; use directly in Translator.jsx
  *   destroyEngine   — () => void — frees the idle engine; a no-op while an init runs
  *   reinitialize    — async (rawDictionaries, options) => EngineInitOutcome — config reload +
  *                     filtering internal; never rejects
@@ -53,7 +52,9 @@ export function useTranslatorEngine() {
   const isInitializingRef = useRef(false);
   // The request waiting behind the running init: { rawDictionaries, options, waiters }.
   const queuedRequestRef = useRef(null);
-  // Mirror of activeProperNounsFromConfig, so a queued run never reads a stale closure.
+  // Mirror of activeProperNounsFromConfig (the init gate's state), so a queued run never reads a
+  // stale closure. Not exposed: it is the list the engine is built with, and the saved config
+  // can move ahead of it until the next reload.
   const activeProperNounsRef = useRef(null);
 
   const adoptActiveProperNouns = useCallback((activeProperNouns) => {
@@ -227,7 +228,6 @@ export function useTranslatorEngine() {
     engineRef,
     engineVersion,
     initError,
-    activeProperNounsFromConfig,
     reinitialize,
     destroyEngine,
   };

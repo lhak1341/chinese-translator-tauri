@@ -17,7 +17,6 @@ export interface EngineContextValue {
   /** Increments once per constructed engine — the cache-invalidation signal. */
   engineVersion: number;
   initError: string | null;
-  activeProperNounsFromConfig: string[] | null;
   /**
    * Builds a new engine from raw dictionaries. Calls serialize: one that arrives mid-init
    * waits, and waiting calls collapse into one run with the latest arguments.

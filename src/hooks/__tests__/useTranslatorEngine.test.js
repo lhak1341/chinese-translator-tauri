@@ -109,10 +109,12 @@ describe('useTranslatorEngine — reinitialize', () => {
     expect(result.current.initError).toBe('config read failed');
   });
 
-  test('forceConfigReload invalidates the cache and adopts the fresh activeProperNouns', async () => {
+  test('forceConfigReload invalidates the cache and builds the engine with the fresh activeProperNouns', async () => {
     const { result } = renderHook(() => useTranslatorEngine());
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
+    const rebuilt = mockEngine();
+    vi.mocked(createTranslationEngine).mockReturnValueOnce(rebuilt);
     vi.mocked(loadAppConfig).mockResolvedValue({
       engine: { activeProperNouns: ['properNouns', 'properNouns-Fresh'] },
       ui: {},
@@ -124,10 +126,10 @@ describe('useTranslatorEngine — reinitialize', () => {
     });
 
     expect(invalidateAppConfig).toHaveBeenCalledTimes(1);
-    expect(result.current.activeProperNounsFromConfig).toEqual([
-      'properNouns',
-      'properNouns-Fresh',
-    ]);
+    expect(rebuilt.initialize).toHaveBeenCalledWith(
+      { properNouns: {} },
+      expect.objectContaining({ activeProperNouns: ['properNouns', 'properNouns-Fresh'] })
+    );
   });
 
   test('destroys the outgoing engine before constructing the replacement', async () => {

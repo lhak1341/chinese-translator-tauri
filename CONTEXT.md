@@ -487,6 +487,8 @@ The operation behind the "Reload Dictionary" button (Cmd/Ctrl+R) and, once a Rea
 
 **Every init is serialized, mount included.** A call that arrives while an init runs waits behind it instead of being dropped, and calls that pile up collapse into one run with the latest dictionaries and options (`forceConfigReload` is OR-ed, so a forced reload is never downgraded). Each waiting caller resolves with that run's outcome, `{ ok: true } | { ok: false, error }`, and the promise never rejects. `BookBindingContext`'s rebuild adapter turns `!ok` into a throw, which is what feeds the store's `applyError` and a tier move's `failures`; `useForceReload` shows the message. A failed init also lands in `initError`/`enginePhase`, which is what each tab's error panel reads. (Decided 2026-10-02, architecture review candidate #1 grilling. The old design returned early on a busy call, so a binding applied mid-init never reached the engine, and reported success from the previous engine's `isReady()`.)
 
+**The engine's active list is a snapshot, on purpose.** The `activeProperNouns` the engine is built with is the one `useTranslatorEngine` holds; a Configuration toggle changes saved config and not the engine until a reload (ADR-066). It is not exposed on `useEngine()`. The engine decides "is this match a proper noun" with `isActiveProperNounSource` (`FictionDictionaryFilter.ts`).
+
 Three consequences worth stating plainly, because the name hides all of them:
 
 - **Nothing inside the engine survives.** Any state that must outlive a reinitialization — a Reader's scroll position, current line, open-book binding, translated-window cache — belongs to the caller, never the engine.
