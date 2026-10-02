@@ -17,6 +17,7 @@ import type {
   ConfigurationResult,
   AppearanceResult,
   ProperNounsListResult,
+  DictionaryCreateResult,
   TransformRulesResult,
   BookRecordsResult,
 } from './types/ElectronTypes';
@@ -327,10 +328,10 @@ const tauriAPI = {
       'listFictionPatternDictionaries'
     ),
 
-  createProperNounsDictionary: async (dictionaryId: string): Promise<ProperNounsListResult> => {
+  createProperNounsDictionary: async (dictionaryId: string): Promise<DictionaryCreateResult> => {
     const invalid = requireValidDictionaryIds({ dictionaryId });
     if (invalid) return invalid;
-    return callTauriCommand<ProperNounsListResult>(
+    return callTauriCommand<DictionaryCreateResult>(
       CMD.CREATE_PROPER_NOUNS_DICTIONARY,
       { dictionaryId },
       'createProperNounsDictionary'
@@ -347,10 +348,10 @@ const tauriAPI = {
     );
   },
 
-  createFictionDictionaryPair: async (properNounId: string): Promise<ProperNounsListResult> => {
+  createFictionDictionaryPair: async (properNounId: string): Promise<DictionaryCreateResult> => {
     const invalid = requireValidDictionaryIds({ properNounId });
     if (invalid) return invalid;
-    return callTauriCommand<ProperNounsListResult>(
+    return callTauriCommand<DictionaryCreateResult>(
       CMD.CREATE_FICTION_DICTIONARY_PAIR,
       { properNounId },
       'createFictionDictionaryPair'

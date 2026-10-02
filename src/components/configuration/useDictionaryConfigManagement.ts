@@ -173,13 +173,14 @@ export function useDictionaryConfigManagement() {
       const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
       // The binding context creates every kind: it queues the create behind any book apply,
-      // and the Dictionary Store re-lists it, so the row appears without this hook. Creation
-      // also activates the new dictionary on disk (Rust-side, best-effort); the config
-      // subscription above carries that into `activeDictionaries`.
+      // and the Dictionary Store re-lists it, so the row appears without this hook. It also
+      // activates the new dictionary (in config, not Rust); the config subscription above
+      // carries that into `activeDictionaries`. A `warning` means it exists but is not active.
       const result = await createDictionary(dictionaryId);
 
       if (result.success) {
         closeCreateModal();
+        if (result.warning) setError(result.warning);
       } else {
         throw new Error(result.error);
       }

@@ -31,3 +31,5 @@ Rust gains `to_patterns_id`, replacing the three inline copies, so the derivatio
 ## Consequence
 
 A new dictionary-id rule or config key is added to the fixture first, so both suites see it. A future review should not re-propose moving Rust's config edits to TS, or merging `from_name` with `kindOf`. Revisit if a rename needs a config key Rust cannot reach, or if the cascade stops being one atomic Rust operation.
+
+**Addendum 2026-10-03 (architecture review candidate #2):** the decision stands for rename, and is narrowed for create. Create's `activeProperNouns` append was never atomic with anything: it was best-effort and silent when `config.json` was missing or unreadable, its only reverse (`deactivate_proper_noun_file`) was a second best-effort write, and the list it read back had no production reader. It moved to TS: `BookBindingStore.createDictionary` activates under the config lock, with the open book's binding owning the fiction slice, and reports a `warning` when it cannot. Rust's create commands write no config. A future review should not restore the Rust append, and should not re-propose moving rename's edit (above).

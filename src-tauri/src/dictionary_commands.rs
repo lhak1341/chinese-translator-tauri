@@ -665,7 +665,7 @@ pub struct DictionaryResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
     /// Set by `load_blob` when the file existed but could not be read as JSON and was renamed
-    /// aside — the new file name, for the one-time warning (`utils/unreadableFile.ts`).
+    /// aside — the new file name, for the one-time warning (`utils/appFile.ts`).
     #[serde(skip_serializing_if = "Option::is_none")]
     quarantined: Option<String>,
 }
@@ -881,68 +881,16 @@ fn rename_structural_patterns_dictionary_impl(
     )))
 }
 
-/// Creates an empty properNouns dictionary file at `dictionary_path/{dictionary_id}.json`
-/// and appends `dictionary_id` to `activeProperNouns` in the config at `config_path`.
+/// Creates an empty properNouns dictionary file at `dictionary_path/{dictionary_id}.json`.
+/// File-creation failure (already exists, write error) is returned as `Err`.
 ///
-/// Config-append is best-effort and non-fatal on failure — the dictionary file still
-/// exists and the user can activate it manually. File-creation failure (already exists,
-/// write error) is returned as `Err`. Pure filesystem function — no `AppHandle`, so it is
-/// directly unit-testable against a temp directory.
-/// Shared best-effort `activeProperNouns` mutation for `create_and_activate_proper_noun_file`
-/// / `deactivate_proper_noun_file` (architecture review 2026-09-08, candidate #3 grilling,
-/// narrowed from the original 3-function report — `substitute_dictionary_reference` stayed
-/// out: it's a pure in-memory mutator with no I/O of its own, a genuinely different shape,
-/// part of `rename_proper_nouns_dictionary_impl`'s atomic rollback sequence).
-///
-/// Silently no-ops (no read error, no write) when `config_path` is missing, unparseable, or
-/// not a JSON object — matches both callers' pre-existing non-fatal contract. `create_if_missing`
-/// is the one real asymmetry between the two callers: create needs somewhere to push into
-/// (creates an empty `activeProperNouns` array if the key is absent), deactivate has nothing
-/// to remove from (no-ops if the key is absent) — see each call site's `create_if_missing` arg.
-///
-/// `mutate` returns whether it actually changed the array; the config is only saved back when
-/// it did. Preserves each caller's original save-skip behavior exactly: `create`'s closure
-/// returns `false` when the id was already present (no write, matching the original
-/// `already_present` guard); `deactivate`'s closure always returns `true` once an array is
-/// found, matching the original's unconditional save (it never checked whether `retain`
-/// actually removed anything) — a deliberate bug-for-bug parity choice, not an oversight.
-fn mutate_active_proper_nouns_best_effort(
-    config_path: &PathBuf,
-    create_if_missing: bool,
-    mutate: impl FnOnce(&mut Vec<serde_json::Value>) -> bool,
-) {
-    if !config_path.exists() {
-        return;
-    }
-    let Ok(contents) = fs::read_to_string(config_path) else {
-        return;
-    };
-    let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) else {
-        return;
-    };
-
-    let active_array = if create_if_missing {
-        config.as_object_mut().and_then(|obj| {
-            obj.entry("activeProperNouns")
-                .or_insert_with(|| serde_json::Value::Array(Vec::new()))
-                .as_array_mut()
-        })
-    } else {
-        config.get_mut("activeProperNouns").and_then(|v| v.as_array_mut())
-    };
-
-    if let Some(active_array) = active_array {
-        if mutate(active_array) {
-            let _ = save_json_file(config_path, &config);
-        }
-    }
-}
-
-fn create_and_activate_proper_noun_file(
-    dictionary_path: &PathBuf,
-    config_path: &PathBuf,
-    dictionary_id: &str,
-) -> Result<(), String> {
+/// Touches no config. Activating the new dictionary is the frontend's, under its config lock
+/// (`BookBindingStore.createDictionary`): a silent best-effort append here skipped an
+/// unreadable `config.json` without a word, and ignored which fiction dictionary an open
+/// book is bound to. Rename still edits config in Rust, because that edit is atomic with the
+/// file moves (ADR-060). Pure filesystem function — no `AppHandle`, so it is directly
+/// unit-testable against a temp directory.
+fn create_proper_noun_file(dictionary_path: &PathBuf, dictionary_id: &str) -> Result<(), String> {
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Check if file already exists
@@ -953,54 +901,7 @@ fn create_and_activate_proper_noun_file(
     // Create empty dictionary via save_json_file to enforce depth and size guards
     let empty_dict = serde_json::json!({});
     save_json_file(&file_path, &empty_dict)?;
-
-    // L2: Append the newly-created dictionary to activeProperNouns so the
-    // engine picks it up immediately. Mirrors rename_proper_nouns_dictionary's
-    // config-side bookkeeping. Failure here is non-fatal — the dictionary file
-    // exists, and the user can still activate it manually.
-    mutate_active_proper_nouns_best_effort(config_path, true, |active_array| {
-        let already_present = active_array.iter().any(|v| v.as_str() == Some(dictionary_id));
-        if already_present {
-            false
-        } else {
-            active_array.push(serde_json::Value::String(dictionary_id.to_string()));
-            true
-        }
-    });
-
     Ok(())
-}
-
-/// Reads the true, current `activeProperNouns` list from `config.json` for reporting back
-/// to the caller — NOT computed in-memory from what `create_and_activate_proper_noun_file`
-/// intended to write, since that write is best-effort and can silently fail. Empty vec on
-/// any read/parse failure or missing config, matching the same non-fatal philosophy as the
-/// write side.
-fn read_active_proper_nouns(config_path: &PathBuf) -> Vec<String> {
-    if !config_path.exists() {
-        return Vec::new();
-    }
-    let Ok(contents) = fs::read_to_string(config_path) else {
-        return Vec::new();
-    };
-    let Ok(config) = serde_json::from_str::<serde_json::Value>(&contents) else {
-        return Vec::new();
-    };
-    config
-        .get("activeProperNouns")
-        .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-        .unwrap_or_default()
-}
-
-/// Removes `dictionary_id` from `activeProperNouns` in the config at `config_path`, if present.
-/// Best-effort — mirrors the non-fatal contract of the append side. Used to reverse
-/// `create_and_activate_proper_noun_file`'s config bookkeeping when a downstream step fails.
-fn deactivate_proper_noun_file(config_path: &PathBuf, dictionary_id: &str) {
-    mutate_active_proper_nouns_best_effort(config_path, false, |active_array| {
-        active_array.retain(|v| v.as_str() != Some(dictionary_id));
-        true
-    });
 }
 
 #[tauri::command]
@@ -1020,18 +921,15 @@ pub async fn create_proper_nouns_dictionary(
     }
 
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
 
-    if let Err(err) = create_and_activate_proper_noun_file(&dictionary_path, &config_path, &dictionary_id) {
+    if let Err(err) = create_proper_noun_file(&dictionary_path, &dictionary_id) {
         return Ok(DictionaryResponse::err(err));
     }
 
     // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
     cache.invalidate(Some(&dictionary_id));
 
-    // Report the true post-activation active list — not an assumption — so the caller
-    // never has to guess whether creation also activated the new dictionary.
-    Ok(DictionaryResponse::ok_with_dicts(read_active_proper_nouns(&config_path)))
+    Ok(DictionaryResponse::ok())
 }
 
 /// Whether a proper-nouns dictionary comes with a paired structural patterns dictionary:
@@ -1051,7 +949,7 @@ fn to_patterns_id(proper_noun_id: &str) -> String {
 /// ADR-027/ADR-048: creates a paired proper-nouns dictionary (fiction `properNouns-f_X` or
 /// generic `properNouns-_X`) together with its structural patterns dictionary (`patterns-f_X`
 /// / `patterns-_X`) atomically — either both files exist afterward, or neither does. Mirrors `rename_proper_nouns_dictionary`'s atomicity: the
-/// properNouns half is created (and activated) first, and rolled back if the patterns half
+/// properNouns half is created first, and rolled back if the patterns half
 /// fails to create, so a partial pair is never left on disk.
 #[tauri::command]
 pub async fn create_fiction_dictionary_pair(
@@ -1074,9 +972,8 @@ pub async fn create_fiction_dictionary_pair(
     validate_dictionary_id(&patterns_id)?;
 
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
 
-    if let Err(err) = create_and_activate_proper_noun_file(&dictionary_path, &config_path, &proper_noun_id) {
+    if let Err(err) = create_proper_noun_file(&dictionary_path, &proper_noun_id) {
         return Ok(DictionaryResponse::err(err));
     }
     cache.invalidate(Some(&proper_noun_id));
@@ -1087,7 +984,6 @@ pub async fn create_fiction_dictionary_pair(
         // Roll back the properNouns half so callers never see a half-created pair.
         let proper_noun_file_path = dictionary_path.join(format!("{}.json", proper_noun_id));
         let _ = fs::remove_file(&proper_noun_file_path);
-        deactivate_proper_noun_file(&config_path, &proper_noun_id);
         cache.invalidate(Some(&proper_noun_id));
         return Ok(DictionaryResponse::err(format!(
             "Failed to create paired patterns dictionary: {}. Rolled back.",
@@ -1096,7 +992,7 @@ pub async fn create_fiction_dictionary_pair(
     }
     cache.invalidate(Some(&patterns_id));
 
-    Ok(DictionaryResponse::ok_with_dicts(read_active_proper_nouns(&config_path)))
+    Ok(DictionaryResponse::ok())
 }
 
 #[tauri::command]
@@ -1266,7 +1162,7 @@ fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf,
 /// `quarantined` naming it. The data survives for recovery, and the app's next save lands on
 /// a fresh file instead of over it. A failed *read* (permission, I/O) is an `Err` and moves
 /// nothing, since a retry may succeed; the TS loaders then refuse to save until a load works
-/// (`utils/unreadableFile.ts`).
+/// (`utils/appFile.ts`).
 fn load_json_file_with_default(
     path: &PathBuf,
     default: serde_json::Value,
@@ -2624,9 +2520,9 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    // ── create_and_activate_proper_noun_file / deactivate_proper_noun_file ───
-    // Pure filesystem functions (no AppHandle) backing create_proper_nouns_dictionary
-    // and create_fiction_dictionary_pair's rollback path — directly unit-testable.
+    // ── create_proper_noun_file ───
+    // Pure filesystem function (no AppHandle) backing create_proper_nouns_dictionary
+    // and create_fiction_dictionary_pair — directly unit-testable.
 
     fn temp_test_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -2782,29 +2678,26 @@ mod tests {
     }
 
     #[test]
-    fn test_create_and_activate_creates_file_and_appends_config() {
+    fn test_create_proper_noun_file_creates_an_empty_file() {
         let dir = temp_test_dir("create_happy_path");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{"activeProperNouns": []}"#).unwrap();
 
-        let result = create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test");
+        let result = create_proper_noun_file(&dir, "properNouns-f_Test");
 
         assert!(result.is_ok());
-        assert!(dir.join("properNouns-f_Test.json").exists());
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_Test"]));
+        let contents: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(dir.join("properNouns-f_Test.json")).unwrap())
+                .unwrap();
+        assert_eq!(contents, serde_json::json!({}));
 
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn test_create_and_activate_errors_when_file_already_exists() {
+    fn test_create_proper_noun_file_errors_when_file_already_exists() {
         let dir = temp_test_dir("create_already_exists");
-        let config_path = dir.join("config.json");
         fs::write(dir.join("properNouns-f_Test.json"), "{}").unwrap();
 
-        let result = create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test");
+        let result = create_proper_noun_file(&dir, "properNouns-f_Test");
 
         assert_eq!(result, Err("Dictionary already exists".to_string()));
 
@@ -2812,190 +2705,19 @@ mod tests {
     }
 
     #[test]
-    fn test_create_and_activate_is_non_fatal_when_config_missing() {
-        let dir = temp_test_dir("create_no_config");
-        let config_path = dir.join("config.json"); // does not exist
-
-        let result = create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test");
-
-        assert!(result.is_ok());
-        assert!(dir.join("properNouns-f_Test.json").exists());
-        assert!(!config_path.exists(), "should not create config.json if absent");
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_create_and_activate_skips_duplicate_activation() {
-        let dir = temp_test_dir("create_dup_activation");
+    fn test_create_proper_noun_file_leaves_config_alone() {
+        // Activation is the frontend's. A config beside the dictionary is neither read
+        // nor rewritten, whether it is well-formed or not.
+        let dir = temp_test_dir("create_leaves_config");
         let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_Test"]}"#).unwrap();
+        fs::write(&config_path, r#"{"activeProperNouns": [], "other": 1}"#).unwrap();
 
-        let result = create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test");
+        create_proper_noun_file(&dir, "properNouns-f_Test").unwrap();
 
-        assert!(result.is_ok());
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
         assert_eq!(
-            config["activeProperNouns"],
-            serde_json::json!(["properNouns-f_Test"]),
-            "should not duplicate an already-present entry"
+            fs::read_to_string(&config_path).unwrap(),
+            r#"{"activeProperNouns": [], "other": 1}"#
         );
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_active_proper_nouns_returns_true_disk_state() {
-        let dir = temp_test_dir("read_active_happy_path");
-        let config_path = dir.join("config.json");
-        fs::write(
-            &config_path,
-            r#"{"activeProperNouns": ["properNouns-f_A", "properNouns-f_B"]}"#,
-        )
-        .unwrap();
-
-        let result = read_active_proper_nouns(&config_path);
-
-        assert_eq!(result, vec!["properNouns-f_A".to_string(), "properNouns-f_B".to_string()]);
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_active_proper_nouns_reflects_create_and_activate() {
-        let dir = temp_test_dir("read_active_after_create");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{"activeProperNouns": []}"#).unwrap();
-
-        create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test").unwrap();
-        let result = read_active_proper_nouns(&config_path);
-
-        assert_eq!(result, vec!["properNouns-f_Test".to_string()]);
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_active_proper_nouns_empty_when_config_missing() {
-        let dir = temp_test_dir("read_active_no_config");
-        let config_path = dir.join("config.json"); // does not exist
-
-        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_active_proper_nouns_empty_when_config_corrupt() {
-        let dir = temp_test_dir("read_active_corrupt_config");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, "not valid json").unwrap();
-
-        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_active_proper_nouns_empty_when_key_absent() {
-        let dir = temp_test_dir("read_active_no_key");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{"lastSelectedDictionary": "properNouns-Other"}"#).unwrap();
-
-        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_deactivate_removes_entry_from_config() {
-        let dir = temp_test_dir("deactivate_happy_path");
-        let config_path = dir.join("config.json");
-        fs::write(
-            &config_path,
-            r#"{"activeProperNouns": ["properNouns-f_Test", "properNouns-Other"]}"#,
-        )
-        .unwrap();
-
-        deactivate_proper_noun_file(&config_path, "properNouns-f_Test");
-
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-Other"]));
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_deactivate_is_noop_when_config_missing() {
-        let dir = temp_test_dir("deactivate_no_config");
-        let config_path = dir.join("config.json"); // does not exist
-
-        deactivate_proper_noun_file(&config_path, "properNouns-f_Test"); // must not panic
-
-        assert!(!config_path.exists());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    // ── mutate_active_proper_nouns_best_effort ── shared create/deactivate helper,
-    // architecture review 2026-09-08, candidate #3 grilling (narrowed from a 3-function
-    // report to just these two — substitute_dictionary_reference stayed a separate, pure
-    // in-memory mutator, no shared helper).
-
-    #[test]
-    fn test_mutate_active_proper_nouns_creates_missing_array_when_create_if_missing() {
-        let dir = temp_test_dir("mutate_active_creates_array");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{}"#).unwrap(); // no activeProperNouns key at all
-
-        mutate_active_proper_nouns_best_effort(&config_path, true, |active_array| {
-            active_array.push(serde_json::Value::String("properNouns-f_New".to_string()));
-            true
-        });
-
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_New"]));
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_mutate_active_proper_nouns_noops_on_missing_array_when_not_create_if_missing() {
-        let dir = temp_test_dir("mutate_active_noop_missing");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{}"#).unwrap(); // no activeProperNouns key at all
-
-        let mut mutate_called = false;
-        mutate_active_proper_nouns_best_effort(&config_path, false, |active_array| {
-            mutate_called = true;
-            active_array.push(serde_json::Value::String("unreachable".to_string()));
-            true
-        });
-
-        assert!(!mutate_called, "mutate must not run when the array doesn't exist and create_if_missing is false");
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-        assert!(config.get("activeProperNouns").is_none(), "must not create the key");
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_mutate_active_proper_nouns_skips_save_when_mutate_returns_false() {
-        let dir = temp_test_dir("mutate_active_skips_save");
-        let config_path = dir.join("config.json");
-        let original = r#"{"activeProperNouns": ["properNouns-f_Existing"], "otherField": "untouched"}"#;
-        fs::write(&config_path, original).unwrap();
-        let mtime_before = fs::metadata(&config_path).unwrap().modified().unwrap();
-
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        mutate_active_proper_nouns_best_effort(&config_path, true, |_active_array| false);
-
-        let mtime_after = fs::metadata(&config_path).unwrap().modified().unwrap();
-        assert_eq!(mtime_before, mtime_after, "file must not be rewritten when mutate returns false");
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -3174,29 +2896,6 @@ mod tests {
             Ok(_) => panic!("expected Err for a path-traversal dictionary ID"),
         }
         assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rollback_sequence_leaves_no_active_entry_and_file_removed() {
-        // Simulates create_fiction_dictionary_pair's rollback: the properNouns half is
-        // created+activated, then reversed when the patterns half fails to create.
-        let dir = temp_test_dir("rollback_sequence");
-        let config_path = dir.join("config.json");
-        fs::write(&config_path, r#"{"activeProperNouns": []}"#).unwrap();
-
-        create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test")
-            .expect("initial create should succeed");
-
-        let file_path = dir.join("properNouns-f_Test.json");
-        fs::remove_file(&file_path).unwrap();
-        deactivate_proper_noun_file(&config_path, "properNouns-f_Test");
-
-        assert!(!file_path.exists());
-        let config: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
-        assert_eq!(config["activeProperNouns"], serde_json::json!([]));
 
         let _ = fs::remove_dir_all(&dir);
     }

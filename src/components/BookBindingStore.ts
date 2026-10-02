@@ -1,5 +1,5 @@
 import type { BookBinding } from '../types/ReaderTypes';
-import type { ProperNounsListResult } from '../types/ElectronTypes';
+import type { DictionaryCreateResult } from '../types/ElectronTypes';
 import { loadAppConfig, transformAppConfig, type AppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -8,6 +8,7 @@ import {
   otherPairedTierId,
 } from '../utils/dictionary/DictionaryIdClassifier';
 import {
+  activeProperNounsForBinding,
   bindingConfigChange,
   dictionaryInUse,
   quickAddViewForBinding,
@@ -61,8 +62,9 @@ export interface BookBindingDeps {
   setBookBinding: (fingerprint: string, binding: BookBinding) => Promise<void>;
   renameBoundDictionary: (oldId: string, newId: string) => Promise<void>;
   unbindDictionary: (dictionaryId: string) => Promise<void>;
-  /** Create a proper-nouns dictionary (the pair, for fiction) and load every half. */
-  createDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /** Create a proper-nouns dictionary (the pair, for fiction) and load every half. Creates
+   * files only; activating it is the caller's (`bind` does for `createAndBind`). */
+  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateResult>;
   /** Rename a pair on disk and swap its halves in memory. */
   renameDictionary: (oldId: string, newId: string) => Promise<{ success: boolean; error?: string }>;
   /** Rebuild the engine from the Dictionary Store's current map, read at call time: a pair
@@ -82,8 +84,11 @@ export interface BookBindingStore {
   bind: (fictionDictionary: string | null) => Promise<boolean>;
   /** Create a fiction pair from a reader-typed name, then bind to it. Same result as `bind`. */
   createAndBind: (rawName: string) => Promise<boolean>;
-  /** Create a proper-nouns dictionary (the pair, for fiction) and load it, binding nothing. */
-  createDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /** Create a proper-nouns dictionary (the pair, for fiction), load it and activate it,
+   * binding nothing. With a book open the fiction slice stays the book's: an unbound fiction
+   * dictionary is created but not activated. `warning` when it exists but could not be
+   * activated. */
+  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateResult>;
   /** Rename a dictionary. A fiction pair's new name is also carried into every book bound to it. */
   renameDictionary: (oldId: string, newId: string) => Promise<DictionaryRenameResult>;
   moveDictionaryTier: (dictionaryId: string) => Promise<TierMoveResult>;
@@ -313,7 +318,44 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
         }
       }),
 
-    createDictionary: (dictionaryId) => enqueue(() => deps.createDictionary(dictionaryId)),
+    createDictionary: (dictionaryId) =>
+      enqueue(async () => {
+        const result = await deps.createDictionary(dictionaryId);
+        if (!result.success) return result;
+        try {
+          // Activating is a config write like a toggle's: decided against the config as it
+          // is at its turn, and only the list changes (a quick-add default the reader set is
+          // not this operation's to move). With a book open the fiction slice is its
+          // binding's, so an unbound fiction dictionary does not join the list.
+          await transformAppConfig((config) => {
+            let activeProperNouns = config.engine.activeProperNouns.includes(dictionaryId)
+              ? config.engine.activeProperNouns
+              : [...config.engine.activeProperNouns, dictionaryId];
+            if (snapshot.openBook) {
+              activeProperNouns = activeProperNounsForBinding(
+                activeProperNouns,
+                dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary)
+              );
+            }
+            const unchanged =
+              activeProperNouns.length === config.engine.activeProperNouns.length &&
+              activeProperNouns.every((id, index) => id === config.engine.activeProperNouns[index]);
+            return {
+              value: unchanged
+                ? config
+                : { ...config, engine: { ...config.engine, activeProperNouns } },
+              result: undefined,
+            };
+          });
+          return result;
+        } catch (cause) {
+          logger.error('Failed to activate a new dictionary:', cause);
+          return {
+            ...result,
+            warning: `Created ${dictionaryId}, but it was not activated: ${extractErrorMessage(cause)}`,
+          };
+        }
+      }),
 
     renameDictionary: (oldId, newId) =>
       enqueue(async () => {

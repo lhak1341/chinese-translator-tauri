@@ -54,14 +54,19 @@ export interface DictionaryListResult extends ElectronResult<DictionaryInfo[]> {
 }
 
 /**
- * Proper-nouns dictionary creation result. `dictionaries`, when present, is the true
- * post-operation `activeProperNouns` list (Rust re-reads config.json rather than
- * assuming its own best-effort activation write succeeded) — callers should sync active
- * dictionary state from this field instead of assuming creation activates.
+ * Proper-nouns dictionary listing result: the ids on disk.
  */
 export interface ProperNounsListResult extends ElectronResult {
-  /** Updated activeProperNouns list after creation, if the command reports one */
   dictionaries?: string[];
+}
+
+/**
+ * Proper-nouns dictionary creation result. The command only creates files. Activating the
+ * dictionary is a separate step (`BookBindingStore.createDictionary`), and `warning` is
+ * what that step reports when the dictionary exists but could not be activated.
+ */
+export interface DictionaryCreateResult extends ElectronResult {
+  warning?: string;
 }
 
 /**
@@ -213,11 +218,11 @@ export interface ElectronAPI {
   /** List all fiction structural pattern dictionaries (patterns-f_*) */
   listFictionPatternDictionaries: () => Promise<DictionaryListResult>;
   /** Create a new proper nouns dictionary */
-  createProperNounsDictionary: (id: string) => Promise<ProperNounsListResult>;
+  createProperNounsDictionary: (id: string) => Promise<DictionaryCreateResult>;
   /** Create a new fiction structural patterns dictionary (patterns-f_*) */
   createStructuralPatternsDictionary: (id: string) => Promise<SaveResult>;
   /** Atomically create a fiction or generic proper nouns dictionary together with its paired patterns-f_* / patterns-_* dictionary (ADR-027, ADR-048) */
-  createFictionDictionaryPair: (properNounId: string) => Promise<ProperNounsListResult>;
+  createFictionDictionaryPair: (properNounId: string) => Promise<DictionaryCreateResult>;
   /** Rename a proper nouns dictionary (cascades to paired patterns-f_* / patterns-_* file) */
   renameProperNounsDictionary: (
     oldDictionaryId: string,

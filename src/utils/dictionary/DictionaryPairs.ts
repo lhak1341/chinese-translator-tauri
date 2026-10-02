@@ -17,7 +17,7 @@ import { callRustConfigWrite } from '../appConfig';
 import { logger } from '../logger';
 import { listFictionPatternDictionaryIds } from './DictionaryBackend';
 import { hasPairedPatterns, toPatternsId } from './DictionaryIdClassifier';
-import type { ProperNounsListResult } from '../../types/ElectronTypes';
+import type { DictionaryCreateResult } from '../../types/ElectronTypes';
 
 export interface DictionaryPairOps {
   loadDictionary: (dictionaryId: string) => Promise<void>;
@@ -34,18 +34,18 @@ function halvesOf(properNounsId: string): string[] {
 
 /**
  * Create a proper-nouns dictionary — the pair, or the single file for a custom one — and
- * load every half it created. Returns Rust's result unchanged: it carries the active list
- * creation wrote, which the Configuration tab syncs from. A failed create loads nothing.
+ * load every half it created. Returns Rust's result unchanged. Creates files only: Rust
+ * writes no config here, so there is no `callRustConfigWrite`, and activating the new
+ * dictionary is the caller's (`BookBindingStore.createDictionary`). A failed create loads
+ * nothing.
  */
 export async function createDictionary(
   properNounsId: string,
   ops: DictionaryPairOps
-): Promise<ProperNounsListResult> {
-  const result = await callRustConfigWrite(() =>
-    hasPairedPatterns(properNounsId)
-      ? window.electronAPI.createFictionDictionaryPair(properNounsId)
-      : window.electronAPI.createProperNounsDictionary(properNounsId)
-  );
+): Promise<DictionaryCreateResult> {
+  const result = await (hasPairedPatterns(properNounsId)
+    ? window.electronAPI.createFictionDictionaryPair(properNounsId)
+    : window.electronAPI.createProperNounsDictionary(properNounsId));
   if (!result.success) return result;
   for (const id of halvesOf(properNounsId)) await ops.loadDictionary(id);
   return result;

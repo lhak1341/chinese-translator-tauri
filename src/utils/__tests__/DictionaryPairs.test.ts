@@ -45,7 +45,7 @@ describe('createDictionary', () => {
     ['fiction', 'properNouns-f_Novel', ['load properNouns-f_Novel', 'load patterns-f_Novel']],
     ['generic', 'properNouns-_Theme', ['load properNouns-_Theme', 'load patterns-_Theme']],
   ])('a %s dictionary is created as a pair and both halves load', async (_, id, loads) => {
-    const result = { success: true, dictionaries: ['properNouns', id] };
+    const result = { success: true };
     api.createFictionDictionaryPair.mockResolvedValue(result);
     const { ops, events } = fakeOps();
 

@@ -55,7 +55,7 @@ export function installRealStores(options: {
   const idsWhere = (test: (id: string) => boolean) => Object.keys(files).filter(test);
   const create = (...created: string[]) => {
     for (const id of created) files[id] = {};
-    return { success: true, dictionaries: raw().activeProperNouns };
+    return { success: true };
   };
 
   const api = {
@@ -68,15 +68,9 @@ export function installRealStores(options: {
       dictionaries: idsWhere((id) => isPatternsDict(id) && tierOf(id) !== 'root'),
     })),
     createStructuralPatternsDictionary: vi.fn(async (id: string) => create(id)),
-    // Rust activates what it creates, best-effort.
-    createProperNounsDictionary: vi.fn(async (id: string) => {
-      raw().activeProperNouns = [...raw().activeProperNouns, id];
-      return create(id);
-    }),
-    createFictionDictionaryPair: vi.fn(async (id: string) => {
-      raw().activeProperNouns = [...raw().activeProperNouns, id];
-      return create(id, toPatternsId(id));
-    }),
+    // Rust only creates the files; activating them is the binding store's config write.
+    createProperNounsDictionary: vi.fn(async (id: string) => create(id)),
+    createFictionDictionaryPair: vi.fn(async (id: string) => create(id, toPatternsId(id))),
     // Rust moves each half and substitutes the id wherever config names it.
     renameProperNounsDictionary: vi.fn(async (oldId: string, newId: string) => {
       const moves: [string, string][] = [[oldId, newId]];

@@ -353,4 +353,22 @@ describe('creating and renaming go through the binding context', () => {
     // The Reader's binding dialog reads the same list.
     expect(result.current.binding.fictionDictionaries).toContain('properNouns-f_DaiBatHau');
   });
+
+  test('a dictionary created but not activated keeps its row and shows why', async () => {
+    const { result } = await renderTab();
+    h.disk.saveConfiguration.mockResolvedValueOnce({ success: false, error: 'disk full' });
+
+    act(() => result.current.tab.updateDraftName('Custom'));
+    await act(async () => {
+      await result.current.tab.handleCreateDictionary({
+        preventDefault: () => {},
+      } as React.FormEvent);
+    });
+
+    await waitFor(() => {
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-Custom');
+    });
+    expect(result.current.tab.activeDictionaries).not.toContain('properNouns-Custom');
+    expect(result.current.tab.error).toContain('not activated');
+  });
 });

@@ -511,7 +511,80 @@ describe('creating a dictionary from the Configuration tab', () => {
     expect(loadDictionary).toHaveBeenCalledTimes(1);
   });
 
-  test('waits behind the apply in flight, since Rust rewrites the same config key', async () => {
+  test('activates what it creates, in config', async () => {
+    const store = setup();
+    disk.saveConfiguration.mockClear();
+
+    await store.createDictionary('properNouns-Custom');
+
+    expect(lastSavedActive()).toEqual(['properNouns', 'properNouns-_AiCap', 'properNouns-Custom']);
+    // Only the list moves: a quick-add default is not this operation's to change.
+    expect(disk.disk.raw.defaultQuickAddDictionary).toBeNull();
+    expect(reinitializeEngine).not.toHaveBeenCalled();
+  });
+
+  test('with no book open a new fiction dictionary is activated too', async () => {
+    const store = setup();
+
+    await store.createDictionary('properNouns-f_DaiBatHau');
+
+    expect(config.engine.activeProperNouns).toContain('properNouns-f_DaiBatHau');
+  });
+
+  test('with a book open its binding owns the fiction slice: an unbound fiction dictionary is created, not activated', async () => {
+    const store = setup();
+    store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    await settle();
+    disk.saveConfiguration.mockClear();
+
+    const response = await store.createDictionary('properNouns-f_DaiBatHau');
+
+    expect(response).toEqual({ success: true });
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
+    expect(config.engine.activeProperNouns).toEqual([
+      'properNouns',
+      'properNouns-_AiCap',
+      'properNouns-f_TapDo',
+    ]);
+  });
+
+  test('with a book open a generic or custom dictionary still joins the list', async () => {
+    const store = setup();
+    store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    await settle();
+
+    await store.createDictionary('properNouns-Custom');
+
+    // The binding keeps the fiction slice last; the rest of the list is as it was.
+    expect([...config.engine.activeProperNouns].sort()).toEqual(
+      ['properNouns', 'properNouns-_AiCap', 'properNouns-Custom', 'properNouns-f_TapDo'].sort()
+    );
+  });
+
+  test('a dictionary that exists but could not be activated says so, and stays loaded', async () => {
+    const store = setup();
+    disk.saveConfiguration.mockResolvedValueOnce({ success: false, error: 'disk full' });
+
+    const response = await store.createDictionary('properNouns-Custom');
+
+    expect(response.success).toBe(true);
+    expect(response.warning).toContain('properNouns-Custom');
+    expect(response.warning).toContain('not activated');
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-Custom');
+  });
+
+  test('a failed create activates nothing', async () => {
+    createProperNounsDictionary.mockResolvedValue({ success: false, error: 'exists' });
+    const store = setup();
+    disk.saveConfiguration.mockClear();
+
+    const response = await store.createDictionary('properNouns-Custom');
+
+    expect(response).toEqual({ success: false, error: 'exists' });
+    expect(disk.saveConfiguration).not.toHaveBeenCalled();
+  });
+
+  test('waits behind the apply in flight, since activating rewrites the same config key', async () => {
     const store = setup();
     const { release } = deferredSave();
     store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
@@ -575,6 +648,22 @@ describe('creating a dictionary from the dialog', () => {
     expect(setBookBinding).toHaveBeenCalledWith('fp1', {
       fictionDictionary: 'properNouns-f_DaiBatHau',
     });
+  });
+
+  test('writes the active list once, through the bind — creating activates nothing itself', async () => {
+    const store = setup();
+    store.announceOpenBook(BOOK, null);
+    await settle();
+    disk.saveConfiguration.mockClear();
+
+    await store.createAndBind('Đại bát hầu');
+
+    expect(disk.saveConfiguration).toHaveBeenCalledTimes(1);
+    expect(lastSavedActive()).toEqual([
+      'properNouns',
+      'properNouns-_AiCap',
+      'properNouns-f_DaiBatHau',
+    ]);
   });
 
   test('the rebuild sees the pair it just loaded, read from the Dictionary Store at call time', async () => {

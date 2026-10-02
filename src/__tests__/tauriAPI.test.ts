@@ -74,7 +74,7 @@ describe('createProperNounsDictionary — validation runs before the seam', () =
   });
 
   it('calls invoke with a valid id', async () => {
-    mockInvoke.mockResolvedValueOnce({ success: true, dictionaries: ['properNouns-Foo'] });
+    mockInvoke.mockResolvedValueOnce({ success: true });
 
     await tauriAPI.createProperNounsDictionary('Foo');
 
