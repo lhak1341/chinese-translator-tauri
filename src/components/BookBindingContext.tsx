@@ -2,7 +2,6 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -11,9 +10,9 @@ import React, {
 import type { BookBinding } from '../types/ReaderTypes';
 import type { ProperNounsListResult } from '../types/ElectronTypes';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { logger } from '../utils/logger';
 import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
+import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
 import { dictionaryInUse } from '../utils/reader/BindingActivation';
 import type { QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import {
@@ -23,14 +22,14 @@ import {
 } from '../utils/reader/BookRecordsBackend';
 import {
   createBookBindingStore,
-  type FictionRenameResult,
+  type DictionaryRenameResult,
   type OpenBookIdentity,
   type TierMoveResult,
 } from './BookBindingStore';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { useEngine } from './EngineContext';
 
-export type { FictionRenameResult, OpenBookIdentity, TierMoveResult };
+export type { DictionaryRenameResult, OpenBookIdentity, TierMoveResult };
 
 export interface BookBindingContextValue {
   openBook: OpenBookIdentity | null;
@@ -46,7 +45,8 @@ export interface BookBindingContextValue {
    * (renamed outside the app, or lost to a reset or import). The book reads with no
    * fiction dictionary until the reader answers again; the record is left as it is. */
   missingFictionDictionary: string | null;
-  /** Every `properNouns-f_*` dictionary that exists, sorted. */
+  /** Every `properNouns-f_*` dictionary that exists, sorted — the Dictionary Store's list,
+   * filtered. */
   fictionDictionaries: string[];
   /** True once the Reader has a book open. While it is, the open book owns the fiction
    * slice of `activeProperNouns` and the Configuration tab only reflects it. */
@@ -76,9 +76,10 @@ export interface BookBindingContextValue {
   bind: (fictionDictionary: string | null) => Promise<void>;
   /** Create a new fiction dictionary pair from a reader-typed name, then bind to it. */
   createAndBind: (rawName: string) => Promise<void>;
-  /** Create a fiction dictionary pair and load it, binding nothing. The Configuration
-   * tab's create, for a `properNouns-f_*` id. */
-  createFictionDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /** Create a proper-nouns dictionary (the pair, for a `properNouns-f_*` id) and load it,
+   * binding nothing. The Configuration tab's create, for every kind. Runs on the binding
+   * queue, behind any apply still in flight. */
+  createDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
   /**
    * The quick-add view every Add in the app decides over — Translator, Dictionary tab and
    * Reader alike. With a book open: config as its binding implies it
@@ -88,10 +89,10 @@ export interface BookBindingContextValue {
    * after a bind sees it. Stable.
    */
   loadQuickAddView: () => Promise<QuickAddView | null>;
-  /** Rename a fiction dictionary pair and carry the new name into every book bound to it.
-   * If the book records could not be updated, those books open with their binding
-   * reported missing. */
-  renameFictionDictionary: (oldId: string, newId: string) => Promise<FictionRenameResult>;
+  /** Rename a dictionary. A fiction pair's new name is also carried into every book bound
+   * to it; if the book records could not be updated, those books open with their binding
+   * reported missing. Any other dictionary has no records to update. */
+  renameDictionary: (oldId: string, newId: string) => Promise<DictionaryRenameResult>;
   /**
    * Move a fiction pair to the generic tier (`properNouns-f_X` → `properNouns-_X`, promote)
    * or a generic pair to fiction (demote), patterns half included. Promoting unbinds every
@@ -122,7 +123,7 @@ export function BookBindingProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { loadDictionary, applyRename, getDictionaries } = useDictionary();
+  const { loadDictionary, applyRename, getDictionaries, dictionaryTypes } = useDictionary();
   const { reinitializeEngine } = useEngine();
 
   // The store is made once; what it needs from other contexts reaches it through this ref,
@@ -157,11 +158,15 @@ export function BookBindingProvider({
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  useEffect(() => {
-    store.refreshFictionDictionaries().catch((cause) => {
-      logger.error('Failed to list fiction dictionaries:', cause);
-    });
-  }, [store]);
+  // The Dictionary Store already lists every dictionary that exists and re-lists it on each
+  // create and rename, so this is a view of that list, not a second copy (ADR-062).
+  const fictionDictionaries = useMemo(
+    () =>
+      Object.keys(dictionaryTypes)
+        .filter(isFictionProperNounsId)
+        .sort((a, b) => a.localeCompare(b)),
+    [dictionaryTypes]
+  );
 
   const announceOpenBook = useCallback(
     (book: OpenBookIdentity, nextBinding: BookBinding | null): void => {
@@ -205,7 +210,7 @@ export function BookBindingProvider({
       binding: snapshot.binding,
       boundFictionDictionary: dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary),
       missingFictionDictionary: snapshot.missingFictionDictionary,
-      fictionDictionaries: snapshot.fictionDictionaries,
+      fictionDictionaries,
       isBookOpen: snapshot.openBook !== null,
       isDialogOpen,
       isApplying: snapshot.isApplying,
@@ -217,13 +222,14 @@ export function BookBindingProvider({
       announceClosedBook,
       bind,
       createAndBind,
-      createFictionDictionary: store.createFictionDictionary,
-      renameFictionDictionary: store.renameFictionDictionary,
+      createDictionary: store.createDictionary,
+      renameDictionary: store.renameDictionary,
       moveDictionaryTier: store.moveDictionaryTier,
       loadQuickAddView: store.loadQuickAddView,
     }),
     [
       snapshot,
+      fictionDictionaries,
       isDialogOpen,
       openDialog,
       closeDialog,

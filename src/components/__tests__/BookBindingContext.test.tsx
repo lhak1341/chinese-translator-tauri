@@ -36,6 +36,7 @@ const { engine, dictionaries, dictionaryContext } = vi.hoisted(() => {
     dictionaries,
     dictionaryContext: {
       dictionaries,
+      dictionaryTypes: {} as Record<string, unknown>,
       loadDictionary: vi.fn().mockResolvedValue(undefined),
       applyRename: vi.fn().mockResolvedValue(undefined),
       getDictionaries: vi.fn(() => dictionaries),
@@ -61,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   engine.reinitializeEngine = vi.fn().mockResolvedValue(true);
   dictionaryContext.getDictionaries.mockImplementation(() => dictionaries);
+  dictionaryContext.dictionaryTypes = {};
   setBookBinding.mockResolvedValue(undefined);
   listProperNounsDictionaryIds.mockResolvedValue([
     'properNouns',
@@ -76,14 +78,22 @@ beforeEach(() => {
 });
 
 describe('what consumers read', () => {
-  test('lists the fiction dictionaries on mount', async () => {
-    const { result } = setup();
-    await waitFor(() =>
-      expect(result.current.fictionDictionaries).toEqual([
-        'properNouns-f_TapDo',
+  test('lists the fiction dictionaries the Dictionary Store lists, sorted', () => {
+    dictionaryContext.dictionaryTypes = Object.fromEntries(
+      [
+        'properNouns',
         'properNouns-f_TruTien',
-      ])
+        'properNouns-_AiCap',
+        'patterns-f_TapDo',
+        'properNouns-f_TapDo',
+      ].map((id) => [id, {}])
     );
+    const { result } = setup();
+
+    expect(result.current.fictionDictionaries).toEqual([
+      'properNouns-f_TapDo',
+      'properNouns-f_TruTien',
+    ]);
   });
 
   test('an announced book shows as open, with the dictionary in use read off its binding', async () => {
@@ -124,8 +134,8 @@ describe('what consumers read', () => {
       'announceClosedBook',
       'bind',
       'createAndBind',
-      'createFictionDictionary',
-      'renameFictionDictionary',
+      'createDictionary',
+      'renameDictionary',
       'moveDictionaryTier',
       'loadQuickAddView',
       'openDialog',

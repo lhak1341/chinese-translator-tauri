@@ -16,9 +16,9 @@ import {
 import { toFictionDictionaryId } from '../utils/reader/FictionDictionarySuggestion';
 import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 
-/** What renaming a fiction dictionary did. `filesMoved` with `success: false` means the
- * pair was renamed but the book records could not be updated to match. */
-export interface FictionRenameResult {
+/** What renaming a dictionary did. `filesMoved` with `success: false` means a fiction pair
+ * was renamed but the book records could not be updated to match. */
+export interface DictionaryRenameResult {
   success: boolean;
   error?: string;
   filesMoved: boolean;
@@ -26,7 +26,7 @@ export interface FictionRenameResult {
 
 /** What moving a dictionary between the fiction and generic tiers did. `newId` is the
  * dictionary's id after the move; `null` when the id has no other tier. */
-export interface TierMoveResult extends FictionRenameResult {
+export interface TierMoveResult extends DictionaryRenameResult {
   newId: string | null;
 }
 
@@ -45,8 +45,6 @@ export interface BookBindingSnapshot {
   binding: BookBinding | null;
   /** The dictionary the open book's record names but that no longer exists on disk. */
   missingFictionDictionary: string | null;
-  /** Every `properNouns-f_*` dictionary that exists, sorted. */
-  fictionDictionaries: string[];
   isApplying: boolean;
   /** The last operation's failure, for the dialog. */
   error: string | null;
@@ -57,7 +55,8 @@ export interface BookBindingSnapshot {
 /** Everything the store reaches outside itself except config, which it reads and writes
  * through `appConfig` (tests fake its IPC with `installFakeConfigDisk`). */
 export interface BookBindingDeps {
-  /** Every proper-nouns dictionary id on disk. */
+  /** Every proper-nouns dictionary id on disk. Read only to check that a bound dictionary
+   * still exists; the list the rest of the app shows is the Dictionary Store's. */
   listDictionaryIds: () => Promise<string[]>;
   setBookBinding: (fingerprint: string, binding: BookBinding) => Promise<void>;
   renameBoundDictionary: (oldId: string, newId: string) => Promise<void>;
@@ -74,9 +73,6 @@ export interface BookBindingDeps {
 export interface BookBindingStore {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => BookBindingSnapshot;
-  /** Lists the fiction dictionaries into the snapshot. Not queued; the provider calls it on
-   * mount. */
-  refreshFictionDictionaries: () => Promise<void>;
   /** Applies the book's answer, or for a book with no answer yet "global dictionaries only". */
   announceOpenBook: (book: OpenBookIdentity, binding: BookBinding | null) => void;
   /** The book gives up authority over the fiction slice. Writes no config, rebuilds nothing. */
@@ -86,8 +82,10 @@ export interface BookBindingStore {
   bind: (fictionDictionary: string | null) => Promise<boolean>;
   /** Create a fiction pair from a reader-typed name, then bind to it. Same result as `bind`. */
   createAndBind: (rawName: string) => Promise<boolean>;
-  createFictionDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
-  renameFictionDictionary: (oldId: string, newId: string) => Promise<FictionRenameResult>;
+  /** Create a proper-nouns dictionary (the pair, for fiction) and load it, binding nothing. */
+  createDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /** Rename a dictionary. A fiction pair's new name is also carried into every book bound to it. */
+  renameDictionary: (oldId: string, newId: string) => Promise<DictionaryRenameResult>;
   moveDictionaryTier: (dictionaryId: string) => Promise<TierMoveResult>;
   /** The quick-add view every Add decides over. With a book open: config as its binding
    * implies it. With none: config as loaded. Reads the binding at call time. */
@@ -132,7 +130,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
     openBook: null,
     binding: null,
     missingFictionDictionary: null,
-    fictionDictionaries: [],
     isApplying: false,
     error: null,
     applyError: null,
@@ -148,7 +145,9 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
 
   // Serializes every operation. Opening a book and answering the dialog both do a
   // read-modify-write of `activeProperNouns` followed by an engine rebuild; overlapping them
-  // would rebuild against a half-written config.
+  // would rebuild against a half-written config. Creating, renaming and moving a dictionary
+  // pair rewrite the same config key on the Rust side, so they take the same queue — fiction
+  // or not (ADR-062).
   let queue: Promise<unknown> = Promise.resolve();
   function enqueue<T>(fn: () => Promise<T>): Promise<T> {
     const result = queue.then(fn, fn);
@@ -157,13 +156,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
       () => undefined
     );
     return result;
-  }
-
-  async function refreshFictionDictionaries(): Promise<void> {
-    const ids = await deps.listDictionaryIds();
-    set({
-      fictionDictionaries: ids.filter(isFictionProperNounsId).sort((a, b) => a.localeCompare(b)),
-    });
   }
 
   /** Whether a bound dictionary is still on disk. A failed listing trusts the record: it
@@ -229,15 +221,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
     set({ error: null });
   }
 
-  /** Create a pair, load it and refresh the fiction list. Not queued itself — both callers
-   * already run inside the queue, and queueing from within it would wait on itself. */
-  async function createPair(dictionaryId: string): Promise<ProperNounsListResult> {
-    const result = await deps.createDictionary(dictionaryId);
-    if (!result.success) return result;
-    await refreshFictionDictionaries();
-    return result;
-  }
-
   return {
     subscribe: (listener) => {
       listeners.add(listener);
@@ -246,7 +229,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
       };
     },
     getSnapshot: () => snapshot,
-    refreshFictionDictionaries,
 
     announceOpenBook: (book, nextBinding) => {
       // The previous book's missing dictionary is not this one's; until the existence check
@@ -261,8 +243,8 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
           // wrong-dictionary failure the whole feature exists to prevent.
           //
           // A bound dictionary that no longer exists is applied the same way, and named.
-          // Checked against disk rather than `fictionDictionaries`, which may not have
-          // loaded yet on the first open after launch.
+          // Checked against disk rather than the Dictionary Store's list, which may not
+          // have loaded yet on the first open after launch.
           const bound = nextBinding?.fictionDictionary ?? null;
           const exists = bound === null || (await boundDictionaryExists(bound));
           set({ missingFictionDictionary: exists ? null : bound });
@@ -318,7 +300,7 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
         }
         set({ isApplying: true });
         try {
-          const result = await createPair(dictionaryId);
+          const result = await deps.createDictionary(dictionaryId);
           if (!result.success) throw new Error(result.error ?? 'Failed to create the dictionary');
           await persistAndApply(book, dictionaryId);
           return true;
@@ -331,13 +313,15 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
         }
       }),
 
-    createFictionDictionary: (dictionaryId) => enqueue(() => createPair(dictionaryId)),
+    createDictionary: (dictionaryId) => enqueue(() => deps.createDictionary(dictionaryId)),
 
-    renameFictionDictionary: (oldId, newId) =>
+    renameDictionary: (oldId, newId) =>
       enqueue(async () => {
         // Moves both files and brings the in-memory dictionaries along.
         const result = await deps.renameDictionary(oldId, newId);
         if (!result.success) return { success: false, error: result.error, filesMoved: false };
+        // Only a fiction dictionary is bound to books; nothing else names it.
+        if (!isFictionProperNounsId(oldId)) return { success: true, filesMoved: true };
 
         // Rust has moved both files and rewritten config; the records are ours. A failure
         // here is reported, not rolled back: the files did move, and the open-time
@@ -349,8 +333,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
           logger.error('Failed to carry a dictionary rename into book records:', cause);
           recordsError = extractErrorMessage(cause);
         }
-
-        await refreshFictionDictionaries();
 
         // No engine rebuild: config already names the new id, and the data is unchanged.
         if (snapshot.binding?.fictionDictionary === oldId) {
@@ -400,7 +382,6 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
             else set({ binding: { fictionDictionary: null } });
           }
         }
-        await refreshFictionDictionaries();
 
         try {
           // Rust's rename has already written config; the transform reads what it left.

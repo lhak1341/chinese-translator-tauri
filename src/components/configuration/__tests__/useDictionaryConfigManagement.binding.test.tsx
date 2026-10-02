@@ -1,125 +1,157 @@
 /**
- * Tests for the one thing the open book takes away from the Configuration tab: authority
- * over the fiction slice of `activeProperNouns`.
+ * Tests for the Configuration tab over the real Dictionary Store and the real binding
+ * provider (see `realStores.tsx`): the one thing an open book takes away from it — authority
+ * over the fiction slice of `activeProperNouns` — and what the tab shows after a create, a
+ * rename or a tier move.
  *
- * The rule has two halves and both are here, because getting only the first would be worse
- * than getting neither — fiction rows reflect the binding and cannot be toggled, while
- * generic and theme rows stay fully editable. This is rendered through
- * `ConfigurationManager` rather than the hook alone so it asserts what a reader can
- * actually click, which is where the rule either holds or does not.
+ * The authority rule has two halves and both are here, because getting only the first would be
+ * worse than getting neither — fiction rows reflect the binding and cannot be toggled, while
+ * generic and theme rows stay fully editable. It is rendered through `ConfigurationManager`
+ * rather than the hook alone so it asserts what a reader can actually click.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
-import React from 'react';
+import React, { useEffect } from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 import { useDictionaryConfigManagement } from '../useDictionaryConfigManagement';
-import { callRustConfigWrite, saveAppConfig } from '../../../utils/appConfig';
-import { installFakeConfigDisk } from '../../../test/fakeConfigDisk';
+import { useBookBinding } from '../../BookBindingContext';
+import { saveAppConfig } from '../../../utils/appConfig';
+import { installRealStores, withPatterns, type StoresHarness } from './realStores';
 
-let disk: ReturnType<typeof installFakeConfigDisk>;
+// The engine module is 300+ KB and only its debug-level enum is needed here.
+vi.mock('../../../utils/TranslationEngine.js', () => ({ DEBUG_LEVELS: { ERROR: 0 } }));
 
-// Stable across renders, as the real context's are: the hook's mount effect depends on
-// `loadDictionary`, so a fresh function per render re-runs it forever.
-const dictionaryContext = vi.hoisted(() => ({
-  loadDictionary: vi.fn(),
-  applyRename: vi.fn(),
+const { renameBoundDictionary } = vi.hoisted(() => ({
+  renameBoundDictionary: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('../../../utils/reader/BookRecordsBackend', () => ({
+  setBookBinding: vi.fn().mockResolvedValue(undefined),
+  renameBoundDictionary,
+  unbindDictionary: vi.fn().mockResolvedValue(undefined),
+}));
+
+const engine = vi.hoisted(() => ({ reinitializeEngine: vi.fn() }));
+vi.mock('../../EngineContext', () => ({ useEngine: () => engine }));
+
+const holder = vi.hoisted(() => ({ useDictionary: (() => ({})) as () => unknown }));
 vi.mock('../../dictionary/DictionaryContext', () => ({
-  useDictionary: () => dictionaryContext,
+  useDictionary: () => holder.useDictionary(),
 }));
 
-const binding = vi.hoisted(() => ({
-  isBookOpen: true,
-  boundFictionDictionary: 'properNouns-f_TapDo' as string | null,
-  openBook: { fingerprint: 'fp1', fileName: 'Tạp đồ 卡徒.txt', title: 'Tạp đồ 卡徒' },
-  fictionDictionaries: ['properNouns-f_TapDo', 'properNouns-f_TruTien'],
-  renameFictionDictionary: vi.fn(),
-  createFictionDictionary: vi.fn(),
-  moveDictionaryTier: vi.fn(),
-}));
-vi.mock('../../BookBindingContext', () => ({
-  useBookBinding: () => binding,
-}));
+const BOOK = { fingerprint: 'fp1', fileName: 'Tạp đồ 卡徒.txt', title: 'Tạp đồ 卡徒' };
+const BOUND = { fictionDictionary: 'properNouns-f_TapDo' };
 
-const ALL_DICTIONARIES = [
-  'properNouns',
-  'properNouns-_AiCap',
-  'properNouns-f_TapDo',
-  'properNouns-f_TruTien',
-];
+let h: StoresHarness;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
-  binding.isBookOpen = true;
-  binding.boundFictionDictionary = 'properNouns-f_TapDo';
-  (window as unknown as { electronAPI: unknown }).electronAPI = {
-    listProperNounsDictionaries: vi
-      .fn()
-      .mockResolvedValue({ success: true, dictionaries: ALL_DICTIONARIES }),
-    listFictionPatternDictionaries: vi.fn().mockResolvedValue({ success: true, dictionaries: [] }),
-    createStructuralPatternsDictionary: vi.fn().mockResolvedValue({ success: true }),
-    renameProperNounsDictionary: vi.fn().mockResolvedValue({ success: true }),
-    createFictionDictionaryPair: vi.fn().mockResolvedValue({ success: true }),
-    createProperNounsDictionary: vi.fn().mockResolvedValue({ success: true }),
-  };
-  // Deliberately stale and wrong for the open book: the previous book's fiction
-  // dictionary is still in the saved list. What the reader sees must come from the
-  // binding, not from this.
-  disk = installFakeConfigDisk({
-    activeProperNouns: ['properNouns', 'properNouns-f_TruTien'],
-    defaultQuickAddDictionary: null,
+  engine.reinitializeEngine.mockResolvedValue(true);
+  renameBoundDictionary.mockResolvedValue(undefined);
+  // Deliberately stale and wrong for an open book: the previous book's fiction dictionary is
+  // still in the saved list. What the reader sees must come from the binding, not from this.
+  h = installRealStores({
+    ids: withPatterns([
+      'properNouns',
+      'properNouns-_AiCap',
+      'properNouns-f_TapDo',
+      'properNouns-f_TruTien',
+    ]),
+    config: {
+      activeProperNouns: ['properNouns', 'properNouns-f_TruTien'],
+      defaultQuickAddDictionary: null,
+    },
   });
-  binding.renameFictionDictionary.mockResolvedValue({ success: true, filesMoved: true });
-  binding.createFictionDictionary.mockResolvedValue({ success: true });
+  holder.useDictionary = h.useDictionary;
+  await h.load();
 });
+
+/** Announces the book once, as the Reader does when it has opened one. */
+function OpenBook(): null {
+  const { announceOpenBook } = useBookBinding();
+  useEffect(() => announceOpenBook(BOOK, BOUND), [announceOpenBook]);
+  return null;
+}
+
+/** The apply an announced book triggers has finished: config written, engine rebuilt. */
+async function applied(): Promise<void> {
+  await waitFor(() => expect(engine.reinitializeEngine).toHaveBeenCalled());
+}
+
+/** One dictionary row's label. The header can name a dictionary too (the quick-add default). */
+const rowLabel = (label: string) => screen.getByText(label, { selector: 'label' });
 
 /** The checkbox belonging to one dictionary row, found by its visible label. */
 function checkboxFor(label: string): HTMLInputElement {
-  return screen.getByText(label).closest('label')!.querySelector('input')!;
+  return rowLabel(label).querySelector('input')!;
+}
+
+/** The hook beside the binding, with the book already open when `book` is set. */
+async function renderTab(book = false) {
+  const view = renderHook(
+    () => ({ tab: useDictionaryConfigManagement(), binding: useBookBinding() }),
+    { wrapper: h.Wrapper }
+  );
+  await waitFor(() => expect(view.result.current.tab.isLoading).toBe(false));
+  if (book) {
+    act(() => view.result.current.binding.announceOpenBook(BOOK, BOUND));
+    await applied();
+  }
+  return view;
 }
 
 describe('Configuration while a book is open', () => {
+  const renderOpen = () =>
+    render(
+      <h.Wrapper>
+        <OpenBook />
+        <ConfigurationManager />
+      </h.Wrapper>
+    );
+
   test('fiction rows reflect the binding, not the last-saved config', async () => {
-    render(<ConfigurationManager />);
-    await waitFor(() => expect(screen.getByText('f_TapDo')).toBeInTheDocument());
+    renderOpen();
+    await waitFor(() => expect(rowLabel('f_TapDo')).toBeInTheDocument());
 
     expect(checkboxFor('f_TapDo').checked).toBe(true);
     expect(checkboxFor('f_TruTien').checked).toBe(false);
   });
 
   test('fiction rows cannot be toggled here', async () => {
-    render(<ConfigurationManager />);
-    await waitFor(() => expect(screen.getByText('f_TapDo')).toBeInTheDocument());
+    renderOpen();
+    await waitFor(() => expect(rowLabel('f_TapDo')).toBeInTheDocument());
+    await applied();
+    h.disk.saveConfiguration.mockClear();
 
     expect(checkboxFor('f_TapDo').disabled).toBe(true);
     expect(checkboxFor('f_TruTien').disabled).toBe(true);
 
     fireEvent.click(checkboxFor('f_TruTien'));
-    expect(disk.saveConfiguration).not.toHaveBeenCalled();
+    expect(h.disk.saveConfiguration).not.toHaveBeenCalled();
   });
 
   test('generic and theme rows stay fully editable', async () => {
-    render(<ConfigurationManager />);
-    await waitFor(() => expect(screen.getByText('_AiCap')).toBeInTheDocument());
+    renderOpen();
+    await waitFor(() => expect(rowLabel('_AiCap')).toBeInTheDocument());
+    await applied();
 
     expect(checkboxFor('_AiCap').disabled).toBe(false);
     expect(checkboxFor('General Purpose Dictionary').disabled).toBe(false);
 
     fireEvent.click(checkboxFor('_AiCap'));
     await waitFor(() =>
-      expect(disk.saveConfiguration).toHaveBeenCalledWith(
-        expect.objectContaining({
-          // The open book's dictionary, not the stale one the saved config still lists:
-          // a generic toggle must not resurrect the previous book's fiction entry.
-          activeProperNouns: ['properNouns', 'properNouns-f_TapDo', 'properNouns-_AiCap'],
-        })
-      )
+      expect(h.disk.disk.raw.activeProperNouns).toEqual([
+        // The open book's dictionary, not the stale one the saved config listed: a generic
+        // toggle must not resurrect the previous book's fiction entry.
+        'properNouns',
+        'properNouns-f_TapDo',
+        'properNouns-_AiCap',
+      ])
     );
   });
 
   test('names the book the fiction list is coming from', async () => {
-    render(<ConfigurationManager />);
+    renderOpen();
     await waitFor(() => expect(screen.getByText(/set by Tạp đồ/)).toBeInTheDocument());
   });
 });
@@ -129,23 +161,20 @@ describe('toggles made before the first save resolves', () => {
   // React state instead, the second click starts from the list the first one has not yet
   // changed, and its save overwrites the first.
   test('both land when two checkboxes are clicked back to back', async () => {
-    binding.isBookOpen = false;
-    binding.boundFictionDictionary = null;
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const { result } = await renderTab();
 
     await act(async () => {
-      const first = result.current.handleToggleDictionary('properNouns-_AiCap');
-      const second = result.current.handleToggleDictionary('properNouns');
+      const first = result.current.tab.handleToggleDictionary('properNouns-_AiCap');
+      const second = result.current.tab.handleToggleDictionary('properNouns');
       await Promise.all([first, second]);
     });
 
-    expect(disk.disk.raw.activeProperNouns).toEqual([
+    expect(h.disk.disk.raw.activeProperNouns).toEqual([
       'properNouns-f_TruTien',
       'properNouns-_AiCap',
     ]);
     await waitFor(() =>
-      expect(result.current.activeDictionaries).toEqual([
+      expect(result.current.tab.activeDictionaries).toEqual([
         'properNouns-f_TruTien',
         'properNouns-_AiCap',
       ])
@@ -155,11 +184,12 @@ describe('toggles made before the first save resolves', () => {
 
 describe('Configuration with no book open', () => {
   test('fiction rows go back to being editable', async () => {
-    binding.isBookOpen = false;
-    binding.boundFictionDictionary = null;
-
-    render(<ConfigurationManager />);
-    await waitFor(() => expect(screen.getByText('f_TruTien')).toBeInTheDocument());
+    render(
+      <h.Wrapper>
+        <ConfigurationManager />
+      </h.Wrapper>
+    );
+    await waitFor(() => expect(rowLabel('f_TruTien')).toBeInTheDocument());
 
     // Straight from config again, with no binding overlaying it.
     expect(checkboxFor('f_TruTien').checked).toBe(true);
@@ -171,146 +201,156 @@ describe('the Configuration tab after the open book rewrote config', () => {
   // Every tab stays mounted, so the tab read config once and is still showing it when
   // announcing a book rewrites the default quick-add target.
   test('shows the default quick-add target the book set, and a click then clears it', async () => {
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.defaultQuickAddDictionary).toBeNull();
+    const { result } = await renderTab();
+    expect(result.current.tab.defaultQuickAddDictionary).toBeNull();
 
     await act(async () => {
       await saveAppConfig({ ui: { defaultQuickAddDictionary: 'properNouns-f_TapDo' } });
     });
     await waitFor(() =>
-      expect(result.current.defaultQuickAddDictionary).toBe('properNouns-f_TapDo')
+      expect(result.current.tab.defaultQuickAddDictionary).toBe('properNouns-f_TapDo')
     );
 
     // Toggling the marker the reader sees must turn it off, not set it again.
     await act(async () => {
-      await result.current.handleSetDefaultQuickAdd('properNouns-f_TapDo');
+      await result.current.tab.handleSetDefaultQuickAdd('properNouns-f_TapDo');
     });
-    expect(disk.disk.raw.defaultQuickAddDictionary).toBeNull();
-    expect(result.current.defaultQuickAddDictionary).toBeNull();
+    expect(h.disk.disk.raw.defaultQuickAddDictionary).toBeNull();
+    await waitFor(() => expect(result.current.tab.defaultQuickAddDictionary).toBeNull());
   });
 });
 
 describe('a tier move from the Configuration tab', () => {
-  // The binding context does the move: Rust renames the files and rewrites config, then the
-  // context may save again. This tab only has to end up showing what the file now says.
+  // Rust renames the files and rewrites config, then the binding context may save again. The
+  // tab ends up showing the Dictionary Store's list and what the config file now says.
   test('renames the row and shows the active list and quick-add default the move left', async () => {
-    binding.isBookOpen = false;
-    binding.boundFictionDictionary = null;
-    disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-_AiCap'];
-    disk.disk.raw.defaultQuickAddDictionary = 'properNouns-_AiCap';
-    binding.moveDictionaryTier.mockImplementation(async () => {
-      await callRustConfigWrite(async () => {
-        disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-f_AiCap'];
-        disk.disk.raw.defaultQuickAddDictionary = 'properNouns-f_AiCap';
-        return { success: true };
-      });
-      return { success: true, filesMoved: true, newId: 'properNouns-f_AiCap' };
-    });
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+    h.disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-_AiCap'];
+    h.disk.disk.raw.defaultQuickAddDictionary = 'properNouns-_AiCap';
+    const { result } = await renderTab();
+    expect(result.current.tab.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
 
     await act(async () => {
-      await result.current.handleMoveTier('properNouns-_AiCap');
+      await result.current.tab.handleMoveTier('properNouns-_AiCap');
     });
 
     await waitFor(() => {
-      expect(result.current.availableDictionaries).toContain('properNouns-f_AiCap');
-      expect(result.current.activeDictionaries).toEqual(['properNouns', 'properNouns-f_AiCap']);
-      expect(result.current.defaultQuickAddDictionary).toBe('properNouns-f_AiCap');
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-f_AiCap');
+      expect(result.current.tab.activeDictionaries).toEqual(['properNouns', 'properNouns-f_AiCap']);
+      expect(result.current.tab.defaultQuickAddDictionary).toBe('properNouns-f_AiCap');
     });
-    expect(result.current.availableDictionaries).not.toContain('properNouns-_AiCap');
+    expect(result.current.tab.availableDictionaries).not.toContain('properNouns-_AiCap');
+    expect(h.files['patterns-f_AiCap']).toBeDefined();
   });
 
   test('a refused move changes nothing on screen', async () => {
-    binding.moveDictionaryTier.mockResolvedValue({
+    const { result } = await renderTab();
+    h.api.renameProperNounsDictionary.mockResolvedValueOnce({
       success: false,
       error: 'already exists',
-      filesMoved: false,
-      newId: 'properNouns-f_AiCap',
     });
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => {
-      await result.current.handleMoveTier('properNouns-_AiCap');
+      await result.current.tab.handleMoveTier('properNouns-_AiCap');
     });
 
-    expect(result.current.error).toContain('already exists');
-    expect(result.current.availableDictionaries).toContain('properNouns-_AiCap');
-    expect(result.current.availableDictionaries).not.toContain('properNouns-f_AiCap');
+    expect(result.current.tab.error).toContain('already exists');
+    expect(result.current.tab.availableDictionaries).toContain('properNouns-_AiCap');
+    expect(result.current.tab.availableDictionaries).not.toContain('properNouns-f_AiCap');
   });
 });
 
-describe('fiction dictionaries are created and renamed through the binding context', () => {
-  // Books bound to a fiction dictionary name it in their records, which this tab cannot
-  // see; only the binding context carries a rename into them.
-  test('renaming a fiction dictionary goes through the context, not the backend directly', async () => {
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => result.current.handleStartRename('properNouns-f_TapDo'));
-    act(() => result.current.updateRenameValue('f_TapDoMoi'));
+describe('creating and renaming go through the binding context', () => {
+  // The rows come from the Dictionary Store, which re-lists as each operation finishes. Books
+  // bound to a fiction dictionary name it in their records, which this tab cannot see; only the
+  // binding context carries a rename into them.
+  async function renameRow(
+    tab: Awaited<ReturnType<typeof renderTab>>['result'],
+    from: string,
+    to: string
+  ) {
+    act(() => tab.current.tab.handleStartRename(from));
+    act(() => tab.current.tab.updateRenameValue(to));
     await act(async () => {
-      await result.current.handleConfirmRename();
+      await tab.current.tab.handleConfirmRename();
     });
+  }
 
-    expect(binding.renameFictionDictionary).toHaveBeenCalledWith(
+  test('a fiction rename updates the book records, and the row and active list follow', async () => {
+    h.disk.disk.raw.activeProperNouns = ['properNouns', 'properNouns-f_TapDo'];
+    const { result } = await renderTab();
+
+    await renameRow(result, 'properNouns-f_TapDo', 'f_TapDoMoi');
+
+    expect(renameBoundDictionary).toHaveBeenCalledWith(
       'properNouns-f_TapDo',
       'properNouns-f_TapDoMoi'
     );
-    expect(window.electronAPI.renameProperNounsDictionary).not.toHaveBeenCalled();
-    expect(result.current.availableDictionaries).toContain('properNouns-f_TapDoMoi');
+    await waitFor(() => {
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-f_TapDoMoi');
+      expect(result.current.tab.activeDictionaries).toEqual([
+        'properNouns',
+        'properNouns-f_TapDoMoi',
+      ]);
+    });
+    expect(result.current.tab.availableDictionaries).not.toContain('properNouns-f_TapDo');
   });
 
-  test('a theme dictionary still renames directly', async () => {
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+  test('a theme dictionary renames through the same call and touches no book record', async () => {
+    const { result } = await renderTab();
 
-    act(() => result.current.handleStartRename('properNouns-_AiCap'));
-    act(() => result.current.updateRenameValue('_AiCapMoi'));
-    await act(async () => {
-      await result.current.handleConfirmRename();
-    });
+    await renameRow(result, 'properNouns-_AiCap', '_AiCapMoi');
 
-    expect(binding.renameFictionDictionary).not.toHaveBeenCalled();
-    expect(window.electronAPI.renameProperNounsDictionary).toHaveBeenCalledWith(
+    expect(h.api.renameProperNounsDictionary).toHaveBeenCalledWith(
       'properNouns-_AiCap',
       'properNouns-_AiCapMoi'
     );
+    expect(renameBoundDictionary).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-_AiCapMoi')
+    );
   });
 
-  test('a rename the context reports as failed surfaces its error', async () => {
-    binding.renameFictionDictionary.mockResolvedValue({
+  test('a rename whose book records failed surfaces its error, and the row follows the files', async () => {
+    renameBoundDictionary.mockRejectedValueOnce(new Error('locked'));
+    const { result } = await renderTab();
+
+    await renameRow(result, 'properNouns-f_TapDo', 'f_TapDoMoi');
+
+    expect(result.current.tab.error).toContain('still name the old dictionary');
+    await waitFor(() =>
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-f_TapDoMoi')
+    );
+  });
+
+  test('a refused rename shows its error and leaves the row', async () => {
+    const { result } = await renderTab();
+    h.api.renameProperNounsDictionary.mockResolvedValueOnce({
       success: false,
-      error: 'Renamed, but books bound to it still name the old dictionary: locked',
-      filesMoved: true,
-    });
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => result.current.handleStartRename('properNouns-f_TapDo'));
-    act(() => result.current.updateRenameValue('f_TapDoMoi'));
-    await act(async () => {
-      await result.current.handleConfirmRename();
+      error: 'Dictionary already exists',
     });
 
-    expect(result.current.error).toContain('still name the old dictionary');
-    // The files did move, so the row follows them.
-    expect(result.current.availableDictionaries).toContain('properNouns-f_TapDoMoi');
+    await renameRow(result, 'properNouns-_AiCap', '_Other');
+
+    expect(result.current.tab.error).toContain('Dictionary already exists');
+    expect(result.current.tab.availableDictionaries).toContain('properNouns-_AiCap');
   });
 
-  test('creating a fiction dictionary goes through the context', async () => {
-    const { result } = renderHook(() => useDictionaryConfigManagement());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
+  test('a created fiction pair gets its row and is active, with no list kept by the tab', async () => {
+    const { result } = await renderTab();
 
-    act(() => result.current.updateDraftName('f_DaiBatHau'));
+    act(() => result.current.tab.updateDraftName('f_DaiBatHau'));
     await act(async () => {
-      await result.current.handleCreateDictionary({ preventDefault: () => {} } as React.FormEvent);
+      await result.current.tab.handleCreateDictionary({
+        preventDefault: () => {},
+      } as React.FormEvent);
     });
 
-    expect(binding.createFictionDictionary).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
-    expect(window.electronAPI.createFictionDictionaryPair).not.toHaveBeenCalled();
+    expect(h.api.createFictionDictionaryPair).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
+    await waitFor(() => {
+      expect(result.current.tab.availableDictionaries).toContain('properNouns-f_DaiBatHau');
+      expect(result.current.tab.activeDictionaries).toContain('properNouns-f_DaiBatHau');
+    });
+    // The Reader's binding dialog reads the same list.
+    expect(result.current.binding.fictionDictionaries).toContain('properNouns-f_DaiBatHau');
   });
 });

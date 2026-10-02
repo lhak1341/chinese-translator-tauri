@@ -1085,13 +1085,13 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790873156.8688707,
-    "ast_hash": "91ab08046b122c14426d57aed305770f",
+    "mtime": 1790956429.4655614,
+    "ast_hash": "30303aebd1618349f805ab6f40348663",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1790732456.0918944,
-    "ast_hash": "036266fb2176cdee8573091a0bfeaaa7",
+    "mtime": 1790880439.0642748,
+    "ast_hash": "e3f1a26998364996ea6986cfd8a09405",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1100,8 +1100,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1790732456.0918944,
-    "ast_hash": "036266fb2176cdee8573091a0bfeaaa7",
+    "mtime": 1790880439.0642748,
+    "ast_hash": "e3f1a26998364996ea6986cfd8a09405",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1120,8 +1120,8 @@
     "semantic_hash": "4445788b5416a20c7f060167a6eff6f2"
   },
   "docs/README.md": {
-    "mtime": 1788799743.5911071,
-    "ast_hash": "78bcc7ce5c4089440bf5ffb966770ee7",
+    "mtime": 1790882436.529346,
+    "ast_hash": "2ce71a7931c525b53259759d8524af98",
     "semantic_hash": ""
   },
   "docs/HOTKEYS.md": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790878342.0274239,
-    "ast_hash": "a3091800036d6b744c4e7fddb4df39ba",
+    "mtime": 1790956458.4337533,
+    "ast_hash": "de718723b8f42569a449c2f206da2a39",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1330,23 +1330,23 @@
     "semantic_hash": "6aea4de30579922d680b214ba44ff4ad"
   },
   "docs/guides/architecture.md": {
-    "mtime": 1790874731.8866396,
-    "ast_hash": "cb35cd6ae67a10b6e117b27453675a2b",
+    "mtime": 1790882212.9501894,
+    "ast_hash": "49c6c0fb67bb058cdd57373c2950e21f",
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1790874731.8875396,
-    "ast_hash": "4a04dcdbb2dadad6a77e0e5c1531ac6b",
+    "mtime": 1790882198.8997455,
+    "ast_hash": "c6972a700ef10cdd0b7907d71af42782",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
-    "mtime": 1790407569.9454238,
-    "ast_hash": "2b77d1a0b435c7129dd367fc64ca05b5",
+    "mtime": 1790882198.8982735,
+    "ast_hash": "325bb4c3e9f3a867d1ff6edb1ef73ff5",
     "semantic_hash": ""
   },
   "docs/guides/development.md": {
-    "mtime": 1789269872.0845282,
-    "ast_hash": "a19769ce3dacc63e814995e4b598b471",
+    "mtime": 1790882198.8967366,
+    "ast_hash": "b68b31a9a6fda9430a40fd9895129633",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
@@ -1375,8 +1375,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790874731.8857653,
-    "ast_hash": "48211b14097e8be9925b4e31c07cb267",
+    "mtime": 1790956435.0964556,
+    "ast_hash": "83a8692257628d005a3309fb2e64047c",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1505,8 +1505,8 @@
     "semantic_hash": ""
   },
   "src/components/configuration/useDictionaryConfigManagement.ts": {
-    "mtime": 1790876936.15649,
-    "ast_hash": "5e05f9e88778b6a2b98c28669080114d",
+    "mtime": 1790956174.3333404,
+    "ast_hash": "d3e0bb190cabd5f30421e6bfa9b37d01",
     "semantic_hash": ""
   },
   "src/components/rules/NewRuleModal.tsx": {
@@ -1780,8 +1780,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1790757544.853518,
-    "ast_hash": "b5507173d636409b47d36bd6233db92e",
+    "mtime": 1790880439.0652375,
+    "ast_hash": "11c16022fe6671a93e668c1605e96aa1",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1810,8 +1810,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790874731.8881576,
-    "ast_hash": "0cee6192e6e10548af0d5f2688dab3d1",
+    "mtime": 1790882280.01393,
+    "ast_hash": "e8ae43156a736c0ad2435be0bb7d22a2",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingContext.tsx": {
-    "mtime": 1790867330.401035,
-    "ast_hash": "7c5432b27ce8034d572186feca947f58",
+    "mtime": 1790956156.5925012,
+    "ast_hash": "9dda744c701d24cfa9ff2216bf58bf5b",
     "semantic_hash": ""
   },
   "src/components/reader/BindingBanner.tsx": {
@@ -2320,8 +2320,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-055-dictionary-store-one-queue-for-every-write.md": {
-    "mtime": 1790755703.9782999,
-    "ast_hash": "e6962e0071007dee721aeaef611c3ab8",
+    "mtime": 1790956429.4636552,
+    "ast_hash": "5b4977e6f3fa9034629b2d56b646ca48",
     "semantic_hash": ""
   },
   "src/utils/reader/WindowFiller.ts": {
@@ -2345,8 +2345,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingStore.ts": {
-    "mtime": 1790867323.3654335,
-    "ast_hash": "3676e1c99dbac1e76eb4f3956a624400",
+    "mtime": 1790956146.7523174,
+    "ast_hash": "7f5e79b7536bcfb7cd19833ccc0d68be",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryTabNavigation.ts": {
@@ -2360,13 +2360,13 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-058-delete-runtime-wasm-parity-validation.md": {
-    "mtime": 1790875545.2074368,
-    "ast_hash": "ee2b0afe25257564eca932d16938ec92",
+    "mtime": 1790882436.5520794,
+    "ast_hash": "34b07931ad8f62e7389a83ec662db304",
     "semantic_hash": ""
   },
   "docs/adr/ADR-059-config-toggle-computed-under-the-lock.md": {
-    "mtime": 1790876961.6907072,
-    "ast_hash": "79d65cb4b7ebda5c47ba560151ccbd8f",
+    "mtime": 1790882436.580042,
+    "ast_hash": "7789ed21801fda49910caa78a883a5df",
     "semantic_hash": ""
   },
   "docs/adr/ADR-060-dictionary-id-and-config-key-rules-held-by-a-shared-fixture.md": {
@@ -2377,6 +2377,11 @@
   "docs/adr/ADR-061-skip-shelf-row-module.md": {
     "mtime": 1790878342.0045216,
     "ast_hash": "d57ccda6084d6c15de69328ec1ee1dec",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-062-pair-operations-share-the-binding-queue-and-the-stores-list.md": {
+    "mtime": 1790956429.4372604,
+    "ast_hash": "9d7b970f6696c65ded08da7ff96bd9c6",
     "semantic_hash": ""
   }
 }

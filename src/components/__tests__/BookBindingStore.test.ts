@@ -61,6 +61,7 @@ const applyRename = vi.fn();
 const getDictionaries = vi.fn();
 
 const createFictionDictionaryPair = vi.fn();
+const createProperNounsDictionary = vi.fn();
 const renameProperNounsDictionary = vi.fn();
 
 const BOOK = { fingerprint: 'fp1', fileName: 'Tạp đồ 卡徒.txt', title: 'Tạp đồ 卡徒' };
@@ -122,9 +123,11 @@ beforeEach(() => {
     'properNouns-f_TruTien',
   ]);
   createFictionDictionaryPair.mockResolvedValue({ success: true });
+  createProperNounsDictionary.mockResolvedValue({ success: true });
   renameProperNounsDictionary.mockResolvedValue({ success: true });
   (window as unknown as { electronAPI: unknown }).electronAPI = {
     createFictionDictionaryPair,
+    createProperNounsDictionary,
     renameProperNounsDictionary,
   };
   disk = installFakeConfigDisk({
@@ -134,14 +137,6 @@ beforeEach(() => {
 });
 
 describe('opening a book', () => {
-  test('offers only the fiction dictionaries', async () => {
-    const store = setup();
-    await store.refreshFictionDictionaries();
-    await waitFor(() =>
-      expect(snap().fictionDictionaries).toEqual(['properNouns-f_TapDo', 'properNouns-f_TruTien'])
-    );
-  });
-
   test('an unanswered book reads with the general dictionaries only, and persists nothing', async () => {
     config.engine.activeProperNouns = ['properNouns', 'properNouns-f_TruTien'];
     const store = setup();
@@ -325,7 +320,7 @@ describe('a bound dictionary that no longer exists', () => {
   });
 });
 
-describe('renaming a fiction dictionary', () => {
+describe('renaming a dictionary', () => {
   test('carries the new name into book records and the open book, without a rebuild', async () => {
     const store = setup();
     store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
@@ -334,7 +329,7 @@ describe('renaming a fiction dictionary', () => {
     reinitializeEngine.mockClear();
 
     let response: { success: boolean } | undefined;
-    response = await store.renameFictionDictionary('properNouns-f_TapDo', 'properNouns-f_TapDoMoi');
+    response = await store.renameDictionary('properNouns-f_TapDo', 'properNouns-f_TapDoMoi');
 
     expect(response?.success).toBe(true);
     expect(renameProperNounsDictionary).toHaveBeenCalledWith(
@@ -355,12 +350,25 @@ describe('renaming a fiction dictionary', () => {
     expect(reinitializeEngine).not.toHaveBeenCalled();
   });
 
+  test('a dictionary no book can bind to has no records to update', async () => {
+    const store = setup();
+
+    const response = await store.renameDictionary('properNouns-_AiCap', 'properNouns-_AiCapMoi');
+
+    expect(response).toEqual({ success: true, filesMoved: true });
+    expect(renameProperNounsDictionary).toHaveBeenCalledWith(
+      'properNouns-_AiCap',
+      'properNouns-_AiCapMoi'
+    );
+    expect(renameBoundDictionary).not.toHaveBeenCalled();
+  });
+
   test('a failed backend rename touches no records', async () => {
     renameProperNounsDictionary.mockResolvedValue({ success: false, error: 'already exists' });
     const store = setup();
 
     let response: { success: boolean; error?: string } | undefined;
-    response = await store.renameFictionDictionary('properNouns-f_TapDo', 'properNouns-f_TruTien');
+    response = await store.renameDictionary('properNouns-f_TapDo', 'properNouns-f_TruTien');
 
     expect(response).toEqual({ success: false, error: 'already exists', filesMoved: false });
     expect(renameBoundDictionary).not.toHaveBeenCalled();
@@ -375,7 +383,7 @@ describe('renaming a fiction dictionary', () => {
     await waitFor(() => expect(inUse()).toBe('properNouns-f_TapDo'));
 
     let response: { success: boolean; error?: string } | undefined;
-    response = await store.renameFictionDictionary('properNouns-f_TapDo', 'properNouns-f_TapDoMoi');
+    response = await store.renameDictionary('properNouns-f_TapDo', 'properNouns-f_TapDoMoi');
 
     expect(response?.success).toBe(false);
     expect(response?.error).toContain('books.json locked');
@@ -477,19 +485,45 @@ describe('moving a dictionary between fiction and generic', () => {
   });
 });
 
-describe('creating a fiction dictionary from the Configuration tab', () => {
-  test('creates the pair, loads both halves, and refreshes the list, binding nothing', async () => {
+describe('creating a dictionary from the Configuration tab', () => {
+  test('creates a fiction pair and loads both halves, binding nothing', async () => {
     const store = setup();
 
     let response: { success: boolean } | undefined;
-    response = await store.createFictionDictionary('properNouns-f_DaiBatHau');
+    response = await store.createDictionary('properNouns-f_DaiBatHau');
 
     expect(response?.success).toBe(true);
     expect(createFictionDictionaryPair).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
     expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
     expect(loadDictionary).toHaveBeenCalledWith('patterns-f_DaiBatHau');
-    expect(listProperNounsDictionaryIds).toHaveBeenCalledTimes(1);
     expect(setBookBinding).not.toHaveBeenCalled();
+  });
+
+  test('a custom dictionary is one file, created through the same interface', async () => {
+    const store = setup();
+
+    const response = await store.createDictionary('properNouns-Custom');
+
+    expect(response.success).toBe(true);
+    expect(createProperNounsDictionary).toHaveBeenCalledWith('properNouns-Custom');
+    expect(createFictionDictionaryPair).not.toHaveBeenCalled();
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-Custom');
+    expect(loadDictionary).toHaveBeenCalledTimes(1);
+  });
+
+  test('waits behind the apply in flight, since Rust rewrites the same config key', async () => {
+    const store = setup();
+    const { release } = deferredSave();
+    store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    await settle();
+
+    const creating = store.createDictionary('properNouns-Custom');
+    await settle();
+    expect(createProperNounsDictionary).not.toHaveBeenCalled();
+
+    release();
+    await creating;
+    expect(createProperNounsDictionary).toHaveBeenCalledWith('properNouns-Custom');
   });
 });
 

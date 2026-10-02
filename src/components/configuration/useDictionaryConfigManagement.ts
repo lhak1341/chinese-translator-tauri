@@ -1,18 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import { loadAppConfig, subscribeAppConfig, transformAppConfig } from '../../utils/appConfig';
 import { toProperNounsDictionaryId, isFictionProperNounsId } from '../../utils/dictionary';
-import {
-  createDictionary,
-  renameDictionary,
-  createMissingPatternHalves,
-} from '../../utils/dictionary/DictionaryPairs';
+import { createMissingPatternHalves } from '../../utils/dictionary/DictionaryPairs';
+import { isProperNounsDict } from '../../utils/dictionary/DictionaryIdClassifier';
 import {
   sortDictionaries,
   categorizeDictionaries,
 } from '../../utils/dictionary/DictionaryListOrganizer';
-import { listProperNounsDictionaryIds } from '../../utils/dictionary/DictionaryBackend';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useBookBinding } from '../BookBindingContext';
 import {
@@ -26,19 +22,17 @@ import {
  * keeps rendering only.
  */
 export function useDictionaryConfigManagement() {
-  const { loadDictionary, applyRename } = useDictionary();
+  const { loadDictionary, dictionaryTypes, isLoading: dictionariesLoading } = useDictionary();
   // While a book is open it owns the fiction slice — see `BindingActivation`. Generic and
   // theme dictionaries stay fully editable here either way.
   const {
     isBookOpen,
     boundFictionDictionary,
     openBook,
-    fictionDictionaries,
-    createFictionDictionary,
-    renameFictionDictionary,
+    createDictionary,
+    renameDictionary,
     moveDictionaryTier,
   } = useBookBinding();
-  const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +45,13 @@ export function useDictionaryConfigManagement() {
   const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
 
   /**
-   * The rows this screen shows.
-   *
-   * `availableDictionaries` is read once on mount and this tab never unmounts, so a
-   * fiction dictionary created from the Reader's binding dialog would otherwise have no
-   * row here for the rest of the session — while the active list below already carries it.
-   * The binding context re-reads its fiction list on every create, so folding it in is
-   * what keeps the two halves of this screen describing the same set.
+   * The rows this screen shows: every proper-nouns dictionary the Dictionary Store lists. The
+   * store re-lists on each create and rename, so a dictionary made from the Reader's binding
+   * dialog gets its row here without this hook keeping a list of its own (ADR-062).
    */
   const allDictionaries = useMemo(
-    () => sortDictionaries([...new Set([...availableDictionaries, ...fictionDictionaries])]),
-    [availableDictionaries, fictionDictionaries]
+    () => sortDictionaries(Object.keys(dictionaryTypes).filter(isProperNounsDict)),
+    [dictionaryTypes]
   );
 
   const categorizedDictionaries = useMemo(
@@ -85,23 +75,23 @@ export function useDictionaryConfigManagement() {
     [activeDictionaries, boundFictionDictionary, isBookOpen]
   );
 
-  // Load available dictionaries on mount
+  // Once the Dictionary Store has listed everything: read the saved config, and give
+  // pre-existing dictionaries their missing patterns half. Runs once — the migration loads
+  // dictionaries, which changes the list this effect reads.
+  const startedRef = useRef(false);
   useEffect(() => {
-    const loadDictionaries = async (): Promise<void> => {
-      try {
-        // Throws on a failed list — the catch below turns it into the on-screen error,
-        // which is what the hand-rolled `else { throw }` here used to do.
-        const dictionaryIds = await listProperNounsDictionaryIds();
-        setAvailableDictionaries(sortDictionaries(dictionaryIds));
+    if (dictionariesLoading || startedRef.current) return;
+    startedRef.current = true;
 
-        // Load active dictionaries from saved configuration
+    const loadConfiguration = async (): Promise<void> => {
+      try {
         const config = await loadAppConfig();
         setActiveDictionaries(config.engine.activeProperNouns);
         setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
 
         // Migration: pre-existing fiction and generic dictionaries get their missing patterns
         // half (ADR-027, ADR-048). Non-fatal — see `createMissingPatternHalves`.
-        await createMissingPatternHalves(dictionaryIds, { loadDictionary });
+        await createMissingPatternHalves(allDictionaries, { loadDictionary });
       } catch (err) {
         setError(formatErrorMessage('Dictionary loading', err));
       } finally {
@@ -109,8 +99,8 @@ export function useDictionaryConfigManagement() {
       }
     };
 
-    loadDictionaries();
-  }, [loadDictionary]);
+    loadConfiguration();
+  }, [dictionariesLoading, allDictionaries, loadDictionary]);
 
   // Every tab stays mounted, so the mount-time read above goes stale the moment anything else
   // writes config — a book opening rewrites the default quick-add target, a rename rewrites
@@ -182,20 +172,13 @@ export function useDictionaryConfigManagement() {
     try {
       const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
-      // A fiction dictionary is one books can bind to, so the binding context creates it
-      // (and refreshes its fiction list). Every other kind is created here. Either way the
-      // files and their in-memory halves come from `DictionaryPairs`.
-      const result = isFictionProperNounsId(dictionaryId)
-        ? await createFictionDictionary(dictionaryId)
-        : await createDictionary(dictionaryId, { loadDictionary, applyRename });
+      // The binding context creates every kind: it queues the create behind any book apply,
+      // and the Dictionary Store re-lists it, so the row appears without this hook. Creation
+      // also activates the new dictionary on disk (Rust-side, best-effort); the config
+      // subscription above carries that into `activeDictionaries`.
+      const result = await createDictionary(dictionaryId);
 
       if (result.success) {
-        setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
-        // Creation also activates the new dictionary on disk (Rust-side, non-fatal
-        // best-effort) — sync from the response's true active list instead of assuming.
-        if (result.dictionaries) {
-          setActiveDictionaries(result.dictionaries);
-        }
         closeCreateModal();
       } else {
         throw new Error(result.error);
@@ -230,33 +213,14 @@ export function useDictionaryConfigManagement() {
       }
 
       // A fiction dictionary's name also lives in every book bound to it, which only the
-      // binding context can reach; it also reloads the pair and refreshes its list.
-      let result: { success: boolean; error?: string; filesMoved: boolean };
-      if (isFictionProperNounsId(renamingDictionaryId)) {
-        result = await renameFictionDictionary(renamingDictionaryId, newDictionaryId);
-      } else {
-        const response = await renameDictionary(renamingDictionaryId, newDictionaryId, {
-          loadDictionary,
-          applyRename,
-        });
-        result = { ...response, filesMoved: response.success };
-      }
+      // binding context can reach. It moves the files and the Dictionary Store re-lists, so
+      // the row follows them; Rust's config rewrite reaches the active list and the default
+      // through the config subscription.
+      const result = await renameDictionary(renamingDictionaryId, newDictionaryId);
 
       // A fiction rename can fail after the files already moved (the book records could
-      // not be updated), so the rows follow the files, and the error still shows.
+      // not be updated), so the row follows the files, and the error still shows.
       if (result.filesMoved) {
-        setAvailableDictionaries((prev) =>
-          sortDictionaries(prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id)))
-        );
-
-        setActiveDictionaries((prev) =>
-          prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
-        );
-
-        if (defaultQuickAddDictionary === renamingDictionaryId) {
-          setDefaultQuickAddDictionary(newDictionaryId);
-        }
-
         handleCancelRename();
         if (!result.success) setError(formatErrorMessage('Dictionary rename', result.error));
       } else {
@@ -271,17 +235,11 @@ export function useDictionaryConfigManagement() {
    * Promote a fiction dictionary to generic, or demote a generic one to fiction. The binding
    * context does the move (it reaches book records and the engine). The move can change the
    * active list and the Cmd-5 default in ways that depend on the open book; this screen picks
-   * those up from the config subscription, and only renames the row itself.
+   * those up from the config subscription, and the Dictionary Store re-lists the row.
    */
   const handleMoveTier = async (dictionaryId: string): Promise<void> => {
     try {
       const result = await moveDictionaryTier(dictionaryId);
-      const { newId } = result;
-      if (result.filesMoved && newId) {
-        setAvailableDictionaries((prev) =>
-          sortDictionaries(prev.map((id) => (id === dictionaryId ? newId : id)))
-        );
-      }
       if (!result.success) throw new Error(result.error);
     } catch (err) {
       setError(formatErrorMessage('Dictionary move', err));
@@ -291,15 +249,15 @@ export function useDictionaryConfigManagement() {
   const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
     try {
       // Clicking the current default unsets it (toggle off). Decided against the saved
-      // config, not this hook's mirror of it, which a book opening may have moved.
-      const newDefault = await transformAppConfig((current) => {
+      // config, not this hook's mirror of it, which a book opening may have moved. The
+      // config subscription carries the result back into `defaultQuickAddDictionary`.
+      await transformAppConfig((current) => {
         const next = current.ui.defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
         return {
           value: { ...current, ui: { ...current.ui, defaultQuickAddDictionary: next } },
-          result: next,
+          result: undefined,
         };
       });
-      setDefaultQuickAddDictionary(newDefault);
     } catch (err) {
       setError(formatErrorMessage('Default dictionary configuration', err));
     }

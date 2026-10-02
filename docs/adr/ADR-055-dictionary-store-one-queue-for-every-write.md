@@ -30,3 +30,7 @@ Force reload read every file itself and gave the result only to the engine, so m
 ## Consequence
 
 A new way of writing the dictionaries in memory — a new IPC command that changes dictionary files, a new import path — must be an operation on the store, not a `setState` in the provider or a call beside it. Reconsider decision 3 if something other than this app starts editing the dictionary files while it runs; the store would then need to notice outside changes, not only reload on request.
+
+## Addendum (2026-10-02)
+
+The store's list is the only list: the Configuration tab and the binding context's `fictionDictionaries` read it rather than keeping copies (ADR-062).
