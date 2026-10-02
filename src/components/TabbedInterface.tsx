@@ -7,6 +7,7 @@ import RulesManager from './rules/RulesManager';
 import type { RulesManagerHandle } from './rules/RulesManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
+import TabPanel, { tabDomIds } from './TabPanel';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
 import { useVisibleTab } from './VisibleTabContext';
 import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
@@ -110,8 +111,8 @@ const TabbedInterface: React.FC = () => {
               key={tab.id}
               role="tab"
               aria-selected={isActive}
-              aria-controls={`panel-${tab.id}`}
-              id={`tab-${tab.id}`}
+              aria-controls={tabDomIds(tab.id).panel}
+              id={tabDomIds(tab.id).tab}
               onClick={() => handleTabChange(tab.id)}
               className={`${styles.tabButton} ${isActive ? styles.tabButtonActive : styles.tabButtonInactive}`}
               title={`Switch to ${tab.label} (Option/Alt + ${tab.shortcut})`}
@@ -125,62 +126,27 @@ const TabbedInterface: React.FC = () => {
 
       {/* Content Area */}
       <div className={styles.content}>
-        {/*
-          Every panel stays mounted: leaving the Reader to edit a dictionary entry and
-          coming back must not reload the book. The Reader's own state — and the decoded
-          book in the Rust cache — therefore survives a tab switch.
-        */}
-        <div
-          role="tabpanel"
-          id="panel-reader"
-          aria-labelledby="tab-reader"
-          className={`${styles.componentWrapper} ${activeTab === 'reader' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        <TabPanel id="reader">
           <ReaderTab isActive={activeTab === 'reader'} />
-        </div>
-        <div
-          role="tabpanel"
-          id="panel-translator"
-          aria-labelledby="tab-translator"
-          className={`${styles.componentWrapper} ${activeTab === 'translator' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        </TabPanel>
+        <TabPanel id="translator">
           <Translator isActive={activeTab === 'translator'} />
-        </div>
-        <div
-          role="tabpanel"
-          id="panel-dictionary"
-          aria-labelledby="tab-dictionary"
-          className={`${styles.componentWrapper} ${activeTab === 'dictionary' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        </TabPanel>
+        <TabPanel id="dictionary">
           <DictionaryManager
             searchRef={dictionarySearchRef as React.RefObject<HTMLInputElement>}
             isActive={activeTab === 'dictionary'}
           />
-        </div>
-        <div
-          role="tabpanel"
-          id="panel-rules"
-          aria-labelledby="tab-rules"
-          className={`${styles.componentWrapper} ${activeTab === 'rules' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        </TabPanel>
+        <TabPanel id="rules">
           <RulesManager ref={rulesManagerRef} />
-        </div>
-        <div
-          role="tabpanel"
-          id="panel-configuration"
-          aria-labelledby="tab-configuration"
-          className={`${styles.componentWrapper} ${activeTab === 'configuration' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        </TabPanel>
+        <TabPanel id="configuration">
           <ConfigurationManager />
-        </div>
-        <div
-          role="tabpanel"
-          id="panel-appearance"
-          aria-labelledby="tab-appearance"
-          className={`${styles.componentWrapper} ${styles.componentWrapperScroll} ${activeTab === 'appearance' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
-        >
+        </TabPanel>
+        <TabPanel id="appearance" scroll>
           <AppearanceManager />
-        </div>
+        </TabPanel>
       </div>
     </div>
   );

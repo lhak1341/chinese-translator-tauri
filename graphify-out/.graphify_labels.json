@@ -270,6 +270,7 @@
   "268": "ADR-016: Skip StreamingContext Record Wrapper for useStreamingTranslation",
   "269": "vite-plugin-wasm",
   "270": "Documentation Index",
+  "271": "@vitest/ui",
   "272": "12. Implementation Summary (2026-02-07)",
   "273": "Fix 8: BONUS - Fix method name typos in TranslationCache",
   "276": "Appendix: Evidence & Metrics",

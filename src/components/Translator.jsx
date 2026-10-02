@@ -116,7 +116,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   useForceReload at the end of the setup section.
 // ============================================================================
 
-const Translator = ({ isActive = true }) => {
+const Translator = ({ isActive }) => {
   const { isLoading, loadError, reloadAllDictionaries, registerCacheInvalidator } = useDictionary();
 
   // Performance monitoring hook (extracted)

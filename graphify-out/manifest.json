@@ -820,8 +820,8 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1790868459.315472,
-    "ast_hash": "35cdd4152d090c66810261814eaaee98",
+    "mtime": 1790957396.8281336,
+    "ast_hash": "ffdd2a44b9b7f5268d243411a3ac3931",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -835,8 +835,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1790755266.4850607,
-    "ast_hash": "6ef85a8897388c19aadf82fe41a648ee",
+    "mtime": 1790957396.8289225,
+    "ast_hash": "231eb243a1fb09c01aa62fcdc3e11d5c",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1200,8 +1200,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790956458.4337533,
-    "ast_hash": "de718723b8f42569a449c2f206da2a39",
+    "mtime": 1790957140.993452,
+    "ast_hash": "7a8a7f8a3ac43faf21523874fdd27a7b",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1375,8 +1375,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790956435.0964556,
-    "ast_hash": "83a8692257628d005a3309fb2e64047c",
+    "mtime": 1790957407.324239,
+    "ast_hash": "99db3a06091b10ad209c15ec6e6e0a3f",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -2382,6 +2382,16 @@
   "docs/adr/ADR-062-pair-operations-share-the-binding-queue-and-the-stores-list.md": {
     "mtime": 1790956429.4372604,
     "ast_hash": "9d7b970f6696c65ded08da7ff96bd9c6",
+    "semantic_hash": ""
+  },
+  "src/components/TabPanel.tsx": {
+    "mtime": 1790957397.0847259,
+    "ast_hash": "50da4dd5912f21bb1eb801b3b346e9c1",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-063-skip-hotkey-chord-module.md": {
+    "mtime": 1790957140.6676517,
+    "ast_hash": "553803b3f8a4d7f9a3a63ed7ce353402",
     "semantic_hash": ""
   }
 }
