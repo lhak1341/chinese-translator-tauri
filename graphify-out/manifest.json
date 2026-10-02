@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1790963886.8135285,
-    "ast_hash": "c484a96c446193f0cdb20e3278908bc0",
+    "mtime": 1790964344.929035,
+    "ast_hash": "7a72ad8f6709db0432ad2202db497753",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -680,18 +680,13 @@
     "semantic_hash": ""
   },
   "src/utils/text/index.ts": {
-    "mtime": 1787990744.7956624,
-    "ast_hash": "06fff989dc0756d9305676e7a11fc3f1",
+    "mtime": 1790964344.932736,
+    "ast_hash": "5d0b302c55568d6d691a10446b65f7fc",
     "semantic_hash": ""
   },
   "src/utils/text/TextChunker.js": {
     "mtime": 1786813112.415733,
     "ast_hash": "31b065447203bdcb738ec241b723d8ba",
-    "semantic_hash": ""
-  },
-  "src/utils/text/AdaptiveChunker.js": {
-    "mtime": 1788879782.8934379,
-    "ast_hash": "f0a8bbef899fd18645215b7da68af63c",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
@@ -1260,9 +1255,9 @@
     "semantic_hash": "ee8f438eaeffd52d5a11ab914f70be36"
   },
   "docs/adr/ADR-015-skip-text-processing-pipeline.md": {
-    "mtime": 1780501823.6920044,
-    "ast_hash": "ca8422be4450d18ca099cdb72d6fdd16",
-    "semantic_hash": "ca8422be4450d18ca099cdb72d6fdd16"
+    "mtime": 1790964359.4611678,
+    "ast_hash": "d6f80b715d8630b28fb6eee0206df769",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-022-keep-streaming-reducer-exports.md": {
     "mtime": 1782028262.6807811,
@@ -1770,8 +1765,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1790880439.0652375,
-    "ast_hash": "11c16022fe6671a93e668c1605e96aa1",
+    "mtime": 1790964363.534592,
+    "ast_hash": "4a6ae8bbfd16dc3430142a02a9cb4239",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1780,8 +1775,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1790963999.9426153,
-    "ast_hash": "9634b3f94f55a49404528b69e9471860",
+    "mtime": 1790964446.8265827,
+    "ast_hash": "c2d3d8a791b88b07df612b7e208f46a9",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1800,8 +1795,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790963922.3254921,
-    "ast_hash": "e0a2c0e5e62301cf207541c6a71609cb",
+    "mtime": 1790964359.4586473,
+    "ast_hash": "130cd315b4a17a560800c9e5f3d60b3d",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {

@@ -20,7 +20,6 @@ export { TokenType, Token, TextTokenizer } from './TextTokenizer';
 // --- Chunking ---
 export { TextChunker } from './TextChunker';
 export { ChunkPostProcessor } from './ChunkPostProcessor';
-export { adaptiveChunker } from './AdaptiveChunker';
 export type {
   AdaptiveBatchSizerInput,
   AdaptiveBatchSizerLogEntry,

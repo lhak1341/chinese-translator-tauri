@@ -19,7 +19,6 @@ import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
 import { BatchMemoryCleanup } from '../memory/BatchMemoryCleanup.js';
 import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
-import { adaptiveChunker } from '../text/AdaptiveChunker.js';
 
 // Mock TranslationEngine with minimal implementation for testing
 class MockTranslationEngine {
@@ -194,7 +193,7 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('_clampInitialBatchSize wiring (architecture review 2026-08-15)', () => {
+  describe('_initialBatchSize wiring (architecture review 2026-08-15)', () => {
     // AdaptiveBatchSizer.test.ts covers calculateNextBatchSize's own boundary
     // behavior (shrink guard inert below MIN_BATCH_SIZE). This proves the real
     // TranslationEngine call site never hands it a currentBatchSize below that
@@ -211,21 +210,18 @@ describe('TranslationEngine Regression Tests', () => {
     });
 
     it('floors at MIN_BATCH_SIZE, not 2, when chunking is disabled', () => {
-      const result = engine._clampInitialBatchSize({ enabled: false }, 1);
+      const result = engine._initialBatchSize({ enabled: false });
       expect(result).toBe(MIN_BATCH_SIZE);
     });
 
-    it('always pins to exactly MIN_BATCH_SIZE when chunking is disabled, regardless of the requested size', () => {
-      const result = engine._clampInitialBatchSize({ enabled: false }, MIN_BATCH_SIZE + 1);
-      expect(result).toBe(MIN_BATCH_SIZE);
-    });
-
-    it('clamps to maxParallelChunks when chunking is enabled', () => {
-      const result = engine._clampInitialBatchSize(
-        { enabled: true, maxParallelChunks: MAX_BATCH_SIZE },
-        MAX_BATCH_SIZE + 10
-      );
+    it('uses maxParallelChunks when chunking is enabled', () => {
+      const result = engine._initialBatchSize({ enabled: true, maxParallelChunks: MAX_BATCH_SIZE });
       expect(result).toBe(MAX_BATCH_SIZE);
+    });
+
+    it('still floors at MIN_BATCH_SIZE when maxParallelChunks is below it', () => {
+      const result = engine._initialBatchSize({ enabled: true, maxParallelChunks: 1 });
+      expect(result).toBe(MIN_BATCH_SIZE);
     });
   });
 
@@ -315,58 +311,6 @@ describe('TranslationEngine Regression Tests', () => {
 
       // No swap-based "isolation" reintroduced — same builder instance throughout.
       expect(engine.semanticArrayBuilder).toBe(originalBuilder);
-    });
-  });
-
-  describe('translateWithProgressiveBatches adaptiveChunker reset wiring (architecture review 2026-08-18, candidate #3 grilling)', () => {
-    // adaptiveChunker is a module-level singleton (src/utils/text/AdaptiveChunker.js) whose
-    // performanceHistory previously persisted across translations — calculateOptimalChunkSize's
-    // trend adjustment (read once, before this translation's own batches run) was silently
-    // biased by unrelated prior translations. Proves the real call site resets it before that
-    // read, not just that AdaptiveChunker.reset() itself works (see AdaptiveChunker.test.js for
-    // the pure-method test) — the wiring is the thing that can regress silently.
-    afterEach(() => {
-      adaptiveChunker.reset();
-    });
-
-    it('resets adaptiveChunker.performanceHistory before this translation reads it', async () => {
-      adaptiveChunker.recordPerformance({
-        chunkSize: 10,
-        processingTime: 50,
-        throughput: 1,
-        memoryUsage: 0,
-      });
-      adaptiveChunker.recordPerformance({
-        chunkSize: 10,
-        processingTime: 50,
-        throughput: 1,
-        memoryUsage: 0,
-      });
-      expect(adaptiveChunker.performanceHistory).toHaveLength(2);
-
-      const engine = new TranslationEngine({
-        debugLevel: 0,
-        enableMemoryMonitoring: false,
-        enablePerformanceMonitoring: false,
-      });
-      const fakeChunks = [{ content: 'aaa', startIndex: 0 }];
-      engine.textChunker = {
-        chunkText: () => fakeChunks,
-        getTranslatableChunks: () => fakeChunks,
-      };
-      // Short-circuit right after the reset+sizing logic under test — the rest of the
-      // progressive-batch pipeline needs WASM/dictionaries (see
-      // TranslationEngine.integration.test.js, skipped for that reason) and isn't this test's
-      // concern.
-      engine.processChunksInParallel = vi.fn(async () => {
-        throw new Error('stub-stop-here');
-      });
-
-      await expect(engine.translateWithProgressiveBatches('aaa', {})).rejects.toThrow(
-        'stub-stop-here'
-      );
-
-      expect(adaptiveChunker.performanceHistory).toHaveLength(0);
     });
   });
 

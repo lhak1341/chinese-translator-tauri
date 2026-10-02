@@ -38,3 +38,7 @@ Rejected: requires injecting `parallelConfig`-derived device state; only one cal
 - No `TextProcessingPipeline` module is created.
 - Future reviews should not re-suggest composing `TextChunker` and `AdaptiveChunker` into a pipeline — they operate on different concerns (boundary splitting vs. batch parallelism) and share no interface.
 - If `AdaptiveChunker` ever gains a second caller, or if `deviceInfo` can be cleanly abstracted away from `parallelConfig`, revisit.
+
+## Update (2026-10-03)
+
+The revisit condition above was met, and `AdaptiveChunker` was deleted rather than composed. `parallelConfig` never held the `memoryPressure` / `hardwareConcurrency` keys `deviceInfo` was meant to carry, so `deviceInfo` was always empty, and the chunker's 8-20 result was capped at `maxParallelChunks` (at most 5) by `_clampInitialBatchSize` anyway — the deletion test in this ADR's fourth driver held in full. The initial batch size is now `_initialBatchSize(chunkConfig)`. This ADR's decision (no `TextProcessingPipeline`) stands. See `docs/guides/deleted-symbols.md`.

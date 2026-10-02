@@ -190,7 +190,6 @@ import { parallelConfig } from './ParallelConfig.js';
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 
-import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
@@ -3915,35 +3914,6 @@ export class TranslationEngine {
         timestamp: Date.now(),
       });
 
-      // Record performance for adaptive chunker learning
-      let memoryUsage = 0;
-      try {
-        // Try to get memory usage (works in Node.js/Electron main process)
-        if (typeof process !== 'undefined' && process.memoryUsage) {
-          memoryUsage = process.memoryUsage().heapUsed;
-        } else if (performance.memory) {
-          // Fallback to browser memory API (Chrome/Edge)
-          memoryUsage = performance.memory.usedJSHeapSize;
-        }
-      } catch (error) {
-        // CODE REVIEW FIX: Log when memory info is unavailable
-        // Expected: Browser doesn't support performance.memory (normal in non-Chromium)
-        // Unexpected: Permission errors, API changes
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          'Memory usage API unavailable, using 0 as fallback:',
-          error.message || 'performance.memory not supported'
-        );
-        memoryUsage = 0;
-      }
-
-      adaptiveChunker.recordPerformance({
-        chunkSize: batch.length,
-        processingTime: processingTime,
-        throughput: batch.length / (processingTime / 1000), // chunks per second
-        memoryUsage: memoryUsage,
-      });
-
       // Warn if significant performance degradation detected
       if (this.batchPerformanceHistory.length > 1) {
         const firstBatch = this.batchPerformanceHistory[0];
@@ -4231,16 +4201,16 @@ export class TranslationEngine {
   }
 
   /**
-   * Clamps translateWithProgressiveBatches' initial batch size into
-   * AdaptiveBatchSizer's assumed [MIN_BATCH_SIZE, MAX_BATCH_SIZE] range. The
-   * disabled-chunking floor uses MIN_BATCH_SIZE (not a bare 2) so currentBatchSize
-   * never starts below the range calculateNextBatchSize's severe-degradation
-   * shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes — below that range
-   * the guard silently never fires (architecture review 2026-08-15).
+   * translateWithProgressiveBatches' initial batch size: maxParallelChunks when chunking
+   * is enabled, MIN_BATCH_SIZE when not, floored at MIN_BATCH_SIZE (not a bare 2) so
+   * currentBatchSize never starts below the range calculateNextBatchSize's
+   * severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes — below
+   * that range the guard silently never fires (architecture review 2026-08-15).
+   * AdaptiveBatchSizer owns every later batch.
    */
-  _clampInitialBatchSize(chunkConfig, currentBatchSize) {
-    const baseBatchSize = chunkConfig.enabled ? chunkConfig.maxParallelChunks : MIN_BATCH_SIZE;
-    return Math.max(MIN_BATCH_SIZE, Math.min(baseBatchSize, currentBatchSize));
+  _initialBatchSize(chunkConfig) {
+    const base = chunkConfig.enabled ? chunkConfig.maxParallelChunks : MIN_BATCH_SIZE;
+    return Math.max(MIN_BATCH_SIZE, base);
   }
 
   /**
@@ -4264,11 +4234,9 @@ export class TranslationEngine {
   // SECTION 13: PROGRESSIVE BATCH TRANSLATION
   // ============================================================================
   // Purpose: Stream translation results in batches for UI progress updates
-  // Dependencies: AdaptiveChunker, AdaptiveBatchSizer, processChunksInParallel,
+  // Dependencies: AdaptiveBatchSizer, processChunksInParallel,
   //   ProgressiveProgressReporter, BatchMemoryCleanup, WordSegmentMatcher
-  // Critical: this.batchPerformanceHistory resets per translation; adaptiveChunker's
-  //   own module-level performanceHistory does not (open architecture review finding,
-  //   2026-08-18 report, candidate #3 — not yet grilled)
+  // Critical: this.batchPerformanceHistory resets per translation
   // ============================================================================
 
   async translateWithProgressiveBatches(text, options = {}) {
@@ -4321,34 +4289,9 @@ export class TranslationEngine {
       chunkCount: translatableChunks.length,
     });
 
-    // Reset before reading performanceHistory below — calculateOptimalChunkSize's trend
-    // adjustment reads it once, right here, before this translation's own batches have run.
-    // Without resetting first, its nudge would be driven by prior translations' stale batch
-    // performance instead of a clean content+device-based starting point (architecture review
-    // 2026-08-18, candidate #3 grilling — same intent as this.batchPerformanceHistory's own
-    // "Reset for this translation session" reset below, just earlier: that one only needs to
-    // guard calculateNextBatchSize's later per-batch reads, not this upfront call).
-    adaptiveChunker.reset();
+    let currentBatchSize = this._initialBatchSize(chunkConfig);
 
-    // Enhanced content analysis for smart chunk size adaptation
-    const contentAnalysis = adaptiveChunker.analyzeContentCharacteristics(text, translatableChunks);
-
-    // No device info: ParallelConfig has no memoryPressure/hardwareConcurrency to give, and
-    // _clampInitialBatchSize below caps the result at maxParallelChunks (<= 5) anyway, under
-    // the chunker's 8-chunk floor.
-    let currentBatchSize = adaptiveChunker.calculateOptimalChunkSize(
-      contentAnalysis,
-      {},
-      translatableChunks.length
-    );
-
-    currentBatchSize = this._clampInitialBatchSize(chunkConfig, currentBatchSize);
-
-    logger.info(
-      '[smart-chunk-adaptation]',
-      `📊 Smart chunk sizing: complexity=${contentAnalysis.complexity.toFixed(2)}, ` +
-        `strategy=${contentAnalysis.chunkingStrategy}, batch_size=${currentBatchSize}`
-    );
+    logger.info('[batch-sizing]', `📊 Initial batch size: ${currentBatchSize}`);
 
     let _totalBatches = Math.ceil(translatableChunks.length / currentBatchSize);
 
