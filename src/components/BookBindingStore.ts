@@ -64,7 +64,7 @@ export interface BookBindingDeps {
   unbindDictionary: (dictionaryId: string) => Promise<void>;
   /** Create a proper-nouns dictionary (the pair, for fiction) and load every half. Creates
    * files only; activating it is the caller's (`bind` does for `createAndBind`). */
-  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateResult>;
+  createDictionaryFiles: (dictionaryId: string) => Promise<DictionaryCreateResult>;
   /** Rename a pair on disk and swap its halves in memory. */
   renameDictionary: (oldId: string, newId: string) => Promise<{ success: boolean; error?: string }>;
   /** Rebuild the engine from the Dictionary Store's current map, read at call time: a pair
@@ -305,7 +305,7 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
         }
         set({ isApplying: true });
         try {
-          const result = await deps.createDictionary(dictionaryId);
+          const result = await deps.createDictionaryFiles(dictionaryId);
           if (!result.success) throw new Error(result.error ?? 'Failed to create the dictionary');
           await persistAndApply(book, dictionaryId);
           return true;
@@ -320,7 +320,7 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
 
     createDictionary: (dictionaryId) =>
       enqueue(async () => {
-        const result = await deps.createDictionary(dictionaryId);
+        const result = await deps.createDictionaryFiles(dictionaryId);
         if (!result.success) return result;
         try {
           // Activating is a config write like a toggle's: decided against the config as it

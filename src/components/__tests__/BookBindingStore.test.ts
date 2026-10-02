@@ -74,7 +74,7 @@ function setup(): BookBindingStore {
     setBookBinding,
     renameBoundDictionary,
     unbindDictionary,
-    createDictionary: (dictionaryId) => createDictionary(dictionaryId, pairOps),
+    createDictionaryFiles: (dictionaryId) => createDictionary(dictionaryId, pairOps),
     renameDictionary: (oldId, newId) => renameDictionary(oldId, newId, pairOps),
     rebuildEngine: async () => {
       await reinitializeEngine(getDictionaries(), { forceConfigReload: true, debugLevel: 0 });

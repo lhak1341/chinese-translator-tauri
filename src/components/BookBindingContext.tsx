@@ -142,7 +142,7 @@ export function BookBindingProvider({
       setBookBinding,
       renameBoundDictionary,
       unbindDictionary,
-      createDictionary: (dictionaryId) => createDictionary(dictionaryId, pairOps),
+      createDictionaryFiles: (dictionaryId) => createDictionary(dictionaryId, pairOps),
       renameDictionary: (oldId, newId) => renameDictionary(oldId, newId, pairOps),
       // The store's map, read at call time: a pair just loaded or renamed is in it before
       // React re-renders.

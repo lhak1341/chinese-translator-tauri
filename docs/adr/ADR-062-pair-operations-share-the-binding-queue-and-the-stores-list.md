@@ -24,7 +24,7 @@ The hook also chose between `createFictionDictionary`/`renameFictionDictionary` 
 
 - **A new catalog module above both stores.** It would be a second owner of "what exists" next to the one ADR-055 set up, with a refresh of its own to keep in step.
 - **Keep the fiction branch in the hook.** The branch exists only because the fiction operations were on the queue; a plain create or rename writes the same config key from Rust, so it needs the queue as much.
-- **Rename `BookBindingStore` now that its queue serves every pair operation.** It would touch a dozen files for a name that still describes what the queue guards: an apply is a read-modify-write of the same key. Revisit when a second operation with no book in it arrives.
+- **Rename `BookBindingStore` now that its queue serves every pair operation.** It would touch a dozen files for a name that still describes what the queue guards: an apply is a read-modify-write of the same key. Revisit when a second operation with no book in it arrives (sharpened by ADR-067: an operation that does not read the binding).
 
 ## Consequence
 

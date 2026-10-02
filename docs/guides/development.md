@@ -30,7 +30,7 @@ Two real examples of the pattern, current as of this writing: `window.translatio
 
 ## Testing Infrastructure
 
-**Test runner**: Vitest + React Testing Library. Config: `vitest.config.ts`, `src/test/setup.ts` (Tauri APIs are auto-mocked here — don't hand-roll a `window.electronAPI` mock in a test file).
+**Test runner**: Vitest + React Testing Library. Config: `vitest.config.ts`, `src/test/setup.ts` (the `@tauri-apps` modules are auto-mocked here). `window.electronAPI` is a plain global that tests stub per file: `installFakeConfigDisk()` (`src/test/fakeConfigDisk.ts`) for config, a hand-built object elsewhere (ADR-014).
 
 **API contract testing**: critical methods that must stay synchronous (e.g. `translate()`) are pinned with `expect(result).not.toBeInstanceOf(Promise)` — see `DictionaryManager.apiContract.test.js`. Add a case here before changing a hot-path method's sync/async shape.
 
