@@ -10,7 +10,7 @@ JS/WASM divergence: `fixAngleQuotePositioning` handles the JS chunker's empty-ch
 
 `TranslationEngine` holds `this.chunkPostProcessor = new ChunkPostProcessor()` alongside `this.textChunker`. All 3 `translatePunctuation` call sites and 4 `reconstruct*` call sites go through `this.chunkPostProcessor`.
 
-Entry point: `src/utils/text/ChunkPostProcessor.js`, re-exported from `src/utils/text/index.ts`.
+Entry point: `src/utils/text/ChunkPostProcessor.js`. Not barrel-exported — callers import it directly.
 
 ## CharOnlySpacing
 
@@ -98,7 +98,7 @@ Three exports:
 
 `useDictionaryEntryForm.ts` has its own local `checkPatternValid` (a `useCallback` wrapping `isPatternValid` to drive `showPatternValidation`) — previously named `validatePatternEntry`, colliding with this file's export of the same name despite doing something unrelated (boolean UI-gate vs `string | null`). Renamed 2026-09-07; do not reuse `validatePatternEntry` as a local name elsewhere in the hook.
 
-Entry point: `src/utils/dictionary/PersistTimeValidator.ts`, re-exported from `src/utils/dictionary/index.ts`.
+Entry point: `src/utils/dictionary/PersistTimeValidator.ts`. Not barrel-exported — callers import it directly.
 
 ## EntryValue
 
@@ -114,7 +114,7 @@ The single dictionary match ordering rule (ADR-010: specificity over provenance)
 
 Interface: `compareMatchesBySpecificityThenPriority(a, b): number`, taking `{ word: string; priority: number }`. Priority is a required field — the sole caller with a possibly-missing priority (`LookupIndexUtils.getIndexedMatches`) defaults it to `0` before calling, keeping the comparator's own contract simple.
 
-Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 4 callers live inside `src/utils/dictionary/`. Called from `DictionaryManager.findAllMatchesParallel`/`findAllMatchesSequential`, `DictionaryWasmLookup.findAllMatches`, and `LookupIndexUtils.sortMatchesByPrecedence`.
+Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 4 callers live inside `src/utils/dictionary/`. Called from `DictionaryMatchLookup.findAllMatchesSequential`, `DictionaryWasmLookup.findAllMatches`, and `LookupIndexUtils.sortMatchesByPrecedence`.
 
 ## NumberProcessor
 
@@ -328,7 +328,7 @@ Two adapters, genuinely different shapes (this is what makes the seam real, not 
 
 Interface: `restore(positions, options?): Promise<void>` — resolves when attempt succeeds or retries are exhausted (never rejects; a `cancel()`-aborted sequence never resolves either — the returned promise is simply abandoned). `cancel()` aborts any pending RAF or setTimeout; second `restore()` call implicitly cancels the first.
 
-Entry point: `src/utils/ui/ScrollPositionRecovery.ts`, re-exported from `src/utils/ui/index.ts`. Consumed by `useScrollPositionManager.js` and `useVirtualScrollRange.ts` (`buildScrollRestoreAttempt` lives in the latter, not barrel-exported — sole caller in the same file).
+Entry point: `src/utils/ui/ScrollPositionRecovery.ts`. Not barrel-exported — callers import it directly. Consumed by `useScrollPositionManager.js` and `useVirtualScrollRange.ts` (`buildScrollRestoreAttempt` lives in the latter, not barrel-exported — sole caller in the same file).
 
 ## CharacterOnlyBridge
 
@@ -435,13 +435,15 @@ Per-type column-layout narrative (which columns, what widths) lives as block com
 
 ## DictionaryMatchLookup
 
-The JS match-lookup dispatch behind `DictionaryManager`'s two public lookup methods. Owns: `findMatchesThreadSafe` (single-dictionary trie walk, no shared-array state), `findAllMatchesSequential` (scans search order in order), `findAllMatchesParallel` (WASM-first via injected `wasmLookup`, catches failure and falls back to JS `Promise.all` fan-out across dictionaries, catches further failure and falls back to sequential), and `stats` (parallelCalls/sequentialCalls/averageParallelTime/averageSequentialTime/fallbackCount).
+The match-lookup dispatch behind `DictionaryManager`'s two public lookup methods. Owns: `findMatchesThreadSafe` (single-dictionary trie walk, no shared-array state), `findAllMatchesSequential` (scans the search order in order; a dictionary that throws is logged and skipped), and the WASM-first choice inside `findAllMatchesAsync`.
 
-Two public methods only: `findAllMatches` (sync, always sequential — required by `PatternVariableCache`'s per-position hot loop, which cannot await) and `findAllMatchesAsync` (auto parallel/sequential, chosen by `enableParallelLookups && searchOrder.length >= dictionaryParallelThreshold`). `DictionaryManager.findAllMatches`/`.findAllMatchesAsync` are thin delegations to `this.matchLookup`; `DictionaryManager.parallelLookupStats` is a getter re-exposing `this.matchLookup.stats` so existing external readers (e.g. `TranslationEngine.js`) don't need to know the internal split exists.
+Two public methods only: `findAllMatches` (sync, always sequential — required by `PatternVariableCache`'s per-position hot loop, which cannot await) and `findAllMatchesAsync`. The async one tries the injected `wasmLookup` first when it is ready and the search order has at least 2 dictionaries (`WASM_MIN_DICTIONARIES`, a constant in the module), and takes the sequential JS scan on a WASM failure or for any other lookup. So the phrase lookups (`['phrases']`) never reach WASM. `DictionaryManager.findAllMatches`/`.findAllMatchesAsync` are thin delegations to `this.matchLookup`.
 
-Replaces 7 previously-flat methods on `DictionaryManager` (`findMatchesThreadSafe`, `findAllMatchesParallel`, `findAllMatchesSequential`, `findAllMatches`, `findAllMatchesAsync`, plus `findBestMatch`/`findBestMatchAsync`, which had zero callers and are deleted). The first five live here now; `DictionaryManager` keeps only delegations for the two public ones.
+There is no JS "parallel" path: the fan-out was a `Promise.all` over synchronous trie walks, so it ran sequentially, and it was deleted 2026-10-03 (architecture review round 3 candidate #2) with its `stats`, `parallelLookupStats`, `enableParallelLookups`, `dictionaryParallelThreshold` and `maxParallelDictionaries`. **Open question, unmeasured:** whether the WASM dictionary tier (`DictionaryWasmLookup`, `WasmDictionaryManager`, `WasmDictionaryAdapter`) beats the JS trie walk at all; it needs a benchmark before anyone keeps or deletes it.
 
-Constructor takes injected dependencies (live `dictionaries`/`metadata` Maps, `wasmLookup`, `enableParallelLookups`, `dictionaryParallelThreshold`, `getDefaultSearchOrder` callback, `isReady` callback) — testable standalone with a stub trie and no full `DictionaryManager` construction.
+Replaces 7 previously-flat methods on `DictionaryManager` (`findMatchesThreadSafe`, `findAllMatchesSequential`, `findAllMatches`, `findAllMatchesAsync`, plus `findBestMatch`/`findBestMatchAsync`, which had zero callers and are deleted). The first five live here now; `DictionaryManager` keeps only delegations for the two public ones.
+
+Constructor takes injected dependencies (live `dictionaries`/`metadata` Maps, `wasmLookup`, `getDefaultSearchOrder` callback, `isReady` callback) — testable standalone with a stub trie and no full `DictionaryManager` construction.
 
 Entry point: `src/utils/dictionary/DictionaryMatchLookup.js`. Constructed once in `DictionaryManager`'s constructor as `this.matchLookup`.
 
@@ -650,7 +652,7 @@ Entry point: `src/utils/highlighting/PositionBasedSegmentBuilder.ts`, barrel-exp
 
 `TranslationEngine.js`'s seam-contract fix for the batch-size floor (architecture review 2026-08-15, candidate #2 — real bug, not just shallowness). `AdaptiveBatchSizer.calculateNextBatchSize`'s severe-degradation shrink guard (`currentBatchSize > MIN_BATCH_SIZE`) silently never fires below `MIN_BATCH_SIZE` (3) — reachable whenever `chunkConfig.enabled === false` (short texts, <~400 chars), which previously pinned the initial `currentBatchSize` to a hardcoded `2`, one below the floor. `_clampInitialBatchSize(chunkConfig, currentBatchSize)` now floors the disabled-chunking case at `MIN_BATCH_SIZE` instead — self-sufficient fix, since the shrink branch's own floor (`max(MIN_BATCH_SIZE, size-1)`) keeps `currentBatchSize` in range for the rest of the loop once entry respects it. `MIN_BATCH_SIZE`/`MAX_BATCH_SIZE` now exported from `AdaptiveBatchSizer.ts`.
 
-Entry point: `src/utils/TranslationEngine.js`, private method next to `_applyBatchMemoryCleanup`. Tests: `AdaptiveBatchSizer.test.ts` (pure-function boundary behavior), `TranslationEngine.regression.test.js`'s `_clampInitialBatchSize wiring` block (real call-site invariant).
+Entry point: `src/utils/TranslationEngine.js`, private method of `TranslationEngine`. Tests: `AdaptiveBatchSizer.test.ts` (pure-function boundary behavior), `TranslationEngine.regression.test.js`'s `_clampInitialBatchSize wiring` block (real call-site invariant).
 
 ## emptySemanticArrays / _logUnpositionedSegments
 
@@ -666,25 +668,11 @@ Two small dedup extractions from `TranslationEngine.js` (architecture review 202
 
 Entry point: `src/utils/dictionary/DictionaryManager.js`, private method — `translate()` is the only production caller.
 
-## BatchMemoryCleanup
-
-The trim policy for the resources `translateWithProgressiveBatches` accumulates across batches: `batchPerformanceHistory`, memory-tracker snapshots, and the pattern-processor variable cache. Extracted 2026-07-29 (architecture review candidate #1) from ~7 independently-tuned inline copies of the same trim logic that had drifted to disagree on keep-counts (3/5/10/25/50 for the same conceptual "trim history" operation, depending on which of 3 separate trigger shapes fired).
-
-Deliberately does **not** own `translationSegments` or `semanticArrayBuilder`. `translationSegments` already has a canonical, regression-tested hard ceiling in `trackTranslationSegment` (`SEGMENT_CLEANUP_TRIGGER`/`_KEEP`/`_HARD_CEILING` in `PerformanceThresholds.ts`) — trimming it a second time here would be redundant, not a second layer of safety. `semanticArrayBuilder` has no real light-cleanup method: the pre-extraction code guarded calls to `.cleanup()`/`.clearCache()`, neither of which has ever existed on the class — confirmed dead, always-no-op guarded calls (the same pattern as `dictionaryManager.optimizeCaches()` and `translationCache.clearOldEntries()`, also found and dropped in the same pass, the latter a stale reference to the already-deleted `TranslationSegmentCache`). Its only real operation, `reset()`, was never exercised in production (the sole call site was gated behind a dev-only snapshot) and risks corrupting in-progress highlighting if called mid-batch — not ported forward without separate verification.
-
-Interface: `cleanup(severity, resources) → { batchPerformanceHistory, memoryTrackerSnapshots }`, where `severity` is `'background' | 'elevated' | 'emergency'` and `resources` is `{ batchPerformanceHistory, memoryTrackerSnapshots, variableCache? }`. Pure per-call — no constructor-injected closures over engine state, unlike `DictionaryManager`'s constructor-time closure wiring (a shallowness finding from the same review) — callers pass current values in, get trimmed values back, and reassign. `variableCache.clear()` mutates the Map in place (no reassignment needed).
-
-Triggered from two sources converging on the same `cleanup()` call (**both read `performance.memory`, which macOS's WebKit does not have, so on the target platform neither fires**; see "Memory signals on macOS"): `memoryCoordinator`'s (`SmartMemoryCoordinator`) pressure callbacks (`onEmergency`/`onHighPriority`/`onBackground` → `'emergency'`/`'elevated'`/`'background'`), and a throttled every-5th-batch growth check inside the batch loop (`memoryTracker.detectLeaks()` → `'elevated'` on `isExcessive`). The growth check previously ran dev-only (gated on a snapshot only taken `if NODE_ENV === 'development'`) — now throttled instead of env-gated, so it's dev/prod consistent.
-
-All 4 call sites route through one private method, `TranslationEngine.js`'s `_applyBatchMemoryCleanup(severity)` (added 2026-07-30, architecture review candidate #6) — previously each of the 4 sites hand-copied the same 3-line `cleanup()` + reassign-both-fields block. The reassignment (`this.batchPerformanceHistory`/`this.memoryTracker.snapshots` from the returned `trimmed` object) is the one thing that can regress silently — a future call site destructuring only one of the two fields — and had zero test coverage before this method existed: `BatchMemoryCleanup.test.ts` tests the pure class in isolation, never the wiring. `TranslationEngine.regression.test.js`'s `_applyBatchMemoryCleanup wiring` block now proves it on a real bare-constructed engine (`'emergency'` severity only — deterministic, doesn't need `MEMORY_THRESHOLDS` numbers; the trim policy itself stays covered by `BatchMemoryCleanup.test.ts`).
-
-Entry point: `src/utils/memory/BatchMemoryCleanup.ts`, barrel-exported from `src/utils/memory/index.ts`. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`, via `_applyBatchMemoryCleanup`.
-
 ## Memory signals on macOS
 
-**The app targets macOS only (decided 2026-10-03), where the web view is WKWebView, and WebKit has no `performance.memory`** (checked in the deployed app: `typeof performance.memory === "undefined"`). Everything that reads it is inert there: `SmartMemoryPressureDetector` (used by `SmartMemoryCoordinator` and by `WasmMemoryPoolManager`) reports level `unknown`, ratio 0, and never emits a cleanup event; `ComponentMemoryProfiler` returns null ids and profiles nothing; `MemoryLeakDetector` (the engine's `memoryTracker`, and the every-5th-batch growth check) and `SystemPerformanceMonitor`'s memory metrics have no data; `window.checkRealMemory()` prints nothing useful. `getEngineStats().smartMemoryStats` shows this directly: `memoryPressure.current: "unknown"`, 0 tasks processed, 0 profiles. Two places keep a fallback: `calculateMaxTokensForDevice` and `AdaptiveVirtualScrolling`.
+**The app targets macOS only (decided 2026-10-03), where the web view is WKWebView, and WebKit has no `performance.memory`** (checked in the deployed app: `typeof performance.memory === "undefined"`). Everything that reads it is inert there: `SmartMemoryPressureDetector` (used by `WasmMemoryPoolManager`) reports level `unknown`, ratio 0, and never emits a cleanup event; `SystemPerformanceMonitor`'s memory metrics have no data; `window.checkRealMemory()` prints nothing useful. Two places keep a fallback: `calculateMaxTokensForDevice` and `AdaptiveVirtualScrolling`.
 
-What still bounds memory is deterministic: `SEGMENT_CLEANUP_HARD_CEILING` in `trackTranslationSegment`, `BatchMemoryCleanup`'s keep-counts, the Lookup memo's LRU size, and the Reader's single decoded book. The pressure-reactive code is kept, not deleted: it would work on Windows (WebView2 is Chromium), and removing or replacing it (for example with a Rust command that reports process memory) is a separate decision that needs evidence of what grows. Do not cite it as a safeguard.
+What bounds memory is deterministic: `SEGMENT_CLEANUP_HARD_CEILING` in `trackTranslationSegment`, `batchPerformanceHistory` reset per translation, the Lookup memo's LRU size, and the Reader's single decoded book. **The pressure-reactive batch stack was deleted 2026-10-03 (architecture review round 3, candidate #5):** `SmartMemoryCoordinator`, `BackgroundCleanupManager`, `ComponentMemoryProfiler`, `BatchMemoryCleanup`, `MemoryLeakDetector` (the engine's `memoryTracker`), the every-5th-batch growth check and `getEngineStats().smartMemoryStats`. They were inert on macOS, and `BatchMemoryCleanup` was reachable only from those inert triggers, so it never ran (this section used to list its keep-counts as a bound, wrongly). Git history is the way back if a Windows target ever exists; that port would choose its own memory signal after measuring. `SmartMemoryPressureDetector` stays only because `WasmMemoryPoolManager` uses it, so its fate goes with the WASM dictionary tier (see "DictionaryMatchLookup"). **Open, not built:** a real memory signal for the reloads below. App-process RSS would not do, since WebKit's content runs in a separate process; two data points in the termination log are too few to design from.
 
 **The app sometimes reloads by itself mid-reading (reported 2026-10-03, built app, unpredictable).** No app code does it: the only `window.location.reload()` calls are buttons on error screens. Tauri's macOS runtime reloads the page when WebKit terminates the web-content process (memory pressure, a crash or a watchdog). Cause unconfirmed; memory is the leading guess. `src-tauri/src/webview_diagnostics.rs` now records each termination: it sets Tauri's `on_web_content_process_terminate` handler, which replaces the default, so it appends a line to `webview-terminations.log` in the app data folder (a `launch` line at startup, then `web-content-terminated` with the uptime and the count this run) and reloads exactly as the default did. Read that log after a reload to see when it happens and how long the session had run.
 
@@ -694,7 +682,7 @@ The adaptive batch-size heuristic for `translateWithProgressiveBatches`: looks a
 
 Interface: `calculateNextBatchSize({ batchPerformanceHistory, currentBatchSize, performanceBaseline, batchIndex }) → { batchSize, performanceBaseline, log }`, where `log` is `{ level, message } | null` for the caller to route through `this.log`.
 
-Entry point: `src/utils/text/AdaptiveBatchSizer.ts`, barrel-exported from `src/utils/text/index.ts`. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
+Entry point: `src/utils/text/AdaptiveBatchSizer.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
 
 ## ProgressiveProgressReporter
 

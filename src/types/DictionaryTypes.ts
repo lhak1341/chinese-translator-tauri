@@ -68,21 +68,6 @@ export interface ExistingEntryData {
 }
 
 /**
- * Sorting statistics returned by IncrementalDictionarySorter
- */
-export interface SortingStats {
-  fullSorts: number;
-  incrementalSorts: number;
-  timeSaved: number;
-  averageFullSortTime: number;
-  averageIncrementalSortTime: number;
-  totalSorts: number;
-  timeSavedSeconds: string;
-  efficiencyGain: string;
-  incrementalPercentage: string;
-}
-
-/**
  * Interface for DictionaryContext. `setSelectedDictionary` is declared by the
  * concrete context value since its return type depends on loading strategy.
  */
@@ -185,8 +170,4 @@ export interface DictionaryContextInterface {
   reloadAfterImport: () => Promise<void>;
   /** Currently selected dictionary */
   selectedDictionary: string;
-  /** Get sorting statistics */
-  getSortingStats: () => SortingStats;
-  /** Reset sorting statistics */
-  resetSortingStats: () => void;
 }

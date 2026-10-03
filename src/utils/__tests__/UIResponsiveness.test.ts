@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { DebouncedProgressHandler, SmoothLoadingManager } from '../ui/UIResponsiveness';
+import { DebouncedProgressHandler } from '../ui/UIResponsiveness';
 
 describe('DebouncedProgressHandler', () => {
   beforeEach(() => {
@@ -78,80 +78,5 @@ describe('DebouncedProgressHandler', () => {
     vi.advanceTimersByTime(200);
 
     expect(onProgressUpdate).not.toHaveBeenCalled();
-  });
-});
-
-describe('SmoothLoadingManager', () => {
-  test('startLoading registers an indeterminate state and notifies the registered callback', () => {
-    const manager = new SmoothLoadingManager();
-    const callback = vi.fn();
-    manager.onLoadingChange('wasm-init', callback);
-
-    manager.startLoading('wasm-init', 'Loading WASM...');
-
-    expect(callback).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: 'wasm-init',
-        message: 'Loading WASM...',
-        isIndeterminate: true,
-        progress: 0,
-      })
-    );
-  });
-
-  test('updateProgress clamps to [0, 100] and updates the message', () => {
-    const manager = new SmoothLoadingManager();
-    const callback = vi.fn();
-    manager.onLoadingChange('job', callback);
-    manager.startLoading('job');
-
-    manager.updateProgress('job', 150, 'almost done');
-    expect(callback).toHaveBeenLastCalledWith(
-      expect.objectContaining({ progress: 100, message: 'almost done' })
-    );
-
-    manager.updateProgress('job', -20);
-    expect(callback).toHaveBeenLastCalledWith(expect.objectContaining({ progress: 0 }));
-  });
-
-  test('updateProgress on an unknown key is a no-op (does not throw, does not call back)', () => {
-    const manager = new SmoothLoadingManager();
-    const callback = vi.fn();
-    manager.onLoadingChange('job', callback);
-
-    expect(() => manager.updateProgress('unknown', 50)).not.toThrow();
-    expect(callback).not.toHaveBeenCalled();
-  });
-
-  test('completeLoading marks the state completed and schedules removal', () => {
-    vi.useFakeTimers();
-    const manager = new SmoothLoadingManager();
-    const callback = vi.fn();
-    manager.onLoadingChange('job', callback);
-    manager.startLoading('job');
-
-    manager.completeLoading('job', 'Done!');
-    expect(callback).toHaveBeenLastCalledWith(
-      expect.objectContaining({ progress: 100, message: 'Done!', completed: true })
-    );
-
-    vi.advanceTimersByTime(1000);
-    manager.updateProgress('job', 50);
-    expect(callback).toHaveBeenCalledTimes(2); // completeLoading's call only — state was deleted after
-
-    vi.useRealTimers();
-  });
-
-  test('onLoadingChange evicts the oldest callback once MAX_CALLBACKS is exceeded', () => {
-    const manager = new SmoothLoadingManager();
-    const firstCallback = vi.fn();
-    manager.onLoadingChange('first', firstCallback);
-
-    for (let i = 0; i < 30; i++) {
-      manager.onLoadingChange(`filler-${i}`, vi.fn());
-    }
-
-    manager.startLoading('first');
-    expect(firstCallback).not.toHaveBeenCalled();
   });
 });

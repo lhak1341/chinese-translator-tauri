@@ -6,6 +6,7 @@
 
 import {
   getSemanticTokens,
+  isSemanticTokenType,
   getTokenSpanForText,
   reconstructChineseText,
   reconstructTextFromIndex,
@@ -93,6 +94,91 @@ describe('getSemanticTokens', () => {
   test('should handle empty token array', () => {
     const semanticTokens = getSemanticTokens([]);
     expect(semanticTokens).toEqual([]);
+  });
+
+  test('includes latin words and numbers', () => {
+    const tokens = [
+      createToken(TokenType.LATIN_WORD, 'yuan', 0),
+      createToken(TokenType.CHINESE_WORD, '主厨', 4),
+      createToken(TokenType.NUMBER, '三', 6),
+    ];
+
+    expect(getSemanticTokens(tokens).map((t) => t.value)).toEqual(['yuan', '主厨', '三']);
+  });
+
+  test('preserves originalIndex from the input array', () => {
+    const tokens = [
+      createToken(TokenType.PUNCTUATION, '「', 0),
+      createToken(TokenType.CHINESE_CHAR, '我', 1),
+      createToken(TokenType.PUNCTUATION, '」', 2),
+      createToken(TokenType.CHINESE_WORD, '手套', 3),
+    ];
+
+    expect(getSemanticTokens(tokens).map((t) => t.originalIndex)).toEqual([1, 3]);
+  });
+
+  test('does not mutate the input tokens', () => {
+    const tokens = [createToken(TokenType.CHINESE_CHAR, '我', 0)];
+    getSemanticTokens(tokens);
+    expect(tokens[0]).not.toHaveProperty('originalIndex');
+    expect(tokens[0]).not.toHaveProperty('hasPrecedingBoundary');
+  });
+
+  describe('hasPrecedingBoundary', () => {
+    test('is false between adjacent semantic tokens', () => {
+      const tokens = [
+        createToken(TokenType.CHINESE_CHAR, '在', 0),
+        createToken(TokenType.CHINESE_CHAR, '那', 1),
+      ];
+      expect(getSemanticTokens(tokens).map((t) => t.hasPrecedingBoundary)).toEqual([false, false]);
+    });
+
+    test('is true after punctuation or whitespace between semantic tokens', () => {
+      const tokens = [
+        createToken(TokenType.CHINESE_CHAR, '在', 0),
+        createToken(TokenType.PUNCTUATION, '，', 1),
+        createToken(TokenType.CHINESE_CHAR, '那', 2),
+        createToken(TokenType.WHITESPACE, ' ', 3),
+        createToken(TokenType.CHINESE_CHAR, '里', 4),
+      ];
+      expect(getSemanticTokens(tokens).map((t) => t.hasPrecedingBoundary)).toEqual([
+        false,
+        true,
+        true,
+      ]);
+    });
+
+    test('is false for the first token even after leading punctuation', () => {
+      const tokens = [
+        createToken(TokenType.PUNCTUATION, '「', 0),
+        createToken(TokenType.CHINESE_CHAR, '我', 1),
+      ];
+      expect(getSemanticTokens(tokens)[0].hasPrecedingBoundary).toBe(false);
+    });
+
+    test('a grouped follower sets no boundary', () => {
+      const tokens = [
+        createToken(TokenType.CHINESE_CHAR, '魔', 0),
+        createToken(TokenType.CHINESE_CHAR, '帅', 1, { isGrouped: true, groupLeader: 0 }),
+        createToken(TokenType.CHINESE_CHAR, '那', 2),
+      ];
+      expect(getSemanticTokens(tokens).map((t) => t.hasPrecedingBoundary)).toEqual([false, false]);
+    });
+  });
+});
+
+describe('isSemanticTokenType', () => {
+  test.each([
+    TokenType.CHINESE_CHAR,
+    TokenType.CHINESE_WORD,
+    TokenType.LATIN_WORD,
+    TokenType.NUMBER,
+  ])('%s is semantic', (type) => {
+    expect(isSemanticTokenType(type)).toBe(true);
+  });
+
+  test.each([TokenType.PUNCTUATION, TokenType.WHITESPACE])('%s is not semantic', (type) => {
+    expect(isSemanticTokenType(type)).toBe(false);
   });
 });
 

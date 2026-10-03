@@ -45,25 +45,20 @@ describe('getOptimalConfig("dictionary")', () => {
   test('enough dictionaries keeps parallel on', () => {
     const config = parallelConfig.getOptimalConfig('dictionary', { dictionaryCount: 5 });
     expect(config.enabled).toBe(true);
-    expect(config.maxParallelDictionaries).toBe(10);
   });
 });
 
 describe('adaptToDevice', () => {
-  test('under 2 GB turns chunk parallel off and caps dictionaries at 3', () => {
+  test('under 2 GB turns chunk parallel off', () => {
     parallelConfig.adaptToDevice({ totalMemory: 1 * GB });
 
     expect(parallelConfig.getOptimalConfig('chunk').enabled).toBe(false);
-    expect(parallelConfig.getOptimalConfig('dictionary', { dictionaryCount: 5 })).toMatchObject({
-      maxParallelDictionaries: 3,
-    });
   });
 
-  test('2 to 4 GB scales to 3 chunks and 5 dictionaries', () => {
+  test('2 to 4 GB scales to 3 chunks', () => {
     parallelConfig.adaptToDevice({ totalMemory: 3 * GB });
 
     expect(parallelConfig.getOptimalConfig('chunk').maxParallelChunks).toBe(3);
-    expect(parallelConfig.getConfig().dictionary.maxParallelDictionaries).toBe(5);
   });
 
   test('CPU cores cap the chunk count at 5', () => {

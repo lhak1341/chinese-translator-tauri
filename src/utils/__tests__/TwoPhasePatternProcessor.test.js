@@ -89,65 +89,6 @@ describe('TwoPhasePatternProcessor — categorizePatterns()', () => {
   });
 });
 
-describe('TwoPhasePatternProcessor — extractSemanticTokens()', () => {
-  const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN]);
-
-  const makeToken = (type, value, extra = {}) => ({ type, value, translated: null, ...extra });
-
-  test('includes chinese_char tokens', () => {
-    const tokens = [makeToken('chinese_char', '我')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result.some((t) => t.value === '我')).toBe(true);
-  });
-
-  test('includes chinese_word tokens', () => {
-    const tokens = [makeToken('chinese_word', '手套')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result.some((t) => t.value === '手套')).toBe(true);
-  });
-
-  test('includes latin_word tokens', () => {
-    const tokens = [makeToken('latin_word', 'hello')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result.some((t) => t.value === 'hello')).toBe(true);
-  });
-
-  test('includes number tokens', () => {
-    const tokens = [makeToken('number', '三')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result.some((t) => t.value === '三')).toBe(true);
-  });
-
-  test('excludes non-semantic tokens (punctuation)', () => {
-    const tokens = [makeToken('punctuation', '，')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result).toHaveLength(0);
-  });
-
-  test('preserves originalIndex from input array', () => {
-    const tokens = [
-      makeToken('punctuation', '「'), // index 0 — excluded
-      makeToken('chinese_char', '我'), // index 1 — included
-      makeToken('punctuation', '」'), // index 2 — excluded
-      makeToken('chinese_word', '手套'), // index 3 — included
-    ];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result).toHaveLength(2);
-    expect(result[0].originalIndex).toBe(1);
-    expect(result[1].originalIndex).toBe(3);
-  });
-
-  test('empty input returns empty array', () => {
-    expect(proc.extractSemanticTokens([])).toEqual([]);
-  });
-
-  test('all-semantic input preserves all tokens', () => {
-    const tokens = [makeToken('chinese_char', '我'), makeToken('chinese_char', '好')];
-    const result = proc.extractSemanticTokens(tokens);
-    expect(result).toHaveLength(2);
-  });
-});
-
 describe('TwoPhasePatternProcessor — processTokens() WASM gate', () => {
   test('throws when WASM not ready and enableWasm: true (default)', async () => {
     vi.mocked(isWasmPatternProcessorReady).mockReturnValue(false);

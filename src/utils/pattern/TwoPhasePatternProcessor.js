@@ -2,6 +2,7 @@ import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
+import { getSemanticTokens } from '../TokenHelpers.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
 
 /**
@@ -69,48 +70,6 @@ class TwoPhasePatternProcessor {
     this.allPatterns = this.processedPatterns;
 
     // Pattern categorization completed
-  }
-
-  /**
-   * Extract semantic tokens (Chinese characters/words only) with originalIndex
-   * Matches the format expected by WASM pattern processor
-   * @param {Array} tokens - Full token array
-   * @returns {Array} Semantic tokens with originalIndex field
-   */
-  extractSemanticTokens(tokens) {
-    const semanticTokens = [];
-    let pendingBoundary = false;
-
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-
-      // Skip grouped followers
-      if (token.isGrouped && token.groupLeader !== null) {
-        continue;
-      }
-
-      // BUGFIX: Include Latin words and numbers for pattern matching
-      // so that patterns can properly handle mixed Chinese/Latin text like "yuan主厨"
-      if (
-        token.type === 'chinese_char' ||
-        token.type === 'chinese_word' ||
-        token.type === 'latin_word' ||
-        token.type === 'number'
-      ) {
-        semanticTokens.push({
-          ...token,
-          originalIndex: i,
-          hasPrecedingBoundary: pendingBoundary,
-        });
-        pendingBoundary = false;
-      } else if (semanticTokens.length > 0) {
-        // Non-semantic token (punctuation, whitespace, etc.) — marks a boundary
-        // before the next semantic token. Grouped followers are already skipped above.
-        pendingBoundary = true;
-      }
-    }
-
-    return semanticTokens;
   }
 
   /**
@@ -188,7 +147,7 @@ class TwoPhasePatternProcessor {
     try {
       // Extract semantic tokens (Chinese characters/words only with originalIndex)
       const start1 = performance.now();
-      const semanticTokens = this.extractSemanticTokens(tokens);
+      const semanticTokens = getSemanticTokens(tokens);
       if (this.internalProfiling.enabled) {
         this.internalProfiling.extractSemanticTokens.time += performance.now() - start1;
         this.internalProfiling.extractSemanticTokens.calls++;

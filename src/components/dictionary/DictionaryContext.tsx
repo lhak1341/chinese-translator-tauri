@@ -16,7 +16,6 @@ import React, {
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { getDictionaryTypes } from './DictionaryTypes';
-import { getSortingStats, resetSortingStats } from '../../utils/dictionary';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
@@ -224,9 +223,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     await store.loadAll({ invalidate: true, onApplied: clearHistory });
   }, [store, clearHistory]);
 
-  // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
-  // no useCallback wrapper needed; pass them directly in the value object below.
-
   // Create the context value object
   // Memoized to prevent unnecessary re-renders of all consumers when Provider re-renders
   const value = useMemo(
@@ -256,8 +252,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       reloadAfterImport,
       selectedDictionary,
       setSelectedDictionary,
-      getSortingStats,
-      resetSortingStats,
       registerCacheInvalidator,
     }),
     [

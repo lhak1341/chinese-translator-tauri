@@ -21,6 +21,7 @@
 
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 import { logger } from '../logger.js';
+import { getSemanticTokens } from '../TokenHelpers.js';
 import { buildPrecomputedStrings } from '../wasm/StringProcessingAdapter.js';
 import { PrecomputedTokenStrings } from './PrecomputedTokenStrings.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
@@ -520,7 +521,7 @@ export class SemanticPatternProcessor {
     }
 
     // Get semantic tokens (Chinese characters/words only)
-    const semanticTokens = this.getSemanticTokens(tokens);
+    const semanticTokens = getSemanticTokens(tokens);
 
     // Initialize pre-computed strings optimization
     if (this.enableStringOptimization && semanticTokens.length > 5) {
@@ -663,45 +664,6 @@ export class SemanticPatternProcessor {
     }
 
     this.log(debugLevel, 5, '✅ Semantic pattern matching completed');
-  }
-
-  /**
-   * Extract semantic tokens (Chinese characters/words only)
-   * @param {Token[]} tokens - All tokens
-   * @returns {Array} Semantic tokens with position tracking
-   */
-  getSemanticTokens(tokens) {
-    const semanticTokens = [];
-    let pendingBoundary = false;
-
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-
-      // Skip grouped followers and non-Chinese tokens
-      if (token.isGrouped && token.groupLeader !== null) {
-        continue;
-      }
-
-      if (
-        token.type === 'chinese_char' ||
-        token.type === 'chinese_word' ||
-        token.type === 'latin_word' ||
-        token.type === 'number'
-      ) {
-        semanticTokens.push({
-          ...token,
-          originalIndex: i,
-          hasPrecedingBoundary: pendingBoundary,
-        });
-        pendingBoundary = false;
-      } else if (semanticTokens.length > 0) {
-        // Non-semantic token (punctuation, whitespace, etc.) — marks a boundary
-        // before the next semantic token. Grouped followers are already skipped above.
-        pendingBoundary = true;
-      }
-    }
-
-    return semanticTokens;
   }
 
   /**

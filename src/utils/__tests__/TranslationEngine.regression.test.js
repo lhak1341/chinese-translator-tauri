@@ -6,18 +6,14 @@
  * - The canonical translationSegments hard ceiling (trackTranslationSegment)
  *
  * A prior "Inconsistent Cleanup Thresholds" / "Multiple Async Cleanup Interference"
- * section here tested MockTranslationEngine methods (handleSmartCleanup,
- * performEmergencyCleanup, performHighPriorityCleanup, optimizeMemoryStructures) that
- * no longer exist on the real engine — extracted into SmartMemoryCoordinator long
- * before this file was last touched (see CLAUDE.md's deleted-symbols list). Removed
- * 2026-07-29 alongside the translateWithProgressiveBatches decomposition (architecture
- * review candidate #1) — see BatchMemoryCleanup.test.ts for the real replacement's tests.
+ * section here tested MockTranslationEngine methods that no longer exist on the real
+ * engine (see docs/guides/deleted-symbols.md). Removed 2026-07-29; the pressure-reactive
+ * cleanup stack they belonged to was itself deleted 2026-10-03, so nothing replaces them.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
-import { BatchMemoryCleanup } from '../memory/BatchMemoryCleanup.js';
 import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
 
 // Mock TranslationEngine with minimal implementation for testing
@@ -167,29 +163,6 @@ describe('TranslationEngine Regression Tests', () => {
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER).toBe(75);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBe(35);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING).toBe(100);
-    });
-  });
-
-  describe('_applyBatchMemoryCleanup wiring (architecture review 2026-07-30, candidate #6)', () => {
-    // BatchMemoryCleanup.test.ts already covers the trim policy itself
-    // (emergency/elevated/background thresholds) as pure-function tests.
-    // This proves the real TranslationEngine call site actually reassigns
-    // both fields from the returned trimmed values — the one thing that can
-    // regress silently if a future call site destructures only one of them.
-    it('reassigns both batchPerformanceHistory and memoryTracker.snapshots on emergency severity', () => {
-      const engine = new TranslationEngine({
-        debugLevel: 0,
-        enableMemoryMonitoring: false,
-        enablePerformanceMonitoring: false,
-      });
-      engine.batchMemoryCleanup = new BatchMemoryCleanup();
-      engine.batchPerformanceHistory = [{ batch: 1 }, { batch: 2 }];
-      engine.memoryTracker = { snapshots: [{ snap: 1 }, { snap: 2 }] };
-
-      engine._applyBatchMemoryCleanup('emergency');
-
-      expect(engine.batchPerformanceHistory).toEqual([]);
-      expect(engine.memoryTracker.snapshots).toEqual([]);
     });
   });
 

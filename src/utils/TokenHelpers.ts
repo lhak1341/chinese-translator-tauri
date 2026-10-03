@@ -18,6 +18,9 @@ import { TokenType, Token } from './text/TextTokenizer.js';
 export type TextToken = Token & {
   /** Original index in token array (added by getSemanticTokens) */
   originalIndex?: number;
+  /** True when a non-semantic token (punctuation, whitespace) sits between this token and the
+   * previous semantic one (added by getSemanticTokens; consumed by the Rust pattern matcher) */
+  hasPrecedingBoundary?: boolean;
 };
 
 /**
@@ -57,40 +60,57 @@ export interface LegacyTextToken {
 }
 
 /**
- * Extract semantic tokens from token array
+ * Whether a token type takes part in pattern matching and token-span counting.
  *
- * Filters tokens to include only Chinese words and characters,
- * excluding grouped followers (tokens that are part of another token's group).
+ * Latin words and numbers count so that patterns can handle mixed Chinese/Latin text
+ * like "yuan主厨". This is the one list: add a type here, not at a call site.
+ */
+export function isSemanticTokenType(type: string): boolean {
+  return (
+    type === TokenType.CHINESE_WORD ||
+    type === TokenType.CHINESE_CHAR ||
+    type === TokenType.LATIN_WORD ||
+    type === TokenType.NUMBER
+  );
+}
+
+/**
+ * Extract semantic tokens from token array — the one definition both pattern adapters
+ * (SemanticPatternProcessor, TwoPhasePatternProcessor) and the Rust matcher agree on.
+ *
+ * Keeps tokens whose type passes `isSemanticTokenType`, drops grouped followers
+ * (`isGrouped && groupLeader !== null`), and tags each kept token with its position in the
+ * input (`originalIndex`) and whether a non-semantic token separates it from the previous
+ * semantic token (`hasPrecedingBoundary`). Leading non-semantic tokens set no boundary.
+ * Grouped followers never set one either.
  *
  * @param tokens - Array of tokens
- * @returns Array of semantic tokens with originalIndex property
+ * @returns Copies of the semantic tokens with originalIndex and hasPrecedingBoundary
  *
  * @example
  * const semanticTokens = getSemanticTokens(tokens);
- * // Returns: Chinese words/chars with originalIndex preserved
+ * // Returns: Chinese/Latin/number tokens with originalIndex preserved
  */
 export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
   const semanticTokens: TextToken[] = [];
+  let pendingBoundary = false;
 
   for (let i = 0; i < tokens.length; i++) {
-    // Skip tokens that are grouped followers
-    if (tokens[i].isGrouped && tokens[i].groupLeader !== null) {
+    const token = tokens[i];
+
+    if (token.isGrouped && token.groupLeader !== null) {
       continue;
     }
 
-    // Include Chinese tokens AND Latin/Number tokens for pattern matching
-    // BUGFIX: Latin words (like "yuan") and numbers must be included in semantic tokens
-    // so that pattern variables can properly handle mixed Chinese/Latin text
-    if (
-      tokens[i].type === TokenType.CHINESE_WORD ||
-      tokens[i].type === TokenType.CHINESE_CHAR ||
-      tokens[i].type === TokenType.LATIN_WORD ||
-      tokens[i].type === TokenType.NUMBER
-    ) {
+    if (isSemanticTokenType(token.type)) {
       semanticTokens.push({
-        ...tokens[i],
+        ...token,
         originalIndex: i,
+        hasPrecedingBoundary: pendingBoundary,
       });
+      pendingBoundary = false;
+    } else if (semanticTokens.length > 0) {
+      pendingBoundary = true;
     }
   }
 
@@ -119,13 +139,7 @@ export function getTokenSpanForText(tokens: TextToken[], startIndex: number, tex
   for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
     const token = tokens[i];
 
-    // BUGFIX: Also match Latin words and numbers, not just Chinese tokens
-    if (
-      token.type === TokenType.CHINESE_WORD ||
-      token.type === TokenType.CHINESE_CHAR ||
-      token.type === TokenType.LATIN_WORD ||
-      token.type === TokenType.NUMBER
-    ) {
+    if (isSemanticTokenType(token.type)) {
       // Use original value if available (for grouped tokens), otherwise use current value
       const valueToCheck = token.originalValue || token.value;
       if (remainingText.startsWith(valueToCheck)) {

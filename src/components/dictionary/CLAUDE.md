@@ -1,8 +1,8 @@
 # src/components/dictionary — Gotchas
 
-## `sortDictionaryEntries` Bulk-Op Constraint
+## `sortDictionaryEntries` is stateless
 
-**`sortDictionaryEntries` bulk ops:** pass `null` as `changedKey` when modifying >1 entry — `IncrementalDictionarySorter.incrementalSort` only repositions ONE key per call; a non-null anchor silently drops the other N-1 entries from the persisted dict.
+**`sortDictionaryEntries(dictionary)`** is one full sort with no cache and no hint. Do not give it a per-dictionary memory of the last result: a failed save rolls a dictionary back outside the sorter, so a cache would hand the failed value to the next commit (see `docs/guides/deleted-symbols.md`, `IncrementalDictionarySorter`).
 
 ## `DictionaryContext.tsx` CRUD Audit Checklist
 

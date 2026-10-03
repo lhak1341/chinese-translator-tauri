@@ -111,8 +111,6 @@ export interface DictionaryPriorities {
 export interface DictionaryManagerConfig {
   /** Enable dictionary result caching */
   cacheEnabled?: boolean;
-  /** Enable parallel dictionary lookups for performance */
-  enableParallelLookups?: boolean;
   /** Enable WASM acceleration for dictionary operations */
   enableWasm?: boolean;
   /** WASM memory limit in MB */

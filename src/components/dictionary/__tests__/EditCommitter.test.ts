@@ -143,6 +143,19 @@ describe('EditCommitter, through the Dictionary Store', () => {
     expect(memory()[A]['赵六']).toBeUndefined();
   });
 
+  test('a failed commit leaves no trace in the next one', async () => {
+    const before = structuredClone(memory());
+    save.mockResolvedValueOnce({ success: false });
+    const failed = await committer.commit((d) => planAdd(d, A, '张三', entry('failed value')));
+    expect(failed).toEqual({ status: 'saveFailed', rolledBack: true });
+
+    await committer.commit((d) => planAdd(d, A, '赵六', entry('Triệu Lục')));
+
+    expect(memory()[A]['张三']).toEqual(before[A]['张三']);
+    expect(disk[A]['张三']).toEqual(before[A]['张三']);
+    expect(Object.keys(disk[A]).sort()).toEqual(['张三', '李四', '赵六'].sort());
+  });
+
   test('a failed write-back reports rolledBack: false', async () => {
     let aSaves = 0;
     save.mockImplementation((id: string, data: DictionaryData) => {

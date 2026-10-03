@@ -31,19 +31,12 @@
  * see SECTION 10's note. Rebuilt 2026-09-26 after ~1,500 lines of dead methods were
  * deleted — see docs/guides/deleted-symbols.md):
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. Memory Management Utilities        (Lines 270-295)    [EXTRACTED]
- *    - Memory leak detection (now in MemoryLeakDetector.js)
- *
  * 2. Core Engine Class - Constructor     (Lines 296-506)    [COUPLED]
  *    - Critical: Initializes all subsystems
  *
  * 3. Dictionary Operations               (Lines 507-575)    [COUPLED]
  *    - Semantic caching with phase priority
  *    - Critical: Cache timing affects phase order
- *
- * 4. Smart Memory Management             (Lines 576-753)    [COUPLED]
- *    - SmartMemoryCoordinator            (constructed per translateWithProgressiveBatches call)
- *    - Critical: Cleanup must not interfere with translation
  *
  * 5. Engine Initialization               (Lines 754-936)    [COUPLED]
  *    - initialize()                      (Line 820) — dictionary loading & WASM setup
@@ -140,14 +133,13 @@
  *
  * WHAT CAN BE EXTRACTED:
  * ✅ Pure utilities with zero `this.*` references (e.g., formatBytes)
- * ✅ Self-contained classes with no engine state (e.g., MemoryLeakDetector)
+ * ✅ Self-contained classes with no engine state (e.g., NumberProcessor)
  * ✅ Pure functions taking all data as parameters
  * ❌ Accessor methods that read `this.*` properties
  * ❌ Methods that call `this.*` instance methods
  * ❌ Phase implementations (require token state coordination)
  *
  * SUCCESSFUL EXTRACTIONS (2026):
- * - MemoryLeakDetector.js (343 lines) - Zero engine dependencies
  * - TokenHelpers.js (6 pure functions) - No state modification
  * - PatternPriorityCalculator.js - Pure calculation function
  * - ProperNounCapitalizationMap.ts - Pure map builder, no engine state
@@ -189,11 +181,8 @@ import { parallelConfig } from './ParallelConfig.js';
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 
-import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
-import { SmartMemoryCoordinator } from './memory/SmartMemoryCoordinator.js';
-import { BatchMemoryCleanup } from './memory/BatchMemoryCleanup.js';
 import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
 import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
@@ -269,21 +258,6 @@ import {
 
 // PatternProcessorResult and PatternProcessorAdapter — canonical types in src/types/PatternProcessingTypes.d.ts
 
-// ============================================================================
-// SECTION 1: MEMORY MANAGEMENT UTILITIES
-// ============================================================================
-// Purpose: Memory leak detection, tracking, and trend analysis
-// Dependencies: None (pure utility class)
-// Extraction Status: ✅ EXTRACTED to src/utils/MemoryLeakDetector.js
-// Lines: ~350 lines successfully extracted
-// ============================================================================
-// MemoryLeakDetector class has been extracted to its own file for:
-// - Better testability in isolation
-// - Reduced file size (343 lines removed)
-// - Zero dependencies on translation logic
-// - Reusable across different translation modes
-// ============================================================================
-
 // Debug logging levels
 export const DEBUG_LEVELS = {
   ERROR: 0, // Only errors and warnings
@@ -307,18 +281,10 @@ export const DEBUG_LEVELS = {
 export class TranslationEngine {
   constructor() {
     this.tokenizer = new TextTokenizer();
-    // Get dictionary configuration from ParallelConfig
-    const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
-
     this.dictionaryManager = new DictionaryManager({
       // Enable caching with optimized cache sizes
       cacheEnabled: true,
       lookupCacheSize: 800,
-
-      // Phase-level parallelization
-      enableParallelLookups: dictionaryConfig.enabled,
-      maxParallelDictionaries: dictionaryConfig.maxParallelDictionaries,
-      dictionaryParallelThreshold: dictionaryConfig.parallelThreshold,
 
       // WASM acceleration via adapter (omit to get pure-JS / NullWasmAdapter behaviour)
       wasmAdapter: new WasmDictionaryAdapter(),
@@ -571,11 +537,9 @@ export class TranslationEngine {
   }
 
   // ============================================================================
-  // SECTION 4: SMART MEMORY MANAGEMENT
+  // SECTION 4: TRANSLATION SEGMENT CAP
   // ============================================================================
-  // Purpose: Memory pressure detection, cleanup scheduling, profiling
-  // Dependencies: Memory detection systems, background cleanup
-  // Extraction Potential: MEDIUM - Cleanup strategies can be extracted
+  // Purpose: Keep translationSegments bounded (trackTranslationSegment's hard ceiling)
   // Critical: Cleanup timing must not interfere with translation
   // ============================================================================
 
@@ -672,10 +636,6 @@ export class TranslationEngine {
    * After calling destroy(), the engine instance cannot be reused - create a new instance.
    */
   destroy() {
-    // Shutdown smart memory management (intervals, profilers)
-    this.memoryCoordinator?.shutdown();
-    this.memoryCoordinator = null;
-
     // Clear semantic array builder cache
     if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
       this.semanticArrayBuilder.clearCache();
@@ -3132,35 +3092,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Calculate how many tokens a text span covers
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Starting index
-   * @param {string} text - Text to match
-   * @returns {number} Number of tokens spanned
-   */
-  getTokenSpanForText(tokens, startIndex, text) {
-    let remainingText = text;
-    let span = 0;
-
-    for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
-      const token = tokens[i];
-
-      if (token.type === TokenType.CHINESE_WORD || token.type === TokenType.CHINESE_CHAR) {
-        // Use original value if available (for grouped tokens), otherwise use current value
-        const valueToCheck = token.originalValue || token.value;
-        if (remainingText.startsWith(valueToCheck)) {
-          remainingText = remainingText.slice(valueToCheck.length);
-          span++;
-        } else {
-          break;
-        }
-      }
-    }
-
-    return span;
-  }
-
-  /**
    * Track translation segment for interactive highlighting
    * @param {Token[]} tokens - Array of tokens
    * @param {number} startIndex - Starting token index
@@ -3483,7 +3414,6 @@ export class TranslationEngine {
    * @returns {Object} result.tokenStats - Token type distribution (limited to 1000 entries)
    * @returns {Object} result.dictionaryStats - Dictionary cache hit rates and sizes
    * @returns {Object} result.patternStats - Pattern processing statistics
-   * @returns {Object} result.smartMemoryStats - Memory management statistics
    *
    * @example
    * // Get engine statistics
@@ -3527,7 +3457,6 @@ export class TranslationEngine {
       tokenStats: Object.fromEntries(this.stats.tokenStats),
       dictionaryStats: this.dictionaryManager.getGlobalStats(),
       patternStats: this.semanticPatternProcessor.getDebugInfo(),
-      smartMemoryStats: this.memoryCoordinator?.getStats() ?? {},
     };
   }
 
@@ -4113,24 +4042,6 @@ export class TranslationEngine {
    */
 
   /**
-   * Single convergence point for translateWithProgressiveBatches' batch-cleanup
-   * call sites (memoryCoordinator's onEmergency/onHighPriority/onBackground, and
-   * the every-5th-batch growth check). Trims batchPerformanceHistory and
-   * memoryTracker.snapshots via BatchMemoryCleanup and reassigns both — the
-   * one thing that can regress silently if a call site destructures only one of
-   * the two returned fields (architecture review 2026-07-30, candidate #6).
-   */
-  _applyBatchMemoryCleanup(severity) {
-    const trimmed = this.batchMemoryCleanup.cleanup(severity, {
-      batchPerformanceHistory: this.batchPerformanceHistory,
-      memoryTrackerSnapshots: this.memoryTracker.snapshots,
-      variableCache: this.semanticPatternProcessor?.variableCache,
-    });
-    this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
-    this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
-  }
-
-  /**
    * translateWithProgressiveBatches' initial batch size: maxParallelChunks when chunking
    * is enabled, MIN_BATCH_SIZE when not, floored at MIN_BATCH_SIZE (not a bare 2) so
    * currentBatchSize never starts below the range calculateNextBatchSize's
@@ -4165,7 +4076,7 @@ export class TranslationEngine {
   // ============================================================================
   // Purpose: Stream translation results in batches for UI progress updates
   // Dependencies: AdaptiveBatchSizer, processChunksInParallel,
-  //   ProgressiveProgressReporter, BatchMemoryCleanup, WordSegmentMatcher
+  //   ProgressiveProgressReporter, WordSegmentMatcher
   // Critical: this.batchPerformanceHistory resets per translation
   // ============================================================================
 
@@ -4225,34 +4136,8 @@ export class TranslationEngine {
 
     let _totalBatches = Math.ceil(translatableChunks.length / currentBatchSize);
 
-    // Initialize adaptive batch sizing and memory tracking
+    // Initialize adaptive batch sizing
     this.batchPerformanceHistory = []; // Reset for this translation session
-    this.memoryTracker = new MemoryLeakDetector(); // Track memory usage patterns
-    this.batchMemoryCleanup = new BatchMemoryCleanup();
-
-    // Initialize smart memory management refinements. The coordinator decides WHEN
-    // (pressure-based, real 10s-interval sampling); BatchMemoryCleanup decides WHAT/
-    // HOW MUCH to trim. translationSegments is intentionally not trimmed from any of
-    // these callbacks — trackTranslationSegment already enforces a canonical,
-    // regression-tested hard ceiling on every push (see src/utils/CLAUDE.md), and
-    // semanticArrayBuilder has no real light-cleanup method and no verified-safe
-    // mid-translation reset (architecture review 2026-07-29, candidate #1).
-    // Each call builds its own coordinator; stop the previous one's sampling timer first,
-    // otherwise it keeps running (destroy() only reaches the latest).
-    this.memoryCoordinator?.shutdown();
-    this.memoryCoordinator = new SmartMemoryCoordinator({
-      pressureConfig: {
-        lowPressure: 0.6,
-        mediumPressure: 0.75,
-        highPressure: 0.85,
-        criticalPressure: 0.95,
-        samplingInterval: 10000,
-        growthThreshold: 15,
-      },
-      onEmergency: () => this._applyBatchMemoryCleanup('emergency'),
-      onHighPriority: () => this._applyBatchMemoryCleanup('elevated'),
-      onBackground: () => this._applyBatchMemoryCleanup('background'),
-    });
     let performanceBaseline = null;
 
     let processedChunks = 0;
@@ -4296,23 +4181,6 @@ export class TranslationEngine {
       // Pass current batch number for accurate logging
       this.currentBatchNumber = batchIndex;
 
-      // Throttled memory sampling: every 5th batch, dev AND prod (previously dev-only,
-      // which silently meant the growth-based cleanup path never ran in production —
-      // architecture review 2026-07-29, candidate #1).
-      const sampleThisBatch = batchIndex % 5 === 0;
-      let postProcessingSnapshot;
-
-      if (sampleThisBatch) {
-        this.memoryTracker.takeSnapshot(batchIndex, {
-          phase: 'pre-processing',
-          batchSize: currentBatch.length,
-          processedChunks,
-          semanticArraySize: this.semanticArrayBuilder?.getArrays()?.originalSegments?.length || 0,
-          translationSegmentsCount: this.translationSegments?.length || 0,
-          chunksProcessed: chunks.filter((c) => c.translated).length,
-        });
-      }
-
       // Translate current batch (with parallel processing)
       // MEDIUM FIX: Pass token offset, not chunk index
       await this.processChunksInParallel(currentBatch, options, batchTokenOffset);
@@ -4333,53 +4201,13 @@ export class TranslationEngine {
       }, 0);
       cumulativeTokenCount += batchTokenCount;
 
-      if (sampleThisBatch) {
-        postProcessingSnapshot = this.memoryTracker.takeSnapshot(batchIndex, {
-          phase: 'post-processing',
-          batchSize: currentBatch.length,
-          processedChunks: processedChunks + currentBatch.length,
-          semanticArraySize: this.semanticArrayBuilder?.getArrays()?.originalSegments?.length || 0,
-        });
-
-        // Analyze memory growth patterns and delegate to BatchMemoryCleanup when excessive.
-        const leakAnalysis = this.memoryTracker.detectLeaks(postProcessingSnapshot);
-        if (leakAnalysis) {
-          if (leakAnalysis.isExcessive) {
-            this.log(
-              DEBUG_LEVELS.WARN,
-              `🧠 HIGH MEMORY USAGE: +${leakAnalysis.memoryGrowthRate.toFixed(1)}MB per batch, ${leakAnalysis.totalGrowthMB.toFixed(1)}MB total (semantic arrays for long text)`
-            );
-            this._applyBatchMemoryCleanup('elevated');
-          } else if (leakAnalysis.isHighUsage) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `📊 Memory growth: +${leakAnalysis.memoryGrowthRate.toFixed(1)}MB per batch (building semantic arrays)`
-            );
-          }
-        }
-
-        // Periodic diagnostics (dictionary lookup stats, semantic array size) — read-only,
-        // same 5-batch cadence as the growth check above.
+      if (batchIndex % 5 === 0) {
+        // Periodic diagnostics (semantic array size) — read-only, every 5th batch.
         const currentArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
         this.log(
           DEBUG_LEVELS.INFO,
           `🧹 Batch ${batchIndex} semantic arrays: ${currentArrays?.originalSegments?.length || 0} original, ${currentArrays?.translatedSegments?.length || 0} translated segments`
         );
-
-        if (this.dictionaryManager) {
-          const parallelStats = this.dictionaryManager.parallelLookupStats;
-          if (parallelStats) {
-            const totalLookups = parallelStats.parallelCalls + parallelStats.sequentialCalls;
-            const parallelRatio =
-              totalLookups > 0
-                ? ((parallelStats.parallelCalls / totalLookups) * 100).toFixed(1)
-                : 0;
-            this.log(
-              DEBUG_LEVELS.INFO,
-              `🔍 Dictionary lookups: ${parallelRatio}% parallel, ${parallelStats.fallbackCount || 0} fallbacks, avg parallel: ${parallelStats.averageParallelTime?.toFixed(1) || 0}ms`
-            );
-          }
-        }
       }
 
       // PHASE 1 FIX: Process only current batch chunks, not all chunks (eliminates O(n²) redundancy)
@@ -4490,17 +4318,6 @@ export class TranslationEngine {
     }
 
     const translationTime = performance.now() - startTime;
-
-    // Final memory report
-    const finalMemoryReport = this.memoryTracker.getReport();
-    if (finalMemoryReport) {
-      if (finalMemoryReport.memoryGrowthMB > 50) {
-        this.log(
-          DEBUG_LEVELS.WARN,
-          `⚠️ High memory usage detected: ${finalMemoryReport.memoryGrowthMB.toFixed(1)}MB growth over ${finalMemoryReport.totalSnapshots} batches`
-        );
-      }
-    }
 
     this.log(
       DEBUG_LEVELS.INFO,

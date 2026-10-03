@@ -22,7 +22,6 @@ import {
 import type {
   Dictionaries,
   DictionaryEdit,
-  EntryChange,
   PlanResult,
 } from '../../utils/dictionary/DictionaryEdit';
 import { logger } from '../../utils/logger';
@@ -59,18 +58,6 @@ export interface EditCommitter {
     plan: (dicts: Dictionaries) => PlanResult,
     onCommitted?: (edit: DictionaryEdit) => void
   ) => Promise<CommitResult>;
-}
-
-/** The incremental sorter repositions one key (plus a renamed-away one); anything more gets a
- * full sort — a hint on a bulk change drops entries (dictionary/CLAUDE.md). */
-function sortHint(changes: EntryChange[]): [string | null, string | null] {
-  if (changes.length === 1) return [changes[0].key, null];
-  if (changes.length === 2) {
-    const removed = changes.find((c) => c.after === undefined);
-    const written = changes.find((c) => c.after !== undefined);
-    if (removed && written) return [written.key, removed.key];
-  }
-  return [null, null];
 }
 
 async function trySave(
@@ -111,8 +98,7 @@ export async function commitEdit(
   const applied = applyEdit(dicts, planned);
   const next: Dictionaries = {};
   for (const id of ids) {
-    const [changedKey, oldKey] = sortHint(planned.changes.filter((c) => c.dictionaryId === id));
-    next[id] = sortDictionaryEntries(applied[id], id, changedKey, oldKey);
+    next[id] = sortDictionaryEntries(applied[id]);
   }
   const previous: Dictionaries = Object.fromEntries(ids.map((id) => [id, dicts[id]]));
 

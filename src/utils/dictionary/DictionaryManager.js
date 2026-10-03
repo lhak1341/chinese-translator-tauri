@@ -19,7 +19,6 @@
  *   CacheConfiguration,
  *   DictionaryManagerOptions,
  *   DictionaryLoadOptions,
- *   ParallelLookupStats,
  *   LookupIndexStats,
  *   DictionaryManagerStats
  * } from '../types/DictionaryManagerTypes'
@@ -56,11 +55,6 @@ export class DictionaryManager {
       enabled: options.cacheEnabled !== false, // Default to enabled
     });
 
-    // Parallel processing configuration
-    this.enableParallelLookups = options.enableParallelLookups !== false; // Default true
-    this.maxParallelDictionaries = options.maxParallelDictionaries || 10; // Limit concurrent lookups
-    this.dictionaryParallelThreshold = 2; // Minimum dictionaries for parallel processing
-
     // Precomputed trie caching (optional, enabled by default for 5-7x faster loading)
     this.enablePrecomputedCache = options.enablePrecomputedCache !== false;
     this.tauriAPI = options.tauriAPI || null; // Required for cache file operations
@@ -75,8 +69,6 @@ export class DictionaryManager {
     if (this.wasmLookup) {
       this.wasmLookup.startBackgroundInit({
         maxMemoryMB: 15,
-        enableParallelLookups: this.enableParallelLookups,
-        maxParallelDictionaries: this.maxParallelDictionaries,
         cacheSize: this.cache?.lookupCacheSize,
       });
     }
@@ -85,21 +77,9 @@ export class DictionaryManager {
       dictionaries: this.dictionaries,
       metadata: this.metadata,
       wasmLookup: this.wasmLookup,
-      enableParallelLookups: this.enableParallelLookups,
-      dictionaryParallelThreshold: this.dictionaryParallelThreshold,
       getDefaultSearchOrder: () => this.getDefaultSearchOrder(),
       isReady: () => this.ready,
     });
-  }
-
-  /**
-   * Performance stats for the parallel/sequential JS lookup dispatch.
-   * Owned by DictionaryMatchLookup — re-exposed here so existing callers
-   * (e.g. TranslationEngine) don't need to know the internal is separate.
-   * @returns {ParallelLookupStats}
-   */
-  get parallelLookupStats() {
-    return this.matchLookup.stats;
   }
 
   /**

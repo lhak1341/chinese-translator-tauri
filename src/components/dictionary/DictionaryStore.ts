@@ -87,8 +87,8 @@ export interface DictionaryStore extends EditCommitter {
   rename: (renames: readonly DictionaryRename[], onApplied?: () => void) => Promise<void>;
 }
 
-function sorted(dictionaryId: string, data: DictionaryData): DictionaryData {
-  return Object.keys(data).length > 0 ? sortDictionaryEntries(data, dictionaryId) : data;
+function sorted(data: DictionaryData): DictionaryData {
+  return Object.keys(data).length > 0 ? sortDictionaryEntries(data) : data;
 }
 
 function without<T>(record: Record<string, T>, id: string): Record<string, T> {
@@ -132,7 +132,7 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
       return false;
     }
     set({
-      dictionaries: { ...snapshot.dictionaries, [id]: sorted(id, data) },
+      dictionaries: { ...snapshot.dictionaries, [id]: sorted(data) },
       unreadDictionaryIds: snapshot.unreadDictionaryIds.filter((u) => u !== id),
     });
     return true;
@@ -169,7 +169,7 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
         const { loadedDictionaries, stillFailedIds, total } = await deps.load(ids);
         const dictionaries: Dictionaries = {};
         for (const [id, data] of Object.entries(loadedDictionaries)) {
-          if (!stillFailedIds.includes(id)) dictionaries[id] = sorted(id, data);
+          if (!stillFailedIds.includes(id)) dictionaries[id] = sorted(data);
         }
         set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes });
         onApplied?.();

@@ -17,7 +17,7 @@ Wrappers that deviate, and why:
 - `WasmPatternProcessor.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js` — use `WasmProcessorLifecycle`: on a runtime panic call `lifecycle.permanentlyFail()`, **not** `lifecycle.reset()`, which clears `_hasFailed` and allows re-init from the corrupted binary.
 - `WasmPatternProcessor.js` — exports functions rather than a singleton; its module-bottom prewarm is a self-calling IIFE that only warms the ES module cache.
 - `WasmTextTokenizer.js` — holds no owned struct (`tokenizeText`/`getTokenizerStats` are free wasm-bindgen functions), so retire is a bare `permanentlyFail()` with no `__destroy_into_raw()`.
-- `WasmPatternProcessor.js` — `processTokensWasm` receives only `semanticTokens` (`extractSemanticTokens`-filtered, non-semantic tokens dropped); a result's `startIndex`/`endIndex` index into the ORIGINAL `tokens` array via each token's `originalIndex` field, so any bounds check against `tokens.length` must run in `TwoPhasePatternProcessor.js` (still has `tokens` in scope), never inside `processTokensWasm` itself.
+- `WasmPatternProcessor.js` — `processTokensWasm` receives only `semanticTokens` (`getSemanticTokens`-filtered, non-semantic tokens dropped); a result's `startIndex`/`endIndex` index into the ORIGINAL `tokens` array via each token's `originalIndex` field, so any bounds check against `tokens.length` must run in `TwoPhasePatternProcessor.js` (still has `tokens` in scope), never inside `processTokensWasm` itself.
 
 `translation_wasm_core.d.ts` is auto-generated and the linter reverts manual edits — `__destroy_into_raw` is absent from it, so suppress TS2339 with `// @ts-ignore` on the call line rather than editing the `.d.ts`.
 

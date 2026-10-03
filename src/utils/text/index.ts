@@ -1,60 +1,15 @@
 /**
- * Text processing public API.
+ * Text processing public API — only what other modules import through the barrel.
+ * The tokenizer, chunkers, punctuation and quote processors, normalization helpers and the
+ * rest of this directory are imported from their own files.
  *
  * Primary entry points:
- *   - new TextTokenizer() — character-level tokenization
- *   - new TextChunker() — punctuation-based text segmentation
+ *   - groupSegmentsIntoParagraphs() — paragraph grouping for the clickable panels
+ *   - highlightPatternVariables() / PATTERN_VARIABLE_COLORS — pattern variable formatting
  */
 
-// --- Tokenization ---
-export type {
-  GroupedToken,
-  TokenGroups,
-  PhraseCandidate,
-  TextComplexity,
-  ProcessingStrategy,
-  TextAnalysis,
-} from './TextTokenizer';
-export { TokenType, Token, TextTokenizer } from './TextTokenizer';
-
-// --- Chunking ---
-export { TextChunker } from './TextChunker';
-export { ChunkPostProcessor } from './ChunkPostProcessor';
-export type {
-  AdaptiveBatchSizerInput,
-  AdaptiveBatchSizerLogEntry,
-  AdaptiveBatchSizerResult,
-} from './AdaptiveBatchSizer';
-export { calculateNextBatchSize } from './AdaptiveBatchSizer';
-
-// --- Normalization ---
-export {
-  normalizeVietnameseText,
-  normalizeVietnameseTexts,
-  isNFC,
-  getNormalizationStats,
-} from './TextNormalizationHelpers';
-
 // --- Paragraph grouping ---
-export type { Segment } from './ParagraphGrouping';
 export { groupSegmentsIntoParagraphs } from './ParagraphGrouping';
-
-// --- Punctuation ---
-export type {
-  PunctuationCategory,
-  UnicodePunctuationConfig,
-  CharacterInfo,
-  CategoryInfo,
-} from './UnicodePunctuationDetector';
-export { UnicodePunctuationDetector } from './UnicodePunctuationDetector';
-
-export { PunctuationProcessor } from './PunctuationProcessor';
-
-// --- Proper noun capitalization ---
-export { buildProperNounCapitalizationMap } from './ProperNounCapitalizationMap';
-
-// --- Quote handling ---
-export { QUOTE_TYPES, QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
 
 // --- Pattern variable formatting ---
 export { PATTERN_VARIABLE_COLORS, highlightPatternVariables } from './PatternTextFormatter';

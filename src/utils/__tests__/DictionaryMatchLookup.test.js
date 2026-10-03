@@ -17,8 +17,6 @@ function makeLookup(overrides = {}) {
     dictionaries,
     metadata,
     wasmLookup: overrides.wasmLookup ?? null,
-    enableParallelLookups: overrides.enableParallelLookups ?? true,
-    dictionaryParallelThreshold: overrides.dictionaryParallelThreshold ?? 2,
     getDefaultSearchOrder:
       overrides.getDefaultSearchOrder || (() => Array.from(dictionaries.keys())),
     isReady: overrides.isReady || (() => true),
@@ -85,121 +83,108 @@ describe('DictionaryMatchLookup', () => {
       expect(result[0]).toMatchObject({ word: '你好', dictionary: 'low_priority_long' });
     });
 
-    test('records sequential stats', () => {
-      const dictionaries = new Map([['d1', buildTrie([['你', 'you']])]]);
-      const metadata = new Map([['d1', { priority: 1 }]]);
+    test('a dictionary that throws is skipped; the others still answer', () => {
+      const broken = {
+        get root() {
+          throw new Error('corrupt trie');
+        },
+      };
+      const dictionaries = new Map([
+        ['bad', broken],
+        ['d1', buildTrie([['你', 'you']])],
+      ]);
+      const metadata = new Map([
+        ['bad', { priority: 1 }],
+        ['d1', { priority: 2 }],
+      ]);
       const lookup = makeLookup({ dictionaries, metadata });
 
-      lookup.findAllMatches('你好', 0);
-
-      expect(lookup.stats.sequentialCalls).toBe(1);
+      expect(lookup.findAllMatches('你好', 0)).toEqual([
+        expect.objectContaining({ word: '你', dictionary: 'd1' }),
+      ]);
     });
   });
 
   describe('findAllMatchesAsync', () => {
+    const twoDictionaries = () => ({
+      dictionaries: new Map([
+        ['d1', buildTrie([['你', 'you']])],
+        ['d2', buildTrie([['好', 'good']])],
+      ]),
+      metadata: new Map([
+        ['d1', { priority: 1 }],
+        ['d2', { priority: 2 }],
+      ]),
+    });
+
     test('always returns a Promise', () => {
       const lookup = makeLookup();
       const result = lookup.findAllMatchesAsync('你好', 0);
       expect(result).toBeInstanceOf(Promise);
     });
 
-    test('below threshold: resolves via sequential path, bumps sequentialCalls', async () => {
-      const dictionaries = new Map([['d1', buildTrie([['你', 'you']])]]);
-      const metadata = new Map([['d1', { priority: 1 }]]);
-      const lookup = makeLookup({
-        dictionaries,
-        metadata,
-        dictionaryParallelThreshold: 5,
-      });
+    test('with no WASM tier, scans the JS tries and tags each match with its dictionary', async () => {
+      const lookup = makeLookup(twoDictionaries());
 
       const result = await lookup.findAllMatchesAsync('你好', 0);
 
-      expect(result[0]).toMatchObject({ word: '你' });
-      expect(lookup.stats.sequentialCalls).toBe(1);
-      expect(lookup.stats.parallelCalls).toBe(0);
-    });
-
-    test('at/above threshold with no WASM: resolves via JS parallel path, bumps parallelCalls', async () => {
-      const dictionaries = new Map([
-        ['d1', buildTrie([['你', 'you']])],
-        ['d2', buildTrie([['好', 'good']])],
+      expect(result).toEqual([
+        expect.objectContaining({ word: '你', dictionary: 'd1', priority: 1 }),
       ]);
-      const metadata = new Map([
-        ['d1', { priority: 1 }],
-        ['d2', { priority: 2 }],
-      ]);
-      const lookup = makeLookup({
-        dictionaries,
-        metadata,
-        dictionaryParallelThreshold: 2,
-      });
-
-      const result = await lookup.findAllMatchesAsync('你好', 0);
-
-      expect(result.map((m) => m.word).sort()).toEqual(['你']);
-      expect(lookup.stats.parallelCalls).toBe(1);
-      expect(lookup.stats.sequentialCalls).toBe(0);
     });
 
     test('returns [] when not ready', async () => {
       const lookup = makeLookup({ isReady: () => false });
       expect(await lookup.findAllMatchesAsync('你好', 0)).toEqual([]);
     });
-  });
 
-  describe('WASM-first / JS-fallback in findAllMatchesParallel', () => {
-    test('uses wasmLookup result when ready', async () => {
-      const wasmMatches = [{ word: '你', translation: 'wasm-you', dictionary: 'd1', priority: 1 }];
-      const wasmLookup = {
-        isReady: () => true,
-        findAllMatches: vi.fn().mockResolvedValue(wasmMatches),
-      };
-      const lookup = makeLookup({ wasmLookup, dictionaryParallelThreshold: 1 });
+    describe('WASM tier', () => {
+      test('is used for a lookup across two or more dictionaries when ready', async () => {
+        const wasmMatches = [
+          { word: '你', translation: 'wasm-you', dictionary: 'd1', priority: 1 },
+        ];
+        const wasmLookup = {
+          isReady: () => true,
+          findAllMatches: vi.fn().mockResolvedValue(wasmMatches),
+        };
+        const lookup = makeLookup({ ...twoDictionaries(), wasmLookup });
 
-      const result = await lookup.findAllMatchesAsync('你好', 0, ['d1']);
+        const result = await lookup.findAllMatchesAsync('你好', 0, ['d1', 'd2']);
 
-      expect(wasmLookup.findAllMatches).toHaveBeenCalledWith('你好', 0, ['d1']);
-      expect(result).toBe(wasmMatches);
-    });
-
-    test('falls back to JS parallel when wasmLookup throws', async () => {
-      const dictionaries = new Map([['d1', buildTrie([['你', 'you']])]]);
-      const metadata = new Map([['d1', { priority: 1 }]]);
-      const wasmLookup = {
-        isReady: () => true,
-        findAllMatches: vi.fn().mockRejectedValue(new Error('wasm boom')),
-      };
-      const lookup = makeLookup({
-        dictionaries,
-        metadata,
-        wasmLookup,
-        dictionaryParallelThreshold: 1,
+        expect(wasmLookup.findAllMatches).toHaveBeenCalledWith('你好', 0, ['d1', 'd2']);
+        expect(result).toBe(wasmMatches);
       });
 
-      const result = await lookup.findAllMatchesAsync('你好', 0);
+      test('is skipped for a single-dictionary lookup', async () => {
+        const wasmLookup = { isReady: () => true, findAllMatches: vi.fn() };
+        const lookup = makeLookup({ ...twoDictionaries(), wasmLookup });
 
-      expect(result[0]).toMatchObject({ word: '你', dictionary: 'd1' });
-      expect(lookup.stats.parallelCalls).toBe(1);
-    });
-  });
+        const result = await lookup.findAllMatchesAsync('你好', 0, ['d1']);
 
-  describe('findAllMatchesSequential fallback on unexpected parallel failure', () => {
-    test('falls back to sequential and records fallbackCount', async () => {
-      const dictionaries = new Map([['d1', buildTrie([['你', 'you']])]]);
-      const metadata = new Map([['d1', { priority: 1 }]]);
-      const lookup = makeLookup({ dictionaries, metadata, dictionaryParallelThreshold: 1 });
+        expect(wasmLookup.findAllMatches).not.toHaveBeenCalled();
+        expect(result[0]).toMatchObject({ word: '你', dictionary: 'd1' });
+      });
 
-      // Force the parallel try-block to throw by making searchOrder.map blow up:
-      // simulate via a dictionaryOrder whose .map is monkey-patched to throw once.
-      const badOrder = ['d1'];
-      badOrder.map = () => {
-        throw new Error('boom');
-      };
+      test('is skipped when not ready', async () => {
+        const wasmLookup = { isReady: () => false, findAllMatches: vi.fn() };
+        const lookup = makeLookup({ ...twoDictionaries(), wasmLookup });
 
-      const result = await lookup.findAllMatchesParallel('你好', 0, badOrder);
+        await lookup.findAllMatchesAsync('你好', 0);
 
-      expect(result[0]).toMatchObject({ word: '你', dictionary: 'd1' });
-      expect(lookup.stats.fallbackCount).toBe(1);
+        expect(wasmLookup.findAllMatches).not.toHaveBeenCalled();
+      });
+
+      test('a failure falls back to the JS tries', async () => {
+        const wasmLookup = {
+          isReady: () => true,
+          findAllMatches: vi.fn().mockRejectedValue(new Error('wasm boom')),
+        };
+        const lookup = makeLookup({ ...twoDictionaries(), wasmLookup });
+
+        const result = await lookup.findAllMatchesAsync('你好', 0);
+
+        expect(result[0]).toMatchObject({ word: '你', dictionary: 'd1' });
+      });
     });
   });
 });

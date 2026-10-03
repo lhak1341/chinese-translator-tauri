@@ -17,7 +17,6 @@ class ParallelConfig {
       // Dictionary Processing Configuration
       dictionary: {
         enabled: true,
-        maxParallelDictionaries: 10,
         parallelThreshold: 2, // Minimum dictionaries for parallel processing
       },
 
@@ -60,16 +59,13 @@ class ParallelConfig {
       if (memoryGB < 2) {
         // Low memory device - reduce parallelization
         adaptedConfig.chunk.maxParallelChunks = 2;
-        adaptedConfig.dictionary.maxParallelDictionaries = 3;
         adaptedConfig.chunk.enabled = false;
       } else if (memoryGB < 4) {
         // Medium memory device - moderate parallelization
         adaptedConfig.chunk.maxParallelChunks = 3;
-        adaptedConfig.dictionary.maxParallelDictionaries = 5;
       } else {
         // High memory device - full parallelization
         adaptedConfig.chunk.maxParallelChunks = 5;
-        adaptedConfig.dictionary.maxParallelDictionaries = 10;
       }
     }
 
@@ -82,9 +78,6 @@ class ParallelConfig {
     // Battery optimization
     if (deviceInfo.onBattery && this.currentConfig.device.batteryOptimization) {
       adaptedConfig.chunk.maxParallelChunks = Math.floor(adaptedConfig.chunk.maxParallelChunks / 2);
-      adaptedConfig.dictionary.maxParallelDictionaries = Math.floor(
-        adaptedConfig.dictionary.maxParallelDictionaries / 2
-      );
     }
 
     this.currentConfig = adaptedConfig;
