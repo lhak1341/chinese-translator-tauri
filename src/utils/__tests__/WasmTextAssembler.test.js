@@ -5,13 +5,14 @@
  */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-const { mockAssemble, mockDestroy } = vi.hoisted(() => ({
+const { mockAssemble, mockDestroy, mockInit } = vi.hoisted(() => ({
   mockAssemble: vi.fn(),
   mockDestroy: vi.fn(),
+  mockInit: vi.fn(async () => undefined),
 }));
 
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
-  default: vi.fn(async () => undefined),
+  default: (...args) => mockInit(...args),
   TextAssembler: class {
     assembleWithSpacing(json) {
       return mockAssemble(json);
@@ -28,6 +29,16 @@ vi.mock('../wasm/WasmSharedModule', async () => {
   const core = await import('../../wasm/translation_wasm_core.js');
   return { loadSharedWasmModule: () => core.default() };
 });
+
+// The lifecycle fetches and verifies the binary before instantiating; the loader above is mocked
+// away, so give the lifecycle's own fetch and integrity check something valid to read.
+vi.mock('../wasm/wasmBinaryCache', () => ({
+  fetchWasmBinary: vi.fn(async () => new ArrayBuffer(8)),
+}));
+vi.mock('../wasm/wasmIntegrityVerifier', async (importOriginal) => ({
+  ...(await importOriginal()),
+  verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
+}));
 
 vi.mock('../logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -49,6 +60,38 @@ async function importFresh() {
 beforeEach(() => {
   mockAssemble.mockReset();
   mockDestroy.mockReset();
+  mockInit.mockReset();
+  mockInit.mockResolvedValue(undefined);
+});
+
+describe('WasmTextAssembler initialization', () => {
+  test('a transient load failure is retried by the lifecycle instead of failing for the session', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.resetModules();
+      const { wasmTextAssembler } = await import('../wasm/WasmTextAssembler.js');
+      mockInit.mockRejectedValueOnce(new Error('network error loading wasm'));
+
+      const init = wasmTextAssembler.initialize();
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(await init).toBe(true);
+      expect(mockInit).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a non-transient load failure fails at once and stays failed', async () => {
+    vi.resetModules();
+    const { wasmTextAssembler } = await import('../wasm/WasmTextAssembler.js');
+    mockInit.mockRejectedValueOnce(new Error('bad binary'));
+
+    expect(await wasmTextAssembler.initialize()).toBe(false);
+    expect(await wasmTextAssembler.initialize()).toBe(false);
+    expect(mockInit).toHaveBeenCalledTimes(1);
+    expect(wasmTextAssembler.assembleWithSpacing(segments).translatedText).toBe('xinchào');
+  });
 });
 
 describe('WasmTextAssembler panic handling', () => {

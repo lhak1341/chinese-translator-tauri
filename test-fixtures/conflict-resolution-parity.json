@@ -1,0 +1,159 @@
+{
+  "_comment": "Shared contract for Phase 4 conflict resolution (greedy interval scheduling: longer first, then phrase < pattern < any other type, then earlier start; ties keep input order). Read by wasm-core/src/conflict_resolution.rs (mod tests::parity -> run_conflict_resolution) and src/utils/__tests__/ConflictResolution.parity.test.js (resolveGlobalConflictsWasm, JS fallback). `length` is derived as endIndex - startIndex + 1 by both readers. `selected` lists input indices in acceptance order. Any type other than 'phrase'/'pattern' (literal, semantic, structural_pattern, composite) ranks last. Update this file first when the algorithm changes.",
+  "cases": [
+    { "name": "empty input selects nothing", "matches": [], "selected": [] },
+    {
+      "name": "a single match is always selected",
+      "matches": [{ "type": "phrase", "startIndex": 0, "endIndex": 2 }],
+      "selected": [0]
+    },
+    {
+      "name": "two non-overlapping matches are both selected, longer first",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 3, "endIndex": 4 }
+      ],
+      "selected": [0, 1]
+    },
+    {
+      "name": "acceptance order is length-first, not input order",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 3, "endIndex": 5 }
+      ],
+      "selected": [1, 0]
+    },
+    {
+      "name": "a longer match beats a shorter overlapping one",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "longer wins even when it comes second in the input",
+      "matches": [
+        { "type": "phrase", "startIndex": 1, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "a phrase beats a pattern of equal length",
+      "matches": [
+        { "type": "pattern", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "a pattern beats an 'other' type of equal length",
+      "matches": [
+        { "type": "literal", "startIndex": 0, "endIndex": 2 },
+        { "type": "pattern", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "phrase wins all three overlapping tiers at equal length",
+      "matches": [
+        { "type": "literal", "startIndex": 0, "endIndex": 2 },
+        { "type": "pattern", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [2]
+    },
+    {
+      "name": "non-overlapping equal-length tiers are accepted phrase, pattern, other",
+      "matches": [
+        { "type": "literal", "startIndex": 6, "endIndex": 8 },
+        { "type": "pattern", "startIndex": 3, "endIndex": 5 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [2, 1, 0]
+    },
+    {
+      "name": "semantic and composite rank with other, below pattern",
+      "matches": [
+        { "type": "semantic", "startIndex": 0, "endIndex": 1 },
+        { "type": "pattern", "startIndex": 0, "endIndex": 1 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "equal length and type: the earlier start wins",
+      "matches": [
+        { "type": "phrase", "startIndex": 1, "endIndex": 3 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "identical matches keep input order, the first wins",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 }
+      ],
+      "selected": [0]
+    },
+    {
+      "name": "adjacent matches do not overlap",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 3, "endIndex": 5 }
+      ],
+      "selected": [0, 1]
+    },
+    {
+      "name": "a partial overlap: the accepted match blocks the second",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 1, "endIndex": 3 }
+      ],
+      "selected": [0]
+    },
+    {
+      "name": "a single-token match is blocked by a larger match covering it",
+      "matches": [
+        { "type": "phrase", "startIndex": 1, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [1]
+    },
+    {
+      "name": "the longest wins and the remaining non-overlapping match is also selected",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 3, "endIndex": 4 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 2 }
+      ],
+      "selected": [2, 1]
+    },
+    {
+      "name": "one big match covers two smaller ones",
+      "matches": [
+        { "type": "phrase", "startIndex": 0, "endIndex": 3 },
+        { "type": "phrase", "startIndex": 0, "endIndex": 1 },
+        { "type": "phrase", "startIndex": 2, "endIndex": 3 }
+      ],
+      "selected": [0]
+    },
+    {
+      "name": "a pattern is selected when no phrase overlaps it",
+      "matches": [
+        { "type": "pattern", "startIndex": 0, "endIndex": 2 },
+        { "type": "phrase", "startIndex": 5, "endIndex": 6 }
+      ],
+      "selected": [0, 1]
+    },
+    {
+      "name": "a long pattern beats a short phrase inside it",
+      "matches": [
+        { "type": "phrase", "startIndex": 3, "endIndex": 4 },
+        { "type": "pattern", "startIndex": 0, "endIndex": 5 }
+      ],
+      "selected": [1]
+    }
+  ]
+}

@@ -1,8 +1,19 @@
 // @ts-check
 import { TextAssembler } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 import { loadSharedWasmModule } from './WasmSharedModule';
+
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
+
+const lifecycle = new WasmProcessorLifecycle({
+  name: 'TextAssembler',
+  wasmFileName: 'translation_wasm_core_bg.wasm',
+  wasmBinaryUrl: _WASM_BINARY_URL,
+  expectedMethods: ['assembleWithSpacing'],
+});
 
 /**
  * High-performance text assembly using Rust WASM
@@ -24,10 +35,6 @@ class WasmTextAssemblerWrapper {
   constructor() {
     /** @type {TextAssembler | null} */
     this.assembler = null;
-    /** @type {boolean} */
-    this.initialized = false;
-    /** @type {boolean} - Set after any WASM panic to prevent re-init of corrupted module */
-    this.initializationFailed = false;
   }
 
   /**
@@ -35,25 +42,13 @@ class WasmTextAssemblerWrapper {
    *
    * @returns {Promise<boolean>} Success status
    */
-  async initialize() {
-    if (this.initializationFailed) {
-      return false;
-    }
-    try {
+  initialize() {
+    return lifecycle.initialize(async () => {
       await loadSharedWasmModule();
-      // Re-check: cascade may have fired while suspended at the await above.
-      if (this.initializationFailed) {
-        return false;
-      }
       this.assembler = new TextAssembler();
-      this.initialized = true;
       logger.log('✅ WASM TextAssembler initialized');
-      return true;
-    } catch (error) {
-      logger.error('Failed to initialize WASM TextAssembler:', error);
-      this.initializationFailed = true;
-      return false;
-    }
+      return this.assembler;
+    });
   }
 
   /**
@@ -65,20 +60,19 @@ class WasmTextAssemblerWrapper {
     // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
     this.assembler?.__destroy_into_raw();
     this.assembler = null;
-    this.initialized = false;
-    this.initializationFailed = true;
+    lifecycle.permanentlyFail();
   }
 
   /**
    * Assemble segments with token-type-based spacing and position tracking.
    *
-   * Mirrors the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
+   * Applies the 11 spacing rules of `needsSpace`. Parity: test-fixtures/text-assembly-parity.json.
    *
    * @param {Array<{text: string, tokenType: string, tokenIndex: number}>} segments
    * @returns {{ translatedText: string, positions: Array<{tokenIndex: number, text: string, start: number, end: number}> }}
    */
   assembleWithSpacing(segments) {
-    if (!this.initialized || !this.assembler) {
+    if (!lifecycle.isReady || !this.assembler) {
       return this.jsAssembleWithSpacing(segments);
     }
     try {
@@ -109,7 +103,8 @@ class WasmTextAssemblerWrapper {
   /**
    * JavaScript fallback for spacing-aware assembly.
    *
-   * Exact port of the Step 2 loop from `TranslationEngine.js:postProcess()`.
+   * The Step 2 loop of `TranslationEngine.js:postProcess()`, mirrored by Rust's
+   * `assemble_with_spacing` (shared fixture: test-fixtures/text-assembly-parity.json).
    * Returns `{ translatedText, positions }` where positions have `start`/`end`
    * as character indices (JS `.length` units) in the assembled translated text.
    *
@@ -174,8 +169,8 @@ function isChinese(tokenType) {
 /**
  * Determine whether a space should be inserted between `current` and `next`.
  *
- * Exact port of the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
- * Token type strings match `TextTokenizer.ts` `TokenType` enum values.
+ * The 11 spacing rules, mirrored by Rust's `needs_space` (shared fixture:
+ * test-fixtures/text-assembly-parity.json). Token type strings match `TextTokenizer.ts` `TokenType` enum values.
  *
  * @param {string} currentType
  * @param {string} nextType

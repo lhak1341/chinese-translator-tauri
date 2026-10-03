@@ -36,8 +36,8 @@ pub struct PositionEntry {
     #[serde(rename = "tokenIndex")]
     pub token_index: usize,
     pub text: String,
-    pub start: usize, // char index in translated text
-    pub end: usize,   // char index in translated text
+    pub start: usize, // UTF-16 code-unit index in translated text (a JS string index)
+    pub end: usize,   // UTF-16 code-unit index in translated text (a JS string index)
 }
 
 /// Result of spacing-aware assembly
@@ -70,8 +70,9 @@ impl TextAssembler {
 
     /// Assemble segments with token-type-based spacing rules and position tracking.
     ///
-    /// Applies 10 spacing rules (matching the JS postProcess Step 2 loop) and records
-    /// the Unicode char start/end position of every segment in the assembled output.
+    /// Applies the 11 spacing rules of `needs_space` (matching the JS postProcess Step 2 loop)
+    /// and records the start/end position of every segment in the assembled output, in UTF-16
+    /// code units so they index the JS string directly (a character outside the BMP counts 2).
     ///
     /// # Arguments
     /// * `segments_json` - JSON array of `AssemblySegment` objects
@@ -79,7 +80,7 @@ impl TextAssembler {
     ///
     /// # Returns
     /// * JSON string with `SpacedAssemblyResult` (`translatedText`, `positions[]`)
-    ///   where each position entry has `{ tokenIndex, text, start, end }` (char indices)
+    ///   where each position entry has `{ tokenIndex, text, start, end }` (UTF-16 code-unit indices)
     #[wasm_bindgen(js_name = assembleWithSpacing)]
     pub fn assemble_with_spacing(&mut self, segments_json: &str) -> Result<String, JsValue> {
         let segments: Vec<AssemblySegment> = serde_json::from_str(segments_json)
@@ -97,7 +98,7 @@ impl TextAssembler {
         // +segments.len() reserves space for potential inter-segment spaces
         let mut translated_text = String::with_capacity(total_len + segments.len());
         let mut positions: Vec<PositionEntry> = Vec::with_capacity(segments.len());
-        let mut current_position: usize = 0; // Unicode scalar value count (chars)
+        let mut current_position: usize = 0; // UTF-16 code units, matching JS `.length`
 
         for i in 0..segments.len() {
             let current = &segments[i];
@@ -106,7 +107,7 @@ impl TextAssembler {
             // Record start BEFORE appending text (matches JS position tracking)
             let start = current_position;
             translated_text.push_str(&current.text);
-            current_position += current.text.chars().count();
+            current_position += current.text.encode_utf16().count();
             let end = current_position;
 
             positions.push(PositionEntry {
@@ -155,7 +156,8 @@ fn is_chinese_type(token_type: &str) -> bool {
 
 /// Determine whether a space should be inserted between `current` and `next`.
 ///
-/// Exact port of the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2 loop.
+/// Exact port of the 11 spacing rules of `WasmTextAssembler.js::needsSpace`. The shared contract is
+/// `test-fixtures/text-assembly-parity.json` (`mod tests::parity` below).
 ///
 /// Token type string values match `TextTokenizer.ts` `TokenType` enum:
 /// - `"chinese_char"`, `"chinese_word"`, `"latin_word"`, `"number"`,
@@ -251,234 +253,85 @@ pub fn needs_space(
 mod tests {
     use super::*;
 
-    // ========================================================================
-    // needs_space() unit tests
-    // ========================================================================
+    /// The shared fixture is the contract for the spacing rules and the assembly loop; the JS
+    /// mirror is `src/utils/__tests__/TextAssembly.parity.test.js`.
+    mod parity {
+        use super::*;
 
-    #[test]
-    fn test_needs_space_rule1_chinese_to_chinese() {
-        assert!(needs_space("chinese_char", "chinese_char", "xin", "chào"));
-        assert!(needs_space("chinese_word", "chinese_word", "không", "biết"));
-        assert!(needs_space("chinese_char", "chinese_word", "a", "b"));
-    }
-
-    #[test]
-    fn test_needs_space_rule2_chinese_to_opening_bracket() {
-        assert!(needs_space("chinese_char", "punctuation", "foo", "[bar]"));
-        assert!(needs_space("chinese_char", "punctuation", "foo", "(bar)"));
-        assert!(!needs_space("chinese_char", "punctuation", "foo", "}"));
-    }
-
-    #[test]
-    fn test_needs_space_rule3_chinese_to_punctuation_starting_with_digit() {
-        assert!(needs_space("chinese_char", "punctuation", "foo", "1%"));
-        assert!(!needs_space("chinese_char", "punctuation", "foo", "%1"));
-    }
-
-    #[test]
-    fn test_needs_space_rule4_punctuation_to_chinese_not_opening_quote() {
-        // Closing punctuation before Chinese → space
-        assert!(needs_space("punctuation", "chinese_char", ".", "xin"));
-        // Opening bracket before Chinese → no space
-        assert!(!needs_space("punctuation", "chinese_char", "(", "xin"));
-        assert!(!needs_space("punctuation", "chinese_char", "[", "xin"));
-        // Opening straight quote before Chinese → no space
-        assert!(!needs_space("punctuation", "chinese_char", "\"", "xin"));
-        // Opening curly quote before Chinese → no space
-        assert!(!needs_space("punctuation", "chinese_char", "\u{201c}", "xin"));
-        // Punctuation ending with opening curly quote → no space
-        assert!(!needs_space("punctuation", "chinese_char", "foo\u{201c}", "xin"));
-    }
-
-    #[test]
-    fn test_needs_space_rule5_chinese_to_latin_word() {
-        assert!(needs_space("chinese_char", "latin_word", "foo", "hello"));
-        assert!(needs_space("chinese_word", "latin_word", "foo", "world"));
-    }
-
-    #[test]
-    fn test_needs_space_rule6_latin_word_to_chinese() {
-        assert!(needs_space("latin_word", "chinese_char", "hello", "foo"));
-        assert!(needs_space("latin_word", "chinese_word", "world", "bar"));
-    }
-
-    #[test]
-    fn test_needs_space_rule7_chinese_to_number() {
-        assert!(needs_space("chinese_char", "number", "foo", "42"));
-        assert!(needs_space("chinese_word", "number", "foo", "3.14"));
-    }
-
-    #[test]
-    fn test_needs_space_rule8_number_to_chinese() {
-        assert!(needs_space("number", "chinese_char", "42", "foo"));
-        assert!(needs_space("number", "chinese_word", "3.14", "bar"));
-    }
-
-    #[test]
-    fn test_needs_space_rule9_chinese_to_unknown() {
-        assert!(needs_space("chinese_char", "unknown", "foo", "の"));
-        assert!(needs_space("chinese_word", "unknown", "bar", "の"));
-    }
-
-    #[test]
-    fn test_needs_space_rule10_unknown_to_chinese() {
-        assert!(needs_space("unknown", "chinese_char", "の", "foo"));
-        assert!(needs_space("unknown", "chinese_word", "の", "bar"));
-    }
-
-    #[test]
-    fn test_needs_space_rule11_chinese_to_foreign_letter_punctuation() {
-        // Greek, Cyrillic, and accented Latin letters land in the punctuation catch-all
-        // (not "latin_word", which is ASCII-only) — see text_tokenizer.rs's is_latin_letter.
-        assert!(needs_space("chinese_char", "punctuation", "于", "α"));
-        assert!(needs_space("chinese_word", "punctuation", "于", "Ж"));
-        assert!(needs_space("chinese_char", "punctuation", "于", "é"));
-        // Real punctuation (non-letter) must not gain a new space from this rule.
-        assert!(!needs_space("chinese_char", "punctuation", "于", "!"));
-    }
-
-    #[test]
-    fn test_no_space_latin_to_latin() {
-        assert!(!needs_space("latin_word", "latin_word", "hello", "world"));
-    }
-
-    #[test]
-    fn test_no_space_number_to_number() {
-        assert!(!needs_space("number", "number", "1", "2"));
-    }
-
-    #[test]
-    fn test_no_space_unknown_to_unknown() {
-        assert!(!needs_space("unknown", "unknown", "の", "が"));
-    }
-
-    // ========================================================================
-    // assemble_with_spacing() unit tests
-    // ========================================================================
-
-    fn make_segment(text: &str, token_type: &str, token_index: usize) -> AssemblySegment {
-        AssemblySegment {
-            text: text.to_string(),
-            token_type: token_type.to_string(),
-            token_index,
+        #[derive(Deserialize)]
+        struct Side {
+            #[serde(rename = "type")]
+            token_type: String,
+            text: String,
         }
-    }
 
-    #[test]
-    fn test_assemble_with_spacing_empty() {
-        let mut assembler = TextAssembler::new();
-        let json = "[]";
-        let result_json = assembler.assemble_with_spacing(json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "");
-        assert!(result.positions.is_empty());
-    }
+        #[derive(Deserialize)]
+        struct RuleCase {
+            name: String,
+            current: Side,
+            next: Side,
+            space: bool,
+        }
 
-    #[test]
-    fn test_assemble_with_spacing_single_segment() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![make_segment("xin chào", "chinese_char", 0)];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "xin chào");
-        assert_eq!(result.positions.len(), 1);
-        assert_eq!(result.positions[0].start, 0);
-        assert_eq!(result.positions[0].end, 8); // "xin chào" = 8 chars
-    }
+        #[derive(Deserialize)]
+        struct AssemblyCase {
+            name: String,
+            segments: Vec<AssemblySegment>,
+            #[serde(rename = "translatedText")]
+            translated_text: String,
+            positions: Vec<PositionEntry>,
+        }
 
-    #[test]
-    fn test_assemble_with_spacing_inserts_space_between_chinese() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![
-            make_segment("xin", "chinese_char", 0),
-            make_segment("chào", "chinese_char", 1),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "xin chào");
-        // Segment 0: start=0, end=3
-        assert_eq!(result.positions[0].start, 0);
-        assert_eq!(result.positions[0].end, 3);
-        // Segment 1: start=4 (after space), end=8
-        assert_eq!(result.positions[1].start, 4);
-        assert_eq!(result.positions[1].end, 8); // "chào" = 4 chars
-    }
+        #[derive(Deserialize)]
+        struct Fixture {
+            rules: Vec<RuleCase>,
+            assemblies: Vec<AssemblyCase>,
+        }
 
-    #[test]
-    fn test_assemble_with_spacing_no_space_latin_to_latin() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![
-            make_segment("hello", "latin_word", 0),
-            make_segment("world", "latin_word", 1),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "helloworld");
-        assert_eq!(result.positions[1].start, 5);
-    }
+        fn load_fixture() -> Fixture {
+            let raw = include_str!("../../test-fixtures/text-assembly-parity.json");
+            serde_json::from_str(raw)
+                .expect("text-assembly-parity.json must be valid JSON matching the Fixture shape")
+        }
 
-    #[test]
-    fn test_assemble_with_spacing_chinese_then_latin() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![
-            make_segment("không", "chinese_word", 0),
-            make_segment("VIP", "latin_word", 1),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "không VIP");
-    }
+        #[test]
+        fn needs_space_matches_the_shared_fixture() {
+            let fixture = load_fixture();
+            assert!(!fixture.rules.is_empty(), "fixture must not be empty");
+            for case in &fixture.rules {
+                assert_eq!(
+                    needs_space(
+                        &case.current.token_type,
+                        &case.next.token_type,
+                        &case.current.text,
+                        &case.next.text
+                    ),
+                    case.space,
+                    "rule case: {}",
+                    case.name
+                );
+            }
+        }
 
-    #[test]
-    fn test_assemble_with_spacing_position_tracking() {
-        let mut assembler = TextAssembler::new();
-        // 3 segments: Chinese + Chinese + punctuation (no space before punctuation)
-        let segments = vec![
-            make_segment("xin", "chinese_char", 0),
-            make_segment("chào", "chinese_char", 1),
-            make_segment(".", "punctuation", 2),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        // "xin" + " " + "chào" + "."
-        assert_eq!(result.translated_text, "xin chào.");
-        assert_eq!(result.positions[0].start, 0);
-        assert_eq!(result.positions[0].end, 3);
-        assert_eq!(result.positions[1].start, 4);
-        assert_eq!(result.positions[1].end, 8);
-        assert_eq!(result.positions[2].start, 8);
-        assert_eq!(result.positions[2].end, 9);
-    }
-
-    #[test]
-    fn test_assemble_with_spacing_token_index_preserved() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![
-            make_segment("xin", "chinese_char", 5),
-            make_segment("chào", "chinese_char", 7),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.positions[0].token_index, 5);
-        assert_eq!(result.positions[1].token_index, 7);
-    }
-
-    #[test]
-    fn test_assemble_with_spacing_number_and_chinese() {
-        let mut assembler = TextAssembler::new();
-        let segments = vec![
-            make_segment("15%", "number", 0),
-            make_segment("cổ phần", "chinese_char", 1),
-        ];
-        let json = serde_json::to_string(&segments).unwrap();
-        let result_json = assembler.assemble_with_spacing(&json).unwrap();
-        let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
-        assert_eq!(result.translated_text, "15% cổ phần");
+        #[test]
+        fn assemble_with_spacing_matches_the_shared_fixture() {
+            let fixture = load_fixture();
+            assert!(!fixture.assemblies.is_empty(), "fixture must not be empty");
+            for case in &fixture.assemblies {
+                let json = serde_json::to_string(&case.segments).unwrap();
+                let result_json = TextAssembler::new().assemble_with_spacing(&json).unwrap();
+                let result: SpacedAssemblyResult = serde_json::from_str(&result_json).unwrap();
+                assert_eq!(result.translated_text, case.translated_text, "assembly case: {}", case.name);
+                assert_eq!(result.positions.len(), case.positions.len(), "assembly case: {}", case.name);
+                for (got, want) in result.positions.iter().zip(&case.positions) {
+                    assert_eq!(
+                        (got.token_index, got.text.as_str(), got.start, got.end),
+                        (want.token_index, want.text.as_str(), want.start, want.end),
+                        "assembly case: {}",
+                        case.name
+                    );
+                }
+            }
+        }
     }
 }

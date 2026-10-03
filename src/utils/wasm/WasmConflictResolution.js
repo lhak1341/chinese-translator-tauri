@@ -2,6 +2,7 @@
 // @ts-ignore — named exports added by wasm-pack build; collapse to one line so @ts-ignore covers all
 import { resolveGlobalConflicts as wasmResolveGlobalConflicts } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 import { loadSharedWasmModule } from './WasmSharedModule';
 
@@ -16,47 +17,35 @@ import { loadSharedWasmModule } from './WasmSharedModule';
  * where typePriority: 1=phrase, 2=pattern, 3=other.
  * Returns a Uint32Array of selected original indices; caller maps back to match objects.
  *
- * Sibling: TranslationEngine.js::resolveGlobalConflicts() — algorithm must stay in sync.
+ * Parity: test-fixtures/conflict-resolution-parity.json is the contract for this file's jsFallback and
+ * the Rust algorithm; both are run against it.
  */
 
-/** @type {boolean} */
-let initialized = false;
-/** @type {boolean} - Set after any WASM panic to prevent re-init of corrupted module */
-let initializationFailed = false;
-/** @type {Promise<boolean> | null} */
-let initializationPromise = null;
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
 
-function retireWasmConflictResolutionOnSharedPanic() {
-  initialized = false;
-  initializationFailed = true;
-  initializationPromise = null;
-}
-registerCascadeHandler(retireWasmConflictResolutionOnSharedPanic);
+const lifecycle = new WasmProcessorLifecycle({
+  name: 'ConflictResolution',
+  wasmFileName: 'translation_wasm_core_bg.wasm',
+  wasmBinaryUrl: _WASM_BINARY_URL,
+  expectedMethods: ['resolveGlobalConflicts'],
+});
+
+// A panic anywhere in the shared binary retires this wrapper for good (no re-init).
+registerCascadeHandler(() => lifecycle.permanentlyFail());
 
 /**
- * Initialize the WASM module (idempotent, promise-cached).
+ * Initialize the WASM module (idempotent; the lifecycle retries transient failures).
  * @returns {Promise<boolean>}
  */
-async function initialize() {
-  if (initialized) return true;
-  if (initializationFailed) return false;
-  if (initializationPromise) return initializationPromise;
-
-  initializationPromise = (async () => {
-    try {
-      await loadSharedWasmModule();
-      initialized = true;
-      logger.log('✅ WASM ConflictResolution initialized');
-      return true;
-    } catch (error) {
-      logger.warn('Failed to initialize WASM ConflictResolution:', error);
-      initializationFailed = true;
-      initializationPromise = null;
-      return false;
-    }
-  })();
-
-  return initializationPromise;
+export function initializeWasmConflictResolution() {
+  return lifecycle.initialize(async () => {
+    await loadSharedWasmModule();
+    logger.log('✅ WASM ConflictResolution initialized');
+    // resolveGlobalConflicts is a live binding to the shared module's top-level `wasm` var —
+    // there is no owned instance to hand back, only the function to prove it exists.
+    return { resolveGlobalConflicts: wasmResolveGlobalConflicts };
+  });
 }
 
 /**
@@ -79,7 +68,7 @@ function packMatches(matches) {
 }
 
 /**
- * JS fallback — mirrors the sort+greedy logic in TranslationEngine.js::resolveGlobalConflicts().
+ * JS fallback — the same sort+greedy algorithm as wasm-core/src/conflict_resolution.rs.
  * Non-mutating (does not sort `allMatches` in-place).
  *
  * @param {Array<{startIndex: number, endIndex: number, length: number, type: string}>} allMatches
@@ -118,8 +107,8 @@ function jsFallback(allMatches) {
 /**
  * Resolve Phase 4 global conflicts using WASM (with JS fallback).
  *
- * Equivalent to TranslationEngine.js::resolveGlobalConflicts() but delegates the
- * sort+greedy computation to Rust via a flat typed-array boundary.
+ * Delegates the sort+greedy computation to Rust via a flat typed-array boundary
+ * (TranslationEngine.js::resolveGlobalConflicts() calls this).
  *
  * @param {Array<{startIndex: number, endIndex: number, length: number, type: string}>} allMatches
  * @returns {Array<*>} Non-overlapping selected matches in acceptance order
@@ -127,7 +116,7 @@ function jsFallback(allMatches) {
 export function resolveGlobalConflictsWasm(allMatches) {
   if (allMatches.length === 0) return [];
 
-  if (!initialized) {
+  if (!lifecycle.isReady) {
     return jsFallback(allMatches);
   }
 
@@ -145,7 +134,9 @@ export function resolveGlobalConflictsWasm(allMatches) {
   }
 }
 
-// Auto-initialize on import (non-blocking).
-initialize().catch((err) => {
-  logger.warn('Background WASM ConflictResolution initialization failed:', err);
-});
+// Background init: warms up WASM so the first caller hits the fast path
+if (import.meta.env.MODE !== 'test') {
+  initializeWasmConflictResolution().catch((err) => {
+    logger.warn('Background WASM ConflictResolution initialization failed:', err);
+  });
+}

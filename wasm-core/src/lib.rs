@@ -30,9 +30,6 @@ pub mod text_assembly;
 pub mod text_chunker;
 pub mod conflict_resolution;
 
-#[cfg(test)]
-mod content_hash_test;
-
 // Re-export WASM wrappers for JavaScript
 pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
 pub use text_tokenizer::{tokenize_text, get_tokenizer_stats};
@@ -44,7 +41,6 @@ use wasm_bindgen::prelude::*;
 use trie::TrieNode;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use unicode_normalization::UnicodeNormalization;
 
 // Shared entry-count cap — mirrors MAX_DICTIONARY_ENTRIES in the Tauri backend.
 const MAX_DICTIONARY_ENTRIES: usize = 50_000;
@@ -438,124 +434,6 @@ impl DictionaryEngine {
 
 // EnhancedDictionaryManager and PatternManager removed - depended on deleted modules
 // (cache.rs, dictionary.rs, pattern_*.rs, etc.)
-
-/**
- * WASM Batch Text Normalization
- *
- * Provides 2-5x speedup over JavaScript normalization by:
- * - Batch operations reduce WASM boundary crossings
- * - `unicode-normalization` crate is highly optimized
- * - NFC normalization ensures consistent Unicode representation
- *
- * Used for:
- * - Dictionary entry normalization
- * - Semantic array text normalization
- * - Pattern matching text preprocessing
- */
-
-/// Normalize a batch of texts to NFC (Canonical Composition)
-///
-/// Takes an array of strings and returns an array of NFC-normalized strings.
-/// This is more efficient than calling normalize() for each string individually
-/// because it reduces WASM boundary crossings.
-///
-/// # Arguments
-/// * `texts` - JavaScript array of strings to normalize
-///
-/// # Returns
-/// * `Result<JsValue, JsValue>` - JavaScript array of normalized strings or error
-///
-/// # Example
-/// ```javascript
-/// const texts = ['café', '北京', 'Москва'];
-/// const normalized = normalize_batch(texts);
-/// // Returns: ['café', '北京', 'Москва'] (NFC normalized)
-/// ```
-/// JS interop contract: `texts_json` is `JSON.stringify(textsArray)`;
-/// return value is a JSON string — caller: `JSON.parse(normalizeBatch(JSON.stringify(texts)))`.
-#[wasm_bindgen(js_name = normalizeBatch)]
-pub fn normalize_batch(texts_json: &str) -> Result<String, JsValue> {
-    let texts: Vec<String> = serde_json::from_str(texts_json)
-        .map_err(|e| JsValue::from_str(&format!("Failed to deserialize texts: {}", e)))?;
-
-    let normalized: Vec<String> = texts
-        .into_iter()
-        .map(|s| s.nfc().collect::<String>())
-        .collect();
-
-    serde_json::to_string(&normalized)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize normalized texts: {}", e)))
-}
-
-/// Normalize a single text to NFC (Canonical Composition)
-///
-/// Convenience function for normalizing a single string.
-///
-/// # Arguments
-/// * `text` - String to normalize
-///
-/// # Returns
-/// * `String` - NFC-normalized string
-///
-/// # Example
-/// ```javascript
-/// const text = 'café';
-/// const normalized = normalizeSingle(text);
-/// // Returns: 'café' (NFC normalized)
-/// ```
-#[wasm_bindgen(js_name = normalizeSingle)]
-pub fn normalize_single(text: &str) -> String {
-    text.nfc().collect::<String>()
-}
-
-/// Generate fast content hash for cache keys
-///
-/// Uses FNV-1a-like hash algorithm for speed and collision resistance.
-/// Performance: 2-3x faster than JavaScript implementation
-///
-/// # Arguments
-/// * `text` - String to hash
-///
-/// # Returns
-/// * `String` - Base-36 encoded hash (lowercase alphanumeric)
-///
-/// # Example
-/// ```javascript
-/// const hash = generateContentHash('Hello World');
-/// // Returns: something like "1a2b3c4d"
-/// ```
-#[wasm_bindgen(js_name = generateContentHash)]
-pub fn generate_content_hash(text: &str) -> String {
-    let mut hash: i32 = 0;
-
-    for ch in text.chars() {
-        let char_code = ch as i32;
-        hash = (hash << 5).wrapping_sub(hash).wrapping_add(char_code);
-    }
-
-    // Convert to base-36 (JavaScript .toString(36) equivalent)
-    // wrapping_abs avoids panic on i32::MIN in debug builds
-    let abs_hash = hash.wrapping_abs() as u32;
-    base36_encode(abs_hash)
-}
-
-/// Encode a number to base-36 string (0-9, a-z)
-fn base36_encode(mut num: u32) -> String {
-    if num == 0 {
-        return "0".to_string();
-    }
-
-    const CHARS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
-    let mut result = Vec::new();
-
-    while num > 0 {
-        result.push(CHARS[(num % 36) as usize]);
-        num /= 36;
-    }
-
-    result.reverse();
-    String::from_utf8(result).unwrap()
-}
 
 #[cfg(test)]
 mod dictionary_accounting_tests {

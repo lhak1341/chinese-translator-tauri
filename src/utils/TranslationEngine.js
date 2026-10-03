@@ -1464,7 +1464,8 @@ export class TranslationEngine {
    * NOTE: find_best_pattern_match() in matcher.rs is NOT a Rust counterpart of this function —
    * that selects the best pattern at a single position (Phase 1). This function runs greedy
    * interval scheduling across ALL positions at once (Phase 4).
-   * Rust parity validator: wasm-core/tests/conflict_resolution_parity_test.rs
+   * Parity: test-fixtures/conflict-resolution-parity.json, run by wasm-core/src/conflict_resolution.rs
+   * (mod tests::parity) and src/utils/__tests__/ConflictResolution.parity.test.js
    * Match length indicates better context coverage and prevents substring collisions
    *
    * @param {Array} allMatches - All potential matches from all positions

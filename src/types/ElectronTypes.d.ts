@@ -8,7 +8,7 @@
  * Usage: Types are automatically available via global Window interface augmentation.
  */
 
-import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
+import type { AppConfiguration, AppearanceSettings } from './ComponentTypes';
 import type { DictionaryData } from './DictionaryTypes';
 import type { TransformRule } from './TransformRuleTypes';
 import type { BookRecords } from './ReaderTypes';
@@ -38,14 +38,6 @@ export interface ElectronResult<T = any> {
 export interface DictionaryLoadResult extends ElectronResult<any> {
   /** Dictionary data */
   data?: any;
-}
-
-/**
- * Dictionary list result
- */
-export interface DictionaryListResult extends ElectronResult<DictionaryInfo[]> {
-  /** List of available dictionaries */
-  dictionaries?: DictionaryInfo[];
 }
 
 /**
@@ -112,72 +104,9 @@ export interface DictionaryOperationResult extends ElectronResult {
 }
 
 // =============================================================================
-
-/**
- * File filter for file selection dialogs
- */
-export interface FileFilter {
-  /** Filter name (e.g., 'Images', 'Documents') */
-  name: string;
-  /** File extensions (e.g., ['png', 'jpg']) */
-  extensions: string[];
-}
-
-/**
- * Options for file selection dialog
- */
-export interface FileSelectOptions {
-  /** Dialog title */
-  title?: string;
-  /** Default path to open dialog in */
-  defaultPath?: string;
-  /** Button label */
-  buttonLabel?: string;
-  /** File type filters */
-  filters?: FileFilter[];
-  /** Selection properties */
-  properties?: ('openFile' | 'openDirectory' | 'multiSelections')[];
-}
-
-/**
- * File selection result
- */
-export interface FileSelectResult {
-  /** Whether user canceled the dialog */
-  canceled: boolean;
-  /** Selected file paths */
-  filePaths: string[];
-}
-
-/**
- * Options for directory selection dialog
- */
-export interface DirectorySelectOptions {
-  /** Dialog title */
-  title?: string;
-  /** Default path to open dialog in */
-  defaultPath?: string;
-  /** Button label */
-  buttonLabel?: string;
-}
-
-/**
- * Directory selection result
- */
-export interface DirectorySelectResult {
-  /** Whether user canceled the dialog */
-  canceled: boolean;
-  /** Selected directory paths */
-  filePaths: string[];
-}
-
-// =============================================================================
-// Electron API Interface
+// Batch Dictionary Loading
 // =============================================================================
 
-/**
- * Complete Electron API exposed via preload script
- */
 /**
  * Batch dictionary loading result (for parallel operations)
  */

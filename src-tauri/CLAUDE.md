@@ -17,7 +17,7 @@
 
 ## Rust Arithmetic
 
-- **`hash.abs()` panics on `i32::MIN` in debug builds**: wrapping arithmetic can produce `i32::MIN`; `.abs()` overflows. Always use `.wrapping_abs()`. Affects `generate_content_hash` in `wasm-core/src/lib.rs`.
+- **`hash.abs()` panics on `i32::MIN` in debug builds**: wrapping arithmetic can produce `i32::MIN`; `.abs()` overflows. Always use `.wrapping_abs()`. (The hash that hit this, `generate_content_hash`, was deleted 2026-10-03; the rule stands for any hash-then-abs code.)
 - **`u64` timestamp subtraction**: `SystemTime::now()` is not monotonic on macOS. Use `.saturating_sub()` to avoid underflow. Affects `emit_poisoning_event` in `dictionary_commands.rs`.
 - **Longest-match loops: use `>=` not `>`**: `if sequence.len() >= longest_length` allows multiple same-length patterns (last successful converter wins). `>` silently drops all but the first.
 
@@ -32,7 +32,7 @@
 ## wasm-core Architecture
 
 - **Single trie implementation**: `wasm-core/src/trie.rs::TrieNode` is the only trie node — `dictionary_trie.rs` imports and delegates to it. Do NOT add a second `TrieNode` to `dictionary_trie.rs`. `find_matches`/`find_matches_slice` return longest-first; `find_all_matches`/`find_all_matches_slice` return shortest-first.
-- **Rust parity validators**: belong in `wasm-core/tests/` as standalone integration test files — compile only during `cargo test`, zero production binary weight. Examples: `conflict_resolution_parity_test.rs`, `two_phase_test.rs`.
+- **Rust parity validators**: belong in `wasm-core/tests/` as standalone integration test files — compile only during `cargo test`, zero production binary weight. Examples: `pattern_matcher_parity_test.rs`, `two_phase_test.rs`. A test of a `pub(crate)` function lives in its module instead, reading a shared `test-fixtures/*.json` (conflict resolution, tokenizer).
 - **`detect_hierarchical_composition` requires token range containment before substring check** (`two_phase.rs:479`): always verify `phase_a.start_index >= phase_b.start_index && phase_a.end_index <= phase_b.end_index` before `.contains()` — fires falsely on disjoint spans sharing common Vietnamese words.
 - **`process_phase_a` must combine literal-starting AND variable-starting candidates** (`two_phase.rs`): hoist `variable_patterns` outside the loop and extend both slices each iteration. Fallback-only logic silently skips variable-starting Phase A patterns wherever a literal-starting one also exists.
 - **Variable-before-variable span: take the SHORTEST valid span** (`matcher.rs:resolve_variable_with_lookahead`): `candidateSpans` is ordered longest→shortest; do NOT break on the first hit — let shorter spans overwrite `result` so the final value is the shortest. Taking the longest greedily exhausts tokens the next variable needs.
@@ -40,7 +40,7 @@
 
 ## Tauri Command Security
 
-- **All direct file writes must use `write_atomic(path, bytes)`, never `fs::write`**: crash mid-write leaves a truncated/corrupt file. `write_atomic` writes to `.tmp.<pid>` then renames atomically. Applies to all commands that write files — `save_json_file` and `import_dictionaries` were the known gaps. **Confirmed twice**, both closed; a 2026-08-31 sweep found the only remaining `fs::write` in production is the one inside `write_atomic` itself. Stays prose until a third instance justifies a standing scan.
+- **All direct file writes must use `write_atomic(path, bytes, context)`, never `fs::write`** (`context` is the noun in the caller's errors: `"dictionary file"` or `"config file"`, so a failed appearance save does not report a dictionary failure): crash mid-write leaves a truncated/corrupt file. `write_atomic` writes to `.tmp.<pid>` then renames atomically. Applies to all commands that write files — `save_json_file` and `import_dictionaries` were the known gaps. **Confirmed twice**, both closed; a 2026-08-31 sweep found the only remaining `fs::write` in production is the one inside `write_atomic` itself. Stays prose until a third instance justifies a standing scan.
 - **All `fs::*` calls must use `sanitize_io_error`, never `e.to_string()`**: exposes full OS paths to the frontend. Use `.map_err(|e| sanitize_io_error(e, "context label"))?` for every I/O call, including error strings pushed into response `Vec<String>`. Exceptions: Tauri API errors (no filesystem paths). Also applies to `zip::ZipError` (embeds filenames from ZIP headers — use static messages) and `serde_json` parse errors (can embed content snippets — use `format!("Invalid JSON in dictionary '{}'", id)`) and `serde_json` serialization errors (`to_string_pretty` can include type/value details — use `|_| "Failed to serialize ...".to_string()`). A 2026-08-31 sweep found 0 remaining `map_err(|e| e.to_string())` in this crate.
 - **Tauri plugin errors** (e.g. `OpenerExt::open_path`): plugin `Display` impls may embed the path — use `.map_err(|_| "static description".to_string())`.
 - **Cache keys must not embed `file_path.display()`**: `get_cache_key()` must use only `dictionary_id`. Cache keys can be serialized or logged.

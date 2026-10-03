@@ -11,9 +11,6 @@ const mockToastSuccess = vi.fn();
 vi.mock('../../utils/toast', () => ({
   default: { success: (...args) => mockToastSuccess(...args) },
 }));
-vi.mock('../../utils/logger', () => ({
-  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
 
 function makeDeps(overrides = {}) {
   return {
@@ -42,9 +39,8 @@ describe('useReloadRetranslate', () => {
     const { result } = renderHook(() => useReloadRetranslate(deps));
 
     await act(async () => {
-      const p = result.current('hello');
-      await vi.advanceTimersByTimeAsync(150);
-      await p;
+      await result.current('hello');
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(deps.translateText).toHaveBeenCalledWith('hello');
@@ -54,29 +50,29 @@ describe('useReloadRetranslate', () => {
     expect(order).toEqual(['toast', 'characterOnly']);
   });
 
-  test('waits an extra 500ms when the engine is not ready after the initial 100ms', async () => {
-    let ready = false;
-    const deps = makeDeps({
-      engineRef: {
-        current: {
-          isReady: () => ready,
-        },
-      },
-    });
+  test('translates at once, without waiting for the engine to settle', async () => {
+    const deps = makeDeps();
     const { result } = renderHook(() => useReloadRetranslate(deps));
 
-    const p = act(async () => {
-      const inner = result.current('hello');
-      await vi.advanceTimersByTimeAsync(100);
-      // Right after the first wait, engine still not ready — becomes ready
-      // during the extra 500ms wait.
-      ready = true;
-      await vi.advanceTimersByTimeAsync(500);
-      await inner;
+    // No timers are advanced: a settle wait would leave this promise pending forever.
+    await act(async () => {
+      await result.current('hello');
     });
 
-    await p;
-
     expect(deps.translateText).toHaveBeenCalledWith('hello');
+  });
+
+  test.each([
+    ['is not ready', { current: { isReady: () => false } }],
+    ['is missing', { current: null }],
+  ])('throws instead of translating when the engine %s', async (_label, engineRef) => {
+    const deps = makeDeps({ engineRef });
+    const { result } = renderHook(() => useReloadRetranslate(deps));
+
+    await expect(result.current('hello')).rejects.toThrow('Engine not ready');
+
+    expect(deps.translateText).not.toHaveBeenCalled();
+    expect(deps.setStreamingText).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });

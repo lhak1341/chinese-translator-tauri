@@ -85,6 +85,13 @@ describe('WASM cascade-retire discipline', () => {
     expect(sources.get(name)).toMatch(/registerCascadeHandler\s*\(/);
   });
 
+  it.each(SHARED_BINARY_WRAPPERS)('%s holds a WasmProcessorLifecycle', (name) => {
+    // The lifecycle owns init state, retry with backoff and instance verification. Two wrappers
+    // once hand-rolled their own initialized/failed flags and gave up on the first transient
+    // load error while their five siblings retried (ADR-009).
+    expect(sources.get(name)).toMatch(/new\s+WasmProcessorLifecycle\s*\(/);
+  });
+
   it.each(SHARED_BINARY_WRAPPERS)('%s fires the cascade rather than retiring alone', (name) => {
     expect(sources.get(name)).toMatch(/fireCascadeRetire\s*\(/);
   });

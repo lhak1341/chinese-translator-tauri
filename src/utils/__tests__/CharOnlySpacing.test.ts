@@ -7,8 +7,8 @@
  * text_assembly.rs) — that function decides from already-translated segment
  * text, this one decides from the original (untranslated) token stream. See
  * `needsSpaceCharOnly()`'s own doc comment and
- * `src/utils/__tests__/TranslationEngine.textAssembly.test.js` for the
- * separate three-way spacing-rule contract this codebase maintains.
+ * `test-fixtures/text-assembly-parity.json` (run by `TextAssembly.parity.test.js` and
+ * `text_assembly.rs`'s `mod tests::parity`) for the separate two-way spacing-rule contract.
  */
 
 import { needsSpaceCharOnly } from '../text/CharOnlySpacing';

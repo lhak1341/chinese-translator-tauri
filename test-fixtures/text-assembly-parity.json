@@ -1,0 +1,948 @@
+{
+  "_comment": "Shared contract for spacing-aware text assembly (postProcess Step 2). `rules` rows are read by wasm-core/src/text_assembly.rs (mod tests::parity -> needs_space) and src/utils/__tests__/TextAssembly.parity.test.js (needsSpace); `assemblies` are read by the same two files through TextAssembler::assemble_with_spacing and wasmTextAssembler.assembleWithSpacing (JS fallback). `start`/`end` are UTF-16 code-unit indices into translatedText (JS string indices), so a character outside the BMP counts as 2. Character-only mode's needsSpaceCharOnly is a separate decision over untranslated tokens and is not covered here. Update this file first when a rule changes.",
+  "rules": [
+    {
+      "name": "rule 1: chinese_char then chinese_char",
+      "current": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "chào"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 1: chinese_word then chinese_word",
+      "current": {
+        "type": "chinese_word",
+        "text": "không"
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "biết"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 1: chinese_char then chinese_word",
+      "current": {
+        "type": "chinese_char",
+        "text": "a"
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "b"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 2: chinese then bracketed punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "[bar]"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 2: chinese then parenthesised punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "(bar)"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 2: chinese then closing brace, no space",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "}"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 3: chinese then punctuation starting with a digit",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "1%"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 3: chinese then punctuation ending with a digit, no space",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "%1"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: closing punctuation then chinese",
+      "current": {
+        "type": "punctuation",
+        "text": "."
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 4: closing curly quote then chinese",
+      "current": {
+        "type": "punctuation",
+        "text": "”"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 4: opening paren then chinese, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "("
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: opening bracket then chinese, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "["
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: straight quote then chinese, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "\""
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: opening curly quote then chinese, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "“"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: punctuation ending in a straight quote, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "foo\""
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: punctuation ending in an opening curly quote, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "foo“"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: punctuation containing a paren, no space",
+      "current": {
+        "type": "punctuation",
+        "text": "foo("
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 4: punctuation then chinese_word",
+      "current": {
+        "type": "punctuation",
+        "text": "."
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "xin"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 5: chinese_char then latin_word",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "latin_word",
+        "text": "hello"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 5: chinese_word then latin_word",
+      "current": {
+        "type": "chinese_word",
+        "text": "foo"
+      },
+      "next": {
+        "type": "latin_word",
+        "text": "world"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 6: latin_word then chinese_char",
+      "current": {
+        "type": "latin_word",
+        "text": "hello"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 6: latin_word then chinese_word",
+      "current": {
+        "type": "latin_word",
+        "text": "world"
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "bar"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 7: chinese_char then number",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "number",
+        "text": "42"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 7: chinese_word then number",
+      "current": {
+        "type": "chinese_word",
+        "text": "foo"
+      },
+      "next": {
+        "type": "number",
+        "text": "3.14"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 8: number then chinese_char",
+      "current": {
+        "type": "number",
+        "text": "42"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 8: number then chinese_word",
+      "current": {
+        "type": "number",
+        "text": "3.14"
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "bar"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 9: chinese_char then unknown",
+      "current": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "next": {
+        "type": "unknown",
+        "text": "の"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 9: chinese_word then unknown",
+      "current": {
+        "type": "chinese_word",
+        "text": "bar"
+      },
+      "next": {
+        "type": "unknown",
+        "text": "の"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 10: unknown then chinese_char",
+      "current": {
+        "type": "unknown",
+        "text": "の"
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "foo"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 10: unknown then chinese_word",
+      "current": {
+        "type": "unknown",
+        "text": "の"
+      },
+      "next": {
+        "type": "chinese_word",
+        "text": "bar"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese then Greek letter typed punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "α"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese_word then Cyrillic letter typed punctuation",
+      "current": {
+        "type": "chinese_word",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "Ж"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese then accented Latin letter typed punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "é"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese then modifier letter typed punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "ʰ"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese then astral letter typed punctuation",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "𝒜"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: only the first character decides",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "α!"
+      },
+      "space": true
+    },
+    {
+      "name": "rule 11: chinese then real punctuation, no space",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "!"
+      },
+      "space": false
+    },
+    {
+      "name": "rule 11: chinese then Roman numeral (Letter_Number, not Letter), no space",
+      "current": {
+        "type": "chinese_char",
+        "text": "于"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "Ⅳ"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: latin_word then latin_word",
+      "current": {
+        "type": "latin_word",
+        "text": "hello"
+      },
+      "next": {
+        "type": "latin_word",
+        "text": "world"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: number then number",
+      "current": {
+        "type": "number",
+        "text": "1"
+      },
+      "next": {
+        "type": "number",
+        "text": "2"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: unknown then unknown",
+      "current": {
+        "type": "unknown",
+        "text": "の"
+      },
+      "next": {
+        "type": "unknown",
+        "text": "が"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: latin_word then number",
+      "current": {
+        "type": "latin_word",
+        "text": "x"
+      },
+      "next": {
+        "type": "number",
+        "text": "42"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: number then latin_word",
+      "current": {
+        "type": "number",
+        "text": "42"
+      },
+      "next": {
+        "type": "latin_word",
+        "text": "x"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: punctuation then punctuation",
+      "current": {
+        "type": "punctuation",
+        "text": "."
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "!"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: latin_word then punctuation",
+      "current": {
+        "type": "latin_word",
+        "text": "hello"
+      },
+      "next": {
+        "type": "punctuation",
+        "text": "!"
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: chinese then whitespace",
+      "current": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "next": {
+        "type": "whitespace",
+        "text": " "
+      },
+      "space": false
+    },
+    {
+      "name": "no rule: whitespace then chinese",
+      "current": {
+        "type": "whitespace",
+        "text": " "
+      },
+      "next": {
+        "type": "chinese_char",
+        "text": "xin"
+      },
+      "space": false
+    }
+  ],
+  "assemblies": [
+    {
+      "name": "empty input",
+      "segments": [],
+      "translatedText": "",
+      "positions": []
+    },
+    {
+      "name": "a single segment gets no trailing space",
+      "segments": [
+        {
+          "text": "xin chào",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        }
+      ],
+      "translatedText": "xin chào",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "xin chào",
+          "start": 0,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "name": "two chinese segments are joined by a space that the next start accounts for",
+      "segments": [
+        {
+          "text": "xin",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        },
+        {
+          "text": "chào",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "xin chào",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "xin",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "tokenIndex": 1,
+          "text": "chào",
+          "start": 4,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "name": "latin then latin is joined without a space",
+      "segments": [
+        {
+          "text": "hello",
+          "tokenType": "latin_word",
+          "tokenIndex": 0
+        },
+        {
+          "text": "world",
+          "tokenType": "latin_word",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "helloworld",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "hello",
+          "start": 0,
+          "end": 5
+        },
+        {
+          "tokenIndex": 1,
+          "text": "world",
+          "start": 5,
+          "end": 10
+        }
+      ]
+    },
+    {
+      "name": "chinese then latin",
+      "segments": [
+        {
+          "text": "không",
+          "tokenType": "chinese_word",
+          "tokenIndex": 0
+        },
+        {
+          "text": "VIP",
+          "tokenType": "latin_word",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "không VIP",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "không",
+          "start": 0,
+          "end": 5
+        },
+        {
+          "tokenIndex": 1,
+          "text": "VIP",
+          "start": 6,
+          "end": 9
+        }
+      ]
+    },
+    {
+      "name": "latin then chinese",
+      "segments": [
+        {
+          "text": "VIP",
+          "tokenType": "latin_word",
+          "tokenIndex": 0
+        },
+        {
+          "text": "không",
+          "tokenType": "chinese_word",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "VIP không",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "VIP",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "tokenIndex": 1,
+          "text": "không",
+          "start": 4,
+          "end": 9
+        }
+      ]
+    },
+    {
+      "name": "number then chinese",
+      "segments": [
+        {
+          "text": "15%",
+          "tokenType": "number",
+          "tokenIndex": 0
+        },
+        {
+          "text": "cổ phần",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "15% cổ phần",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "15%",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "tokenIndex": 1,
+          "text": "cổ phần",
+          "start": 4,
+          "end": 11
+        }
+      ]
+    },
+    {
+      "name": "chinese then number",
+      "segments": [
+        {
+          "text": "cổ phần",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        },
+        {
+          "text": "15%",
+          "tokenType": "number",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "cổ phần 15%",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "cổ phần",
+          "start": 0,
+          "end": 7
+        },
+        {
+          "tokenIndex": 1,
+          "text": "15%",
+          "start": 8,
+          "end": 11
+        }
+      ]
+    },
+    {
+      "name": "trailing punctuation takes no space",
+      "segments": [
+        {
+          "text": "xin",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        },
+        {
+          "text": "chào",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        },
+        {
+          "text": ".",
+          "tokenType": "punctuation",
+          "tokenIndex": 2
+        }
+      ],
+      "translatedText": "xin chào.",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "xin",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "tokenIndex": 1,
+          "text": "chào",
+          "start": 4,
+          "end": 8
+        },
+        {
+          "tokenIndex": 2,
+          "text": ".",
+          "start": 8,
+          "end": 9
+        }
+      ]
+    },
+    {
+      "name": "opening quote then chinese takes no space",
+      "segments": [
+        {
+          "text": "\"",
+          "tokenType": "punctuation",
+          "tokenIndex": 0
+        },
+        {
+          "text": "xin",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "\"xin",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "\"",
+          "start": 0,
+          "end": 1
+        },
+        {
+          "tokenIndex": 1,
+          "text": "xin",
+          "start": 1,
+          "end": 4
+        }
+      ]
+    },
+    {
+      "name": "each inserted space shifts every later position by one",
+      "segments": [
+        {
+          "text": "a",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        },
+        {
+          "text": "b",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        },
+        {
+          "text": "c",
+          "tokenType": "chinese_char",
+          "tokenIndex": 2
+        }
+      ],
+      "translatedText": "a b c",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "a",
+          "start": 0,
+          "end": 1
+        },
+        {
+          "tokenIndex": 1,
+          "text": "b",
+          "start": 2,
+          "end": 3
+        },
+        {
+          "tokenIndex": 2,
+          "text": "c",
+          "start": 4,
+          "end": 5
+        }
+      ]
+    },
+    {
+      "name": "token indices are carried through unchanged",
+      "segments": [
+        {
+          "text": "xin",
+          "tokenType": "chinese_char",
+          "tokenIndex": 5
+        },
+        {
+          "text": "chào",
+          "tokenType": "chinese_char",
+          "tokenIndex": 12
+        }
+      ],
+      "translatedText": "xin chào",
+      "positions": [
+        {
+          "tokenIndex": 5,
+          "text": "xin",
+          "start": 0,
+          "end": 3
+        },
+        {
+          "tokenIndex": 12,
+          "text": "chào",
+          "start": 4,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "name": "positions count UTF-16 code units, so an astral character takes two",
+      "segments": [
+        {
+          "text": "𠮷",
+          "tokenType": "chinese_char",
+          "tokenIndex": 0
+        },
+        {
+          "text": "xin",
+          "tokenType": "chinese_char",
+          "tokenIndex": 1
+        }
+      ],
+      "translatedText": "𠮷 xin",
+      "positions": [
+        {
+          "tokenIndex": 0,
+          "text": "𠮷",
+          "start": 0,
+          "end": 2
+        },
+        {
+          "tokenIndex": 1,
+          "text": "xin",
+          "start": 3,
+          "end": 6
+        }
+      ]
+    }
+  ]
+}

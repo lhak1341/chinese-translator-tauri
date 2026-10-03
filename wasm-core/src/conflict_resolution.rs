@@ -21,7 +21,9 @@
 //! A Phase 2 export (`resolveMatchConflictsCore`, priority-first) was deleted 2026-09-26:
 //! its only JS caller was reachable only from dead code.
 //!
-//! Rust parity validator: wasm-core/tests/conflict_resolution_parity_test.rs
+//! Parity: `test-fixtures/conflict-resolution-parity.json` is the shared contract; `mod tests::parity`
+//! below runs it through `run_conflict_resolution`, and
+//! `src/utils/__tests__/ConflictResolution.parity.test.js` runs it through the JS fallback.
 
 use std::collections::HashSet;
 
@@ -117,65 +119,71 @@ pub fn resolve_global_conflicts(candidates_flat: &[u32]) -> Uint32Array {
 mod tests {
     use super::*;
 
-    fn flat(candidates: &[(u32, u32, u32, u32)]) -> Vec<u32> {
-        candidates
-            .iter()
-            .flat_map(|&(start, end, length, prio)| [start, end, length, prio])
-            .collect()
+    #[test]
+    fn input_not_a_whole_number_of_candidates_selects_nothing() {
+        assert!(run_conflict_resolution(&[0, 2, 3]).is_empty());
     }
 
-    #[test]
-    fn test_empty_returns_empty() {
-        assert!(run_conflict_resolution(&[]).is_empty());
-    }
+    /// The shared fixture is the contract for the algorithm; the JS mirror is
+    /// `src/utils/__tests__/ConflictResolution.parity.test.js`. `run_conflict_resolution` is
+    /// `pub(crate)`, so this has to live in the module, not in `wasm-core/tests/`.
+    mod parity {
+        use super::*;
+        use serde::Deserialize;
 
-    #[test]
-    fn test_single_candidate_always_selected() {
-        let input = flat(&[(0, 2, 3, 1)]);
-        assert_eq!(run_conflict_resolution(&input), vec![0]);
-    }
+        #[derive(Deserialize)]
+        struct FixtureMatch {
+            #[serde(rename = "type")]
+            match_type: String,
+            #[serde(rename = "startIndex")]
+            start_index: u32,
+            #[serde(rename = "endIndex")]
+            end_index: u32,
+        }
 
-    #[test]
-    fn test_longer_beats_shorter_overlapping() {
-        // index 0: length 2, index 1: length 3 — index 1 wins
-        let input = flat(&[(0, 1, 2, 1), (0, 2, 3, 1)]);
-        let result = run_conflict_resolution(&input);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], 1);
-    }
+        #[derive(Deserialize)]
+        struct FixtureCase {
+            name: String,
+            matches: Vec<FixtureMatch>,
+            selected: Vec<u32>,
+        }
 
-    #[test]
-    fn test_phrase_beats_pattern_at_equal_length_phase4() {
-        // type_priority 1=Phrase, 2=Pattern, same length → Phrase wins in phase 4
-        let input = flat(&[(0, 2, 3, 2), (0, 2, 3, 1)]); // pattern first, phrase second
-        let result = run_conflict_resolution(&input);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], 1); // phrase (orig index 1) wins
-    }
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<FixtureCase>,
+        }
 
-    #[test]
-    fn test_non_overlapping_both_selected() {
-        let input = flat(&[(0, 2, 3, 1), (3, 5, 3, 1)]);
-        let result = run_conflict_resolution(&input);
-        assert_eq!(result.len(), 2);
-        assert!(result.contains(&0));
-        assert!(result.contains(&1));
-    }
+        /// Mirrors `packMatches` in `WasmConflictResolution.js`: phrase 1, pattern 2, any other type 3.
+        fn type_priority(match_type: &str) -> u32 {
+            match match_type {
+                "phrase" => 1,
+                "pattern" => 2,
+                _ => 3,
+            }
+        }
 
-    #[test]
-    fn test_earlier_start_wins_on_equal_length_and_type() {
-        // index 0 starts at 1, index 1 starts at 0 — index 1 wins
-        let input = flat(&[(1, 3, 3, 1), (0, 2, 3, 1)]);
-        let result = run_conflict_resolution(&input);
-        assert_eq!(result.len(), 1);
-        assert_eq!(input[result[0] as usize * STRIDE], 0); // start_index == 0 wins
-    }
+        fn pack(matches: &[FixtureMatch]) -> Vec<u32> {
+            matches
+                .iter()
+                .flat_map(|m| {
+                    [m.start_index, m.end_index, m.end_index - m.start_index + 1, type_priority(&m.match_type)]
+                })
+                .collect()
+        }
 
-    #[test]
-    fn test_input_not_mutated() {
-        let input = flat(&[(0, 2, 3, 1), (1, 3, 3, 1)]);
-        let original = input.clone();
-        let _ = run_conflict_resolution(&input);
-        assert_eq!(input, original);
+        #[test]
+        fn run_conflict_resolution_matches_the_shared_fixture() {
+            let raw = include_str!("../../test-fixtures/conflict-resolution-parity.json");
+            let fixture: Fixture = serde_json::from_str(raw)
+                .expect("conflict-resolution-parity.json must be valid JSON matching the Fixture shape");
+            assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+            for case in &fixture.cases {
+                let input = pack(&case.matches);
+                let original = input.clone();
+                assert_eq!(run_conflict_resolution(&input), case.selected, "case: {}", case.name);
+                assert_eq!(input, original, "input mutated in case: {}", case.name);
+            }
+        }
     }
 }

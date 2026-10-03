@@ -11,30 +11,29 @@
  */
 
 import { SemanticArrays } from './SemanticTypes';
-import { TextPositionMapping } from './ViewportTypes';
 
 // ============================================================================
 // Translation Source Strings
 // ============================================================================
 
 /** Phase 1 leader source strings (JS adapter + WASM paths) */
-export type TranslationPhase1Source =
+type TranslationPhase1Source =
   'pattern' | 'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite';
 
 /** Phase 3 number conversion source strings */
-export type TranslationPhase3Source = 'number_conversion' | 'number_plus_liang_fix';
+type TranslationPhase3Source = 'number_conversion' | 'number_plus_liang_fix';
 
 /** Phase 4 phrase source string */
-export type TranslationPhase4Source = 'phrases';
+type TranslationPhase4Source = 'phrases';
 
 /** Phase 5 character source string */
-export type TranslationPhase5Source = 'characters';
+type TranslationPhase5Source = 'characters';
 
 /**
  * Phase 2: dynamic proper-noun dictionary name, e.g. 'properNouns-MyNovel'.
  * The template literal enforces the required prefix at the type level.
  */
-export type ProperNounSource = `properNouns-${string}`;
+type ProperNounSource = `properNouns-${string}`;
 
 /**
  * All valid leader (non-consumed) translation source strings.
@@ -54,7 +53,7 @@ export type TranslationLeaderSource =
  * All valid consumed-token translation source strings.
  * Consumed tokens have translated === null and source ends with '_consumed'.
  */
-export type TranslationConsumedSource =
+type TranslationConsumedSource =
   | `${TranslationPhase1Source}_consumed`
   | `${TranslationPhase3Source}_consumed`
   | `${TranslationPhase4Source}_consumed`
@@ -108,7 +107,7 @@ export interface DictionaryPriorities {
 /**
  * Configuration for EnhancedDictionaryManager
  */
-export interface DictionaryManagerConfig {
+interface DictionaryManagerConfig {
   /** Enable dictionary result caching */
   cacheEnabled?: boolean;
   /** Enable WASM acceleration for dictionary operations */
@@ -142,7 +141,7 @@ export interface MemoryPressureThresholds {
 /**
  * Memory cleanup urgency levels
  */
-export type MemoryCleanupUrgency = 'low' | 'medium' | 'high' | 'critical' | 'emergency';
+type MemoryCleanupUrgency = 'low' | 'medium' | 'high' | 'critical' | 'emergency';
 
 /**
  * Memory cleanup event data
@@ -201,7 +200,7 @@ export interface PatternProcessingSettings {
 /**
  * Semantic array builder configuration
  */
-export interface SemanticArrayBuilderConfig {
+interface SemanticArrayBuilderConfig {
   /** Use optimized semantic array builder */
   useOptimized?: boolean;
   /** Initial capacity for arrays */
@@ -237,7 +236,7 @@ export interface TranslationEngineInitOptions {
 /**
  * Translation mode types
  */
-export type TranslationMode =
+type TranslationMode =
   | 'full' // All 5 phases
   | 'character-only' // Phase 5 only
   | 'patterns-only' // Phase 1 only
@@ -346,7 +345,7 @@ export interface TranslationSegment {
 /**
  * Translation statistics and metrics
  */
-export interface TranslationStats {
+interface TranslationStats {
   /** Total processing time in milliseconds */
   totalTime: number;
   /** Time per phase in milliseconds */

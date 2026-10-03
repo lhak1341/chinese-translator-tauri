@@ -17,14 +17,14 @@
 //! not hypothetical (see `TextTokenizer`'s punctuation-classifier gap for a confirmed
 //! prior instance of exactly this failure class).
 //!
-//! Unlike `conflict_resolution_parity_test.rs` (an independent Rust re-implementation
-//! of a JS algorithm), this file calls `matcher.rs`'s real production `pub fn`s
+//! Unlike the pre-2026-10-03 `conflict_resolution_parity_test.rs` (an independent Rust
+//! re-implementation of a JS algorithm, since replaced by a shared fixture), this file calls `matcher.rs`'s real production `pub fn`s
 //! directly — no `wasm_bindgen` boundary to cross, no shadow implementation to drift.
 //!
 //! # Fixture linkage
 //!
 //! Each test below hand-duplicates the literal values from its named JS fixture
-//! (same convention as `conflict_resolution_parity_test.rs`), asserting only the
+//! (unlike conflict resolution, which reads `test-fixtures/conflict-resolution-parity.json`), asserting only the
 //! fields the JS fixture itself asserts — not `PatternMatchResult`'s Rust-only
 //! `start_position`/`end_position`/`pattern_semantic_type` fields. Parity means
 //! proving the same claim on both sides, not a superset.

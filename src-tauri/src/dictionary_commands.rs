@@ -790,23 +790,26 @@ fn validate_dictionary_payload(data: &serde_json::Value) -> Result<(), String> {
 
 /// C2: Write `bytes` to `path` atomically by writing to `path.tmp.<pid>` and
 /// renaming. Same-filesystem rename is atomic on POSIX and Windows ≥ Vista.
-fn write_atomic(path: &PathBuf, bytes: &[u8]) -> Result<(), String> {
+///
+/// `context` names what is being written ("dictionary file", "config file"); it is the noun in
+/// every error the caller reports, so a failed config save does not claim a dictionary failed.
+fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Result<(), String> {
     let parent = path
         .parent()
-        .ok_or_else(|| "Invalid dictionary file path".to_string())?;
+        .ok_or_else(|| format!("Invalid {} path", context))?;
     // Use the file name + ".tmp" + pid so concurrent writers don't collide.
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| "Invalid dictionary file name".to_string())?;
+        .ok_or_else(|| format!("Invalid {} name", context))?;
     let tmp_path = parent.join(format!("{}.tmp.{}", file_name, std::process::id()));
 
-    fs::write(&tmp_path, bytes).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
+    fs::write(&tmp_path, bytes).map_err(|e| sanitize_io_error(e, context))?;
 
     if let Err(e) = fs::rename(&tmp_path, path) {
         // Best-effort cleanup of the temp file on rename failure.
         let _ = fs::remove_file(&tmp_path);
-        return Err(sanitize_io_error(e, "dictionary file"));
+        return Err(sanitize_io_error(e, context));
     }
 
     Ok(())
@@ -830,7 +833,7 @@ fn write_dictionary_bytes(
     // is atomic on the same filesystem, so a crash mid-write leaves the
     // original file intact. fs::write alone truncates+writes in place and can
     // leave a partial/corrupt file on crash or concurrent saves.
-    write_atomic(path, bytes)?;
+    write_atomic(path, bytes, "dictionary file")?;
 
     // Defensive second invalidation — closes the very narrow window where a
     // load between the pre-write invalidate and rename completion could
@@ -971,7 +974,7 @@ fn save_json_file(
             MAX_JSON_SIZE_BYTES / 1024 / 1024
         ));
     }
-    write_atomic(path, json_string.as_bytes())?;
+    write_atomic(path, json_string.as_bytes(), "config file")?;
     Ok(DictionaryResponse::ok())
 }
 
@@ -2175,6 +2178,19 @@ mod tests {
     /// `load_blob`/`save_blob` delegate to, for all 4 `BlobKind`s — `load_blob`/`save_blob`
     /// themselves need a real `AppHandle` (path resolution only) so aren't unit-tested
     /// directly; this covers the part that actually varies per kind.
+    #[test]
+    fn test_blob_save_failure_names_the_config_file_not_a_dictionary() {
+        let dir = temp_test_dir("blob_save_failure_context");
+        let missing_parent = dir.join("no-such-dir").join("appearance.json");
+
+        let err = save_json_file(&missing_parent, &serde_json::json!({}))
+            .err()
+            .expect("saving into a missing directory must fail");
+
+        assert_eq!(err, "config file not found");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn test_blob_load_save_round_trip_for_every_kind() {
         for kind in [
