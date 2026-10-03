@@ -165,7 +165,6 @@ import {
 import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
 import tauriAPI from '../tauriAPI.js';
 import {
-  getSemanticTokens,
   getTokenSpanForText,
   reconstructTextFromIndex,
   getTextFromTokens,
@@ -713,9 +712,6 @@ export class TranslationEngine {
     if (this.translationSegments) {
       this.translationSegments = [];
     }
-
-    // Clear cached semantic tokens
-    this.cachedSemanticTokens = null;
 
     // Clear proper noun translations map
     if (this.properNounTranslations) {
@@ -2851,8 +2847,7 @@ export class TranslationEngine {
           token.translated === null &&
           token.type !== TokenType.CHINESE_CHAR &&
           token.type !== TokenType.CHINESE_WORD &&
-          token.type !== TokenType.SPACE &&
-          token.type !== TokenType.NEWLINE &&
+          token.type !== TokenType.WHITESPACE &&
           token.type !== TokenType.PUNCTUATION &&
           token.type !== TokenType.NUMBER &&
           token.type !== TokenType.LATIN_WORD &&
@@ -2889,8 +2884,7 @@ export class TranslationEngine {
               i + (options.chunkOffset || 0) // global token index
             );
             break;
-          case TokenType.SPACE:
-          case TokenType.NEWLINE:
+          case TokenType.WHITESPACE:
           case TokenType.PUNCTUATION:
           case TokenType.UNKNOWN:
             // CRITICAL FIX: Explicit handling for whitespace, punctuation, and unknown tokens
@@ -2929,30 +2923,6 @@ export class TranslationEngine {
       segments.map((s) => `"${s.text}" (${s.tokenType})${s.isProperNoun ? ' [proper noun]' : ''}`)
     );
 
-    // DEBUG: Log segments with parentheses and numbers
-    if (process.env.NODE_ENV === 'development') {
-      const hasParenthesesAndNumbers = segments.some(
-        (s) =>
-          s.text === '(' ||
-          s.text === ')' ||
-          s.text === '（' ||
-          s.text === '）' ||
-          s.text === '/' ||
-          s.tokenType === TokenType.NUMBER
-      );
-      if (hasParenthesesAndNumbers) {
-        logger.log('🔍 DEBUG: Segments with parentheses/numbers BEFORE spacing logic:', {
-          segmentCount: segments.length,
-          segments: segments.map((s, i) => ({
-            index: i,
-            text: s.text,
-            tokenType: s.tokenType,
-            originalToken: s.originalToken,
-          })),
-        });
-      }
-    }
-
     // Step 2: Join segments with appropriate spacing AND track positions for semantic array
     // WASM-accelerated path (30-50% faster); falls back to JS if WASM not ready.
     const { translatedText: result, positions: assembledPositions } =
@@ -2989,34 +2959,11 @@ export class TranslationEngine {
       }
     }
 
-    // DEBUG: Log result before and after cleanup
-    if (process.env.NODE_ENV === 'development') {
-      if (result.includes('(') || result.includes('（')) {
-        logger.log('🔍 DEBUG: Result BEFORE cleanupFormatting:', {
-          result: result.substring(Math.max(0, result.indexOf('(') - 20), result.indexOf(')') + 20),
-          fullLength: result.length,
-        });
-      }
-    }
-
     const cleaned = this.cleanupFormatting(result, {
       ...options,
       properNounTranslations,
       segments,
     });
-
-    // DEBUG: Log result after cleanup
-    if (process.env.NODE_ENV === 'development') {
-      if (cleaned.includes('(') || cleaned.includes('（')) {
-        logger.log('🔍 DEBUG: Result AFTER cleanupFormatting:', {
-          cleaned: cleaned.substring(
-            Math.max(0, cleaned.indexOf('(') - 20),
-            cleaned.indexOf(')') + 20
-          ),
-          fullLength: cleaned.length,
-        });
-      }
-    }
 
     this.log(
       DEBUG_LEVELS.VERBOSE,
@@ -3354,14 +3301,6 @@ export class TranslationEngine {
    * @returns {string} Cleaned text
    */
   cleanupFormatting(text, options) {
-    if (process.env.NODE_ENV === 'development') {
-      // DEBUG: Log when processing text with numbers
-      if (text.includes('23') || text.includes('30')) {
-        logger.log('🔍 DEBUG: cleanupFormatting INPUT:', text.substring(0, 200));
-        logger.log('🔍 DEBUG: useChunking option:', options.useChunking);
-      }
-    }
-
     let result = text;
 
     // Apply punctuation translations FIRST using the actual punctuation dictionary
@@ -3517,13 +3456,6 @@ export class TranslationEngine {
 
     // Capitalize first letter after closing quotes (period + quote + space + text)
     //     result = result.replace(/[.!?][""]\s+./g, match => match.toUpperCase()); // " and "
-
-    if (process.env.NODE_ENV === 'development') {
-      // DEBUG: Log output when processing text with numbers
-      if (result.includes('23') || result.includes('30')) {
-        logger.log('🔍 DEBUG: cleanupFormatting OUTPUT:', result.substring(0, 200));
-      }
-    }
 
     return result;
   }
@@ -4305,6 +4237,9 @@ export class TranslationEngine {
     // regression-tested hard ceiling on every push (see src/utils/CLAUDE.md), and
     // semanticArrayBuilder has no real light-cleanup method and no verified-safe
     // mid-translation reset (architecture review 2026-07-29, candidate #1).
+    // Each call builds its own coordinator; stop the previous one's sampling timer first,
+    // otherwise it keeps running (destroy() only reaches the latest).
+    this.memoryCoordinator?.shutdown();
     this.memoryCoordinator = new SmartMemoryCoordinator({
       pressureConfig: {
         lowPressure: 0.6,
@@ -5138,12 +5073,6 @@ export class TranslationEngine {
       );
     }
 
-    // Clear semantic token cache for this translation.
-    // INVARIANT: cache is always null when Phase 1 (patterns) runs.
-    // DO NOT pre-populate cachedSemanticTokens before Phase 1 as an optimization —
-    // Phase 1 mutates tokens and the semantic view must reflect post-Phase-1 state for all later phases.
-    this.cachedSemanticTokens = null;
-
     // CRITICAL FIX: Track phase completion for debugging silent failures
     // Phases can fail silently (catch error, log, continue) which makes debugging difficult
     // This Set tracks which phases completed successfully vs failed
@@ -5348,8 +5277,6 @@ export class TranslationEngine {
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
 
-        // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
-        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -5401,18 +5328,8 @@ export class TranslationEngine {
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
 
-        // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
-        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
-
-      // OPTIMIZATION: Cache semantic tokens after proper noun grouping completes
-      // This avoids redundant O(N) filtering in subsequent phases (5-10% overhead reduction)
-      // NOTE (CODE REVIEW 2026-01-27): This cache is primarily used by phrase processing (Phase 4).
-      // It may become stale if Phase 3 (numbers) consumes additional tokens, but that's acceptable
-      // because number processing doesn't need semantic token filtering. If phases 4-5 notice
-      // issues, they should clear this cache: this.cachedSemanticTokens = null;
-      this.cachedSemanticTokens = this.getCachedSemanticTokens(tokens);
 
       // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
       // Numbers should be processed before phrases to preserve number sequences like "六十五"
@@ -5455,11 +5372,6 @@ export class TranslationEngine {
           validatePhasePriority('numbers', 3, tokensBeforePhase3);
         }
         checkSemanticArrayCorruption('numbers');
-
-        // CODE REVIEW FIX 2026-01-28 (HIGH-2): Invalidate cached semantic tokens after Phase 3
-        // Phase 3 can consume number tokens, making the cache set after Phase 2 stale
-        // Phase 4 (phrases) needs fresh semantic tokens to avoid wasting lookups on consumed positions
-        this.cachedSemanticTokens = null;
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('numbers', error.message);
@@ -5480,8 +5392,6 @@ export class TranslationEngine {
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
 
-        // Clear cached semantic tokens on phase failure to prevent stale cache
-        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -5538,8 +5448,6 @@ export class TranslationEngine {
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
 
-        // Clear cached semantic tokens on phase failure to prevent stale cache
-        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -5615,8 +5523,6 @@ export class TranslationEngine {
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
 
-        // Clear cached semantic tokens on phase failure to prevent stale cache
-        this.cachedSemanticTokens = null;
         // Continue to postProcess (graceful degradation)
       }
 
@@ -5699,32 +5605,6 @@ export class TranslationEngine {
       DEBUG_LEVELS.VERBOSE,
       `✅ Single-pass completed: ${tokens.length} tokens in ${translationTime.toFixed(1)}ms`
     );
-  }
-
-  /**
-   * CODE REVIEW FIX (HIGH-2): Get cached semantic tokens with validation
-   * Validates cache hasn't been corrupted before returning
-   * @param {Token[]} tokens - Current token array
-   * @returns {Token[]} Validated semantic tokens
-   */
-  getCachedSemanticTokens(tokens) {
-    // If no cache, generate fresh semantic tokens
-    if (!this.cachedSemanticTokens) {
-      return getSemanticTokens(tokens);
-    }
-
-    // Validate cache still matches token state
-    // Cache becomes invalid if token array grew (indicates corruption or new processing)
-    if (this.cachedSemanticTokens.length > tokens.length) {
-      logger.warn(
-        `⚠️ Semantic token cache invalid (${this.cachedSemanticTokens.length} cached > ${tokens.length} tokens) - regenerating`
-      );
-      this.cachedSemanticTokens = null;
-      return getSemanticTokens(tokens);
-    }
-
-    // Cache is valid
-    return this.cachedSemanticTokens;
   }
 
   /**

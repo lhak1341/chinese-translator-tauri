@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1790965344.2275586,
-    "ast_hash": "4f213a4c6d3ff98354b0582c9944350a",
+    "mtime": 1791005493.8587985,
+    "ast_hash": "c2dc94abc2bb52d011b023d7f26fb717",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -425,9 +425,9 @@
     "semantic_hash": "319abdab506f6aeecbf32c21c0e58379"
   },
   "src/utils/memory/SmartMemoryPressureDetector.ts": {
-    "mtime": 1780465490.3019447,
-    "ast_hash": "29feeaae1eb41e83cc3349cc2367d3c8",
-    "semantic_hash": "29feeaae1eb41e83cc3349cc2367d3c8"
+    "mtime": 1791005493.8595712,
+    "ast_hash": "4b91b305a9eb652da446ca9b2492bf36",
+    "semantic_hash": ""
   },
   "src/utils/memory/index.ts": {
     "mtime": 1785327610.707666,
@@ -1075,8 +1075,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790997982.658997,
-    "ast_hash": "ce56cb3fdd0daa2076fbf5e57b968bf3",
+    "mtime": 1791004400.294847,
+    "ast_hash": "dd73073476a85ba9e2c9f92298ac79fa",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1790997982.6572537,
-    "ast_hash": "8cc2094c880c6081034b42cfc4bedfa9",
+    "mtime": 1791004400.9956872,
+    "ast_hash": "56d67f2f0d1bd38c76bbd630258bff03",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -2330,8 +2330,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingStore.ts": {
-    "mtime": 1790992978.2232296,
-    "ast_hash": "bab25d8dc1cc97a7fcc813ca633f1a71",
+    "mtime": 1791004400.647182,
+    "ast_hash": "44fb3ff1794c0373c41ba291f07f30f9",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryTabNavigation.ts": {
@@ -2355,8 +2355,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-060-dictionary-id-and-config-key-rules-held-by-a-shared-fixture.md": {
-    "mtime": 1790997975.9365034,
-    "ast_hash": "97776ec5450d4fdb2945940ba0cd8f55",
+    "mtime": 1791004400.3220525,
+    "ast_hash": "1aa1584b6debf499126c604e622e4a6b",
     "semantic_hash": ""
   },
   "docs/adr/ADR-061-skip-shelf-row-module.md": {
@@ -2410,8 +2410,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CommitFeedback.ts": {
-    "mtime": 1790990873.5000563,
-    "ast_hash": "99f1f55b82be21ab42bf11576dcef64d",
+    "mtime": 1791004401.0507987,
+    "ast_hash": "b0d1dcc71e7d357a538bbbe92466c6b1",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryLabels.ts": {

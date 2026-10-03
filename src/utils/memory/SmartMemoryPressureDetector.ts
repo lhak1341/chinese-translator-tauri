@@ -113,12 +113,6 @@ export class SmartMemoryPressureDetector {
     }
 
     this.startSampling();
-
-    if (process.env.NODE_ENV === 'development') {
-      logger.log(
-        '⚠️ SmartMemoryPressureDetector: Call stop() before destroying to prevent memory leak'
-      );
-    }
   }
 
   getCurrentPressureLevel(): MemoryPressure {
