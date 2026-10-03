@@ -330,9 +330,7 @@ export class TranslationEngine {
       tauriAPI: tauriAPI,
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
-    this.textChunker = new TextChunker({
-      excludedCharacters: new Set(['/']), // Don't treat / as chunk separator (used in fractions like 23/30)
-    });
+    this.textChunker = new TextChunker();
     this.chunkPostProcessor = new ChunkPostProcessor();
     this.numberProcessor = new NumberProcessor();
 

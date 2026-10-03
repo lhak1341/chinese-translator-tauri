@@ -463,6 +463,12 @@ See `DictionaryMatchLookup` for the separate, per-call match-dispatch axis (sequ
 
 Entry points: `src/utils/dictionary/LookupIndexBuilder.ts` (`buildLookupIndexOrFallback`), `src/utils/RustLookupIndexManager.js`, `src/utils/dictionary/LookupIndexUtils.ts` (`getIndexedMatches`).
 
+## TextChunker
+
+Splits text into `TextChunk[]` at punctuation boundaries (`chunkText(text)`; content, punctuation, startIndex, lineBreaks, startedBy). Two adapters behind one interface: Rust `TextChunker` through `WasmTextChunker` (live, tried first) and the JS implementation in `src/utils/text/TextChunker.js` (used when WASM is not ready, failed to init, or was retired after a panic). Punctuation is Unicode general category on the Rust side and `UnicodePunctuationDetector` categories on the JS side; the Rust-only non-Unicode list was deleted 2026-10-03.
+
+**Shared rules and the one remaining divergence** (`test-fixtures/chunker-parity.json`, read by `text_chunker.rs`'s `mod tests::parity` and `TextChunker.parity.test.js`): both sides split on Unicode punctuation including dashes (Pd: `-`, `—`, `——`) and `_` (Pc), and both keep a `/` between two ASCII digits whole (`23/30`, `3/4`) while splitting any other `/`. Dashes and `_` followed Rust's shipped behavior (2026-10-03); the digit-slash rule is new on both sides, because before it the live Rust path split `23/30` at the `/` while only the JS fallback kept it (the engine passed `excludedCharacters ['/']`, which WASM never saw). The one divergence left: a leading-punctuation chunk's `startIndex` is 0 in JS and the flushing content's index in Rust. Measured over 5 real novels (17M characters) before the change: Rust made 0.0-0.2% more chunks than JS, nearly all of it `——` before closing punctuation. Both paths trim `content` through `TextChunk`.
+
 ## TextTokenizer
 
 The Phase-0 tokenization seam: splits raw input text into `Token[]` (type, value, start, end) before the 5-phase pipeline runs. Two adapters behind one interface (`tokenize(text): Token[]`): `WasmTextTokenizer` (Rust `tokenize_text_core`, direct character classification, 3-8x faster) tried first; JS regex-based `tokenizeJS` (private method) as fallback, used whenever WASM hasn't finished its async init or a WASM call returns `null`.

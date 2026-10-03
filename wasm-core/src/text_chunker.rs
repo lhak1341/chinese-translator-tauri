@@ -33,23 +33,22 @@ pub struct TextChunkResult {
 /// - Speedup: 2-3x, significant for long texts with heavy punctuation
 #[wasm_bindgen]
 pub struct TextChunker {
-    /// Configuration for which punctuation categories to use
-    use_unicode_properties: bool,
-
     /// Performance statistics (AtomicU32 so chunk_text can use &self, avoiding RefCell::borrow_mut)
     chunks_processed: AtomicU32,
+}
+
+impl Default for TextChunker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[wasm_bindgen]
 impl TextChunker {
     /// Create new text chunker
-    ///
-    /// # Arguments
-    /// * `use_unicode_properties` - Use Unicode property detection (true) or basic ASCII (false)
     #[wasm_bindgen(constructor)]
-    pub fn new(use_unicode_properties: bool) -> TextChunker {
+    pub fn new() -> TextChunker {
         TextChunker {
-            use_unicode_properties,
             chunks_processed: AtomicU32::new(0),
         }
     }
@@ -59,28 +58,17 @@ impl TextChunker {
     /// Uses Unicode General Category for comprehensive punctuation detection
     #[inline]
     fn is_punctuation_separator(&self, ch: char) -> bool {
-        if self.use_unicode_properties {
-            // Use Unicode General Category - comprehensive punctuation detection
-            // Covers all punctuation categories (Pc, Pd, Pe, Pf, Pi, Po, Ps)
-            matches!(
-                ch.general_category(),
-                GeneralCategory::ConnectorPunctuation      // Pc: _
-                | GeneralCategory::DashPunctuation         // Pd: -
-                | GeneralCategory::ClosePunctuation        // Pe: ), ], }
-                | GeneralCategory::FinalPunctuation        // Pf: », "
-                | GeneralCategory::InitialPunctuation      // Pi: «, "
-                | GeneralCategory::OtherPunctuation        // Po: !, ?, ., etc.
-                | GeneralCategory::OpenPunctuation         // Ps: (, [, {
-            )
-        } else {
-            // Fallback: basic ASCII and common Chinese punctuation
-            matches!(
-                ch,
-                ',' | '.' | '!' | '?' | ';' | ':' | '，' | '。' | '．' | '！' | '？' | '；' | '：'
-                | '(' | ')' | '（' | '）' | '[' | ']' | '{' | '}' | '《' | '》' | '【' | '】'
-                | '"' | '\u{201c}' | '\u{201d}' | '\u{2018}' | '\u{2019}' | '\'' | '、' | '…' | '－'
-            ) || ch == '\u{2014}' // Em dash (—)
-        }
+        // Covers all punctuation categories (Pc, Pd, Pe, Pf, Pi, Po, Ps)
+        matches!(
+            ch.general_category(),
+            GeneralCategory::ConnectorPunctuation      // Pc: _
+            | GeneralCategory::DashPunctuation         // Pd: -
+            | GeneralCategory::ClosePunctuation        // Pe: ), ], }
+            | GeneralCategory::FinalPunctuation        // Pf: », "
+            | GeneralCategory::InitialPunctuation      // Pi: «, "
+            | GeneralCategory::OtherPunctuation        // Po: !, ?, ., etc.
+            | GeneralCategory::OpenPunctuation         // Ps: (, [, {
+        )
     }
 
     /// Chunk text by punctuation boundaries
@@ -172,12 +160,21 @@ impl TextChunker {
             }
         };
 
-        // Process each character via iterator — no Vec<char> allocation.
-        for ch in text.chars() {
+        // Process each character via iterator — no Vec<char> allocation. `prev` and the
+        // peeked next char decide the one context-dependent rule: a '/' between two ASCII
+        // digits (23/30, 3/4) is part of the number, not a separator.
+        let mut chars = text.chars().peekable();
+        let mut prev: Option<char> = None;
+        while let Some(ch) = chars.next() {
+            let is_digit_slash = ch == '/'
+                && prev.is_some_and(|p| p.is_ascii_digit())
+                && chars.peek().is_some_and(|n| n.is_ascii_digit());
+            prev = Some(ch);
+
             if ch == '\r' || ch == '\n' {
                 // Handle line breaks
                 current_line_breaks.push(ch);
-            } else if self.is_punctuation_separator(ch) {
+            } else if !is_digit_slash && self.is_punctuation_separator(ch) {
                 // Handle punctuation
                 // If we have line breaks accumulated, flush previous chunk
                 if !current_line_breaks.is_empty() {
@@ -288,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_punctuation_detection() {
-        let chunker = TextChunker::new(true);
+        let chunker = TextChunker::new();
 
         // ASCII punctuation
         assert!(chunker.is_punctuation_separator(','));
@@ -315,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_basic_chunking() {
-        let chunker = TextChunker::new(true);
+        let chunker = TextChunker::new();
         let result: Vec<TextChunkResult> =
             serde_json::from_str(&chunker.chunk_text("你好，世界").unwrap()).unwrap();
         assert_eq!(result.len(), 2);
@@ -327,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_leading_punctuation_produces_empty_content_chunk() {
-        let chunker = TextChunker::new(true);
+        let chunker = TextChunker::new();
         let result: Vec<TextChunkResult> =
             serde_json::from_str(&chunker.chunk_text("《标题》内容").unwrap()).unwrap();
         assert_eq!(result[0].content, "");
@@ -336,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_consecutive_punctuation_merges_onto_preceding_chunk() {
-        let chunker = TextChunker::new(true);
+        let chunker = TextChunker::new();
         let result: Vec<TextChunkResult> =
             serde_json::from_str(&chunker.chunk_text("道：「说").unwrap()).unwrap();
         assert_eq!(result.len(), 2);
@@ -345,19 +342,52 @@ mod tests {
 
     #[test]
     fn test_line_break_starts_next_chunk() {
-        let chunker = TextChunker::new(true);
+        let chunker = TextChunker::new();
         let result: Vec<TextChunkResult> =
             serde_json::from_str(&chunker.chunk_text("line1\nline2").unwrap()).unwrap();
         assert_eq!(result[0].line_breaks, "\n");
         assert_eq!(result[1].started_by, "linebreak");
     }
 
-    #[test]
-    fn test_ascii_fallback_when_unicode_properties_disabled() {
-        let chunker = TextChunker::new(false); // exercises is_punctuation_separator's non-Unicode branch
-        let result: Vec<TextChunkResult> =
-            serde_json::from_str(&chunker.chunk_text("hello, world!").unwrap()).unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].punctuation, ",");
+    /// Cross-language parity against test-fixtures/chunker-parity.json. The JS mirror is
+    /// src/utils/__tests__/TextChunker.parity.test.js; the fixture records where the two
+    /// agree and where they are documented to diverge.
+    mod parity {
+        use super::*;
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct FixtureCase {
+            name: String,
+            input: String,
+            rust: Vec<TextChunkResult>,
+        }
+
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<FixtureCase>,
+        }
+
+        #[test]
+        fn chunk_text_matches_the_shared_fixture() {
+            let raw = include_str!("../../test-fixtures/chunker-parity.json");
+            let fixture: Fixture = serde_json::from_str(raw)
+                .expect("chunker-parity.json must be valid JSON matching the Fixture shape");
+            assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+            let chunker = TextChunker::new();
+            for case in fixture.cases {
+                let actual: Vec<TextChunkResult> =
+                    serde_json::from_str(&chunker.chunk_text(&case.input).unwrap()).unwrap();
+
+                assert_eq!(
+                    serde_json::to_value(&actual).unwrap(),
+                    serde_json::to_value(&case.rust).unwrap(),
+                    "case \"{}\": chunks diverged from the shared fixture (input: {:?})",
+                    case.name,
+                    case.input
+                );
+            }
+        }
     }
 }

@@ -114,8 +114,8 @@ export class UnicodePunctuationDetector {
         Ps: true, // Open Punctuation ([, (, {, 《, 【, etc.)
         Pi: true, // Initial Punctuation (opening quotes)
         Pf: true, // Final Punctuation (closing quotes)
-        Pd: false, // Dash Punctuation (-, —, etc.) - often part of words
-        Pc: false, // Connector Punctuation (_) - often part of identifiers
+        Pd: true, // Dash Punctuation (-, —, ——): Rust's chunker splits on it too (chunker-parity.json)
+        Pc: true, // Connector Punctuation (_): same
       },
 
       // Additional custom separators (fallback for browsers without Unicode property support)

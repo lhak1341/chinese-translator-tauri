@@ -25,6 +25,16 @@ class TextChunk {
   }
 }
 
+/**
+ * A '/' between two ASCII digits (23/30, 3/4) is part of the number, not a separator.
+ * Rust's chunker applies the same rule (wasm-core/src/text_chunker.rs).
+ * @param {string[]} chars
+ * @param {number} i
+ */
+function isDigitSlash(chars, i) {
+  return chars[i] === '/' && /[0-9]/.test(chars[i - 1] ?? '') && /[0-9]/.test(chars[i + 1] ?? '');
+}
+
 export class TextChunker {
   constructor(punctuationConfig = {}) {
     // Initialize Unicode-based punctuation detection system
@@ -54,8 +64,8 @@ export class TextChunker {
    *   - Performance: 2-3x speedup for large texts (>1000 chars)
    *
    * CHUNKING BEHAVIOR:
-   *   - WASM: More aggressive chunking (splits at / for example)
-   *   - JavaScript: Less aggressive (preserves / in same chunk)
+   *   - The two paths still disagree on a leading-punctuation chunk's startIndex.
+   *     test-fixtures/chunker-parity.json records it.
    *   - Result: WASM may produce more chunks than JavaScript
    *
    * @param {string} text - Input text to chunk
@@ -142,7 +152,7 @@ export class TextChunker {
       if (char === '\r' || char === '\n') {
         // Handle line breaks
         currentLineBreaks += char;
-      } else if (this.isPunctuationSeparator(char)) {
+      } else if (!isDigitSlash(chars, i) && this.isPunctuationSeparator(char)) {
         // Handle punctuation using Unicode detection
         // If we have line breaks accumulated, this punctuation should start a new chunk
         if (currentLineBreaks) {

@@ -1,0 +1,507 @@
+{
+  "_contract": "Shared cross-language chunker fixture (architecture review 2026-10-03, candidate #3 grilling). Both wasm-core/src/text_chunker.rs (mod tests::parity) and src/utils/__tests__/TextChunker.parity.test.js read this file and assert their own real chunker's output against it, for the cases where they agree and the cases where they are documented to diverge. WASM is the live path; the JS chunker runs only when WASM is not ready, failed to init, or was retired after a panic, so any remaining divergence here means the same text can chunk differently within one session. Do not edit a rust/js expectation to make a test pass: change the chunker, or record the divergence on purpose.",
+  "cases": [
+    {
+      "name": "comma_and_period_agree",
+      "description": "Ordinary Chinese sentence punctuation splits on both sides.",
+      "input": "你好，世界。",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "你好",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "。",
+          "startIndex": 3,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ],
+      "js": [
+        {
+          "content": "你好",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "。",
+          "startIndex": 3,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ]
+    },
+    {
+      "name": "stacked_quote_punctuation_agree",
+      "description": "Consecutive punctuation merges onto the preceding chunk.",
+      "input": "他说：「好」",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他说",
+          "punctuation": "：「",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "」",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "：「"
+        }
+      ],
+      "js": [
+        {
+          "content": "他说",
+          "punctuation": "：「",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "」",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "：「"
+        }
+      ]
+    },
+    {
+      "name": "hyphen_agree",
+      "description": "Pd (dash punctuation): Both sides split on it (the JS detector enabled Pd and Pc on 2026-10-03 to match Rust, which is what ships).",
+      "input": "他说-好",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他说",
+          "punctuation": "-",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 3,
+          "lineBreaks": "",
+          "startedBy": "-"
+        }
+      ],
+      "js": [
+        {
+          "content": "他说",
+          "punctuation": "-",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 3,
+          "lineBreaks": "",
+          "startedBy": "-"
+        }
+      ]
+    },
+    {
+      "name": "em_dash_pair_agree",
+      "description": "The Chinese two-em dash (——) used for breaks in dialogue; Pd, so the same as the hyphen.",
+      "input": "他说——好",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他说",
+          "punctuation": "——",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "——"
+        }
+      ],
+      "js": [
+        {
+          "content": "他说",
+          "punctuation": "——",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "——"
+        }
+      ]
+    },
+    {
+      "name": "underscore_agree",
+      "description": "Pc (connector punctuation): Both sides split on it (the JS detector enabled Pc on 2026-10-03 to match Rust).",
+      "input": "他_好",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他",
+          "punctuation": "_",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "_"
+        }
+      ],
+      "js": [
+        {
+          "content": "他",
+          "punctuation": "_",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "_"
+        }
+      ]
+    },
+    {
+      "name": "slash_between_digits_agree",
+      "description": "A '/' between two ASCII digits is part of the number (23/30), not a separator, on both sides.",
+      "input": "23/30的人",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "23/30的人",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        }
+      ],
+      "js": [
+        {
+          "content": "23/30的人",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        }
+      ]
+    },
+    {
+      "name": "slash_between_words_agree",
+      "description": "A '/' between words is Po punctuation and splits on both sides.",
+      "input": "他/她",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他",
+          "punctuation": "/",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "她",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "/"
+        }
+      ],
+      "js": [
+        {
+          "content": "他",
+          "punctuation": "/",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "她",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "/"
+        }
+      ]
+    },
+    {
+      "name": "slash_digit_then_word_agree",
+      "description": "Only a digit on BOTH sides keeps the '/' in the content: a digit before and a word after still splits.",
+      "input": "3/月",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "3",
+          "punctuation": "/",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "月",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "/"
+        }
+      ],
+      "js": [
+        {
+          "content": "3",
+          "punctuation": "/",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "月",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "/"
+        }
+      ]
+    },
+    {
+      "name": "ellipsis_agree",
+      "description": "Po on both sides.",
+      "input": "他…好",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "他",
+          "punctuation": "…",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "…"
+        }
+      ],
+      "js": [
+        {
+          "content": "他",
+          "punctuation": "…",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "…"
+        }
+      ]
+    },
+    {
+      "name": "line_break_agree",
+      "description": "A line break ends the chunk and starts the next with startedBy 'linebreak'.",
+      "input": "line1\nline2",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "line1",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "line2",
+          "punctuation": "",
+          "startIndex": 6,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ],
+      "js": [
+        {
+          "content": "line1",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "line2",
+          "punctuation": "",
+          "startIndex": 6,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ]
+    },
+    {
+      "name": "blank_line_agree",
+      "description": "Two line breaks stay together on one chunk.",
+      "input": "第一行\n\n第二行",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "第一行",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "第二行",
+          "punctuation": "",
+          "startIndex": 5,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ],
+      "js": [
+        {
+          "content": "第一行",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "第二行",
+          "punctuation": "",
+          "startIndex": 5,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ]
+    },
+    {
+      "name": "leading_punctuation_start_index",
+      "description": "Leading punctuation yields an empty-content chunk startedBy 'start'. Rust reports its startIndex as 1 (the index of the content that flushed it), JS as 0; every other field agrees.",
+      "input": "《标题》内容",
+      "expectAgreement": false,
+      "rust": [
+        {
+          "content": "",
+          "punctuation": "《",
+          "startIndex": 1,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "标题",
+          "punctuation": "》",
+          "startIndex": 1,
+          "lineBreaks": "",
+          "startedBy": "《"
+        },
+        {
+          "content": "内容",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "》"
+        }
+      ],
+      "js": [
+        {
+          "content": "",
+          "punctuation": "《",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "标题",
+          "punctuation": "》",
+          "startIndex": 1,
+          "lineBreaks": "",
+          "startedBy": "《"
+        },
+        {
+          "content": "内容",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "》"
+        }
+      ]
+    },
+    {
+      "name": "punctuation_then_line_break_agree",
+      "description": "Punctuation then a line break.",
+      "input": "你好，\n世界",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "你好",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ],
+      "js": [
+        {
+          "content": "你好",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ]
+    },
+    {
+      "name": "whitespace_only_agree",
+      "description": "Whitespace-only input gives no chunks.",
+      "input": "   ",
+      "expectAgreement": true,
+      "rust": [],
+      "js": []
+    }
+  ]
+}

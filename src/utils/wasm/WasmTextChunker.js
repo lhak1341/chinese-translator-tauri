@@ -40,7 +40,7 @@ const lifecycle = new WasmProcessorLifecycle({
 /** @type {TextChunker | null} */
 let _chunker = null;
 
-async function _initializeTextChunker(useUnicodeProperties = true, timeoutMs = 10000) {
+async function _initializeTextChunker(timeoutMs = 10000) {
   return lifecycle.initialize(async (wasmBinary) => {
     logger.log(
       `[WASM TextChunker] 🔄 Starting init (timeout: ${timeoutMs}ms, env: ${process.env.NODE_ENV})`
@@ -60,7 +60,7 @@ async function _initializeTextChunker(useUnicodeProperties = true, timeoutMs = 1
     logger.log(
       `[WASM TextChunker] ✅ WASM module loaded in ${(performance.now() - startTime).toFixed(1)}ms`
     );
-    const instance = new TextChunker(useUnicodeProperties);
+    const instance = new TextChunker();
     _chunker = instance;
     logger.log(
       `[WASM TextChunker] ✅ Fully initialized in ${(performance.now() - startTime).toFixed(1)}ms`
