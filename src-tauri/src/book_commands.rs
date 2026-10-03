@@ -266,8 +266,8 @@ fn scan_library_impl(library_path: &Path) -> Result<LibraryScan, String> {
         });
     }
 
-    // Sorted by title so the shelf has a stable order; `read_dir` gives none.
-    books.sort_by(|a, b| a.title.cmp(&b.title));
+    // No order: `read_dir` gives none, and the shelf's order is the TS shelf's
+    // (`byShelfTitle` in ReconcileLibrary.ts, locale-aware).
 
     Ok(LibraryScan {
         library_path: library_path.to_string_lossy().to_string(),
@@ -504,7 +504,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn scan_lists_only_text_files_sorted_by_title() {
+    fn scan_lists_only_text_files() {
         let dir = TempDir::new("scan");
         dir.write("beta.txt", &gbk("第一章\r\n内容\r\n"));
         dir.write("alpha.txt", &gbk("第一章\r\n内容\r\n"));
@@ -512,7 +512,8 @@ pub(crate) mod tests {
         std::fs::create_dir_all(dir.0.join("backup")).unwrap();
 
         let scan = scan_library_impl(&dir.0).expect("scan succeeds");
-        let titles: Vec<&str> = scan.books.iter().map(|b| b.title.as_str()).collect();
+        let mut titles: Vec<&str> = scan.books.iter().map(|b| b.title.as_str()).collect();
+        titles.sort(); // scan order is unspecified
         assert_eq!(scan.books.len(), 2, "only .txt files, and no directories");
         assert_eq!(titles, vec!["alpha", "beta"]);
         assert!(scan.books.iter().all(|b| b.size_bytes > 0));

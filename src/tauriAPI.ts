@@ -35,7 +35,8 @@ import type {
 import type { TransformRule } from './types/TransformRuleTypes';
 
 // ── Rust command name constants ───────────────────────────────────────────────
-const CMD = {
+// Exported for src/__tests__/IpcCommands.parity.test.ts, which ties this list to the Rust handler list.
+export const CMD = {
   READ_CLIPBOARD: 'read_clipboard',
   SAVE_DICTIONARY: 'save_dictionary',
   LOAD_DICTIONARY: 'load_dictionary',

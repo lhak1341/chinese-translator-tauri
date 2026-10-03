@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1790522008.6878567,
-    "ast_hash": "d05f13d878106bbe69c0ee7f8e733635",
+    "mtime": 1790988932.6956646,
+    "ast_hash": "9865c336bbcd7d5b3e160c582f7c3151",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -65,8 +65,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1790960199.2006466,
-    "ast_hash": "3837c36254aa4455c395d54a27a3b968",
+    "mtime": 1790986777.8519728,
+    "ast_hash": "3c57f1631214d95dc8f3263bc5aeb28b",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -90,8 +90,8 @@
     "semantic_hash": "129bbad79ad3780c1f0b9d900355db38"
   },
   "wasm-core/src/text_chunker.rs": {
-    "mtime": 1786961287.48276,
-    "ast_hash": "285f147766e63ec2ceb0cde9a2dde1fa",
+    "mtime": 1790987443.457276,
+    "ast_hash": "efd3f0e8f3c3e4e3ab3753d48fd06153",
     "semantic_hash": ""
   },
   "wasm-core/src/string_processor.rs": {
@@ -190,8 +190,8 @@
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
   "src/tauriAPI.ts": {
-    "mtime": 1790960303.43576,
-    "ast_hash": "ba06935575df1c065039de11ab07369f",
+    "mtime": 1790986777.857118,
+    "ast_hash": "701fdf45ec0d9819bd5cf9b5d0880edf",
     "semantic_hash": ""
   },
   "src/App.jsx": {
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1790964344.929035,
-    "ast_hash": "7a72ad8f6709db0432ad2202db497753",
+    "mtime": 1790965344.2275586,
+    "ast_hash": "4f213a4c6d3ff98354b0582c9944350a",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -520,8 +520,8 @@
     "semantic_hash": "e839ec1c57d56e028c7df0f7e24f609c"
   },
   "src/utils/wasm/WasmTextChunker.js": {
-    "mtime": 1788933200.3405159,
-    "ast_hash": "e3af2e0b48a309d23026e53c61df634a",
+    "mtime": 1790964629.1736257,
+    "ast_hash": "6e1dd7c2b4f98a6d344089ea95a07b0e",
     "semantic_hash": ""
   },
   "src/utils/wasm/wasmBinaryCache.js": {
@@ -685,13 +685,13 @@
     "semantic_hash": ""
   },
   "src/utils/text/TextChunker.js": {
-    "mtime": 1786813112.415733,
-    "ast_hash": "31b065447203bdcb738ec241b723d8ba",
+    "mtime": 1790987434.4340556,
+    "ast_hash": "ddd43a232b467e9c6cdc53d18c38f227",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
-    "mtime": 1786811515.5911129,
-    "ast_hash": "d223878add917798216e10f19a464e87",
+    "mtime": 1790965208.0889506,
+    "ast_hash": "2c2a77e4ae280eff72771398a9fcd554",
     "semantic_hash": ""
   },
   "src/utils/text/TextNormalizationHelpers.ts": {
@@ -1075,8 +1075,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790963427.5543385,
-    "ast_hash": "3bd717e749f93ecc9242735688da49cd",
+    "mtime": 1790988988.6370556,
+    "ast_hash": "c68ed398ed197a25a27fa683675aaf58",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1330,8 +1330,8 @@
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
-    "mtime": 1790882198.8982735,
-    "ast_hash": "325bb4c3e9f3a867d1ff6edb1ef73ff5",
+    "mtime": 1790988988.637536,
+    "ast_hash": "f0494635ef0509e9c2d11c94382ed182",
     "semantic_hash": ""
   },
   "docs/guides/development.md": {
@@ -1765,8 +1765,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1790964363.534592,
-    "ast_hash": "4a6ae8bbfd16dc3430142a02a9cb4239",
+    "mtime": 1790989252.0585275,
+    "ast_hash": "d937ee74261d11cd8a81e7b3148a817b",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1795,8 +1795,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790964359.4586473,
-    "ast_hash": "130cd315b4a17a560800c9e5f3d60b3d",
+    "mtime": 1790986843.4947429,
+    "ast_hash": "67d211e67498895284e26a541ed1bead",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1830,8 +1830,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/book_commands.rs": {
-    "mtime": 1790522008.6873393,
-    "ast_hash": "c792b1efe870927be0cb8641f3018619",
+    "mtime": 1790986755.0058286,
+    "ast_hash": "ea3b77296c99793ecc0aa94497e06e4a",
     "semantic_hash": ""
   },
   "src-tauri/src/book_loader.rs": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1790701521.4321244,
-    "ast_hash": "d4916863760a031e7aee8149fd369fb9",
+    "mtime": 1790986755.0064726,
+    "ast_hash": "b8dda6b5a9d1a2ad5577331b84a6d648",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -2397,6 +2397,16 @@
   "docs/adr/ADR-067-keep-pair-operations-in-the-binding-store.md": {
     "mtime": 1790962373.9501073,
     "ast_hash": "361f8b0892c8bc42d59177f54963c92c",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/webview_diagnostics.rs": {
+    "mtime": 1790988944.3070407,
+    "ast_hash": "cb0862688810609dd17817d94ae57d30",
+    "semantic_hash": ""
+  },
+  "test-fixtures/chunker-parity.json": {
+    "mtime": 1790987414.7308087,
+    "ast_hash": "f70ce7ec246806b293fb904cd3503b8d",
     "semantic_hash": ""
   }
 }

@@ -17,11 +17,13 @@ vi.mock('../wasm/WasmTextChunker.js', () => ({
   wasmTextChunker: { chunkText: () => null }, // null: use the JS implementation
 }));
 
+// startIndex of a chunk with empty content is unspecified (see the fixture's _contract):
+// the fixture holds null for it, so only a chunk with content is compared on it.
 const toPlain = (chunks) =>
   chunks.map(({ content, punctuation, startIndex, lineBreaks, startedBy }) => ({
     content,
     punctuation,
-    startIndex,
+    startIndex: content === '' ? null : startIndex,
     lineBreaks,
     startedBy,
   }));

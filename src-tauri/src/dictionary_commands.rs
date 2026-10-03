@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{Emitter, Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
@@ -143,9 +143,9 @@ fn collision_message(new_path: &PathBuf, new_dictionary_id: &str, label: &str) -
     }
 }
 
-// CODE REVIEW FIX (2026-01-30): Track mutex poisoning events for monitoring
-// Global counters to detect cache corruption and notify frontend
-static MUTEX_POISONED: AtomicBool = AtomicBool::new(false);
+// CODE REVIEW FIX (2026-01-30): Count mutex poisoning events to detect cache corruption.
+// The frontend learns of one through the `dictionary-cache-critical-error` event; there is
+// no command to poll it (deleted 2026-10-03: nothing called it).
 static POISONING_EVENT_COUNT: AtomicU64 = AtomicU64::new(0);
 
 // CODE REVIEW FIX (2026-02-01): Rate limiting for poisoning notifications
@@ -172,7 +172,6 @@ fn now_ms() -> u64 {
 }
 
 fn record_mutex_poisoning() {
-    MUTEX_POISONED.store(true, Ordering::SeqCst);
     POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
     emit_poisoning_event();
 }
@@ -2149,51 +2148,6 @@ fn build_lookup_index_impl(
         positions_indexed,
         index_size,
         error: None,
-    }
-}
-
-// ============================================================================
-// CODE REVIEW FIX (2026-01-30): Dictionary Cache Health Monitoring
-// ============================================================================
-
-#[derive(Serialize)]
-pub struct CacheHealthResponse {
-    success: bool,
-    is_healthy: bool,
-    mutex_poisoned: bool,
-    poisoning_event_count: u64,
-    message: Option<String>,
-}
-
-/// CODE REVIEW FIX (2026-01-30): Check dictionary cache health status
-///
-/// Monitors mutex poisoning events to detect cache corruption.
-/// Frontend can call this periodically or when dictionary operations behave unexpectedly.
-/// If poisoning is detected, frontend should notify user and suggest application restart.
-#[tauri::command]
-pub fn check_dictionary_cache_health() -> CacheHealthResponse {
-    let mutex_poisoned = MUTEX_POISONED.load(Ordering::SeqCst);
-    let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
-
-    // Re-emit via the rate-limited helper so polling callers cannot bypass the
-    // 60-second NOTIFICATION_COOLDOWN_MS guard that prevents frontend spam.
-    if mutex_poisoned {
-        emit_poisoning_event();
-    }
-
-    CacheHealthResponse {
-        success: true,
-        is_healthy: !mutex_poisoned,
-        mutex_poisoned,
-        poisoning_event_count: event_count,
-        message: if mutex_poisoned {
-            Some(format!(
-                "Dictionary cache has been poisoned {} time(s). Performance degradation expected. Restart recommended.",
-                event_count
-            ))
-        } else {
-            None
-        },
     }
 }
 

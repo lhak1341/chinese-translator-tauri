@@ -183,7 +183,7 @@ Timers follow the same rule: every `setInterval`/`setTimeout` needs its id store
 
 Historical impact, for calibration on whether a regression here matters: long sessions went 50MB → <10MB (timer cleanup), dictionary switching 20-50MB → <5MB (bounded collections), translation cache 12.6MB → <5MB (quota monitoring).
 
-Verifying at runtime: `window.checkRealMemory()` for real heap %, and `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
+Verifying at runtime: `window.checkRealMemory()` for real heap % (Chromium/WebView2 only: macOS's WebKit has no `performance.memory`, so it shows nothing there; see CONTEXT.md, "Memory signals on macOS"), and `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
 
 ---
 

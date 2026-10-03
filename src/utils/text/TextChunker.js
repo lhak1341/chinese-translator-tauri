@@ -64,8 +64,8 @@ export class TextChunker {
    *   - Performance: 2-3x speedup for large texts (>1000 chars)
    *
    * CHUNKING BEHAVIOR:
-   *   - The two paths still disagree on a leading-punctuation chunk's startIndex.
-   *     test-fixtures/chunker-parity.json records it.
+   *   - startIndex of a chunk with empty content (punctuation or line break only) is
+   *     unspecified and differs from WASM's; nothing reads it (see CONTEXT.md, TextChunker).
    *   - Result: WASM may produce more chunks than JavaScript
    *
    * @param {string} text - Input text to chunk

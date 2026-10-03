@@ -356,11 +356,24 @@ mod tests {
         use super::*;
         use serde::Deserialize;
 
+        // startIndex of a chunk with empty content is unspecified (see the fixture's
+        // _contract): the fixture holds null for it, so only a chunk with content is
+        // compared on it.
+        #[derive(Deserialize, Debug, PartialEq)]
+        #[serde(rename_all = "camelCase")]
+        struct FixtureChunk {
+            content: String,
+            punctuation: String,
+            start_index: Option<usize>,
+            line_breaks: String,
+            started_by: String,
+        }
+
         #[derive(Deserialize)]
         struct FixtureCase {
             name: String,
             input: String,
-            rust: Vec<TextChunkResult>,
+            rust: Vec<FixtureChunk>,
         }
 
         #[derive(Deserialize)]
@@ -380,9 +393,19 @@ mod tests {
                 let actual: Vec<TextChunkResult> =
                     serde_json::from_str(&chunker.chunk_text(&case.input).unwrap()).unwrap();
 
+                let normalized: Vec<FixtureChunk> = actual
+                    .into_iter()
+                    .map(|c| FixtureChunk {
+                        start_index: if c.content.is_empty() { None } else { Some(c.start_index) },
+                        content: c.content,
+                        punctuation: c.punctuation,
+                        line_breaks: c.line_breaks,
+                        started_by: c.started_by,
+                    })
+                    .collect();
+
                 assert_eq!(
-                    serde_json::to_value(&actual).unwrap(),
-                    serde_json::to_value(&case.rust).unwrap(),
+                    normalized, case.rust,
                     "case \"{}\": chunks diverged from the shared fixture (input: {:?})",
                     case.name,
                     case.input

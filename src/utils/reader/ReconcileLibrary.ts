@@ -146,11 +146,8 @@ export function planReconciliation(
       shelfBooks.push({ ...file, fingerprint: owning.fingerprint });
     }
 
-    // Locale-aware, so both shelf lists sort the same true A-Z a reader expects — Rust's own
-    // pre-sort in `scan_library_impl` (`book_commands.rs`) is plain `String::cmp`, byte order,
-    // which puts every capital letter before every lowercase one and doesn't fold diacritics.
-    // This sort is authoritative; the Rust one is redundant but harmless left as a stable
-    // starting order.
+    // Locale-aware, so both shelf lists sort the same true A-Z a reader expects. This is the
+    // only sort: `scan_library_impl` (`book_commands.rs`) returns books in `read_dir` order.
     shelfBooks.sort(byShelfTitle);
 
     const unavailableBooks: UnavailableBook[] = [];

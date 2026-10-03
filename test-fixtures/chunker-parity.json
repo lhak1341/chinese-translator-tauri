@@ -1,5 +1,5 @@
 {
-  "_contract": "Shared cross-language chunker fixture (architecture review 2026-10-03, candidate #3 grilling). Both wasm-core/src/text_chunker.rs (mod tests::parity) and src/utils/__tests__/TextChunker.parity.test.js read this file and assert their own real chunker's output against it, for the cases where they agree and the cases where they are documented to diverge. WASM is the live path; the JS chunker runs only when WASM is not ready, failed to init, or was retired after a panic, so any remaining divergence here means the same text can chunk differently within one session. Do not edit a rust/js expectation to make a test pass: change the chunker, or record the divergence on purpose.",
+  "_contract": "Shared cross-language chunker fixture (architecture review 2026-10-03, candidate #3 grilling). Both wasm-core/src/text_chunker.rs (mod tests::parity) and src/utils/__tests__/TextChunker.parity.test.js read this file and assert their own real chunker's output against it, for the cases where they agree and the cases where they are documented to diverge. WASM is the live path; the JS chunker runs only when WASM is not ready, failed to init, or was retired after a panic, so any divergence here means the same text can chunk differently within one session. Do not edit a rust/js expectation to make a test pass: change the chunker, or record the divergence on purpose. startIndex of a chunk whose content is empty (a punctuation-only or line-break-only chunk) is unspecified: JS and Rust differ on it, nothing reads it (the engine's chunkStartChar only reaches chunks with Chinese content), so it is null here and both harnesses skip it. A chunk WITH content must match.",
   "cases": [
     {
       "name": "comma_and_period_agree",
@@ -368,6 +368,148 @@
       ]
     },
     {
+      "name": "punctuation_after_line_break_agree",
+      "description": "A punctuation-only chunk mid-text, after a line break.",
+      "input": "你好\n《标题》内容",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "",
+          "punctuation": "《",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        },
+        {
+          "content": "标题",
+          "punctuation": "》",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "《"
+        },
+        {
+          "content": "内容",
+          "punctuation": "",
+          "startIndex": 7,
+          "lineBreaks": "",
+          "startedBy": "》"
+        }
+      ],
+      "js": [
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "",
+          "punctuation": "《",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        },
+        {
+          "content": "标题",
+          "punctuation": "》",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "《"
+        },
+        {
+          "content": "内容",
+          "punctuation": "",
+          "startIndex": 7,
+          "lineBreaks": "",
+          "startedBy": "》"
+        }
+      ]
+    },
+    {
+      "name": "leading_punctuation_pair_agree",
+      "description": "Two leading punctuation characters merge onto one empty-content chunk.",
+      "input": "《》你好",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "",
+          "punctuation": "《》",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "《》"
+        }
+      ],
+      "js": [
+        {
+          "content": "",
+          "punctuation": "《》",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "《》"
+        }
+      ]
+    },
+    {
+      "name": "trailing_punctuation_after_line_break_agree",
+      "description": "A punctuation-only chunk after a line break, with no content after it.",
+      "input": "你好\n。",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "",
+          "punctuation": "。",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ],
+      "js": [
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "",
+          "punctuation": "。",
+          "startIndex": null,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        }
+      ]
+    },
+    {
       "name": "blank_line_agree",
       "description": "Two line breaks stay together on one chunk.",
       "input": "第一行\n\n第二行",
@@ -406,15 +548,15 @@
       ]
     },
     {
-      "name": "leading_punctuation_start_index",
-      "description": "Leading punctuation yields an empty-content chunk startedBy 'start'. Rust reports its startIndex as 1 (the index of the content that flushed it), JS as 0; every other field agrees.",
+      "name": "leading_punctuation_agree",
+      "description": "Leading punctuation yields an empty-content chunk startedBy 'start'.",
       "input": "《标题》内容",
-      "expectAgreement": false,
+      "expectAgreement": true,
       "rust": [
         {
           "content": "",
           "punctuation": "《",
-          "startIndex": 1,
+          "startIndex": null,
           "lineBreaks": "",
           "startedBy": "start"
         },
@@ -437,7 +579,7 @@
         {
           "content": "",
           "punctuation": "《",
-          "startIndex": 0,
+          "startIndex": null,
           "lineBreaks": "",
           "startedBy": "start"
         },

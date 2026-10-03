@@ -5,6 +5,7 @@ mod dictionary_commands;
 pub mod book_loader;
 pub mod chapter_outline;
 pub mod lookup_index_engine;
+mod webview_diagnostics;
 
 use book_commands::BookCache;
 use dictionary_commands::{DictionaryCache, RateLimiters, TrieCache};
@@ -20,7 +21,7 @@ async fn read_clipboard(app: tauri::AppHandle) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Initialize plugins
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
@@ -38,6 +39,7 @@ pub fn run() {
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
         .setup(|app| {
             dictionary_commands::init_app_handle(app.handle().clone());
+            webview_diagnostics::record_launch(app);
             Ok(())
         })
         // Register all commands
@@ -66,14 +68,22 @@ pub fn run() {
             dictionary_commands::import_dictionaries,
             dictionary_commands::reset_dictionaries,
             dictionary_commands::build_lookup_index,
-            dictionary_commands::check_dictionary_cache_health,
             book_commands::scan_library,
             book_commands::open_book,
             book_commands::read_book_lines,
             book_commands::fingerprint_book,
             chapter_outline_commands::detect_chapter_outline,
             chapter_outline_commands::chapter_headers_for_pattern,
-        ])
+        ]);
+
+    // macOS only: Tauri reloads the page when WebKit kills its web-content process. Our handler
+    // logs it first (webview_diagnostics.rs); it replaces the default, so it reloads too.
+    #[cfg(target_os = "macos")]
+    let builder = builder.on_web_content_process_terminate(
+        webview_diagnostics::on_web_content_terminated,
+    );
+
+    builder
         .run(tauri::generate_context!())
         .expect("Failed to start Chinese-Vietnamese Translator. Please check your system configuration and try again. If the problem persists, please report it at: https://github.com/lhak1341/chinese-translator-tauri/issues");
 }
