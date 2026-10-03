@@ -10,6 +10,7 @@ const mockGetGlobalChunkerStats = vi.fn(() =>
   JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
 );
 const mockInit = vi.fn();
+const mockDestroy = vi.fn();
 
 class MockTextChunker {
   chunkText(text) {
@@ -23,7 +24,9 @@ class MockTextChunker {
   }
   // WasmTextChunker's retire path calls this wasm-bindgen internal — see CLAUDE.md's
   // documented WASM mock gotcha (WasmPatternProcessor instances need the same).
-  __destroy_into_raw() {}
+  __destroy_into_raw() {
+    mockDestroy();
+  }
 }
 
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
@@ -107,6 +110,7 @@ describe('WasmTextChunker', () => {
       JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
     );
     mockInit.mockReset();
+    mockDestroy.mockReset();
   });
 
   describe('chunkText()', () => {
@@ -154,6 +158,8 @@ describe('WasmTextChunker', () => {
       mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       expect(wasmTextChunker.chunkText('after panic')).toBeNull();
       expect(mockChunkText).toHaveBeenCalledTimes(1); // the throwing call only — warm-up never reached it
+      // The cascade handler is the one place that destroys the instance, and it runs once.
+      expect(mockDestroy).toHaveBeenCalledTimes(1);
     });
 
     test('malformed JSON from WASM is treated as a panic — retires and falls back', async () => {

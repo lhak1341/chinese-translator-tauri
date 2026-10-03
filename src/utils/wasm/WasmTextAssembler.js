@@ -95,11 +95,7 @@ class WasmTextAssemblerWrapper {
       // the RefMut drop, so borrow_mut_count stays at 1. Retire the instance so all future
       // calls go straight to the JS fallback without retrying the corrupted object.
       logger.error('WASM assembleWithSpacing failed, retiring instance:', error);
-      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
-      this.assembler?.__destroy_into_raw();
-      this.assembler = null;
-      this.initialized = false;
-      this.initializationFailed = true;
+      // The cascade retires this assembler too: its own handler destroys and fails it.
       fireCascadeRetire();
       return this.jsAssembleWithSpacing(segments);
     }

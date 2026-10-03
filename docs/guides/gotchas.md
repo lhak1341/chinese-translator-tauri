@@ -48,6 +48,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Ad-hoc scripts that import `src/` modules (benchmarks, importer scans): run them with `bun script.mjs`, not `node`** — src imports use `.js` specifiers for `.ts` files (`../logger.js` is `logger.ts`), so node dies with `ERR_MODULE_NOT_FOUND`. Put the script in the scratchpad, not the repo.
 
+- **Expected `bun run tauri:deploy` output, none of it an error:** the PostCSS "did not pass the `from` option" warning (no PostCSS config in the repo, so it comes from Vite or a dependency); "chunks larger than 500 kB" (desktop app loaded from disk; the knob is `build.chunkSizeWarningLimit`); two `INEFFECTIVE_DYNAMIC_IMPORT` notes (`WasmPatternProcessor.js` and `SemanticPatternProcessor.js` are also imported statically elsewhere). `import.meta.dirname` replaced `__dirname` in both Vite configs 2026-10-03, so the `configLoader: 'native'` warning should be gone; if it returns, a new `__dirname` crept in.
+
 ## JavaScript / TypeScript
 
 **Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker.

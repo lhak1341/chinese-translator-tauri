@@ -12,14 +12,8 @@ import type {
   EditingEntryData,
   ExistingEntryData,
 } from '../types/DictionaryTypes';
-import {
-  isPatternsDict,
-  isCharacterSourceValid,
-  isPatternValid,
-  validateDictionaryEntry,
-  buildEntryMetadata,
-  entryFields,
-} from '../utils/dictionary';
+import { buildEntryMetadata, entryFields } from '../utils/dictionary';
+import { checkEntry, firstEntryError } from '../utils/dictionary/PersistTimeValidator';
 import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
 import { defaultSemanticType, initialEntryGuess } from '../utils/dictionary/TransformRuleEngine';
@@ -175,21 +169,13 @@ export function useDictionaryEntryForm(
     [offersDropdown, quickAddView, allDictionaryTypes, openedDictionary]
   );
 
-  const validateCharacterEntry = useCallback(
-    (sourceText: string): boolean => {
-      const valid = activeDictionary !== 'characters' || isCharacterSourceValid(sourceText);
-      setShowCharacterValidation(!valid);
-      return valid;
-    },
-    [activeDictionary]
-  );
-
-  const checkPatternValid = useCallback(
-    (sourceText: string, translationText?: string): boolean => {
-      const valid =
-        !isPatternsDict(activeDictionary) || isPatternValid(sourceText, translationText);
-      setShowPatternValidation(!valid);
-      return valid;
+  // Runs every entry rule once and shows the character and pattern flags from the result.
+  const checkAndShow = useCallback(
+    (sourceText: string, translationText: string) => {
+      const check = checkEntry(activeDictionary, sourceText, translationText);
+      setShowCharacterValidation(check.character !== null);
+      setShowPatternValidation(check.pattern !== null);
+      return check;
     },
     [activeDictionary]
   );
@@ -197,12 +183,12 @@ export function useDictionaryEntryForm(
   const validateForm = useCallback((): boolean => {
     const hasSource = source.trim().length > 0;
     const hasTranslation = translation.trim().length > 0;
-    const isCharacterValid = validateCharacterEntry(source);
-    const isPatternValid = checkPatternValid(source, translation);
-    const isValid = hasSource && hasTranslation && isCharacterValid && isPatternValid;
+    const check = checkAndShow(source, translation);
+    const isValid =
+      hasSource && hasTranslation && check.character === null && check.pattern === null;
     setIsFormValid(isValid);
     return isValid;
-  }, [source, translation, validateCharacterEntry, checkPatternValid]);
+  }, [source, translation, checkAndShow]);
 
   useEffect(() => {
     validateForm();
@@ -340,8 +326,7 @@ export function useDictionaryEntryForm(
     }
     if (debouncedValidateRef.current) clearTimeout(debouncedValidateRef.current);
     debouncedValidateRef.current = setTimeout(() => {
-      validateCharacterEntry(newSource);
-      checkPatternValid(newSource, translation);
+      checkAndShow(newSource, translation);
     }, 300);
   };
 
@@ -360,11 +345,9 @@ export function useDictionaryEntryForm(
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<boolean> => {
     e.preventDefault();
 
-    validateCharacterEntry(source);
-    checkPatternValid(source, translation);
-    const result = validateDictionaryEntry(source, translation, activeDictionary);
-    if (!result.valid) {
-      setError(result.error!);
+    const submitError = firstEntryError(checkAndShow(source, translation));
+    if (submitError) {
+      setError(submitError);
       return false;
     }
 

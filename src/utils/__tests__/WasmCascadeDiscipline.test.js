@@ -12,7 +12,7 @@
  * repo's static analysis ever flagged. The registry exists so that import never has to
  * happen; a retire symbol crossing a wrapper boundary is the shape that regressed before.
  *
- * See src/utils/CLAUDE.md section 5 for why retire-never-retry is the only safe response.
+ * See src/utils/wasm/CLAUDE.md for why retire-never-retry is the only safe response.
  */
 
 import { describe, it, expect } from 'vitest';

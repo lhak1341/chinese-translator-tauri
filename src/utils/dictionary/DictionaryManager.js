@@ -43,7 +43,7 @@ const DEBUG_LEVELS = {
 export class DictionaryManager {
   constructor(options = {}) {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
-    this.flatEntries = new Map(); // Map of dictionary name to flat {chinese,vietnamese,metadata}[] — for RustLookupIndexManager, computed once at load instead of walked from the trie per translate call
+    this.flatEntries = new Map(); // Map of dictionary name to flat {chinese,vietnamese,metadata}[] — for the Rust lookup-index build, computed once at load instead of walked from the trie per translate call
     this.metadata = new Map(); // Dictionary metadata
     this.loadTime = 0;
     this.ready = false;

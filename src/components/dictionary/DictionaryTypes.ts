@@ -8,7 +8,6 @@ import { logger } from '../../utils/logger.js';
 import toast from '../../utils/toast';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import type { DictionaryData } from '../../types/DictionaryTypes.js';
-import { baseValidation, validatePatternEntry } from '../../utils/dictionary/PersistTimeValidator';
 import { dictionarySelectorLabel } from '../../utils/dictionary/DictionaryLabels';
 import {
   listFictionPatternDictionaryIds,
@@ -20,7 +19,6 @@ interface DictionaryTypeDefinition {
   label: string;
   description: string;
   data: DictionaryData | null;
-  validate: (source: string, translation: string) => string | null;
 }
 
 // Base dictionary types without proper nouns
@@ -30,35 +28,30 @@ const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
     label: 'Pattern',
     description: 'Pattern-based structural translations',
     data: patternsDict as DictionaryData,
-    validate: validatePatternEntry,
   },
   phrases: {
     id: 'phrases',
     label: 'Common Phrases',
     description: 'Multi-character phrase translations',
     data: phrasesDict as DictionaryData,
-    validate: baseValidation,
   },
   characters: {
     id: 'characters',
     label: 'Characters',
     description: 'Individual character translations',
     data: charactersDict as DictionaryData,
-    validate: baseValidation,
   },
   punctuation: {
     id: 'punctuation',
     label: 'Punctuation',
     description: 'Punctuation mark conversions',
     data: punctuationDict as DictionaryData,
-    validate: baseValidation,
   },
   conversion: {
     id: 'conversion',
     label: 'Character Conversion',
     description: 'Traditional to simplified character mappings',
     data: conversionDict as DictionaryData,
-    validate: baseValidation,
   },
 };
 
@@ -90,7 +83,6 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
         label: dictionarySelectorLabel(dictId),
         description: 'Context-specific translations for names and titles',
         data: dictId === 'properNouns' ? (properNounsDict as DictionaryData) : null, // null indicates dynamic loading needed
-        validate: baseValidation,
       };
     }
 
@@ -102,7 +94,6 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
         label: dictionarySelectorLabel(patternsId),
         description: 'Fiction- or theme-specific structural pattern translations',
         data: null,
-        validate: DICTIONARY_TYPES['patterns'].validate,
       };
     }
 
@@ -135,7 +126,6 @@ export const DICTIONARY_TYPES: Record<string, DictionaryTypeDefinition> = {
     label: 'Proper Nouns',
     description: 'Context-specific translations for names and titles',
     data: properNounsDict as DictionaryData,
-    validate: baseValidation,
   },
   ...baseDictionaryTypes,
 };

@@ -12,7 +12,7 @@
  *    suite passes while the shipped app cannot load its WASM binary.
  *
  * Both were at zero findings when this gate was written, so it is a zero-tolerance ceiling
- * rather than a baseline. See src/utils/CLAUDE.md section 5 and
+ * rather than a baseline. See src/utils/wasm/CLAUDE.md (the `new URL` literal) and
  * src/components/dictionary/CLAUDE.md's Dictionary Type Classification entry.
  *
  * This file is deliberately regex-over-source rather than an ESLint rule: eslint.config.js

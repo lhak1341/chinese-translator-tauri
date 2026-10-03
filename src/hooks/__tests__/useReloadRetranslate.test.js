@@ -18,9 +18,6 @@ vi.mock('../../utils/logger', () => ({
 function makeDeps(overrides = {}) {
   return {
     engineRef: { current: { isReady: () => true } },
-    validateSemanticArraySize: vi.fn(),
-    setDualResults: vi.fn(),
-    refreshReport: vi.fn(),
     translateText: vi.fn().mockResolvedValue('sequential result'),
     translateCharacterOnly: vi.fn().mockResolvedValue(undefined),
     setStreamingText: vi.fn(),
@@ -34,54 +31,12 @@ beforeEach(() => {
 });
 
 describe('useReloadRetranslate', () => {
-  test('dual-mode path: validates both semantic arrays, sets dual results, refreshes report', async () => {
-    const dualResults = {
-      fullResult: { semanticArrays: 'full-arrays' },
-      characterResult: { semanticArrays: 'char-arrays' },
-    };
+  test('translates, streams the result, then runs character-only after the toast', async () => {
+    const order = [];
+    mockToastSuccess.mockImplementation(() => order.push('toast'));
     const deps = makeDeps({
-      engineRef: {
-        current: {
-          isReady: () => true,
-          translateDualModeOptimized: vi.fn().mockResolvedValue(dualResults),
-        },
-      },
-    });
-    const { result } = renderHook(() => useReloadRetranslate(deps));
-
-    await act(async () => {
-      const p = result.current('hello');
-      await vi.advanceTimersByTimeAsync(150);
-      await p;
-    });
-
-    expect(deps.validateSemanticArraySize).toHaveBeenCalledWith('full-arrays', 'full translation');
-    expect(deps.validateSemanticArraySize).toHaveBeenCalledWith(
-      'char-arrays',
-      'character-only translation'
-    );
-    expect(deps.setDualResults).toHaveBeenCalledWith(
-      dualResults.fullResult,
-      dualResults.characterResult
-    );
-    expect(deps.refreshReport).toHaveBeenCalled();
-    expect(mockToastSuccess).toHaveBeenCalledWith('Dictionary reloaded and text retranslated');
-  });
-
-  test('resolves silently when semantic array validation throws (already toasted upstream)', async () => {
-    const dualResults = {
-      fullResult: { semanticArrays: 'full-arrays' },
-      characterResult: { semanticArrays: 'char-arrays' },
-    };
-    const deps = makeDeps({
-      engineRef: {
-        current: {
-          isReady: () => true,
-          translateDualModeOptimized: vi.fn().mockResolvedValue(dualResults),
-        },
-      },
-      validateSemanticArraySize: vi.fn().mockImplementation(() => {
-        throw new Error('array too large');
+      translateCharacterOnly: vi.fn().mockImplementation(async () => {
+        order.push('characterOnly');
       }),
     });
     const { result } = renderHook(() => useReloadRetranslate(deps));
@@ -92,53 +47,11 @@ describe('useReloadRetranslate', () => {
       await p;
     });
 
-    expect(deps.setDualResults).not.toHaveBeenCalled();
-    expect(deps.refreshReport).not.toHaveBeenCalled();
-    // Still resolves without throwing, and does NOT show the success toast for
-    // a validation failure that's already been handled upstream.
-    expect(mockToastSuccess).not.toHaveBeenCalled();
-  });
-
-  test('falls back to sequential translate when translateDualModeOptimized throws', async () => {
-    const deps = makeDeps({
-      engineRef: {
-        current: {
-          isReady: () => true,
-          translateDualModeOptimized: vi.fn().mockRejectedValue(new Error('optimized failed')),
-        },
-      },
-    });
-    const { result } = renderHook(() => useReloadRetranslate(deps));
-
-    await act(async () => {
-      const p = result.current('hello');
-      await vi.advanceTimersByTimeAsync(150);
-      await p;
-    });
-
     expect(deps.translateText).toHaveBeenCalledWith('hello');
     expect(deps.setStreamingText).toHaveBeenCalledWith('sequential result');
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10);
-    });
     expect(deps.translateCharacterOnly).toHaveBeenCalledWith('hello');
-    expect(mockToastSuccess).toHaveBeenCalledWith('Dictionary reloaded and text retranslated');
-  });
-
-  test('falls back to sequential translate when translateDualModeOptimized is unavailable', async () => {
-    const deps = makeDeps({
-      engineRef: { current: { isReady: () => true } }, // no translateDualModeOptimized
-    });
-    const { result } = renderHook(() => useReloadRetranslate(deps));
-
-    await act(async () => {
-      const p = result.current('hello');
-      await vi.advanceTimersByTimeAsync(150);
-      await p;
-    });
-
-    expect(deps.translateText).toHaveBeenCalledWith('hello');
-    expect(deps.setStreamingText).toHaveBeenCalledWith('sequential result');
+    // Character-only is queued with setTimeout, not awaited, so the toast comes first.
+    expect(order).toEqual(['toast', 'characterOnly']);
   });
 
   test('waits an extra 500ms when the engine is not ready after the initial 100ms', async () => {

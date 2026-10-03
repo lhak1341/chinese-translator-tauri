@@ -2,12 +2,8 @@
  * Pattern-entry business rules: variable extraction, the X→Y→Z ordering
  * convention, and source/translation symmetry.
  *
- * Shared by DictionaryEntryValidator.ts (form-time) and PersistTimeValidator.ts
- * (persist-time) so the two call-timing-specific validators enforce the same
- * underlying rules instead of each re-deriving them. Per ADR-026, the two
- * top-level validate functions themselves stay separate (different
- * signatures, different call timing) — only the rules beneath them are
- * shared here.
+ * Called by PersistTimeValidator.ts, the one entry validator the form and every
+ * write share.
  */
 
 import {

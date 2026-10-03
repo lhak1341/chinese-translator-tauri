@@ -1,18 +1,13 @@
 /**
- * Persist-time dictionary entry validation.
+ * Dictionary entry validation — the one home for "is this entry valid for this dictionary".
  *
- * "Persist-time" means: called at the moment an entry is committed to storage,
- * inside useDictionaryCRUD's prepareMutationEntry(). Same pattern-entry rules
- * as form-time validation (DictionaryEntryValidator.ts, via PatternEntryRules.ts)
- * plus the 10 000-char DoS limit, which form-time also delegates to here.
- *
- * The three exports are the canonical home for shared validation logic:
- *   baseValidation       — length + empty check (security-critical)
- *   validatePatternEntry — pattern-entry variable rules (PatternEntryRules.ts)
- *   validatePersistEntry — dispatch by dictionaryId
- *
- * DictionaryTypes.ts imports baseValidation and validatePatternEntry to build
- * its type registry, keeping the logic in one place.
+ * The Add/Edit form and the persist path (`useDictionaryCRUD`'s `prepareMutationEntry()`, which
+ * add, update, patch, rename and move all pass through) call the same `checkEntry`. The form
+ * reads the per-rule results to drive its live flags; the persist path takes the first error.
+ * The rules, in the order their errors win:
+ *   base      — empty check + 10 000-char DoS limit, and an unknown dictionary id
+ *   character — a `characters` source is at most one character (a code point, not a UTF-16 unit)
+ *   pattern   — pattern-entry variable rules (PatternEntryRules.ts)
  */
 
 import { isPatternsDict, isProperNounsDict } from './DictionaryIdClassifier';
@@ -37,50 +32,45 @@ export const baseValidation = (source: string, translation: string): string | nu
   return null;
 };
 
-export const validatePatternEntry = (source: string, translation: string): string | null => {
-  // LOW-2 FIX: Enhanced pattern validation to catch variable mismatches
-  // A pattern with zero variables (a literal, no-variable pattern) is valid —
-  // it's how a pattern-dictionary entry beats a same-length variable pattern in
-  // find_best_pattern_match's "fewer variables wins" tie-break (see wasm-core
-  // matcher.rs). checkVariableStructure/checkVariableSymmetry are no-ops on
-  // empty variable sets, so a 0-variable pattern falls through them and passes.
-  const variableError = validatePatternVariables(source, translation);
-  if (variableError) return variableError;
+const CHARACTER_ENTRY_ERROR = 'Character dictionary entries must be exactly 1 character long';
 
-  return baseValidation(source, translation);
-};
+const KNOWN_FIXED_DICTIONARIES = new Set(['phrases', 'characters', 'punctuation', 'conversion']);
 
-const typeValidators: Record<string, (source: string, translation: string) => string | null> = {
-  patterns: validatePatternEntry,
-  phrases: baseValidation,
-  characters: baseValidation,
-  punctuation: baseValidation,
-  conversion: baseValidation,
-};
+function isKnownDictionary(dictionaryId: string): boolean {
+  return (
+    isProperNounsDict(dictionaryId) ||
+    isPatternsDict(dictionaryId) ||
+    KNOWN_FIXED_DICTIONARIES.has(dictionaryId)
+  );
+}
 
-/**
- * Dispatches to the per-type validator for the given dictionaryId.
- *
- * Renamed from validateDictionaryEntry (DictionaryTypes.ts) to avoid the
- * 3-way name collision with DictionaryEntryValidator.ts (form-time, different
- * signature) and configValidation.ts (validateRawDictionaryEntry).
- */
+/** One error message per rule, null where that rule passes. Rules are independent of each other. */
+export interface EntryCheck {
+  base: string | null;
+  character: string | null;
+  pattern: string | null;
+}
+
+export const checkEntry = (
+  dictionaryId: string,
+  source: string,
+  translation: string
+): EntryCheck => ({
+  base: isKnownDictionary(dictionaryId)
+    ? baseValidation(source, translation)
+    : 'Invalid dictionary type',
+  // Spread counts code points, so a single supplementary-plane Han character passes.
+  character:
+    dictionaryId === 'characters' && [...source.trim()].length > 1 ? CHARACTER_ENTRY_ERROR : null,
+  pattern: isPatternsDict(dictionaryId) ? validatePatternVariables(source, translation) : null,
+});
+
+/** The error that wins when several rules fail, or null when the entry is valid. */
+export const firstEntryError = (check: EntryCheck): string | null =>
+  check.base ?? check.character ?? check.pattern;
+
 export const validatePersistEntry = (
   dictionaryId: string,
   source: string,
   translation: string
-): string | null => {
-  if (isProperNounsDict(dictionaryId)) {
-    return baseValidation(source, translation);
-  }
-
-  if (isPatternsDict(dictionaryId)) {
-    return validatePatternEntry(source, translation);
-  }
-
-  const validator = typeValidators[dictionaryId];
-  if (!validator) {
-    return 'Invalid dictionary type';
-  }
-  return validator(source, translation);
-};
+): string | null => firstEntryError(checkEntry(dictionaryId, source, translation));

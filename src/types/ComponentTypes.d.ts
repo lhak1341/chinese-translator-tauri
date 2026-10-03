@@ -57,8 +57,6 @@ export interface DictionaryTypeDefinition {
   description: string;
   /** Dictionary data (can be null for lazy-loaded dictionaries) */
   data: any;
-  /** Validation function for dictionary entries */
-  validate: (source: string, translation: string) => string | null;
 }
 
 /**

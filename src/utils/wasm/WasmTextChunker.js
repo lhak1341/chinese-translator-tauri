@@ -152,10 +152,7 @@ export class WasmTextChunker {
           env: process.env.NODE_ENV,
         }
       );
-      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
-      _chunker?.__destroy_into_raw();
-      _chunker = null;
-      lifecycle.permanentlyFail();
+      // The cascade retires this chunker too: its own handler destroys and fails it.
       fireCascadeRetire();
       try {
         recordFallback();

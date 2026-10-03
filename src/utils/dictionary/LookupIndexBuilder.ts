@@ -1,4 +1,8 @@
 import { DICTIONARY_LOOKUP } from '../../constants/TranslationConstants.js';
+import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
+import tauriAPI, { type LookupIndexDictionary, type LookupIndexEntry } from '../../tauriAPI';
+import { logger } from '../logger';
+import { FallbackManager } from '../FallbackManager';
 
 interface LookupIndexOptions {
   lookupIndex?: unknown;
@@ -7,7 +11,7 @@ interface LookupIndexOptions {
 }
 
 interface LookupIndexDictionaryManager {
-  flatEntries: Record<string, unknown>;
+  flatEntries: Map<string, LookupIndexEntry[]> | Record<string, LookupIndexEntry[]>;
   getDefaultSearchOrder(): string[];
   getPriorityForDictionary(dictionaryName: string): number;
 }
@@ -16,6 +20,47 @@ interface LookupIndexBuilderDeps {
   dictionaryManager: LookupIndexDictionaryManager;
   logDebug: (message: string) => void;
   logWarn: (message: string) => void;
+}
+
+// Three consecutive failures stop the Rust build for the rest of the session and show one toast.
+// Module state on purpose: it outlives every engine, and a dictionary reload builds a new engine.
+const failures = new FallbackManager({
+  systemName: 'Rust Lookup Index',
+  maxFailures: 3,
+  toastMessage: 'High-performance indexing unavailable. Large texts may translate slower.',
+  toastId: TOAST_IDS.RUST_INDEX_UNAVAILABLE,
+  toastDuration: TOAST_DURATIONS.LOAD_FAILURE,
+});
+
+function recordFailure(error: unknown): void {
+  failures.recordFailure();
+  logger.error(
+    `Rust lookup index failure (${failures.getFailureCount()}/${failures.maxFailures}):`,
+    error
+  );
+}
+
+/**
+ * The dictionaries in search order, each with its real priority — not its array position, which
+ * only matched while every caller pre-sorted by priority (CONTEXT.md, LookupIndexBuilder).
+ * A name with no entries is skipped.
+ */
+function toRustDictionaries(
+  dictionaryManager: LookupIndexDictionaryManager,
+  dictionaryOrder: string[]
+): LookupIndexDictionary[] {
+  const { flatEntries } = dictionaryManager;
+  const dictionaries: LookupIndexDictionary[] = [];
+  for (const name of dictionaryOrder) {
+    const entries = flatEntries instanceof Map ? flatEntries.get(name) : flatEntries[name];
+    if (!entries) continue;
+    dictionaries.push({
+      name,
+      entries,
+      priority: dictionaryManager.getPriorityForDictionary(name),
+    });
+  }
+  return dictionaries;
 }
 
 /**
@@ -35,53 +80,39 @@ export async function buildLookupIndexOrFallback(
   if (
     options.lookupIndex ||
     text.length < DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX ||
-    options.useSharedLookupIndex === false
+    options.useSharedLookupIndex === false ||
+    failures.isInFallbackMode()
   ) {
     return;
   }
 
   try {
-    const { rustLookupIndexManager } = await import('../RustLookupIndexManager.js');
-
-    if (!rustLookupIndexManager.isAvailable()) {
-      return;
-    }
-
     const indexStartTime = performance.now();
     const dictionaryOrder = dictionaryManager.getDefaultSearchOrder() || [];
-    // Real per-dictionary priority, not dictionaryOrder's array position — see CONTEXT.md's
-    // LookupIndexBuilder entry (2026-08-07 fix). Mirrors DictionaryWasmLookup's own
-    // priorityByName pattern for the same "priority per dictionary name" need on the WASM path.
-    const priorityByName = new Map(
-      dictionaryOrder.map((name) => [name, dictionaryManager.getPriorityForDictionary(name)])
-    );
+    const dictionaries = toRustDictionaries(dictionaryManager, dictionaryOrder);
 
-    const indexResult = await rustLookupIndexManager.buildLookupIndex(
-      text,
-      dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
-      dictionaryOrder,
-      priorityByName,
-      {
-        minTextLength: 50,
-        enableIndexing: true,
-        useParallel: true,
-      }
-    );
+    // Rust applies its own defaults for the minimum text length, indexing and parallelism.
+    const indexResult = await tauriAPI.buildLookupIndex(text, dictionaries, dictionaryOrder);
 
-    if (indexResult.success && indexResult.index) {
-      // Convert to Map for faster lookups; string keys from JSON back to numbers
-      options.lookupIndex = new Map(
-        Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
-      );
-      options.useSharedLookupIndex = true;
-
-      const indexTime = performance.now() - indexStartTime;
-      logDebug(
-        `🦀 Rust lookup index built: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
-      );
+    if (!indexResult.success || !indexResult.index) {
+      recordFailure(indexResult.error);
+      return;
     }
+    failures.recordSuccess();
+
+    // Convert to Map for faster lookups; string keys from JSON back to numbers
+    options.lookupIndex = new Map(
+      Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
+    );
+    options.useSharedLookupIndex = true;
+
+    const indexTime = performance.now() - indexStartTime;
+    logDebug(
+      `🦀 Rust lookup index built: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
+    );
   } catch (error) {
     // No index: phases fall back to traditional per-position lookup.
+    recordFailure(error);
     logWarn(
       `⚠️ Rust lookup index build failed, using traditional lookup: ${(error as Error).message}`
     );

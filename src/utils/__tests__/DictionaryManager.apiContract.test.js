@@ -116,7 +116,7 @@ describe('DictionaryManager API Contract', () => {
     });
   });
 
-  describe('flatEntries (for RustLookupIndexManager)', () => {
+  describe('flatEntries (for the Rust lookup-index build)', () => {
     test('populates flatEntries alongside dictionaries at load time', () => {
       expect(manager.flatEntries.has('test_dict')).toBe(true);
       const entries = manager.flatEntries.get('test_dict');

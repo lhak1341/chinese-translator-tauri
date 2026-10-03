@@ -28,3 +28,7 @@ If `DictionaryTypes.ts` is refactored to extract the validation registry out of 
 ## Supersession Note (2026-06-27)
 
 The blocker was resolved. `validateDictionaryEntry` (persist-time) was extracted from `DictionaryTypes.ts` into `src/utils/dictionary/PersistTimeValidator.ts` as `validatePersistEntry`. With no component-layer imports remaining, `useDictionaryCRUD.ts` was moved to `src/hooks/useDictionaryCRUD.ts`. Callers updated: `DictionaryContext.tsx` and `useDictionaryPersistence.ts`. See `PersistTimeValidator` entry in `CONTEXT.md`.
+
+## Addendum (2026-10-03)
+
+The "not duplicates" paragraph above is stale. `DictionaryEntryValidator.ts` is gone: `PersistTimeValidator.ts` now holds one `checkEntry` that the form and the persist path both call. The narrower form-time coverage was a gap, not a design: a rename, patch or move into `characters` skipped the one-character rule the Add form enforced.

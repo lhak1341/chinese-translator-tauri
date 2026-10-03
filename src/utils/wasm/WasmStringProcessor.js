@@ -73,10 +73,7 @@ class WasmStringProcessor {
       return success;
     } catch (error) {
       logger.error('Failed to build string cache:', error);
-      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
-      _processor?.__destroy_into_raw();
-      _processor = null;
-      lifecycle.permanentlyFail();
+      // The cascade retires this processor too: its own handler destroys and fails it.
       fireCascadeRetire();
       return false;
     }

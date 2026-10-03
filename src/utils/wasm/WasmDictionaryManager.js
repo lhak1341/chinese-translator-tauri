@@ -247,9 +247,8 @@ export class WasmDictionaryManager {
         .filter((match) => match !== null); // Remove invalid matches
     } catch (error) {
       logger.error('❌ WASM lookup failed:', error);
-      _sharedModuleCorrupted = true;
       this.handleFailure();
-      fireCascadeRetire();
+      fireCascadeRetire(); // its handler sets _sharedModuleCorrupted
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
   }
@@ -292,9 +291,8 @@ export class WasmDictionaryManager {
       };
     } catch (error) {
       logger.error('❌ WASM longest match failed:', error);
-      _sharedModuleCorrupted = true;
       this.handleFailure();
-      fireCascadeRetire();
+      fireCascadeRetire(); // its handler sets _sharedModuleCorrupted
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
   }

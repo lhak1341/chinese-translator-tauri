@@ -661,11 +661,7 @@ export class TranslationEngine {
     // also sets `ready = false`, so `isReady()` stays answerable rather than throwing on
     // the nulled fields.
     if (this.dictionaryManager) {
-      if (typeof this.dictionaryManager.dispose === 'function') {
-        this.dictionaryManager.dispose();
-      } else if (typeof this.dictionaryManager.clearCache === 'function') {
-        this.dictionaryManager.clearCache();
-      }
+      this.dictionaryManager.dispose();
     }
 
     // Clear translation segments
@@ -936,7 +932,7 @@ export class TranslationEngine {
    *
    * @see translateWithSegments - Full 5-phase translation (patterns, proper nouns, numbers, phrases, characters)
    * @see translateSinglePass - Core 5-phase translation pipeline
-   * @see RustLookupIndexManager - Rust-powered character lookup acceleration
+   * @see buildLookupIndexOrFallback - Rust-powered whole-text lookup index (LookupIndexBuilder.ts)
    *
    * @performance
    * - Small texts (<500 chars): ~10ms for 100 characters
@@ -4428,13 +4424,6 @@ export class TranslationEngine {
    *   parallel: false
    * });
    *
-   * @example
-   * // With shared Rust lookup index
-   * const lookupIndex = await rustLookupIndexManager.buildLookupIndex(text, ...);
-   * const translated = await engine.translateWithChunking(text, {
-   *   lookupIndex // Reuse across chunks
-   * });
-   *
    * @see translateWithSegments - Entry point that selects chunked or progressive mode
    * @see translateDirectly - Translates individual chunks
    * @see TextChunker - Handles text splitting by punctuation
@@ -4442,7 +4431,6 @@ export class TranslationEngine {
    * @performance
    * - Parallel mode: 2-3x faster for texts with 5+ chunks
    * - Sequential mode: More predictable for debugging
-   * - Shared Rust lookup index: 6-50x faster for large texts
    *
    * @critical
    * Parallel mode writes directly to the shared this.semanticArrayBuilder with a
@@ -4648,13 +4636,6 @@ export class TranslationEngine {
    * @example
    * // Basic direct translation
    * const translated = await engine.translateDirectly('你好世界');
-   *
-   * @example
-   * // With Rust lookup index
-   * const lookupIndex = await rustLookupIndexManager.buildLookupIndex(text, ...);
-   * const translated = await engine.translateDirectly(text, {
-   *   lookupIndex
-   * });
    *
    * @see translateWithSegments - High-level entry point for translation
    * @see translateWithChunking - Calls this method for each chunk
@@ -5888,7 +5869,7 @@ export class TranslationEngine {
 
     try {
       // 1. Dictionary Manager Cache (specific dictionary only)
-      if (this.dictionaryManager && typeof this.dictionaryManager.invalidateCache === 'function') {
+      if (this.dictionaryManager) {
         this.dictionaryManager.invalidateCache(dictionaryName);
         this.log(
           DEBUG_LEVELS.DEBUG,
@@ -5903,10 +5884,7 @@ export class TranslationEngine {
       }
 
       // 3. Re-sync specific dictionary to WASM
-      if (
-        this.dictionaryManager &&
-        typeof this.dictionaryManager.syncDictionariesToWasm === 'function'
-      ) {
+      if (this.dictionaryManager) {
         try {
           // The comment above this block always said "specific dictionary"; it now is one.
           await this.dictionaryManager.syncDictionariesToWasm(dictionaryName);

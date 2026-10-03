@@ -16,7 +16,7 @@ export function fakeDictionaryDisk(initial: Dictionaries) {
     listDictionaries: vi.fn(async (): Promise<DictionaryTypesCollection> => {
       const ids = [...new Set([...Object.keys(files), ...unreadable])];
       return Object.fromEntries(
-        ids.map((id) => [id, { id, label: id, description: '', data: null, validate: () => null }])
+        ids.map((id) => [id, { id, label: id, description: '', data: null }])
       );
     }),
     load: vi.fn(async (ids: string[]) => {

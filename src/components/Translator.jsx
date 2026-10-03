@@ -120,7 +120,7 @@ const Translator = ({ isActive }) => {
   const { isLoading, loadError, reloadAllDictionaries, registerCacheInvalidator } = useDictionary();
 
   // Performance monitoring hook (extracted)
-  const { report, recordTranslation, refreshReport } = usePerformanceMonitoring();
+  const { report, recordTranslation } = usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
   const {
@@ -145,7 +145,6 @@ const Translator = ({ isActive }) => {
     prebuiltSegments,
     setStreamingText,
     setResultArrays,
-    setDualResults,
     setCharOnlyResult,
     setStatusMessage,
     setError: setTranslationError,
@@ -802,9 +801,6 @@ const Translator = ({ isActive }) => {
 
   const retranslate = useReloadRetranslate({
     engineRef,
-    validateSemanticArraySize,
-    setDualResults,
-    refreshReport,
     translateText,
     translateCharacterOnly,
     setStreamingText,

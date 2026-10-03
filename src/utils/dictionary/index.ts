@@ -16,11 +16,6 @@ export type { DuplicateRow } from './DuplicateAnalyzer';
 export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
 
 // --- Entry validation ---
-export {
-  isCharacterSourceValid,
-  isPatternValid,
-  validateDictionaryEntry,
-} from './DictionaryEntryValidator';
 export { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';
 export type { EntryFields, EntryPatch } from './EntryValue';
 export { buildEntryMetadata, entryFields, applyEntryPatch, toggleVariableType } from './EntryValue';

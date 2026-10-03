@@ -23,7 +23,7 @@ export default defineConfig({
   // Resolve configuration for module imports
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
 

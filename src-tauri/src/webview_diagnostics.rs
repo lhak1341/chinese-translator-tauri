@@ -18,6 +18,7 @@ use tauri::Manager;
 const LOG_FILE: &str = "webview-terminations.log";
 
 static STARTED: OnceLock<Instant> = OnceLock::new();
+#[cfg(target_os = "macos")]
 static TERMINATIONS: AtomicU32 = AtomicU32::new(0);
 
 /// One log line: when, what happened, and how long the app had been running.
@@ -58,6 +59,8 @@ pub fn record_launch<M: Manager<R>, R: tauri::Runtime>(manager: &M) {
 }
 
 /// The web-content-terminate handler: log it, then reload as Tauri's default would.
+/// macOS only, the one platform whose runtime has the hook (lib.rs registers it under the same cfg).
+#[cfg(target_os = "macos")]
 pub fn on_web_content_terminated<R: tauri::Runtime>(webview: &tauri::Webview<R>) {
     let count = TERMINATIONS.fetch_add(1, Ordering::SeqCst) + 1;
     record(webview, "web-content-terminated", count);

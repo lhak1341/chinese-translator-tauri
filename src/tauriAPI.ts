@@ -88,12 +88,6 @@ export interface LookupIndexDictionary {
   priority?: number;
 }
 
-export interface LookupIndexOptions {
-  minTextLength?: number;
-  enableIndexing?: boolean;
-  useParallel?: boolean;
-}
-
 export interface LookupIndexResult extends ElectronResult {
   index: Record<string, unknown>;
   buildTimeMs: number;
@@ -440,19 +434,14 @@ const tauriAPI = {
   buildLookupIndex: async (
     text: string,
     dictionaries: LookupIndexDictionary[],
-    dictionaryOrder: string[],
-    options: LookupIndexOptions = {}
+    dictionaryOrder: string[]
   ): Promise<LookupIndexResult> => {
     try {
       const result = await invoke<LookupIndexResult>(CMD.BUILD_LOOKUP_INDEX, {
         text,
         dictionaries,
         dictionaryOrder,
-        options: {
-          minTextLength: options.minTextLength,
-          enableIndexing: options.enableIndexing,
-          useParallel: options.useParallel,
-        },
+        // `options` is left out: Rust's own defaults (50 chars, indexing and parallelism on) apply.
       });
       if (result.success && result.buildTimeMs && process.env.NODE_ENV === 'development') {
         logger.log(
