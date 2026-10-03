@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{Emitter, Manager, State};
@@ -14,6 +14,7 @@ use std::time::{Instant, SystemTime};
 use governor::{Quota, RateLimiter, clock::DefaultClock, state::{InMemoryState, NotKeyed}};
 
 // Import lookup index engine
+use crate::lru_cache::LruCache;
 use crate::lookup_index_engine::{
     build_comprehensive_lookup_index, Dictionary, DictionaryType, IndexBuildOptions, TrieNode,
     CategorizedMatches,
@@ -258,229 +259,33 @@ fn emit_poisoning_event() {
 // Max size: 5 dictionaries (~270MB assuming 27K entries × 2KB/entry)
 const MAX_CACHE_ENTRIES: usize = 5;
 
+/// Loaded dictionary JSON by dictionary id. The eviction, recency and poisoned-lock recovery
+/// are `LruCache`'s; this adds the id-keyed invalidation the write commands call.
 pub struct DictionaryCache {
-    cache: Mutex<HashMap<String, serde_json::Value>>,
-    // Track access order for LRU eviction (key -> last access timestamp)
-    access_order: Mutex<HashMap<String, u64>>,
+    lru: LruCache<String, serde_json::Value>,
 }
 
 impl DictionaryCache {
     pub fn new() -> Self {
         Self {
-            cache: Mutex::new(HashMap::new()),
-            access_order: Mutex::new(HashMap::new()),
+            lru: LruCache::new("Dictionary", MAX_CACHE_ENTRIES, record_mutex_poisoning),
         }
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
-    /// Poisoning indicates a panic occurred, but we can continue using the lock
-    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
-    /// The mutex remains marked as poisoned but continues to function normally
-    /// CODE REVIEW FIX 2026-02-08: LRU eviction - track access time on get
     pub fn get(&self, key: &str) -> Option<serde_json::Value> {
-        let value = match self.cache.lock() {
-            Ok(cache) => cache.get(key).cloned(),
-            Err(poisoned) => {
-                record_mutex_poisoning();
-
-                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
-                eprintln!("WARNING: Cache mutex poisoned during get - continuing with degraded reliability");
-                eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("The mutex continues to function but may have corrupted data");
-                eprintln!("Application will continue running - restart recommended when convenient");
-
-                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
-                // The mutex stays poisoned but remains functional
-                let cache = poisoned.into_inner();
-                cache.get(key).cloned()
-            }
-        };
-
-        // Update access time for LRU tracking (if value exists).
-        // Re-check that the key is still in cache before inserting into access_order:
-        // between releasing the cache lock above and acquiring access_order here, a
-        // concurrent set() (e.g. from load_dictionaries_parallel) could evict this key
-        // and remove its access_order entry.  Inserting it back would create a phantom
-        // entry that accumulates with each parallel load cycle.  The extra lock
-        // acquisition is cheap relative to the dictionary-load work happening in parallel.
-        if value.is_some() {
-            let still_in_cache = self
-                .cache
-                .lock()
-                .map(|c| c.contains_key(key))
-                .unwrap_or(false);
-            if still_in_cache {
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.insert(key.to_string(), now_ms());
-                }
-            }
-        }
-
-        value
+        self.lru.get(key)
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
-    /// Poisoning indicates a panic occurred, but we can continue using the lock
-    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
-    /// The mutex remains marked as poisoned but continues to function normally
-    /// CODE REVIEW FIX 2026-02-08: LRU eviction - evict oldest entry when cache is full
-    /// CODE REVIEW FIX 2026-02-08 (MEDIUM): Avoid nested mutex locks to prevent deadlocks
-    /// CODE REVIEW FIX 2026-02-13 (IMPORTANT-4): Eliminate TOCTOU race — eviction check and
-    /// insert now happen inside one cache lock acquisition.  The LRU key is found first
-    /// (holding only access_order), then the cache lock is taken once to check the condition
-    /// freshly, evict if still necessary, and insert — all atomically.
     pub fn set(&self, key: String, value: serde_json::Value) {
-        // Step 1: Collect all LRU candidates sorted oldest-first while holding only access_order.
-        // Keeping the full sorted list (rather than just the minimum) means the eviction loop
-        // below can skip stale candidates and still remove the true LRU entry, eliminating the
-        // need for a random-key fallback in the common concurrent-access case.
-        let lru_candidates: Vec<String> = if let Ok(access_order) = self.access_order.lock() {
-            let mut entries: Vec<(String, u64)> = access_order
-                .iter()
-                .map(|(k, &v)| (k.clone(), v))
-                .collect();
-            entries.sort_by_key(|(_, ts)| *ts); // oldest first
-            entries.into_iter().map(|(k, _)| k).collect()
-        } else {
-            Vec::new()
-        };
-
-        // Step 2: Acquire the cache lock once, check the eviction condition freshly,
-        // evict if needed, and insert — all within the same critical section to prevent TOCTOU.
-        match self.cache.lock() {
-            Ok(mut cache) => {
-                // Re-check eviction condition under the lock (eliminates TOCTOU window).
-                // Declared outside the if-block so access_order cleanup below can use it.
-                let mut evicted_key: Option<String> = None;
-                if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
-                    // Try candidates in oldest-first order; stale candidates (already evicted
-                    // from cache but still in access_order) return None from remove() and are
-                    // skipped, so the loop naturally finds the true LRU entry.
-                    for candidate in &lru_candidates {
-                        if cache.remove(candidate).is_some() {
-                            eprintln!("LRU cache eviction: entry removed");
-                            evicted_key = Some(candidate.clone());
-                            break;
-                        }
-                    }
-                    // Last resort: all access_order candidates were stale (access_order fully
-                    // out of sync with cache). Evict the lexicographically smallest key for
-                    // deterministic behaviour — HashMap iteration order varies across runs,
-                    // so keys().next() would pick an arbitrary entry each time, making
-                    // eviction patterns non-reproducible and hard to debug.
-                    if evicted_key.is_none() {
-                        if let Some(fallback_key) = cache.keys().min().cloned() {
-                            eprintln!("LRU cache last-resort eviction: entry removed");
-                            cache.remove(&fallback_key);
-                            evicted_key = Some(fallback_key);
-                        }
-                    }
-                }
-
-                cache.insert(key.clone(), value);
-
-                // Update access time and clean up the evicted key's phantom entry.
-                // The cache lock is dropped first so acquiring access_order is safe
-                // (no nested lock, no deadlock risk).
-                drop(cache);
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.insert(key.clone(), now_ms());
-
-                    // Remove the evicted key's phantom entry.  Without this, access_order
-                    // accumulates one stale entry per eviction and grows without bound across
-                    // a session that switches dictionaries (MAX_CACHE_ENTRIES=5 means every
-                    // set() on a new key triggers an eviction).  The cache lock is already
-                    // released above so this is a single-lock operation with no deadlock risk.
-                    if let Some(evicted) = evicted_key {
-                        access_order.remove(&evicted);
-                    }
-
-                    // CODE REVIEW NOTE (MEDIUM-2): There is a benign race between get()
-                    // updating access_order and a concurrent set() reading it.  Between
-                    // releasing the cache lock in get() and acquiring access_order, a set()
-                    // on the same key could evict it; the subsequent access_order update in
-                    // get() creates a phantom entry for an evicted key.  This is bounded to
-                    // at most one phantom entry per concurrent get/set pair and resolves on
-                    // the next eviction cycle, so it has no correctness or capacity impact.
-                }
-            }
-            Err(poisoned) => {
-                record_mutex_poisoning();
-
-                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
-                eprintln!("WARNING: Cache mutex poisoned during set - continuing with degraded reliability");
-                eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("Clearing corrupted cache and inserting fresh data");
-                eprintln!("Application will continue running - restart recommended when convenient");
-
-                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
-                // Clear corrupted data and insert fresh value
-                let mut cache = poisoned.into_inner();
-                cache.clear(); // Remove potentially corrupted entries
-                cache.insert(key.clone(), value); // Insert fresh data to rebuild cache
-
-                // Also clear access_order on poisoning
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.clear();
-                    access_order.insert(key, now_ms());
-                }
-            }
-        }
+        self.lru.set(key, value);
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
-    /// Poisoning indicates a panic occurred, but we can continue using the lock
-    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
-    /// The mutex remains marked as poisoned but continues to function normally
-    /// CODE REVIEW FIX 2026-02-08: LRU eviction - also invalidate access_order tracking
-    /// CODE REVIEW FIX 2026-02-12: Avoid nested mutex locks to prevent deadlocks
-    /// (matches the pattern already used in set())
+    /// Drop one dictionary's entry, or every entry for `None`. Keys are bare dictionary ids
+    /// (e.g. "phrases", "properNouns-MyNovel"), so a targeted invalidation is an exact match.
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
-        // Step 1: Perform cache invalidation, collecting surviving keys for access_order cleanup.
-        // The cache guard is explicitly dropped before we acquire access_order — same pattern as
-        // set() — to prevent the nested-lock deadlock that existed in the previous implementation.
-        let surviving_keys: Option<Vec<String>> = match self.cache.lock() {
-            Ok(mut cache) => {
-                if let Some(id) = dictionary_id {
-                    // Keys are bare dictionary IDs (e.g. "phrases", "properNouns-MyNovel").
-                    // The old "id:" prefix format was retired when get_cache_key() was simplified.
-                    cache.retain(|key, _| key != id);
-                    let keys = cache.keys().cloned().collect();
-                    drop(cache); // Release before acquiring access_order
-                    Some(keys)
-                } else {
-                    cache.clear();
-                    drop(cache); // Release before acquiring access_order
-                    None
-                }
-            }
-            Err(poisoned) => {
-                record_mutex_poisoning();
-
-                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
-                eprintln!("WARNING: Cache mutex poisoned during invalidation - continuing with degraded reliability");
-                eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("Clearing entire cache regardless of dictionary_id (safe after panic)");
-                eprintln!("Application will continue running - restart recommended when convenient");
-
-                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
-                let mut cache = poisoned.into_inner();
-                cache.clear(); // Full clear is safest after poisoning
-                // cache guard dropped when this Err block ends
-                None
-            }
-        };
-        // cache lock is now released — safe to acquire access_order independently
-
-        // Step 2: Clean up access_order to match the surviving cache entries.
-        if let Ok(mut access_order) = self.access_order.lock() {
-            match surviving_keys {
-                Some(ref keys) => {
-                    let keys_set: std::collections::HashSet<&String> = keys.iter().collect();
-                    access_order.retain(|k, _| keys_set.contains(k));
-                }
-                None => access_order.clear(),
-            }
+        match dictionary_id {
+            Some(id) => self.lru.remove(id),
+            None => self.lru.clear(),
         }
     }
 }
@@ -499,8 +304,8 @@ impl DictionaryCache {
 // Keyed by a content hash of the dictionary's own `entries`, NOT by dictionary_id —
 // self-correcting: if entries differ (any edit, saved or not), the hash differs and
 // the cache misses, so there is no invalidation path to wire and nothing to forget.
-// This is deliberately simpler than `DictionaryCache` above (no `invalidate()`, no
-// TOCTOU-safe eviction dance) because content-hash keys can never go stale.
+// This is deliberately simpler than `DictionaryCache` above (no `invalidate()`) because
+// content-hash keys can never go stale.
 
 /// Cap chosen larger than `DictionaryCache`'s `MAX_CACHE_ENTRIES` (5) — a trie-cache
 /// entry is per dictionary *content version*, not per dictionary id, so a session
@@ -518,91 +323,26 @@ fn hash_dictionary_entries(entries: &[DictionaryEntry]) -> u64 {
     hasher.finish()
 }
 
+/// Built tries by content hash; eviction, recency and poisoned-lock recovery are `LruCache`'s.
 pub struct TrieCache {
-    cache: Mutex<HashMap<u64, Arc<TrieNode>>>,
-    access_order: Mutex<HashMap<u64, u64>>,
+    lru: LruCache<u64, Arc<TrieNode>>,
 }
 
 impl TrieCache {
     pub fn new() -> Self {
         Self {
-            cache: Mutex::new(HashMap::new()),
-            access_order: Mutex::new(HashMap::new()),
+            lru: LruCache::new("Trie", MAX_TRIE_CACHE_ENTRIES, record_mutex_poisoning),
         }
     }
 
-    /// Returns the cached trie for `key`, if present, and refreshes its LRU timestamp.
-    /// Same mutex-poisoning graceful-degradation pattern as `DictionaryCache::get`.
+    /// Returns the cached trie for `key`, if present, and marks it most recently used.
     pub fn get(&self, key: u64) -> Option<Arc<TrieNode>> {
-        let value = match self.cache.lock() {
-            Ok(cache) => cache.get(&key).cloned(),
-            Err(poisoned) => {
-                record_mutex_poisoning();
-                eprintln!("WARNING: Trie cache mutex poisoned during get - continuing with degraded reliability");
-                poisoned.into_inner().get(&key).cloned()
-            }
-        };
-
-        if value.is_some() {
-            if let Ok(mut access_order) = self.access_order.lock() {
-                access_order.insert(key, now_ms());
-            }
-        }
-
-        value
+        self.lru.get(&key)
     }
 
-    /// Inserts `value` under `key`, evicting the LRU entry first if the cache is full.
-    /// Same TOCTOU-safe single-critical-section eviction as `DictionaryCache::set`.
+    /// Inserts `value` under `key`, evicting the least recently used entry if the cache is full.
     pub fn set(&self, key: u64, value: Arc<TrieNode>) {
-        let lru_candidates: Vec<u64> = if let Ok(access_order) = self.access_order.lock() {
-            let mut entries: Vec<(u64, u64)> = access_order.iter().map(|(&k, &v)| (k, v)).collect();
-            entries.sort_by_key(|(_, ts)| *ts);
-            entries.into_iter().map(|(k, _)| k).collect()
-        } else {
-            Vec::new()
-        };
-
-        match self.cache.lock() {
-            Ok(mut cache) => {
-                let mut evicted_key: Option<u64> = None;
-                if cache.len() >= MAX_TRIE_CACHE_ENTRIES && !cache.contains_key(&key) {
-                    for candidate in &lru_candidates {
-                        if cache.remove(candidate).is_some() {
-                            evicted_key = Some(*candidate);
-                            break;
-                        }
-                    }
-                    if evicted_key.is_none() {
-                        if let Some(&fallback_key) = cache.keys().min() {
-                            cache.remove(&fallback_key);
-                            evicted_key = Some(fallback_key);
-                        }
-                    }
-                }
-
-                cache.insert(key, value);
-
-                drop(cache);
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.insert(key, now_ms());
-                    if let Some(evicted) = evicted_key {
-                        access_order.remove(&evicted);
-                    }
-                }
-            }
-            Err(poisoned) => {
-                record_mutex_poisoning();
-                eprintln!("WARNING: Trie cache mutex poisoned during set - continuing with degraded reliability");
-                let mut cache = poisoned.into_inner();
-                cache.clear();
-                cache.insert(key, value);
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.clear();
-                    access_order.insert(key, now_ms());
-                }
-            }
-        }
+        self.lru.set(key, value);
     }
 }
 
@@ -2178,54 +1918,6 @@ mod tests {
         assert!(cache.get("properNouns-MyNovel").is_none());
     }
 
-    // ── access_order tracks get and set ──────────────────────────────────────
-
-    #[test]
-    fn test_set_records_access_order_entry() {
-        let cache = make_cache();
-        cache.set("k".to_string(), serde_json::json!(null));
-        let access_order = cache.access_order.lock().unwrap();
-        assert!(access_order.contains_key("k"), "set() should populate access_order");
-    }
-
-    #[test]
-    fn test_get_updates_access_order_on_hit() {
-        let cache = make_cache();
-        cache.set("k".to_string(), serde_json::json!(null));
-        let ts_after_set = *cache.access_order.lock().unwrap().get("k").unwrap();
-        // Access the entry to update its timestamp
-        cache.get("k");
-        let ts_after_get = *cache.access_order.lock().unwrap().get("k").unwrap();
-        // Timestamps should be >= (same millisecond or later)
-        assert!(ts_after_get >= ts_after_set);
-    }
-
-    #[test]
-    fn test_get_does_not_pollute_access_order_on_miss() {
-        let cache = make_cache();
-        cache.get("nonexistent");
-        let access_order = cache.access_order.lock().unwrap();
-        assert!(!access_order.contains_key("nonexistent"),
-            "get() on missing key must not insert into access_order");
-    }
-
-    // ── Timestamp is in milliseconds (regression for as_secs bug) ────────────
-
-    #[test]
-    fn test_access_order_timestamp_is_milliseconds_not_seconds() {
-        let cache = make_cache();
-        cache.set("k".to_string(), serde_json::json!(null));
-
-        let ts = *cache.access_order.lock().unwrap().get("k").unwrap();
-
-        // Any millisecond timestamp after 2020-01-01 is > 1_577_836_800_000.
-        // A seconds-based timestamp for the same date would be ~1_577_836_800
-        // (1000x smaller). This assertion would fail if as_secs() were used.
-        assert!(ts > 1_577_836_800_000,
-            "Timestamp {} looks like seconds, not milliseconds (expected > 1_577_836_800_000)",
-            ts);
-    }
-
     // ── invalidate by dictionary ID ──────────────────────────────────────────
 
     #[test]
@@ -2240,20 +1932,6 @@ mod tests {
 
         assert!(cache.get("dict1").is_none(), "dict1 should be evicted");
         assert!(cache.get("dict2").is_some(), "dict2 should be untouched");
-    }
-
-    #[test]
-    fn test_invalidate_by_id_cleans_access_order_for_evicted_keys() {
-        let cache = make_cache();
-        cache.set("dict1".to_string(), serde_json::json!(null));
-        cache.set("dict2".to_string(), serde_json::json!(null));
-
-        cache.invalidate(Some("dict1"));
-
-        let access_order = cache.access_order.lock().unwrap();
-        assert!(!access_order.contains_key("dict1"),
-            "access_order should not retain evicted key dict1");
-        // dict2 may or may not be in access_order depending on whether get() was called
     }
 
     #[test]
@@ -2282,19 +1960,6 @@ mod tests {
     }
 
     #[test]
-    fn test_invalidate_none_clears_access_order() {
-        let cache = make_cache();
-        cache.set("k".to_string(), serde_json::json!(null));
-        cache.get("k"); // ensure access_order has an entry
-
-        cache.invalidate(None);
-
-        let access_order = cache.access_order.lock().unwrap();
-        assert!(access_order.is_empty(),
-            "access_order should be empty after full invalidate");
-    }
-
-    #[test]
     fn test_invalidate_none_on_empty_cache_is_safe() {
         let cache = make_cache();
         // Should not panic
@@ -2313,8 +1978,7 @@ mod tests {
             cache.set(format!("dict{}:path", i), serde_json::json!({"id": i}));
         }
 
-        let cache_guard = cache.cache.lock().unwrap();
-        assert_eq!(cache_guard.len(), MAX_CACHE_ENTRIES,
+        assert_eq!(cache.lru.len(), MAX_CACHE_ENTRIES,
             "Cache size should not exceed MAX_CACHE_ENTRIES after LRU eviction");
     }
 
@@ -3865,10 +3529,8 @@ mod tests {
 
     #[test]
     fn test_trie_cache_evicts_past_capacity_and_keeps_newest() {
-        // Matches DictionaryCache's own LRU test convention (see
-        // test_newly_inserted_key_is_retrievable_after_eviction above) — same-millisecond
-        // timestamps in a tight loop make asserting exactly *which* key was evicted
-        // unreliable; size-cap + newest-survives is the stable, real invariant.
+        // Which key is evicted is `LruCache`'s own contract and tested there; this checks
+        // that the trie cache is wired to its cap.
         let cache = TrieCache::new();
         let make_trie = |n: u64| Arc::new(build_trie_from_entries(&[DictionaryEntry {
             chinese: format!("字{}", n),
@@ -3881,10 +3543,8 @@ mod tests {
         }
         cache.set(MAX_TRIE_CACHE_ENTRIES as u64, make_trie(MAX_TRIE_CACHE_ENTRIES as u64));
 
-        let cache_guard = cache.cache.lock().unwrap();
-        assert_eq!(cache_guard.len(), MAX_TRIE_CACHE_ENTRIES,
+        assert_eq!(cache.lru.len(), MAX_TRIE_CACHE_ENTRIES,
             "cache size should not exceed MAX_TRIE_CACHE_ENTRIES after LRU eviction");
-        drop(cache_guard);
 
         assert!(cache.get(MAX_TRIE_CACHE_ENTRIES as u64).is_some(),
             "the most recently inserted entry should survive LRU eviction");

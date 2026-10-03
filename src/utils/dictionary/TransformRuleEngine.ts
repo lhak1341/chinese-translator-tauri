@@ -8,6 +8,7 @@ import type { TransformRule } from '../../types/TransformRuleTypes';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import { shouldSkipKey } from './DuplicateAnalyzer';
+import { entryFields } from './EntryValue';
 import { getDictionaryLabel } from './DictionaryLabels';
 import {
   titleCaseExceptLastN,
@@ -161,15 +162,15 @@ export function findRuleMatchingEntries(
       if (shouldSkipKey(source)) continue;
       if (!ruleMatches(alwaysEnabledRule, source)) continue;
 
-      const isObject = typeof value === 'object';
+      const fields = entryFields(value);
       results.push({
         source,
-        translation: isObject ? value.translation : value,
+        translation: fields.translation,
         dictionaryId,
         dictionaryLabel: getDictionaryLabel(dictionaryId),
-        semanticType: (isObject && value.semanticType) || '',
-        allowAsPatternVariable: isObject && value.allowAsPatternVariable === true,
-        allowedVariableTypes: (isObject && value.allowedVariableTypes) || {},
+        semanticType: fields.semanticType as RuleMatchEntry['semanticType'],
+        allowAsPatternVariable: fields.allowAsPatternVariable,
+        allowedVariableTypes: fields.allowedVariableTypes,
       });
     }
   }

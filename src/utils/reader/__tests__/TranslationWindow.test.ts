@@ -3,7 +3,6 @@ import {
   CHUNK_CEILING_CHARS,
   CHUNK_TARGET_CHARS,
   VIEWPORT_LINES_HYSTERESIS,
-  assembleTranslatedLines,
   chunkText,
   computeBands,
   countVisibleLines,
@@ -382,54 +381,5 @@ describe('chunkText', () => {
     };
 
     expect(chunkText(chunk, reader(lines))).toBe('一行\n第二行\n第三');
-  });
-});
-
-describe('assembleTranslatedLines', () => {
-  const chunk = (startLine: number, endLine: number, startChar = 0, endChar = 1): ChunkPlan => ({
-    key: `${startLine}:${startChar}-${endLine}:${endChar}`,
-    startLine,
-    startChar,
-    endLine,
-    endChar,
-    charCount: 1,
-  });
-
-  it('splits a chunk back into the lines it came from', () => {
-    const lines = assembleTranslatedLines([{ chunk: chunk(0, 2), translatedText: 'Một\nHai\nBa' }]);
-
-    expect([...lines.entries()]).toEqual([
-      [0, 'Một'],
-      [1, 'Hai'],
-      [2, 'Ba'],
-    ]);
-  });
-
-  it('pads with empty strings when the engine returned fewer lines than it was given', () => {
-    const lines = assembleTranslatedLines([{ chunk: chunk(4, 6), translatedText: 'Một\nHai' }]);
-
-    expect(lines.get(6)).toBe('');
-  });
-
-  it('folds surplus lines into the last one rather than shifting every line after it', () => {
-    const lines = assembleTranslatedLines([
-      { chunk: chunk(0, 1), translatedText: 'Một\nHai\nBa\nBốn' },
-    ]);
-
-    expect(lines.get(0)).toBe('Một');
-    expect(lines.get(1)).toBe('Hai Ba Bốn');
-  });
-
-  it('rebuilds a line that was split across chunks, whatever order they arrived in', () => {
-    const lines = assembleTranslatedLines([
-      { chunk: chunk(5, 5, 10, 20), translatedText: 'phần hai' },
-      { chunk: chunk(5, 5, 0, 10), translatedText: 'phần một ' },
-    ]);
-
-    expect(lines.get(5)).toBe('phần một phần hai');
-  });
-
-  it('returns an empty map for no entries', () => {
-    expect(assembleTranslatedLines([]).size).toBe(0);
   });
 });

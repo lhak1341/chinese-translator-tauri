@@ -7,6 +7,7 @@
 
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import { getDictionaryLabel } from './DictionaryLabels';
+import { entryFields } from './EntryValue';
 
 /**
  * Represents a single row in the duplicate view table
@@ -20,7 +21,7 @@ export interface DuplicateRow {
   dictionaryId: string;
   /** Human-readable dictionary label for display */
   dictionaryLabel: string;
-  /** Metadata for complex-tier entries (absent for string-only lookup tables) */
+  /** Metadata read through `entryFields`: a string-valued entry reads as `false` / `''` */
   metadata?: DuplicateRowMetadata;
 }
 
@@ -119,14 +120,8 @@ export function findConflictingEntries(
       }
 
       // Extract translation and metadata
-      const translation = typeof value === 'string' ? value : value.translation;
-      const metadata =
-        typeof value === 'object'
-          ? {
-              allowAsPatternVariable: value.allowAsPatternVariable,
-              semanticType: value.semanticType,
-            }
-          : undefined;
+      const { translation, allowAsPatternVariable, semanticType } = entryFields(value);
+      const metadata = { allowAsPatternVariable, semanticType };
 
       if (!sourceIndex.has(source)) {
         sourceIndex.set(source, []);

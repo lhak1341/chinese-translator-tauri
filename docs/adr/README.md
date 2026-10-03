@@ -131,6 +131,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-065](./ADR-065-keep-dictionary-reload-owned-by-the-translator.md)              | Keep dictionary reload owned by the Translator               | Decided                           | Eight of the reload protocol's ten inputs are the Translator tab's own state, so an engine-owned reload would need a two-phase protocol.             |
 | [ADR-066](./ADR-066-skip-active-dictionary-snapshot.md)                             | Skip an active-dictionary snapshot module                    | Decided                           | The engine's list is what it was built with and the Configuration tab's is saved intent; they differ until a reload on purpose.                      |
 | [ADR-067](./ADR-067-keep-pair-operations-in-the-binding-store.md)                   | Keep pair operations in the binding store                    | Decided                           | Create, rename and move each read or write the binding, so a pair module would take that state through getters, with one adapter.                    |
+| [ADR-068](./ADR-068-one-lru-module-under-both-dictionary-caches.md)                 | One LRU module under both dictionary caches                  | Decided                           | The two caches had drifted (a recency guard only one carried); one lock, a counter clock and one poison path remove the cases the copies patched.    |
 
 ## ADR Format
 
@@ -183,5 +184,5 @@ Write an ADR when making decisions about:
 - **2026-09-30**: ADR-054; ADR-055; ADR-056
 - **2026-10-01**: ADR-057
 - **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063; ADR-064; ADR-065
-- **2026-10-03**: ADR-066; ADR-067
+- **2026-10-03**: ADR-066; ADR-067; ADR-068
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

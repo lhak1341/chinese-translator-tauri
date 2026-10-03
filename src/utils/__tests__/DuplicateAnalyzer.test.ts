@@ -228,6 +228,19 @@ describe('DuplicateAnalyzer', () => {
       expect(patternsEntry?.metadata?.allowAsPatternVariable).toBe(true);
     });
 
+    it('reads a string-valued entry as having no metadata, the same as an object without any', () => {
+      const dicts = {
+        properNouns: { 青云: 'Thanh Vân' },
+        phrases: { 青云: { translation: 'Thanh Vân Môn' } },
+      };
+      const result = findConflictingEntries(dicts);
+
+      expect(result.map((r) => r.metadata)).toEqual([
+        { allowAsPatternVariable: false, semanticType: '' },
+        { allowAsPatternVariable: false, semanticType: '' },
+      ]);
+    });
+
     it('carries semanticType so the duplicate view can show and compare it', () => {
       const dicts = {
         properNouns: { 青云: { translation: 'Thanh Vân', semanticType: 'location' } },

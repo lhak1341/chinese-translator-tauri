@@ -3,9 +3,11 @@
  *
  * A stored value is a plain string (lookup tables, and legacy entries in complex dicts) or a
  * `DictionaryEntryValue` object. UI code reads it through `entryFields`, which answers every
- * field for both shapes, instead of re-deriving each from a `typeof` ladder. Load and trie
+ * field for both shapes, instead of re-deriving each from a `typeof` ladder — including the
+ * Transform Rule matcher, the duplicate analyzer and the move dialog's preview. Load and trie
  * paths keep their own checks: they are hot loops, and they are validating the shape, not
- * reading it.
+ * reading it. `DictionaryEntryFlattener` stays raw too: it forwards every key of an object
+ * value to IPC, including ones `entryFields` does not know about.
  *
  * Changing one field is `patchEntry` (useDictionaryCRUD.ts), which reads the current value
  * itself and merges with `applyEntryPatch` — callers pass only what changed, never a

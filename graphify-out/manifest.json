@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1790988932.6956646,
-    "ast_hash": "9865c336bbcd7d5b3e160c582f7c3151",
+    "mtime": 1791007163.349551,
+    "ast_hash": "bd194444aaad8cac481b077660ec218f",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -65,8 +65,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1790997887.826743,
-    "ast_hash": "6670279d54ec8431a6f239ac69c64851",
+    "mtime": 1791007187.444445,
+    "ast_hash": "747039444690995d45b988ea0e9865da",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -570,8 +570,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/DuplicateAnalyzer.ts": {
-    "mtime": 1790992264.366166,
-    "ast_hash": "c4bc5b766128f3289f0277b5035b901e",
+    "mtime": 1791007538.556429,
+    "ast_hash": "039c5ee2327e619cca4fbc202e287a54",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryEntryValidator.ts": {
@@ -1075,8 +1075,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1791004400.294847,
-    "ast_hash": "dd73073476a85ba9e2c9f92298ac79fa",
+    "mtime": 1791006603.4111152,
+    "ast_hash": "df397638bbae8bc193c0ac1bf595d8c1",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1190,8 +1190,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1790962379.3064969,
-    "ast_hash": "6bf92119a8a2da447196ce724bc8ef96",
+    "mtime": 1791007295.8414848,
+    "ast_hash": "101a72494daae36585609a47d6bf3b53",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1340,8 +1340,8 @@
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
-    "mtime": 1790962779.682725,
-    "ast_hash": "a0398493f659ff5ef4b9b3c8be7883d7",
+    "mtime": 1791007300.8205688,
+    "ast_hash": "973091a606721295123a3e3cb32ee638",
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
@@ -1355,8 +1355,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790963427.5550067,
-    "ast_hash": "3a5701ded946c8f11b58676cf1f31643",
+    "mtime": 1791005925.0275457,
+    "ast_hash": "6d413b96eb4c6cb82a8f612448dc789d",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1620,8 +1620,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
-    "mtime": 1790992264.3668277,
-    "ast_hash": "099b421e044b12db69125b7cd9226e3e",
+    "mtime": 1791007538.5557642,
+    "ast_hash": "b1c0644e9f255a30b6fd80fd68c84a05",
     "semantic_hash": ""
   },
   "src/utils/highlighting/UnitHighlightPredicate.ts": {
@@ -1770,13 +1770,13 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
-    "mtime": 1790755238.0395594,
-    "ast_hash": "bda1f5d15c96201dc708755bc4c0929d",
+    "mtime": 1791007967.611772,
+    "ast_hash": "67cb491aa35c3b13444d59e7abf08c64",
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1790964446.8265827,
-    "ast_hash": "c2d3d8a791b88b07df612b7e208f46a9",
+    "mtime": 1791007631.1961,
+    "ast_hash": "2746983769836b6ff5745cec957e22e0",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1795,8 +1795,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790986843.4947429,
-    "ast_hash": "67d211e67498895284e26a541ed1bead",
+    "mtime": 1791005906.1660168,
+    "ast_hash": "145d605158187ab71c435ad469938091",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationWindow.ts": {
-    "mtime": 1790756268.6442506,
-    "ast_hash": "a9ec9b18f2bc5f7feed984a41e96fef8",
+    "mtime": 1791006450.1971438,
+    "ast_hash": "4dac94fe5d635203e8104e7ab4904288",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
@@ -2045,8 +2045,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/LineSegments.ts": {
-    "mtime": 1790701111.915356,
-    "ast_hash": "5de5443e193610e4af6d9c948ab1b668",
+    "mtime": 1791006492.475966,
+    "ast_hash": "c2f5e6512ac84e9470d7e8cbedda2cd7",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline_commands.rs": {
@@ -2195,8 +2195,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/EntryValue.ts": {
-    "mtime": 1790424452.350403,
-    "ast_hash": "21853faebfc609f006860bd5f22be8b9",
+    "mtime": 1791007538.5575466,
+    "ast_hash": "da241b92b435dec6705659f466ca46c4",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryPairs.ts": {
@@ -2240,8 +2240,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryEdit.ts": {
-    "mtime": 1790696276.0788457,
-    "ast_hash": "2ec003f9d3b51aed83d612e66103a2c7",
+    "mtime": 1791007875.6036897,
+    "ast_hash": "53910355c5c5b0ba4c911f2835f7b3f7",
     "semantic_hash": ""
   },
   "docs/adr/ADR-052-dictionary-edit-commits-one-queue-typescript-write-back.md": {
@@ -2260,8 +2260,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
-    "mtime": 1790756268.645228,
-    "ast_hash": "aec129d435b0e0c6b5c4e5c28874e271",
+    "mtime": 1791006566.9267747,
+    "ast_hash": "dbca55bd7705347d2fb1bbfa25ef1d63",
     "semantic_hash": ""
   },
   "src/hooks/useLibrary.ts": {
@@ -2422,6 +2422,21 @@
   "src/utils/reader/ChapterOutlineStore.ts": {
     "mtime": 1790990117.048999,
     "ast_hash": "b3b9ca733288d5192b33f4b9f164b0c1",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ChunkLineFold.ts": {
+    "mtime": 1791006449.5898736,
+    "ast_hash": "a59fe4869b6c144ae6a1644397c25e68",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/lru_cache.rs": {
+    "mtime": 1791007266.7094047,
+    "ast_hash": "79edd450e774b70696fb115f77fd8f46",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-068-one-lru-module-under-both-dictionary-caches.md": {
+    "mtime": 1791007295.1014674,
+    "ast_hash": "08889cce663b2d7c8f1dc1aa48eee61f",
     "semantic_hash": ""
   }
 }

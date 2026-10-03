@@ -8,7 +8,7 @@ import {
   fillSegmentGapsCached,
 } from '../LineSegments';
 import type { PositionedSegment, SegmentedChunk } from '../LineSegments';
-import { assembleTranslatedLines } from '../TranslationWindow';
+import { assembleTranslatedLines } from '../ChunkLineFold';
 import type { ChunkPlan } from '../TranslationWindow';
 
 function plan(startLine: number, endLine: number, startChar = 0, endChar = 0): ChunkPlan {

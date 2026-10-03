@@ -3,7 +3,8 @@ import { useDictionary } from './DictionaryContext';
 import { X, AlertTriangle, Loader } from 'lucide-react';
 import styles from '../../styles/MoveDialog.module.css';
 import { logger } from '../../utils/logger';
-import { entryFields } from '../../utils/dictionary';
+import { buildEntryMetadata, entryFields } from '../../utils/dictionary';
+import { overwrittenByMove, planMove } from '../../utils/dictionary/DictionaryEdit';
 import { useMoveTargetDictionaries } from '../../hooks/useMoveTargetDictionaries';
 import type { DictionaryEntryMetadata } from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_LABELS } from '../../constants/SemanticTypes';
@@ -59,18 +60,8 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
         logger.warn('Entry not found in dictionary:', source);
         return { source, translation: source };
       }
-      if (typeof value === 'object') {
-        return {
-          source,
-          translation: value.translation,
-          metadata: {
-            allowAsPatternVariable: value.allowAsPatternVariable,
-            semanticType: value.semanticType,
-            allowedVariableTypes: value.allowedVariableTypes,
-          },
-        };
-      }
-      return { source, translation: value };
+      const { translation, ...metadataFields } = entryFields(value);
+      return { source, translation, metadata: buildEntryMetadata(metadataFields) };
     });
   }, [entries, dictionaries, currentDictionary]);
 
@@ -93,21 +84,22 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
     };
   }, [selectedDictionary, targetLoaded, loadDictionary]);
 
-  // Entries that already exist in the target and would be overwritten.
+  // What the move would overwrite, read from the move's own plan. A target that is not loaded
+  // yet plans as invalid, which reads as nothing to warn about.
   const warning = useMemo<string | null>(() => {
-    const targetDict = selectedDictionary ? dictionaries?.[selectedDictionary] : undefined;
-    if (!targetDict) return null;
+    if (!dictionaries || !selectedDictionary) return null;
 
-    const existing = fullEntries.filter((e) => targetDict[e.source] !== undefined);
+    const existing = overwrittenByMove(
+      planMove(dictionaries, currentDictionary, selectedDictionary, entries)
+    );
     if (existing.length === 0) return null;
 
     if (isSingle) {
-      const existingEntry = targetDict[existing[0].source];
-      const existingTranslation = entryFields(existingEntry).translation;
-      return `Entry "${existing[0].source}" already exists in target dictionary with translation "${existingTranslation}". Moving will overwrite it.`;
+      const existingTranslation = entryFields(existing[0].before).translation;
+      return `Entry "${existing[0].key}" already exists in target dictionary with translation "${existingTranslation}". Moving will overwrite it.`;
     }
     return `${existing.length} ${existing.length === 1 ? 'entry' : 'entries'} already exist in target and will be overwritten.`;
-  }, [selectedDictionary, dictionaries, fullEntries, isSingle]);
+  }, [selectedDictionary, dictionaries, currentDictionary, entries, isSingle]);
 
   const getSelectedLabel = useCallback((): string => {
     return (

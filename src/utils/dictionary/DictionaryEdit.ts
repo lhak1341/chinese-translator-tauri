@@ -147,6 +147,18 @@ export function planMove(
   return { changes, outcome: { kind: 'moved', count, missing } };
 }
 
+/** The entries a move plan replaces in its target: the keys the target already held, with
+ * the value each had. Read from the plan itself, so a preview and the commit cannot disagree
+ * about what a move overwrites. Empty for an invalid plan, and for a key the source lacks
+ * (the plan skips it). */
+export function overwrittenByMove(plan: PlanResult): Array<{ key: string; before: StoredValue }> {
+  if (isInvalidPlan(plan)) return [];
+  // Only the target's side of a move has an `after`; the source's side removes the key.
+  return plan.changes.flatMap((c) =>
+    c.before !== undefined && c.after !== undefined ? [{ key: c.key, before: c.before }] : []
+  );
+}
+
 /** The edit that undoes `edit`. */
 export function invert(edit: DictionaryEdit): DictionaryEdit {
   return {

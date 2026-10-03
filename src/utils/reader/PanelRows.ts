@@ -22,8 +22,8 @@
  */
 
 import type { CachedChunk } from './TranslationChunkCache';
-import { assembleTranslatedLines, chunkLinePieces, orderChunksByLine } from './TranslationWindow';
-import type { ChunkPlan } from './TranslationWindow';
+import { assembleTranslatedLines, linePieces } from './ChunkLineFold';
+import type { LinePiece } from './ChunkLineFold';
 import {
   buildCharacterOnlyLineSegments,
   buildOriginalLineSegments,
@@ -84,14 +84,6 @@ export type ProjectedChunk = Pick<
 >;
 
 /** Every landed chunk, folded into lines. Replaced whole on each projection, never mutated. */
-/** One landed chunk's share of one line: the source it covers and the length of what it
- * became. `to: null` runs to the end of the line. */
-interface LinePiece {
-  from: number;
-  to: number | null;
-  length: number;
-}
-
 export interface PanelRowsSnapshot {
   readonly translatedLines: ReadonlyMap<number, string>;
   readonly characterOnlyLines: ReadonlyMap<number, string>;
@@ -112,26 +104,6 @@ export const EMPTY_PANEL_ROWS: PanelRowsSnapshot = Object.freeze({
   originalSegments: new Map(),
   characterOnlySegments: new Map(),
 });
-
-/** Which source characters of each line a chunk covers, and how long its piece of each
- * line came back — the same division `assembleTranslatedLines` concatenates. */
-function linePieces(
-  entries: readonly { chunk: ChunkPlan; translatedText: string }[]
-): Map<number, LinePiece[]> {
-  const byLine = new Map<number, LinePiece[]>();
-  for (const { chunk, translatedText } of orderChunksByLine(entries)) {
-    for (const [line, piece] of chunkLinePieces(chunk, translatedText)) {
-      const pieces = byLine.get(line) ?? [];
-      pieces.push({
-        from: line === chunk.startLine ? chunk.startChar : 0,
-        to: line === chunk.endLine ? chunk.endChar : null,
-        length: piece.length,
-      });
-      byLine.set(line, pieces);
-    }
-  }
-  return byLine;
-}
 
 export function projectPanelRows(entries: readonly ProjectedChunk[]): PanelRowsSnapshot {
   // The character-only pass folds back into lines by exactly the same rule — it is the

@@ -16,8 +16,9 @@
  * would light up a word in every other chunk on screen.
  */
 
-import type { ChunkLineRange, ChunkPlan } from './TranslationWindow';
-import { chunkLineRanges, orderChunksByLine, rangeText } from './TranslationWindow';
+import { chunkLineRanges, orderChunksByLine, rangeText } from './ChunkLineFold';
+import type { ChunkLineRange } from './ChunkLineFold';
+import type { ChunkPlan } from './TranslationWindow';
 
 /**
  * A segment as its producer measured it: a half-open range over the chunk's text.

@@ -254,6 +254,35 @@ describe('findRuleMatchingEntries', () => {
     expect(result.map((row) => row.source)).toEqual(['古南京城', '南京城']);
   });
 
+  test('reads a string-valued entry and an object entry through the same fields', () => {
+    const mixed = {
+      phrases: {
+        南京城: 'nam kinh thanh',
+        北京城: {
+          translation: 'bac kinh thanh',
+          semanticType: 'location',
+          allowAsPatternVariable: true,
+          allowedVariableTypes: { X: ['location'] },
+        },
+      },
+    };
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const [bac, nam] = findRuleMatchingEntries(r, mixed as any);
+
+    expect(nam).toMatchObject({
+      translation: 'nam kinh thanh',
+      semanticType: '',
+      allowAsPatternVariable: false,
+      allowedVariableTypes: {},
+    });
+    expect(bac).toMatchObject({
+      translation: 'bac kinh thanh',
+      semanticType: 'location',
+      allowAsPatternVariable: true,
+      allowedVariableTypes: { X: ['location'] },
+    });
+  });
+
   test('excludes dictionaries that do not support Transform Rules (e.g. patterns)', () => {
     const r = rule({ matchKind: 'suffix', key: '城' });
     const result = findRuleMatchingEntries(r, dictionaries);

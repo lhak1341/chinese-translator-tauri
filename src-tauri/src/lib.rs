@@ -2,6 +2,7 @@
 mod book_commands;
 mod chapter_outline_commands;
 mod dictionary_commands;
+mod lru_cache;
 pub mod book_loader;
 pub mod chapter_outline;
 pub mod lookup_index_engine;

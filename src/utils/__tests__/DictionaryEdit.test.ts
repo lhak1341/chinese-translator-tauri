@@ -4,6 +4,7 @@ import {
   planUpdate,
   planDelete,
   planMove,
+  overwrittenByMove,
   invert,
   applyEdit,
   changedKeys,
@@ -88,6 +89,23 @@ describe('DictionaryEdit — plans', () => {
       count: 2,
       missing: ['无'],
     });
+  });
+
+  test('overwrittenByMove lists the target values a move replaces', () => {
+    // 张三 exists in both A and B; 李四 only in A.
+    expect(overwrittenByMove(planMove(dicts(), A, B, ['张三', '李四']))).toEqual([
+      { key: '张三', before: entry('Trương Tam (B)') },
+    ]);
+  });
+
+  test('overwrittenByMove ignores a key the source lacks, even if the target has it', () => {
+    // 王五 exists only in B, so there is nothing to move and nothing is replaced.
+    expect(overwrittenByMove(planMove(dicts(), A, B, ['王五']))).toEqual([]);
+  });
+
+  test('overwrittenByMove is empty when the target holds none of the keys, or the plan is invalid', () => {
+    expect(overwrittenByMove(planMove(dicts(), A, B, ['李四']))).toEqual([]);
+    expect(overwrittenByMove(planMove(dicts(), A, 'properNouns-X', ['张三']))).toEqual([]);
   });
 
   test('a move touches source then target', () => {

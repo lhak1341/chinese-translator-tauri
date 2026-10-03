@@ -101,6 +101,35 @@ describe('MoveDialog', () => {
       expect(options).toContain('properNouns');
     });
 
+    test('does not warn about an entry the source no longer holds, even if the target has the key', async () => {
+      // 张三 is only in properNouns, so moving it out of phrases moves nothing and overwrites
+      // nothing — the plan skips it, and the warning is read from the plan.
+      mockUseDictionary.mockReturnValue({
+        dictionaries: {
+          ...mockDictionaries,
+          phrases: { 再见: { translation: 'tạm biệt' } },
+        },
+        dictionaryTypes: mockDictionaryTypes,
+        moveEntry: mockMoveEntry,
+        bulkMoveEntries: mockBulkMoveEntries,
+        loadDictionary: mockLoadDictionary,
+      });
+      render(
+        <MoveDialog
+          entries={['张三']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
+      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      fireEvent.change(select, { target: { value: 'properNouns' } });
+
+      await waitFor(() => expect(select.value).toBe('properNouns'));
+      expect(screen.queryByText(/already exists in target dictionary/)).not.toBeInTheDocument();
+    });
+
     test('shows named overwrite detail with the old translation', async () => {
       render(
         <MoveDialog
