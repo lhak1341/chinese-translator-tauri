@@ -60,8 +60,6 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Adjacent variable tokens in WASM patterns are unreliable — avoid in pattern authoring** (2026-02-14): `wasm-core/src/pattern_processor/matcher.rs:638-651` uses a greedy shortest-span heuristic when two consecutive variable tokens appear in a pattern (no backtracking). Patterns with a single variable token, or variables separated by at least one literal token, work reliably.
 
-**`AdaptiveBufferCalculator` non-integer `bufferSize` corrupts virtual scroll** (`EnhancedVirtualizedDictionaryTable.tsx`): Medium tier used to return `visibleItems * 1.5` (e.g. `15 * 1.5 = 22.5`). Fixed at source in `AdaptiveVirtualScrolling.js:271` with `Math.floor(visibleItems * 1.5)`. Consumer `visibleRange` also floors defensively — keep both.
-
 **JSX in utils:** `src/utils/` files returning JSX must use `.tsx` extension — TypeScript gives misleading parse errors (`')' expected`, not "JSX not supported") otherwise. Do NOT include `.tsx` in import paths; `allowImportingTsExtensions` is off.
 
 **Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
@@ -194,7 +192,7 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 **Async `await`-ordering tests**: to prove `await foo()` precedes `bar()`, use `foo: vi.fn(() => Promise.resolve().then(() => sequence.push('foo-resolved')))` and assert `sequence.indexOf('foo-resolved') < sequence.indexOf('bar')` after full execution — if the `await` is absent, `bar` fires before the microtask resolves and inverts the sequence. Run via `vi.useFakeTimers()` + `await act(async () => { vi.runAllTimersAsync(); })`.
 
-**A class whose constructor starts a real timer** — e.g. `PerformanceBaselineTracker`'s `setupPeriodicAnalysis()` — needs `afterEach(() => instance.destroy())`. Check for an existing `destroy()`/cleanup method before reaching for fake timers.
+**A class whose constructor starts a real timer** — e.g. a class with a `setInterval` in its constructor — needs `afterEach(() => instance.destroy())`. Check for an existing `destroy()`/cleanup method before reaching for fake timers.
 
 ### Mock mechanics
 

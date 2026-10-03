@@ -4,8 +4,6 @@
  *
  * Primary entry points:
  *   - DebouncedProgressHandler  — batch progress callbacks during streaming translation
- *   - adaptiveBufferCalculator  — optimal virtual scroll buffer sizing
  */
 
 export { DebouncedProgressHandler } from './UIResponsiveness';
-export { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling';

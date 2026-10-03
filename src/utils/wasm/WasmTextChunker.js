@@ -1,5 +1,5 @@
 // @ts-check
-import init, {
+import {
   TextChunker,
   recordFallback,
   getGlobalChunkerStats,
@@ -7,6 +7,7 @@ import init, {
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 import { areChunksInBounds } from './WasmBoundaryValidation';
 
 /**
@@ -41,7 +42,7 @@ const lifecycle = new WasmProcessorLifecycle({
 let _chunker = null;
 
 async function _initializeTextChunker(timeoutMs = 10000) {
-  return lifecycle.initialize(async (wasmBinary) => {
+  return lifecycle.initialize(async () => {
     logger.log(
       `[WASM TextChunker] 🔄 Starting init (timeout: ${timeoutMs}ms, env: ${process.env.NODE_ENV})`
     );
@@ -55,7 +56,7 @@ async function _initializeTextChunker(timeoutMs = 10000) {
         timeoutMs
       )
     );
-    await Promise.race([init(wasmBinary), timeoutPromise]);
+    await Promise.race([loadSharedWasmModule(), timeoutPromise]);
 
     logger.log(
       `[WASM TextChunker] ✅ WASM module loaded in ${(performance.now() - startTime).toFixed(1)}ms`

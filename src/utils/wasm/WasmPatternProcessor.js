@@ -55,6 +55,7 @@ import { fetchWasmBinary } from './wasmBinaryCache';
 import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -85,7 +86,7 @@ registerCascadeHandler(retireWasmPatternProcessorOnSharedPanic);
  * @returns {Promise<boolean>} True if initialization succeeded
  */
 export async function initializeWasmPatternProcessor(patternsDict) {
-  const success = await lifecycle.initialize(async (wasmBinary) => {
+  const success = await lifecycle.initialize(async () => {
     // Dynamic import required here — Pattern needs verifyWasmModule before init
     wasmModule = await import('../../wasm/translation_wasm_core.js');
 
@@ -97,7 +98,7 @@ export async function initializeWasmPatternProcessor(patternsDict) {
     }
 
     logger.debug('Initializing WASM module with verified binary...');
-    await wasmModule.default(wasmBinary);
+    await loadSharedWasmModule();
 
     const instance = new wasmModule.WasmPatternProcessor();
 

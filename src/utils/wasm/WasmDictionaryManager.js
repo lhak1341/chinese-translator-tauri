@@ -17,13 +17,14 @@
  * } from '../types/DictionaryManagerTypes'
  */
 
-import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
+import { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
 /** @import { WasmBufferAllocator } from './WasmMemoryPoolManager.js' */
 import { logger } from '../logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { FallbackManager } from '../FallbackManager';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+import { loadSharedWasmModule } from './WasmSharedModule';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
@@ -88,9 +89,8 @@ export class WasmDictionaryManager {
   async _doInitialize(fallbackManager, _config) {
     logger.log('🦀 Initializing WASM Dictionary Engine...');
 
-    const success = await this._lifecycle.initialize(async (wasmBinary) => {
-      // Pass verified binary to init — parity with Pattern and Number processors
-      await init(wasmBinary);
+    const success = await this._lifecycle.initialize(async () => {
+      await loadSharedWasmModule();
       const engine = new DictionaryEngine();
       this.engine = engine;
       logger.log('✅ WASM Dictionary Engine initialized successfully');

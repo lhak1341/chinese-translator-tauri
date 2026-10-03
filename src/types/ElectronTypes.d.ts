@@ -211,10 +211,6 @@ declare global {
     translationEngine?: any;
     /** Performance dashboard (development mode only) */
     performanceDashboard?: any;
-    /** System performance monitor (development mode only) */
-    systemPerformanceMonitor?: any;
-    /** Check real memory usage (development mode only) */
-    checkRealMemory?: () => void;
   }
 }
 

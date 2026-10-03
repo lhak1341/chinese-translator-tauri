@@ -1,34 +1,28 @@
 import { useState, useCallback } from 'react';
-import { performanceHealth } from '../utils/performance';
+import { globalPerformanceMonitor } from '../utils/performance/PerformanceMonitor';
 
 /**
- * @import { HealthReport } from '../utils/performance/PerformanceHealth'
- */
-
-/**
- * Performance monitoring hook.
+ * Average translation time for the stats chip.
  *
- * Returns a single unified report from performanceHealth.getReport() so all
- * fields are always consistent — no callback can update regressionHealth while
- * leaving performanceStats stale (the bug in the prior split-state design).
+ * Records each completed translation into globalPerformanceMonitor and reads its running mean
+ * back. There is no regression detector behind this (ADR-069): the status dot it used to drive
+ * could only fire through a baseline taken from a flat cumulative mean.
  *
  * @returns {{
- *   report: HealthReport,
- *   recordTranslation: (operationTimeMs: number) => void,
- *   refreshReport: () => void
+ *   avgTime: number,
+ *   recordTranslation: (operationTimeMs: number) => void
  * }}
  */
 export function usePerformanceMonitoring() {
-  const [report, setReport] = useState(() => performanceHealth.getReport());
+  const [avgTime, setAvgTime] = useState(() => globalPerformanceMonitor.getMetrics().avgTime ?? 0);
 
   const recordTranslation = useCallback((operationTimeMs) => {
-    performanceHealth.recordTranslation(operationTimeMs);
-    setReport(performanceHealth.getReport());
+    globalPerformanceMonitor.endTimer(
+      { id: 'translation', startTime: performance.now() - operationTimeMs, sampled: true },
+      'translation'
+    );
+    setAvgTime(globalPerformanceMonitor.getMetrics().avgTime ?? 0);
   }, []);
 
-  const refreshReport = useCallback(() => {
-    setReport(performanceHealth.getReport());
-  }, []);
-
-  return { report, recordTranslation, refreshReport };
+  return { avgTime, recordTranslation };
 }

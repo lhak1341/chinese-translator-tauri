@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { RefCallback } from 'react';
-import { adaptiveBufferCalculator } from '../utils/ui';
-import { logger } from '../utils/logger';
 import { ScrollPositionRecovery } from '../utils/ui/ScrollPositionRecovery';
 import type { AttemptFn } from '../utils/ui/ScrollPositionRecovery';
+
+/** Rows rendered above and below the visible window. Rows are a fixed height, so this is a constant. */
+const OVERSCAN_ROWS = 10;
 
 /** Total attempts (readiness-gated, then forced) the scroll-restore effect allows. */
 export const SCROLL_RESTORE_MAX_ATTEMPTS = 60;
@@ -81,7 +82,6 @@ export function useVirtualScrollRange(
   // Velocity is a ref, not state: it changes on every scroll event, and as state it forced a
   // full table re-render per event even when the rendered row range had not moved.
   const scrollVelocityRef = useRef<number>(0);
-  const [bufferSize, setBufferSize] = useState<number>(10);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -100,34 +100,6 @@ export function useVirtualScrollRange(
       });
     }
   }, [isActive]);
-
-  // Adaptive buffer sizing: adjusts bufferSize based on device performance,
-  // viewport dimensions, and scroll velocity. Debounced 100ms to batch rapid changes.
-  useEffect(() => {
-    const calculate = async () => {
-      try {
-        const optimalSize = await adaptiveBufferCalculator.calculateOptimalBufferSize({
-          containerHeight,
-          itemHeight,
-          totalItems,
-          scrollVelocity: scrollVelocityRef.current,
-          isScrolling,
-        });
-        if (
-          typeof optimalSize === 'number' &&
-          isFinite(optimalSize) &&
-          optimalSize > 0 &&
-          optimalSize !== bufferSize
-        ) {
-          setBufferSize(optimalSize);
-        }
-      } catch (error) {
-        logger.warn('Buffer size calculation failed:', error);
-      }
-    };
-    const timer = setTimeout(calculate, 100);
-    return () => clearTimeout(timer);
-  }, [containerHeight, totalItems, itemHeight, isScrolling, bufferSize]);
 
   const scrollRefCallback: RefCallback<HTMLDivElement> = useCallback((node) => {
     if (resizeObserverRef.current) {
@@ -149,9 +121,7 @@ export function useVirtualScrollRange(
   const totalHeight = totalItems * itemHeight;
 
   const visibleRange = useMemo((): VirtualScrollRange => {
-    // Floor bufferSize: fractional values (e.g. 22.5 from the medium tier 1.5× multiplier)
-    // produce sub-pixel row positioning and a wrong gradient phase.
-    const buffer = Math.floor(bufferSize);
+    const buffer = OVERSCAN_ROWS;
     // Clamp startIndex so a stale scrollTop (before a search that shrank the list) never
     // pushes startIndex past the end, which would leave visibleEntries empty.
     const firstVisibleIndex = Math.min(
@@ -163,11 +133,10 @@ export function useVirtualScrollRange(
     const visibleCount = Math.ceil(containerHeight / itemHeight);
     const endIndex = Math.min(totalItems, startIndex + visibleCount + buffer * 2);
     return { firstVisibleIndex, startIndex, endIndex, visibleCount };
-  }, [scrollTop, containerHeight, totalItems, bufferSize, itemHeight]);
+  }, [scrollTop, containerHeight, totalItems, itemHeight]);
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>): void => {
-      const frameStartTime = performance.now();
       const newScrollTop = e.currentTarget.scrollTop;
       const currentTime = Date.now();
 
@@ -189,20 +158,9 @@ export function useVirtualScrollRange(
         scrollVelocityRef.current = 0;
       }, 150);
 
-      const frameTime = performance.now() - frameStartTime;
-      adaptiveBufferCalculator.trackScrollingMetrics({
-        frameTime,
-        scrollVelocity: velocity,
-        scrollTop: newScrollTop,
-        isScrolling: true,
-        bufferSize,
-        visibleItems: Math.ceil(containerHeight / itemHeight),
-        totalItems,
-      });
-
       lastScrollTime.current = currentTime;
     },
-    [bufferSize, containerHeight, itemHeight, totalItems]
+    [itemHeight]
   );
 
   // Instant, not smooth: a smooth scroll across a 40k-row list animates through every row

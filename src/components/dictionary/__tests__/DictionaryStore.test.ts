@@ -1,5 +1,5 @@
 /**
- * The Dictionary Store's load, reload and rename operations, and how they order against
+ * The Dictionary Store's load, reload, rename and import operations, and how they order against
  * commits on the one queue (ADR-055). The commit protocol itself is in `EditCommitter.test.ts`.
  */
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -73,13 +73,22 @@ describe('the startup load', () => {
   });
 });
 
-describe('files changed outside the app (import)', () => {
-  test('every dictionary is re-read, so an edit to one that was not selected keeps the import', async () => {
-    fake.files[B] = { 李四: entry('imported'), 赵六: entry('imported too') };
+describe('import', () => {
+  /** An import that rewrites dictionary B's file, as the Rust command does. */
+  function importRewritesB(files: DictionaryData) {
+    fake.deps.importFiles.mockImplementation(async () => {
+      fake.files[B] = files;
+      return { success: true, message: 'Imported 1 dictionary' };
+    });
+  }
 
-    await store.loadAll({ invalidate: true });
+  test('every dictionary is re-read, so an edit to one that was not selected keeps the import', async () => {
+    importRewritesB({ 李四: entry('imported'), 赵六: entry('imported too') });
+
+    const outcome = await store.importAll();
     await store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
 
+    expect(outcome).toEqual({ status: 'imported', message: 'Imported 1 dictionary' });
     expect(fake.files[B]).toEqual({
       李四: entry('imported'),
       赵六: entry('imported too'),
@@ -88,9 +97,90 @@ describe('files changed outside the app (import)', () => {
   });
 
   test('invalidates the engine for every dictionary', async () => {
-    await store.loadAll({ invalidate: true });
+    await store.importAll();
 
     expect(fake.deps.invalidate.mock.calls.map(([id]) => id).sort()).toEqual([A, B]);
+  });
+
+  test('onApplied runs inside the turn, after memory holds the import and before an edit queued behind it plans', async () => {
+    importRewritesB({ 李四: entry('imported') });
+    const order: string[] = [];
+    const importing = store.importAll(() =>
+      order.push(`applied:${memory()[B]['李四'].translation}`)
+    );
+    const committing = store.commit((d) => {
+      order.push('planned');
+      return planAdd(d, A, '王五', entry('Vương Ngũ'));
+    });
+    await Promise.all([importing, committing]);
+
+    expect(order).toEqual(['applied:imported', 'planned']);
+  });
+
+  test('waits for an edit that is saving, so the edit cannot land its stale copy over the import', async () => {
+    let releaseSave!: () => void;
+    const saved = new Promise<void>((resolve) => (releaseSave = resolve));
+    fake.deps.save.mockImplementationOnce(async (id, data) => {
+      await saved;
+      fake.files[id] = structuredClone(data);
+      return { success: true };
+    });
+    importRewritesB({ 李四: entry('imported') });
+
+    const committing = store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
+    const importing = store.importAll();
+    await flush();
+    expect(fake.deps.importFiles).not.toHaveBeenCalled();
+
+    releaseSave();
+    await Promise.all([committing, importing]);
+
+    expect(fake.files[B]).toEqual({ 李四: entry('imported') });
+    expect(memory()[B]).toEqual({ 李四: entry('imported') });
+  });
+
+  test('an edit queued behind it plans against the imported dictionaries', async () => {
+    importRewritesB({ 李四: entry('imported') });
+
+    const importing = store.importAll();
+    const committing = store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
+    await Promise.all([importing, committing]);
+
+    expect(fake.files[B]).toEqual({ 李四: entry('imported'), 王五: entry('Vương Ngũ') });
+  });
+
+  test('a refusal or a cancelled dialog leaves memory alone and reports the error', async () => {
+    fake.deps.importFiles.mockResolvedValue({ success: false, error: 'No file selected' });
+
+    const outcome = await store.importAll();
+
+    expect(outcome).toEqual({ status: 'failed', error: 'No file selected' });
+    expect(fake.deps.load).not.toHaveBeenCalled();
+    expect(fake.deps.invalidate).not.toHaveBeenCalled();
+  });
+
+  test('a rejected import is reported, not thrown, and the queue keeps running', async () => {
+    fake.deps.importFiles.mockRejectedValue(new Error('ipc down'));
+
+    expect(await store.importAll()).toEqual({ status: 'failed', error: 'ipc down' });
+    await store.commit((d) => planAdd(d, A, '王五', entry('Vương Ngũ')));
+    expect(fake.files[A]).toHaveProperty('王五');
+  });
+
+  test('files imported but unreadable afterwards is its own outcome', async () => {
+    fake.deps.load.mockRejectedValue(new Error('disk gone'));
+
+    expect(await store.importAll()).toEqual({ status: 'reload-failed', message: 'Imported' });
+  });
+});
+
+describe('a full reload', () => {
+  test('lists a dictionary that appeared on disk', async () => {
+    fake.files['properNouns-C'] = {};
+    await store.loadAll({ invalidate: true });
+
+    expect('properNouns-C' in store.getSnapshot().dictionaryTypes).toBe(true);
+    expect(memory()['properNouns-C']).toEqual({});
   });
 
   test('onApplied runs inside the turn, before an edit queued behind it plans', async () => {
@@ -103,14 +193,6 @@ describe('files changed outside the app (import)', () => {
     await Promise.all([reloading, committing]);
 
     expect(order).toEqual(['applied', 'planned']);
-  });
-
-  test('lists a dictionary that appeared on disk', async () => {
-    fake.files['properNouns-C'] = {};
-    await store.loadAll({ invalidate: true });
-
-    expect('properNouns-C' in store.getSnapshot().dictionaryTypes).toBe(true);
-    expect(memory()['properNouns-C']).toEqual({});
   });
 });
 

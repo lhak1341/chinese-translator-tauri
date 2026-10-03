@@ -1,5 +1,6 @@
 /**
- * Regression tests for applySmartCapitalization and fixAngleQuotePositioning.
+ * Regression tests for applySmartCapitalization (src/utils/text/FormattingPasses.ts, pure — no
+ * engine) and fixAngleQuotePositioning, plus one engine-level test that the passes are called.
  *
  * Covers the two structural cases that caused capitalization to silently fail:
  *   1. WASM TextChunker: consecutive punctuation combined (e.g. "：«") → startedBy contains colon
@@ -10,6 +11,7 @@
  */
 import { describe, test, expect, beforeAll } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
+import { applyCharOnlySupplements, applySmartCapitalization } from '../text/FormattingPasses';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
 
@@ -38,17 +40,10 @@ function makeChunk(overrides) {
 
 // ── applySmartCapitalization ────────────────────────────────────────────────
 
-describe('TranslationEngine.applySmartCapitalization', () => {
-  let engine;
-
-  beforeAll(async () => {
-    engine = createTranslationEngine();
-    await engine.initialize(DICTS, { activeProperNouns: ['properNouns'] });
-  }, 30_000);
-
+describe('applySmartCapitalization', () => {
   test('start → capitalizes', () => {
     const chunks = [makeChunk({ content: '道', translated: 'nói', startedBy: 'start' })];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('Nói');
   });
 
@@ -58,7 +53,7 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       makeChunk({ content: '道', translated: 'Nói', startedBy: 'start' }),
       makeChunk({ content: '说', translated: 'thuyết', startedBy: '：«' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[1].translated).toBe('Thuyết');
   });
 
@@ -69,7 +64,7 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       makeChunk({ content: '', translated: null, startedBy: '：', punctuation: '「' }),
       makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[2].translated).toBe('Thuyết');
   });
 
@@ -85,13 +80,13 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       }),
       makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[1].translated).toBe('Thuyết');
   });
 
   test('comma startedBy → no capitalization (biệt stays lowercase)', () => {
     const chunks = [makeChunk({ content: '别', translated: 'biệt', startedBy: '，' })];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('biệt');
   });
 
@@ -105,7 +100,7 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       makeChunk({ content: '', translated: null, startedBy: '．', punctuation: '「' }),
       makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[2].translated).toBe('Thuyết');
   });
 
@@ -115,7 +110,7 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       makeChunk({ content: '', translated: null, startedBy: '……', punctuation: '「' }),
       makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[2].translated).toBe('Thuyết');
   });
 
@@ -126,19 +121,19 @@ describe('TranslationEngine.applySmartCapitalization', () => {
   // capitalizeFirstLetter had drifted from.
   test('FIX: does not capitalize the word right after a leading converted number', () => {
     const chunks = [makeChunk({ content: '', translated: '99.9% something', startedBy: 'start' })];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('99.9% something');
   });
 
   test('FIX: "500 năm" stays lowercase after a leading converted number', () => {
     const chunks = [makeChunk({ content: '', translated: '500 năm', startedBy: 'start' })];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('500 năm');
   });
 
   test('a chunk that is only a number stays unchanged (no letter to capitalize)', () => {
     const chunks = [makeChunk({ content: '', translated: '99.9%', startedBy: 'start' })];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('99.9%');
   });
 
@@ -150,7 +145,7 @@ describe('TranslationEngine.applySmartCapitalization', () => {
       makeChunk({ content: '别', translated: 'biệt', startedBy: '，' }),
       makeChunk({ content: '单', translated: 'đan', startedBy: '，' }),
     ];
-    engine.applySmartCapitalization(chunks);
+    applySmartCapitalization(chunks, null);
     expect(chunks[2].translated).toBe('Thuyết');
     expect(chunks[3].translated).toBe('biệt');
     expect(chunks[4].translated).toBe('đan');
@@ -158,6 +153,53 @@ describe('TranslationEngine.applySmartCapitalization', () => {
 });
 
 // ── ChunkPostProcessor.fixAngleQuotePositioning ────────────────────────────
+
+describe('applySmartCapitalization — proper nouns', () => {
+  const caps = new Map([['thori’dal', 'Thori’dal']]);
+
+  test('restores dictionary casing outside a capitalizing context', () => {
+    const chunks = [
+      makeChunk({ content: '说', translated: 'thuyết', startedBy: 'start' }),
+      makeChunk({ content: '别', translated: 'thori’dal', startedBy: '，' }),
+    ];
+    applySmartCapitalization(chunks, caps);
+    expect(chunks[1].translated).toBe('Thori’dal');
+  });
+
+  test('leaves lowercase words alone when they are not proper nouns, and tolerates a null map', () => {
+    const chunks = [makeChunk({ content: '别', translated: 'biệt', startedBy: '，' })];
+    applySmartCapitalization(chunks, caps);
+    expect(chunks[0].translated).toBe('biệt');
+    applySmartCapitalization(chunks, null);
+    expect(chunks[0].translated).toBe('biệt');
+  });
+});
+
+describe('applyCharOnlySupplements', () => {
+  test('spaces an em dash, and capitalizes after a sentence ender across a closing quote', () => {
+    expect(applyCharOnlySupplements('a——b')).toBe('a—— b');
+    expect(applyCharOnlySupplements('xong." tiếp')).toBe('xong." Tiếp');
+  });
+
+  test('does not capitalize after a decimal point', () => {
+    expect(applyCharOnlySupplements('dài 1.75 mét')).toBe('dài 1.75 mét');
+  });
+});
+
+describe('TranslationEngine calls the formatting passes in order', () => {
+  let engine;
+
+  beforeAll(async () => {
+    engine = createTranslationEngine();
+    await engine.initialize(DICTS, { activeProperNouns: ['properNouns'] });
+  }, 30_000);
+
+  test('capitalizes the start of the text but not after a comma', async () => {
+    const result = await engine.translateWithSegments('说，别', { progressive: true });
+    expect(result.translatedText).toMatch(/^Thuyết/);
+    expect(result.translatedText).toMatch(/[,，] biệt/);
+  });
+});
 
 describe('ChunkPostProcessor.fixAngleQuotePositioning', () => {
   const chunker = new ChunkPostProcessor();

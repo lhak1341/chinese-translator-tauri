@@ -4,8 +4,8 @@
  * one queue for every write to them.
  *
  * Every write is an operation on that queue: the startup load, a commit (CRUD, undo, redo),
- * a reload of one dictionary, a rename, a reload of all of them (force reload), and a reload
- * after files changed outside the app (import). An operation starts only after the one before
+ * a reload of one dictionary, a rename, a reload of all of them (force reload), and an import
+ * (the files are rewritten and then every dictionary is re-read, in one turn). An operation starts only after the one before
  * it finished, so a reload never lands in the middle of a commit's save, and a commit always
  * plans against what the previous operation left.
  *
@@ -26,6 +26,7 @@ import type {
 } from '../../utils/dictionary/DictionaryEdit';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import type { DictionaryData } from '../../types/DictionaryTypes';
+import type { DictionaryOperationResult } from '../../types/ElectronTypes';
 import { logger } from '../../utils/logger';
 import { commitEdit } from './EditCommitter';
 import type { CommitResult, EditCommitter } from './EditCommitter';
@@ -47,6 +48,8 @@ export interface DictionaryStoreDeps {
   save: (dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean }>;
   /** Clears the engine's caches for one dictionary. */
   invalidate: (dictionaryId: string) => Promise<void>;
+  /** Asks for a file and rewrites every dictionary file from it (`importDictionaries`). */
+  importFiles: () => Promise<DictionaryOperationResult>;
 }
 
 export interface LoadAllOptions {
@@ -57,6 +60,12 @@ export interface LoadAllOptions {
    * history here, so no undo queued before it can run after it. */
   onApplied?: () => void;
 }
+
+/** What an import did. `reload-failed`: the files were rewritten but memory could not be re-read. */
+export type ImportOutcome =
+  | { status: 'imported'; message?: string }
+  | { status: 'reload-failed'; message?: string }
+  | { status: 'failed'; error?: string };
 
 export interface LoadAllResult {
   /** Ids that failed to load; each is now unread. */
@@ -75,6 +84,13 @@ export interface DictionaryStore extends EditCommitter {
   subscribe: (listener: () => void) => () => void;
   /** Lists and loads every dictionary, replacing memory with what is on disk. */
   loadAll: (options?: LoadAllOptions) => Promise<LoadAllResult>;
+  /**
+   * Imports dictionary files and re-reads every dictionary, as one operation: no edit can save
+   * between the files being rewritten and memory being replaced, so none saves a stale copy
+   * over the import. The engine is invalidated for each dictionary. `onApplied` runs inside the
+   * turn once memory holds the result (import clears history there). Never rejects.
+   */
+  importAll: (onApplied?: () => void) => Promise<ImportOutcome>;
   /**
    * Reads one dictionary from disk. A clean read replaces memory and lifts an unread mark; a
    * failed one drops the in-memory copy and marks it unread, so nothing saves over the file
@@ -147,6 +163,21 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     isUnread: (id: string) => snapshot.unreadDictionaryIds.includes(id),
   };
 
+  /** The body of `loadAll`, for an operation that is already in its turn. */
+  async function loadAllNow({ invalidate = false, onApplied }: LoadAllOptions = {}) {
+    const dictionaryTypes = await deps.listDictionaries();
+    const ids = Object.keys(dictionaryTypes);
+    const { loadedDictionaries, stillFailedIds, total } = await deps.load(ids);
+    const dictionaries: Dictionaries = {};
+    for (const [id, data] of Object.entries(loadedDictionaries)) {
+      if (!stillFailedIds.includes(id)) dictionaries[id] = sorted(data);
+    }
+    set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes });
+    onApplied?.();
+    if (invalidate) for (const id of Object.keys(dictionaries)) await deps.invalidate(id);
+    return { stillFailedIds, total, dictionaries };
+  }
+
   return {
     getSnapshot: () => snapshot,
 
@@ -162,19 +193,27 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
       return enqueue(() => commitEdit(commitDeps, plan, onCommitted));
     },
 
-    loadAll({ invalidate = false, onApplied }: LoadAllOptions = {}) {
-      return enqueue(async () => {
-        const dictionaryTypes = await deps.listDictionaries();
-        const ids = Object.keys(dictionaryTypes);
-        const { loadedDictionaries, stillFailedIds, total } = await deps.load(ids);
-        const dictionaries: Dictionaries = {};
-        for (const [id, data] of Object.entries(loadedDictionaries)) {
-          if (!stillFailedIds.includes(id)) dictionaries[id] = sorted(data);
+    loadAll(options) {
+      return enqueue(() => loadAllNow(options));
+    },
+
+    importAll(onApplied) {
+      return enqueue(async (): Promise<ImportOutcome> => {
+        let result: DictionaryOperationResult;
+        try {
+          result = await deps.importFiles();
+        } catch (error) {
+          logger.error('Error importing dictionaries:', error);
+          return { status: 'failed', error: (error as Error).message };
         }
-        set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes });
-        onApplied?.();
-        if (invalidate) for (const id of Object.keys(dictionaries)) await deps.invalidate(id);
-        return { stillFailedIds, total, dictionaries };
+        if (!result.success) return { status: 'failed', error: result.error };
+        try {
+          await loadAllNow({ invalidate: true, onApplied });
+        } catch (error) {
+          logger.error('Failed to reload dictionaries after import:', error);
+          return { status: 'reload-failed', message: result.message };
+        }
+        return { status: 'imported', message: result.message };
       });
     },
 

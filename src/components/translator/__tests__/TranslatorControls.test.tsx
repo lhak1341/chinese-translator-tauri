@@ -13,8 +13,7 @@ function baseProps() {
     isTranslating: false,
     progressInfo: null,
     activeTranslations: 0,
-    performanceStats: { avgTime: 0 },
-    regressionHealth: { status: 'healthy' as const },
+    avgTime: 0,
   };
 }
 

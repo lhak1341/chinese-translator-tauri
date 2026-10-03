@@ -39,7 +39,7 @@ const {
   undo,
   redo,
   loadDictionary,
-  reloadAfterImport,
+  importDictionaries,
   dictionaryTypes,
 } = vi.hoisted(() => ({
   dictionariesRef: {
@@ -66,7 +66,7 @@ const {
   undo: vi.fn().mockResolvedValue(true),
   redo: vi.fn().mockResolvedValue(true),
   loadDictionary: vi.fn().mockResolvedValue(undefined),
-  reloadAfterImport: vi.fn().mockResolvedValue(undefined),
+  importDictionaries: vi.fn().mockResolvedValue({ status: 'imported', message: 'Imported' }),
   // The Dictionary Store's list, one identity across renders.
   dictionaryTypes: {
     'properNouns-Test': { label: 'Test' },
@@ -93,7 +93,7 @@ vi.mock('../DictionaryContext', () => ({
     canUndo: false,
     canRedo: false,
     loadDictionary,
-    reloadAfterImport,
+    importDictionaries,
     dictionaryTypes,
   }),
 }));
@@ -234,9 +234,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     expect(loadDictionary).not.toHaveBeenCalled();
   });
 
-  test('import re-reads every dictionary through the store, not only the selected one', async () => {
-    const importDictionaries = vi.fn().mockResolvedValue({ success: true, message: 'Imported' });
-    (window as unknown as { electronAPI: object }).electronAPI = { importDictionaries };
+  test('import goes through the store, which re-reads every dictionary, not only the selected one', async () => {
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
@@ -244,9 +242,35 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
       fireEvent.click(screen.getByRole('button', { name: /Import/ }));
     });
 
-    expect(importDictionaries).toHaveBeenCalled();
-    expect(reloadAfterImport).toHaveBeenCalledOnce();
+    expect(importDictionaries).toHaveBeenCalledOnce();
     expect(loadDictionary).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Import failed/)).not.toBeInTheDocument();
+  });
+
+  test('a failed import shows the error', async () => {
+    importDictionaries.mockResolvedValueOnce({ status: 'failed', error: 'No file selected' });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Import/ }));
+    });
+
+    expect(await screen.findByText(/Import failed: No file selected/)).toBeInTheDocument();
+  });
+
+  test('files imported but not reloaded tell the user to reload', async () => {
+    importDictionaries.mockResolvedValueOnce({ status: 'reload-failed', message: 'Imported' });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Import/ }));
+    });
+
+    expect(
+      await screen.findByText(/Imported, but the dictionaries could not be reloaded/)
+    ).toBeInTheDocument();
   });
 
   test('selecting a row lifts SelectionState to DictionaryManager, which renders bulk buttons', async () => {

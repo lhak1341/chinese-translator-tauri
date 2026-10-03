@@ -22,6 +22,13 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
   },
 }));
 
+// The shared loader fetches and verifies the real binary; these tests drive the mocked `default`
+// (init) directly, so route the loader through it.
+vi.mock('../wasm/WasmSharedModule', async () => {
+  const core = await import('../../wasm/translation_wasm_core.js');
+  return { loadSharedWasmModule: () => core.default() };
+});
+
 vi.mock('../logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));

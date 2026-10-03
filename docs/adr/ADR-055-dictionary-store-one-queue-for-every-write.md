@@ -34,3 +34,7 @@ A new way of writing the dictionaries in memory — a new IPC command that chang
 ## Addendum (2026-10-02)
 
 The store's list is the only list: the Configuration tab and the binding context's `fictionDictionaries` read it rather than keeping copies (ADR-062).
+
+## Addendum (2026-10-03)
+
+Decision 1 listed import as an operation on the queue, but only the reload after it was. The import IPC (the file dialog and the rewrite of every dictionary file) was called from `DictionaryManager.tsx` beside the store, so an edit's save in flight when import started could land after the files were rewritten. `store.importAll(onApplied?)` now runs the whole import as one turn through an `importFiles` dependency, wired in `DictionaryContext` the way `save` is. It returns `imported`, `reload-failed` or `failed` and never rejects; the component keeps its own busy flag and renders the result. Export and Open Folder stay in the component: they read or launch and change no dictionary file, so this ADR's rule does not reach them.

@@ -5,6 +5,7 @@
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
 import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
 import type { DictionaryTypesCollection } from './ComponentTypes';
+import type { ImportOutcome } from '../components/dictionary/DictionaryStore';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -167,7 +168,8 @@ export interface DictionaryContextInterface {
   reloadAllDictionaries: () => Promise<{ [key: string]: DictionaryData }>;
   /** Re-read every dictionary after import rewrote the files: invalidates the engine for each,
    * and clears history in the same turn. */
-  reloadAfterImport: () => Promise<void>;
+  /** Imports dictionary files and re-reads every dictionary, clearing history (ADR-055). */
+  importDictionaries: () => Promise<ImportOutcome>;
   /** Currently selected dictionary */
   selectedDictionary: string;
 }

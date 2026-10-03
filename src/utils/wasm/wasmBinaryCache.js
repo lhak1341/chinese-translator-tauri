@@ -8,8 +8,8 @@
  * translation_wasm_core_bg.wasm binary (~2MB) independently resulted in redundant
  * network requests for the same data during initialization. (WasmNumberProcessor,
  * one of the original wrappers this was written against, was deleted 2026-06-20,
- * commit b1dd912 — number processing is pure JS now. WasmPatternProcessor, via
- * WasmProcessorLifecycle, is the sole live caller of this cache today.)
+ * commit b1dd912 — number processing is pure JS now. Callers today: every
+ * WasmProcessorLifecycle, and WasmSharedModule's `loadSharedWasmModule()`.)
  *
  * Solution: Cache fetched WASM binaries in memory so they can be reused across
  * different WASM modules.

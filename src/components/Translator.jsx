@@ -3,8 +3,8 @@ import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { TranslationInputValidator } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
-import { useTranslationController } from '../hooks/useTranslationController';
-import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { createTranslationRunner, translationTimeoutMs } from '../utils/TranslationRunner';
+import { TOAST_DURATIONS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { registerDictionaryReload } from '../utils/dictionary';
@@ -67,7 +67,6 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
  *   StreamingTranslationState,
  *   ProgressInfo,
  *   PerformanceStats,
- *   RegressionHealthStatus,
  *   AdvancedPerformanceStats
  * } from '../types/TranslationEngineTypes'
  */
@@ -109,7 +108,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
 //   - useReloadRetranslate requires useEngine()'s engineRef
 //   - forceReloadCtx (useForceReloadContext) is the biggest fan-in: useEngine(),
-//     useTranslationController, useStreamingTranslation, useTranslationResults,
+//     useStreamingTranslation, useTranslationResults,
 //     useDictionaryReloadGuard, useHighlightingState, useReloadRetranslate,
 //     useScrollPositionManager — then useForceReload consumes it
 //   Net effect: nearly every hook above exists to eventually feed forceReloadCtx/
@@ -120,7 +119,7 @@ const Translator = ({ isActive }) => {
   const { isLoading, loadError, reloadAllDictionaries, registerCacheInvalidator } = useDictionary();
 
   // Performance monitoring hook (extracted)
-  const { report, recordTranslation } = usePerformanceMonitoring();
+  const { avgTime, recordTranslation } = usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
   const {
@@ -228,7 +227,6 @@ const Translator = ({ isActive }) => {
    * - Clears scroll restoration timers
    * - Clears highlight scroll timeout
    * - Destroys translation segment cache timer
-   * - Destroys system performance monitor timer
    * - Resets engine initialization flag
    *
    * Critical for preventing memory leaks from timers, intervals, and async operations.
@@ -274,8 +272,6 @@ const Translator = ({ isActive }) => {
       }
     );
   }, [enginePhase, initializationError]);
-
-  // Regression health monitoring now handled by usePerformanceMonitoring hook
 
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
@@ -440,16 +436,10 @@ const Translator = ({ isActive }) => {
    *
    * Performance: Lightweight check (1-2ms) runs every 5 minutes.
    */
-  // Use translation controller hook for cancellation and timeout management
-  const {
-    createController: createTranslationController,
-    cleanup: cleanupTranslationController,
-    cancelAll: cancelAllTranslations,
-    getActiveCount: getActiveTranslationCount,
-  } = useTranslationController({
-    timeout: 60000, // 1 minute max per translation
-    cancelPreviousOnNew: true,
-  });
+  // One cancellable, timed translation at a time; also what a dictionary reload cancels and awaits
+  const translationRunner = useMemo(() => createTranslationRunner(), []);
+  const cancelAllTranslations = translationRunner.cancelAll;
+  useEffect(() => () => void translationRunner.cancelAll(), [translationRunner]);
 
   const { isClipboardTranslationRef, resetClipboardFlag, handleTranslateFromClipboard } =
     useClipboardTranslation({
@@ -582,198 +572,126 @@ const Translator = ({ isActive }) => {
         return;
       }
 
-      // Create translation controller with automatic cancellation and timeout
-      // Hook automatically cancels previous translations (cancelPreviousOnNew: true)
-      const { controller: abortController, timeoutId: controllerTimeoutId } =
-        createTranslationController();
-
-      const translationStartTime = performance.now();
-
-      // NEW: Initialize streaming state
-      updateStreaming({
-        partialText: '',
-        progress: 0,
-        isStreaming: true,
-        completedChunks: 0,
-        totalChunks: 0,
-        batchNumber: 0,
-        avgTimePerChunk: 0,
-      });
-
-      // CODE REVIEW FIX (HIGH-4): Enforce maximum concurrent translation limit
-      const MAX_CONCURRENT_TRANSLATIONS = 3;
-      const currentActiveCount = getActiveTranslationCount();
-
-      if (currentActiveCount >= MAX_CONCURRENT_TRANSLATIONS) {
-        const errorMsg = `Maximum concurrent translation limit reached (${MAX_CONCURRENT_TRANSLATIONS}). Please wait for existing translations to complete.`;
-        logger.warn(`🛑 ${errorMsg}`);
-        toast.warning(errorMsg, {
-          duration: TOAST_DURATIONS.WARNING,
-          id: TOAST_IDS.TRANSLATION_LIMIT_REACHED,
-        });
-        // Return original text instead of throwing
+      if (isLoading) {
         return text;
       }
 
-      setActiveTranslations((prev) => prev + 1);
+      if (!engineRef.current || !engineRef.current.isReady()) {
+        // Engine not ready - return original text with message
+        logger.error('❌ Translation failed: Engine not ready');
+        return 'Engine not ready. Please wait for engine initialization.';
+      }
 
-      try {
-        if (isLoading) {
-          return text;
+      const translationStartTime = performance.now();
+
+      // Scroll to beginning immediately when translation starts
+      setTimeout(() => {
+        if (translationTextRef.current) {
+          translationTextRef.current.scrollTop = 0;
+          translationTextRef.current.scrollLeft = 0;
         }
+      }, 10); // Small delay to ensure any previous content has been cleared
 
-        // Use optimized engine with progressive translation
-        if (engineRef.current && engineRef.current.isReady()) {
-          // Scroll to beginning immediately when translation starts (skip during dictionary reload)
-          if (!isDictionaryReloading) {
-            setTimeout(() => {
-              if (translationTextRef.current) {
-                translationTextRef.current.scrollTop = 0;
-                translationTextRef.current.scrollLeft = 0;
-              }
-            }, 10); // Small delay to ensure any previous content has been cleared
-          }
+      // The runner cancels any previous run, owns the timeout and abort, and makes this run's
+      // callbacks no-ops once it is cancelled, so a superseded run cannot write over its successor.
+      const result = await translationRunner.run(
+        async ({ signal, guard }) => {
+          updateStreaming({
+            partialText: '',
+            progress: 0,
+            isStreaming: true,
+            completedChunks: 0,
+            totalChunks: 0,
+            batchNumber: 0,
+            avgTimePerChunk: 0,
+          });
+          setActiveTranslations(1);
 
-          // Progressive translation with onProgress callback and proper timeout cleanup
-          // CRITICAL FIX: Use atomic flag to prevent race condition between timeout and completion
-          let timeoutId;
-          let timeoutShouldFire = true; // Atomic flag to prevent double execution
-          const result = await Promise.race([
-            (async () => {
-              const segmentResult = await engineRef.current.translateWithSegments(text, {
-                debug: false,
-                progressive: true,
-                // NEW: Enhanced streaming callbacks
-                onProgress: (progressData) => {
-                  // Wrap in startTransition to deprioritize rendering updates
-                  // This prevents GPU buffer corruption during rapid updates
-                  startTransition(() => {
-                    // Use debounced progress handler for smoother UI
-                    debouncedProgressHandler.current.handleProgress(progressData);
-                  });
-                },
-                // NEW: Add batch completion callback for streaming
-                onBatchComplete: (batchData) => {
-                  // Wrap in startTransition to deprioritize rendering updates
-                  // This prevents GPU buffer corruption during rapid updates
-                  startTransition(() => {
-                    // Update streaming state with batch completion info
-                    updateStreaming({
-                      partialText: batchData.partialText,
-                      progress: batchData.progress || 0,
-                      completedChunks: batchData.completedChunks || 0,
-                      totalChunks: batchData.totalChunks,
-                      batchNumber: batchData.batchNumber,
-                      avgTimePerChunk: batchData.avgTimePerChunk,
-                    });
-
-                    // Update partial semantic arrays for incremental highlighting
-                    if (batchData.partialSemanticArrays) {
-                      setPartialSemanticArrays(batchData.partialSemanticArrays);
-                    }
-                  });
-                },
-              });
-
-              // CRITICAL FIX: Set atomic flag BEFORE clearing timeout to prevent race
-              // This ensures timeout callback won't reject even if it's already running
-              timeoutShouldFire = false;
-
-              // Clear timeout since translation completed successfully
-              if (timeoutId) {
-                clearTimeout(timeoutId);
-              }
-
-              // Final update with complete result - flush any pending debounced updates
-              debouncedProgressHandler.current.flushUpdates();
-
-              if (segmentResult && segmentResult.semanticArrays) {
-                // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
-                try {
-                  validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
-                } catch {
-                  // Validation error already logged and toasted in validateSemanticArraySize
-                  // Clear translation state on overflow
-                  clearFullResult();
-                  return;
-                }
-
-                setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
-              }
-
-              // Clear progress info when done
-              setProgressInfo(null);
-
-              // NEW: Complete streaming and reset state
-              updateStreaming({
-                isStreaming: false,
-                progress: 100,
-                partialText: segmentResult.translatedText,
-              });
-
-              // Clear partial semantic arrays since we have final ones
-              setPartialSemanticArrays(null);
-
-              // Return the translated text
-              return segmentResult.translatedText;
-            })(),
-            new Promise((_, reject) => {
-              timeoutId = setTimeout(
-                () => {
-                  // CRITICAL FIX: Check atomic flag to prevent race condition
-                  // Must check both abort state AND timeout flag to avoid double execution
-                  if (timeoutShouldFire && !abortController.signal.aborted) {
-                    logger.error('⏰ Optimized engine timeout');
-                    setProgressInfo(null);
-                    reject(new Error('Optimized engine timeout'));
-                  }
-                },
-                Math.max(30000, text.length * 100)
-              ); // Dynamic timeout: minimum 30s, +100ms per character
-
-              // Cancel timeout if translation is aborted
-              abortController.signal.addEventListener('abort', () => {
-                timeoutShouldFire = false; // CRITICAL FIX: Set flag before clearing timeout
-                clearTimeout(timeoutId);
-                reject(new Error('Translation cancelled'));
+          const segmentResult = await engineRef.current.translateWithSegments(text, {
+            debug: false,
+            progressive: true,
+            abortSignal: signal,
+            onProgress: guard((progressData) => {
+              // Wrap in startTransition to deprioritize rendering updates
+              // This prevents GPU buffer corruption during rapid updates
+              startTransition(() => {
+                // Use debounced progress handler for smoother UI
+                debouncedProgressHandler.current.handleProgress(progressData);
               });
             }),
-          ]);
+            onBatchComplete: guard((batchData) => {
+              startTransition(() => {
+                // Update streaming state with batch completion info
+                updateStreaming({
+                  partialText: batchData.partialText,
+                  progress: batchData.progress || 0,
+                  completedChunks: batchData.completedChunks || 0,
+                  totalChunks: batchData.totalChunks,
+                  batchNumber: batchData.batchNumber,
+                  avgTimePerChunk: batchData.avgTimePerChunk,
+                });
 
-          // Update performance stats
-          const translationTimeMs = performance.now() - translationStartTime;
-          recordTranslation(translationTimeMs);
+                // Update partial semantic arrays for incremental highlighting
+                if (batchData.partialSemanticArrays) {
+                  setPartialSemanticArrays(batchData.partialSemanticArrays);
+                }
+              });
+            }),
+          });
 
-          return result;
-        } else {
-          // Engine not ready - return original text with message
-          logger.error('❌ Translation failed: Engine not ready');
-          return 'Engine not ready. Please wait for engine initialization.';
-        }
-      } finally {
-        // CODE REVIEW FIX (CRITICAL-3): Wrap cleanup work in promise for tracking
-        const cleanupWork = (async () => {
-          // Clean up debounced progress handler
-          debouncedProgressHandler.current.cleanup();
+          // Final update with complete result - flush any pending debounced updates
+          debouncedProgressHandler.current.flushUpdates();
 
-          // Reset streaming state on completion/error
+          if (segmentResult && segmentResult.semanticArrays) {
+            // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
+            try {
+              validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
+            } catch {
+              // Validation error already logged and toasted in validateSemanticArraySize
+              // Clear translation state on overflow
+              clearFullResult();
+              return undefined;
+            }
+
+            setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
+          }
+
+          // Clear progress info when done
+          setProgressInfo(null);
+
+          // Complete streaming and reset state
           updateStreaming({
             isStreaming: false,
+            progress: 100,
+            partialText: segmentResult.translatedText,
           });
 
-          setActiveTranslations((prev) => {
-            const newCount = prev - 1;
-            logger.log(`🏁 Translation finished - Active: ${newCount}`);
-            return newCount;
-          });
+          // Clear partial semantic arrays since we have final ones
+          setPartialSemanticArrays(null);
 
-          // Small delay to ensure state updates are processed
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        })();
+          return segmentResult.translatedText;
+        },
+        {
+          timeoutMs: translationTimeoutMs(text.length),
+          // CODE REVIEW FIX (CRITICAL-3): a reload awaits this through cancelAllTranslations()
+          cleanup: async ({ superseded }) => {
+            // A newer run owns the streaming flags and the progress handler now
+            if (!superseded) {
+              debouncedProgressHandler.current.cleanup();
+              updateStreaming({ isStreaming: false });
+              setActiveTranslations(0);
+              logger.log('🏁 Translation finished');
+            }
+            // Small delay to ensure state updates are processed
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          },
+        }
+      );
 
-        // Clean up translation controller and pass cleanup promise for tracking
-        cleanupTranslationController(controllerTimeoutId, cleanupWork);
-      }
+      // Update performance stats
+      recordTranslation(performance.now() - translationStartTime);
+
+      return result;
     },
     [isLoading, isDictionaryReloading]
   );
@@ -1014,8 +932,7 @@ const Translator = ({ isActive }) => {
         isTranslating={isTranslating}
         progressInfo={progressInfo}
         activeTranslations={activeTranslations}
-        performanceStats={report}
-        regressionHealth={report}
+        avgTime={avgTime}
         throttledStreamingState={throttledStreamingState}
       />
 

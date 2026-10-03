@@ -9,6 +9,7 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+#[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::OnceLock;
 use std::time::Instant;

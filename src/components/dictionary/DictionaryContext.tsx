@@ -25,6 +25,7 @@ import type { DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from '../../hooks/useDictionaryCRUD';
 import { createDictionaryStore } from './DictionaryStore';
+import type { ImportOutcome } from './DictionaryStore';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
@@ -121,6 +122,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       listDictionaries: () => getDictionaryTypes() as Promise<DictionaryTypesCollection>,
       load: loadAllDictionaries,
       save: (dictionaryId, entries) => window.electronAPI.saveDictionary(dictionaryId, entries),
+      importFiles: () => window.electronAPI.importDictionaries(),
       invalidate: (dictionaryId) =>
         invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
     })
@@ -218,10 +220,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [store]
   );
 
-  // Import rewrote the files outside history, so no edit in it can be undone.
-  const reloadAfterImport = useCallback(async (): Promise<void> => {
-    await store.loadAll({ invalidate: true, onApplied: clearHistory });
-  }, [store, clearHistory]);
+  // Import rewrites the files outside history, so no edit in it can be undone.
+  const importDictionaries = useCallback(
+    (): Promise<ImportOutcome> => store.importAll(clearHistory),
+    [store, clearHistory]
+  );
 
   // Create the context value object
   // Memoized to prevent unnecessary re-renders of all consumers when Provider re-renders
@@ -249,7 +252,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       applyRename,
       getDictionaries,
       reloadAllDictionaries,
-      reloadAfterImport,
+      importDictionaries,
       selectedDictionary,
       setSelectedDictionary,
       registerCacheInvalidator,
@@ -277,7 +280,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       applyRename,
       getDictionaries,
       reloadAllDictionaries,
-      reloadAfterImport,
+      importDictionaries,
       selectedDictionary,
       registerCacheInvalidator,
     ]

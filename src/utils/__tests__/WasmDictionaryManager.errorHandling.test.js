@@ -31,6 +31,13 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
   }),
 }));
 
+// The shared loader fetches and verifies the real binary; these tests drive the mocked `default`
+// (init) directly, so route the loader through it.
+vi.mock('../wasm/WasmSharedModule', async () => {
+  const core = await import('../../wasm/translation_wasm_core.js');
+  return { loadSharedWasmModule: () => core.default() };
+});
+
 // Mock memory pool — shape must match WasmBufferAllocator interface
 vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   wasmMemoryPoolManager: {

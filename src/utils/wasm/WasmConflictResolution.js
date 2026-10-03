@@ -1,10 +1,9 @@
 // @ts-check
 // @ts-ignore — named exports added by wasm-pack build; collapse to one line so @ts-ignore covers all
-import init, {
-  resolveGlobalConflicts as wasmResolveGlobalConflicts,
-} from '../../wasm/translation_wasm_core.js';
+import { resolveGlobalConflicts as wasmResolveGlobalConflicts } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 
 /**
  * WASM-accelerated Phase 4 conflict resolution.
@@ -45,7 +44,7 @@ async function initialize() {
 
   initializationPromise = (async () => {
     try {
-      await init();
+      await loadSharedWasmModule();
       initialized = true;
       logger.log('✅ WASM ConflictResolution initialized');
       return true;

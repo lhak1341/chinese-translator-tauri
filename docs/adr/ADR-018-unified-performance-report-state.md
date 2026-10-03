@@ -1,6 +1,6 @@
 # ADR-018: Unified PerformanceReport State in usePerformanceMonitoring
 
-**Status:** Decided  
+**Status:** Superseded by ADR-069  
 **Date:** 2026-06-07
 
 ## Context

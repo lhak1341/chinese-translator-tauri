@@ -110,6 +110,18 @@ describe('WASM cascade-retire discipline', () => {
     }
   });
 
+  it('routes every instantiation through the shared loader, never a bare init', () => {
+    // The generated init is not safe to call concurrently (each racing caller re-instantiates the
+    // module), and a bare init() carries no integrity check. Only WasmSharedModule.js may call it.
+    const offenders = [];
+    for (const [name, source] of sources) {
+      if (name === 'WasmSharedModule.js') continue;
+      if (/\binit\(/.test(source) || /\.default\(/.test(source)) offenders.push(name);
+      if (/import\s+init\b/.test(source)) offenders.push(`${name} (imports init)`);
+    }
+    expect(offenders, 'call loadSharedWasmModule() instead').toEqual([]);
+  });
+
   it('keeps every module-scope retire function private', () => {
     const offenders = [];
     for (const [name, source] of sources) {

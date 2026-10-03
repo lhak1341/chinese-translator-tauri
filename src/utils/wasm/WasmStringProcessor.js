@@ -1,8 +1,9 @@
 // @ts-check
-import init, { StringProcessor } from '../../wasm/translation_wasm_core.js';
+import { StringProcessor } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 
 /**
  * High-performance string processor using Rust WASM
@@ -36,8 +37,8 @@ const lifecycle = new WasmProcessorLifecycle({
 let _processor = null;
 
 async function _initializeStringProcessor() {
-  return lifecycle.initialize(async (wasmBinary) => {
-    await init(wasmBinary);
+  return lifecycle.initialize(async () => {
+    await loadSharedWasmModule();
     const instance = new StringProcessor(10); // maxSpan = 10
     logger.log('✅ WASM StringProcessor initialized');
     _processor = instance;

@@ -29,10 +29,11 @@
  * ```
  */
 
-import init, { tokenizeText, getTokenizerStats } from '../../wasm/translation_wasm_core.js';
+import { tokenizeText, getTokenizerStats } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger.js';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -45,8 +46,8 @@ const lifecycle = new WasmProcessorLifecycle({
 });
 
 async function _initializeTextTokenizer() {
-  return lifecycle.initialize(async (wasmBinary) => {
-    await init(wasmBinary);
+  return lifecycle.initialize(async () => {
+    await loadSharedWasmModule();
     logger.log('✅ WASM TextTokenizer initialized');
     // tokenizeText/getTokenizerStats are live bindings to this same module's
     // top-level `wasm` var — no owned instance to hand back, just prove the
@@ -98,7 +99,6 @@ class WasmTextTokenizer {
         '❌ WASM TextTokenizer panic — retiring instance, falling back to JS permanently:',
         error
       );
-      lifecycle.permanentlyFail();
       fireCascadeRetire();
       return null;
     }

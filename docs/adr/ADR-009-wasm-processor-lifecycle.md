@@ -3,11 +3,17 @@
 **Status**: Accepted
 **Date**: 2026-05-17
 **Decision Makers**: Development Team
-**Affected Components**: `WasmPatternProcessor.js`, `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `WasmProcessorLifecycle.js`
+**Affected Components**: `WasmProcessorLifecycle.js`, `WasmSharedModule.js`, and the five processors that hold a lifecycle: `WasmPatternProcessor.js`, `WasmDictionaryManager.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`
 
-## Update (2026-07-28)
+## Current state (2026-10-03)
 
-The "three processors" premise is stale. `WasmNumberProcessor.js` was deleted entirely — Phase 3 is now pure JS (`NumberProcessor.js`), per CLAUDE.md's deleted-symbols log. Two processors not mentioned anywhere in this ADR have since converged on `WasmProcessorLifecycle` instead: `WasmStringProcessor.js` and `WasmTextChunker.js`. Confirmed current real consumer set (`new WasmProcessorLifecycle(` call sites): `WasmDictionaryManager.js`, `WasmPatternProcessor.js`, `WasmStringProcessor.js`, `WasmTextChunker.js` — four processors, a different set than "Pattern, Number, Dictionary." The decision itself is validated more strongly by this, not weakened — more processors converged on the shared lifecycle than originally scoped, exactly the "adding a fourth WASM processor requires only `new WasmProcessorLifecycle({...})`" consequence this ADR predicted.
+This ADR was written against three processors (Pattern, Number, Dictionary). The sections below, down to "Consequences", describe that original decision and are kept as written; this section is what is true now. Where the two disagree, this one wins.
+
+**Processors.** `WasmNumberProcessor.js` was deleted (2026-06-20); Phase 3 is pure JS in `NumberProcessor.js`. Five processors hold a `WasmProcessorLifecycle` (the `new WasmProcessorLifecycle(` call sites): `WasmPatternProcessor.js`, `WasmDictionaryManager.js`, `WasmStringProcessor.js`, `WasmTextChunker.js` and `WasmTextTokenizer.js`. Two more wrappers share the binary without a lifecycle: `WasmTextAssembler.js` and `WasmConflictResolution.js` keep their own `initialized`/`initializationFailed` flags, and moving them onto the lifecycle is open (it would change their failure and cooldown behavior). That more processors converged than the ADR scoped is the "fourth WASM processor needs only `new WasmProcessorLifecycle({...})`" consequence it predicted.
+
+**Instantiation is no longer the processors' job.** The lifecycle verified the binary, and then each processor called the generated `init` itself, which reopened the gap this ADR set out to close. `init` does not guard concurrent first calls (three concurrent calls instantiated the module three times, measured 2026-10-03), and two wrappers called a bare `init()` with no verified binary at import, before the lifecycle wrappers had finished fetching, so verification depended on call order. Every `instantiateFn` now calls `loadSharedWasmModule()` (`src/utils/wasm/WasmSharedModule.js`) instead of `init`: fetch, verify, instantiate once, one shared in-flight promise, and retired for good by the panic cascade. The loader has no retry or cooldown of its own; each lifecycle retries its whole sequence and calls the loader each time. `WasmCascadeDiscipline.test.js` fails on a bare `init(` or `.default(` anywhere but the loader. Each lifecycle still fetches and verifies the binary before calling the loader, which is redundant but harmless. `instantiateFn` therefore no longer needs the binary it is handed, except Pattern, which still imports the module itself to run `verifyWasmModule` first.
+
+**Corrections to the original text.** There is no `wasmRetryManager`: the retry lives in the lifecycle's own `_retryWithBackoff`. The lifecycle also has `permanentlyFail()` (a panic marks it failed with no re-init, unlike `reset()`) and `pendingInit`.
 
 ## Context and Problem Statement
 
@@ -95,19 +101,21 @@ class WasmProcessorLifecycle {
 | Concern                                       | Owner                                                          |
 | --------------------------------------------- | -------------------------------------------------------------- |
 | Binary fetch + SHA-256 integrity              | `WasmProcessorLifecycle.initialize()`                          |
-| Retry + exponential backoff                   | `WasmProcessorLifecycle.initialize()` via `wasmRetryManager`   |
+| Retry + exponential backoff                   | `WasmProcessorLifecycle.initialize()` (`_retryWithBackoff`)    |
 | Instance method verification                  | `WasmProcessorLifecycle.initialize()` via `verifyWasmInstance` |
 | Init state (`isReady`, `hasFailed`, cooldown) | `WasmProcessorLifecycle`                                       |
-| Module loading (static/dynamic import)        | `instantiateFn` in processor module                            |
+| Instantiating the shared module               | `loadSharedWasmModule()` (`WasmSharedModule.js`), once         |
+| Importing the processor's own bindings        | `instantiateFn` in processor module                            |
 | Module-level structural verification          | `instantiateFn` in processor module (Pattern only)             |
 | Domain setup (e.g. loading pattern dicts)     | `instantiateFn` in processor module                            |
 | Runtime error handling (toasts, fallback)     | Processor module                                               |
 | Timeout measurement                           | `wasmOperationTimeout.js` (standalone, Pattern only)           |
 
-**WasmDictionaryManager parity fix**: as part of this change, `_doInitialize` now passes
-the WASM binary to `init(wasmBinary)` and adds `verifyWasmInstance` for `DictionaryEngine`.
-Previously `WasmDictionaryManager` called `await init()` with no binary — the WASM module
-was initialized without SHA-256 verification or instance method validation.
+**WasmDictionaryManager parity fix** (original change): `_doInitialize` passed the WASM binary
+to `init(wasmBinary)` and added `verifyWasmInstance` for `DictionaryEngine`. Previously it
+called `await init()` with no binary — the WASM module was initialized without SHA-256
+verification or instance method validation. (It now calls `loadSharedWasmModule()`; see
+"Current state".)
 
 ## Critical Invariants
 
@@ -133,7 +141,7 @@ was initialized without SHA-256 verification or instance method validation.
 - ✅ `WasmDictionaryManager` now has SHA-256 + instance verification (security parity)
 - ✅ `initializationFailed`, `initializationPromise`, `retryAllowedAfter`, `RETRY_COOLDOWN_MS`
   removed from Pattern and Number processor modules (state concentrated in lifecycle)
-- ✅ Adding a fourth WASM processor requires only `new WasmProcessorLifecycle({...})` + `instantiateFn`
+- ✅ Adding another WASM processor requires only `new WasmProcessorLifecycle({...})` + an `instantiateFn` that calls `loadSharedWasmModule()` (five do today)
 
 ### Negative
 
@@ -153,8 +161,10 @@ was initialized without SHA-256 verification or instance method validation.
 
 - Lifecycle: `src/utils/wasm/WasmProcessorLifecycle.js`
 - Pattern processor: `src/utils/wasm/WasmPatternProcessor.js`
-- Number processor: `src/utils/wasm/WasmNumberProcessor.js`
+- Shared loader: `src/utils/wasm/WasmSharedModule.js`
 - Dictionary manager: `src/utils/wasm/WasmDictionaryManager.js`
+- Other lifecycle holders: `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`
+- Number processor: deleted 2026-06-20 (`WasmNumberProcessor.js`)
 - CONTEXT.md: `WasmProcessorLifecycle` entry
 - ADR-007: No JS fallback, no `WasmPatternBridge` (still applies to runtime call sites)
 - ADR-008: Dictionary cache invalidation stays in `handleForceReload` (unchanged)

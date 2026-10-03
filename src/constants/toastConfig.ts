@@ -108,7 +108,6 @@ export const TOAST_IDS = {
   TRANSLATION_COMPLETED: 'translation-completed',
 
   /** Translation limit reached (CODE REVIEW FIX HIGH-4) */
-  TRANSLATION_LIMIT_REACHED: 'translation-limit-reached',
 
   /** Configuration save failure */
   CONFIG_SAVE_FAILED: 'config-save-failed',

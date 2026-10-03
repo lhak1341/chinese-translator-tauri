@@ -10,12 +10,9 @@
  * 3. String operations and precomputation
  * 4. Phase 5 character lookup performance
  * 5. Pattern matching efficiency
- *
- * @import { PerformanceBaselineTracker } from './PerformanceBaselineTracker'
  */
 
 import { logger } from '../logger';
-import { systemPerformanceMonitor } from '../performance/SystemPerformanceMonitor.js';
 
 /**
  * Optimization benchmark suite
@@ -503,12 +500,6 @@ export class OptimizationBenchmarks {
   recordBaseline(name, value) {
     this.baselines.set(name, {
       value,
-      timestamp: Date.now(),
-    });
-
-    // Also record in system performance monitor
-    systemPerformanceMonitor.recordPerformance(`optimization_${name}`, {
-      duration: typeof value === 'number' ? value : 0,
       timestamp: Date.now(),
     });
   }

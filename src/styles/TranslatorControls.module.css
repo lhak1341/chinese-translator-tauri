@@ -161,11 +161,6 @@
   color: var(--success-color);
 }
 
-.activeBadgeMultiple {
-  background: var(--warning-subtle);
-  color: var(--warning-color);
-}
-
 .activeBadgeDot {
   width: 5px;
   height: 5px;

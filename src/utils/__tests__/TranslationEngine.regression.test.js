@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
+import { cleanupFormatting } from '../text/FormattingPasses';
 import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
 
 // Mock TranslationEngine with minimal implementation for testing
@@ -235,7 +236,6 @@ describe('TranslationEngine Regression Tests', () => {
         new Array(content.length).fill({})
       );
       engine.chunkPostProcessor.translatePunctuation = vi.fn();
-      engine.applySmartCapitalization = vi.fn();
       engine.chunkPostProcessor.reconstructTextWithSegments = vi.fn(() => ({
         text: 'stub-result',
         segments: [],
@@ -311,11 +311,7 @@ describe('TranslationEngine Regression Tests', () => {
   });
 
   describe('Bug Fix: cleanupFormatting spuriously spacing a decimal point off its digit', () => {
-    // cleanupFormatting reads this.dictionaryManager/this.log — stub the minimum needed
-    // rather than constructing a full engine (WASM/dictionary init not needed here).
-    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
-    const cleanup = (text, options) =>
-      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, options);
+    const cleanup = (text, options) => cleanupFormatting(text, options, () => null);
     // options.useChunking: false is the Full Translation per-chunk path (translateDirectly
     // with isParallelChunk: true) — the branch that adds a space after sentence punctuation.
     const opts = { useChunking: false, isParallelChunk: true };
@@ -337,9 +333,7 @@ describe('TranslationEngine Regression Tests', () => {
   describe('Bug Fix: cleanupFormatting chunking branch swallowing paragraph breaks', () => {
     // Same prototype-call setup as the decimal-point block above; the branch under test is
     // the DEFAULT one (useChunking omitted / not false), which every chunked translation takes.
-    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
-    const cleanup = (text) =>
-      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, {});
+    const cleanup = (text) => cleanupFormatting(text, {}, () => null);
 
     it('keeps a line break that precedes line-leading punctuation', () => {
       // The remove-spaces-before-punctuation rule used bare \s+, which matches \n — so a
@@ -364,9 +358,7 @@ describe('TranslationEngine Regression Tests', () => {
     // 索瑞达尔 → "Thori’dal" (U+2019 as an apostrophe) came out "Thori’ dal": the
     // space-after-closing-quote rule took every ’ for a closing quote. The inserted char also
     // shifted every click-to-highlight position after it.
-    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
-    const cleanup = (text, options = {}) =>
-      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, options);
+    const cleanup = (text, options = {}) => cleanupFormatting(text, options, () => null);
 
     it.each([{}, { useChunking: false, isParallelChunk: true }])(
       'keeps a letter-flanked ’ inside its word (options %o)',

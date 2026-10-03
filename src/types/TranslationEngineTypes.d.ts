@@ -457,24 +457,6 @@ export interface BatchPerformanceMetrics {
 }
 
 /**
- * Performance regression health status
- */
-export interface RegressionHealthStatus {
-  /** Overall health status */
-  status: 'healthy' | 'warning' | 'critical';
-  /** Number of established baselines */
-  totalBaselines: number;
-  /** Number of recent alerts */
-  recentAlerts: number;
-  /** Number of critical alerts */
-  criticalAlerts: number;
-  /** Number of warning alerts */
-  warningAlerts: number;
-  /** Optimization recommendations */
-  recommendations: string[];
-}
-
-/**
  * Performance statistics for UI display
  */
 export interface PerformanceStats {

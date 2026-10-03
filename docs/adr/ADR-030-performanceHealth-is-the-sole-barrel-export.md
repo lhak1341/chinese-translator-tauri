@@ -1,6 +1,6 @@
 # ADR-030: `performanceHealth` Is the Sole Barrel Export from `utils/performance`
 
-**Status:** Decided  
+**Status:** Superseded by ADR-069  
 **Date:** 2026-06-27
 
 ## Context

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Activity, Command } from 'lucide-react';
+import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Command } from 'lucide-react';
 import styles from '../../styles/TranslatorControls.module.css';
 
 /** Quick-add hotkeys 1-7 — see docs/HOTKEYS.md's Translator-tab table (single source of
@@ -14,20 +14,6 @@ const QUICK_ADD_HINTS: readonly [key: string, label: string][] = [
   ['6', 'Novel Pattern'],
   ['7', 'Rule'],
 ];
-
-/**
- * Performance statistics for translation operations
- */
-interface PerformanceStats {
-  avgTime: number;
-}
-
-/**
- * Performance regression health status
- */
-interface RegressionHealth {
-  status: 'healthy' | 'warning' | 'critical';
-}
 
 /**
  * Batch translation progress information
@@ -51,8 +37,7 @@ interface TranslatorControlsProps {
   isTranslating: boolean;
   progressInfo: ProgressInfo | null;
   activeTranslations: number;
-  performanceStats: PerformanceStats;
-  regressionHealth: RegressionHealth;
+  avgTime: number;
 }
 
 /**
@@ -69,16 +54,8 @@ export default function TranslatorControls({
   isTranslating,
   progressInfo,
   activeTranslations,
-  performanceStats,
-  regressionHealth,
+  avgTime,
 }: TranslatorControlsProps): React.ReactElement {
-  const healthColor =
-    regressionHealth.status === 'critical'
-      ? 'var(--error-color)'
-      : regressionHealth.status === 'warning'
-        ? 'var(--warning-color)'
-        : 'var(--success-color)';
-
   return (
     <div className={styles.container}>
       {/* Primary Action - Translate */}
@@ -154,10 +131,7 @@ export default function TranslatorControls({
       >
         <span className={styles.statItem}>
           <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
-          {Math.round(performanceStats.avgTime)}ms
-        </span>
-        <span className={styles.statItem} style={{ color: healthColor }}>
-          <Activity size={12} aria-hidden="true" />
+          {Math.round(avgTime)}ms
         </span>
       </div>
 
@@ -171,9 +145,7 @@ export default function TranslatorControls({
 
       {/* Active badge — conditionally rendered, fades in on mount */}
       {activeTranslations > 0 && (
-        <div
-          className={`${styles.activeBadge} ${activeTranslations > 1 ? styles.activeBadgeMultiple : styles.activeBadgeSingle}`}
-        >
+        <div className={`${styles.activeBadge} ${styles.activeBadgeSingle}`}>
           <div className={styles.activeBadgeDot} />
           {activeTranslations} active
         </div>

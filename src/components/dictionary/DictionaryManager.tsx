@@ -84,7 +84,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     unreadDictionaryIds,
     dictionaryTypes,
     loadDictionary,
-    reloadAfterImport,
+    importDictionaries,
     selectedDictionary,
     setSelectedDictionary,
   } = useDictionary();
@@ -213,31 +213,25 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   };
 
-  // Handle import all dictionaries
+  // Handle import all dictionaries. The store runs the whole thing as one operation (the file
+  // dialog, the rewrite, then re-reading every dictionary, not only the selected one, or the
+  // next edit to another would save its stale copy over the imported file), so this only shows
+  // what happened.
   const handleImportDictionaries = async (): Promise<void> => {
+    setError(null);
+    setIsLoadingDictionary(true);
     try {
-      setError(null);
-      const result = await window.electronAPI.importDictionaries();
-      if (result.success) {
-        toast.success(result.message ?? 'Import complete');
-        // Import rewrote files outside the app: every dictionary is re-read, not only the
-        // selected one, or the next edit to another would save its stale copy over the
-        // imported file. The store also clears history, in the same turn.
-        setIsLoadingDictionary(true);
-        try {
-          await reloadAfterImport();
-        } catch (reloadError) {
-          logger.error('Failed to reload dictionaries after import:', reloadError);
-          setError('Imported, but the dictionaries could not be reloaded. Use Reload Dictionary.');
-        } finally {
-          setIsLoadingDictionary(false);
-        }
-      } else {
-        setError(`Import failed: ${result.error}`);
+      const outcome = await importDictionaries();
+      if (outcome.status === 'failed') {
+        setError(`Import failed: ${outcome.error}`);
+        return;
       }
-    } catch (error) {
-      setError(`Import error: ${(error as Error).message}`);
-      logger.error('Error importing dictionaries:', error);
+      toast.success(outcome.message ?? 'Import complete');
+      if (outcome.status === 'reload-failed') {
+        setError('Imported, but the dictionaries could not be reloaded. Use Reload Dictionary.');
+      }
+    } finally {
+      setIsLoadingDictionary(false);
     }
   };
 

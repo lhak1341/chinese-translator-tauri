@@ -190,7 +190,7 @@ Two ways in, both fine: `window.electronAPI` (installed by this module; what the
 
 The shared initialization contract for WASM processors. Owns the invariant sequence every WASM processor must run before its instance is usable: binary fetch → SHA-256 integrity verification → `instantiateFn(binary)` → instance method verification. Wraps the sequence in exponential-backoff retry (transient errors only) and tracks initialization state (`isReady`, `hasFailed`, cooldown, failure count).
 
-Each WASM processor (Pattern, Number, Dictionary) holds one `WasmProcessorLifecycle` instance. The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
+Each lifecycle-holding WASM processor (Pattern, Dictionary, StringProcessor, TextChunker, TextTokenizer) holds one `WasmProcessorLifecycle` instance; TextAssembler and ConflictResolution share the binary but keep their own flags. Every `instantiateFn` calls `loadSharedWasmModule()` (`WasmSharedModule.js`) rather than the generated `init`, so the binary is verified and instantiated once (ADR-009, "Current state"). The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
 
 Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
@@ -198,7 +198,7 @@ Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
 Sampling-based global operation stats. Owns: sample-rate gating (5% prod / 20% dev), rolling sample buffer, aggregate stats (`totalOperations`, `avgTime`, `minTime`, `maxTime`, `opsPerSecond`), `startTimer`/`endTimer`, `getMetrics()`. Also provides `log(level, message)` — a performance-aware logging channel that silences everything below error level in production to prevent console spam.
 
-Exports `globalPerformanceMonitor` singleton. Two callers: `PerformanceHealth` (reads via `endTimer` + `getMetrics` — callers should go through `PerformanceHealth`, not import the singleton directly) and `TranslationEngine` (uses `.log()` as a debug channel — this is intentionally direct; `PerformanceHealth` does not expose a log method).
+Exports `globalPerformanceMonitor` singleton. Two callers: `usePerformanceMonitoring` (writes via `endTimer`, reads `getMetrics().avgTime` for the stats chip) and `TranslationEngine` (uses `.log()` as a debug channel). There is no regression detector behind it (ADR-069).
 
 Entry point: `src/utils/performance/PerformanceMonitor.js`.
 
@@ -217,36 +217,6 @@ Per-operation profiler internal to `TwoPhasePatternProcessor` — tracks wall-cl
 Accessed via `TranslationEngine` delegators: `enablePatternProfiling()`, `disablePatternProfiling()`, `resetPatternProfiling()`, `getPatternProfilingReport()`, `printPatternProfilingReport()`. Not a production monitoring path. See ADR-021 addendum (2026-07-18) — same protected-dev-tool reasoning as `TranslationProfiler`, decided kept.
 
 Entry point: `src/utils/pattern/TwoPhasePatternProcessor.js`.
-
-## PerformanceHealth
-
-Unified gateway for performance monitoring concerns — the single import callers need for both writing timing data and reading health status.
-
-**Write:** `recordTranslation(operationTimeMs)` — records a completed translation into `globalPerformanceMonitor`. Callers don't construct synthetic timers or import `globalPerformanceMonitor` directly.
-
-**Read (hot path):** `getReport()` — no args. Cheap status + timing read, called on every translation: `{ status, avgTime }`. Must not build the baselines array or touch anything not read by a real caller (`TranslatorControls.tsx`, `App.jsx`).
-
-**Read (debug):** `getDebugReport()` — the wide report, for `DevConsole.js`/`window.performanceDashboard.getDebugReport()` only, not the translation hot path: `{ operations, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules.
-
-Health is assessed at action time — after translate or after reload — not on a polling interval.
-
-Entry point: `src/utils/performance/PerformanceHealth.js`, re-exported from `src/utils/performance/index.ts`.
-
-## SystemPerformanceMonitor
-
-The background regression detector that owns the periodic integration of all subsystem metrics into `PerformanceBaselineTracker`. Owns: three integration adapters (global performance monitor, virtual scrolling, WASM memory pool — position cache integration removed with `ContentAwarePositionCache`, 2026-07-17), metric collection loop, memory inspection, `getSystemHealthReport()` (full, builds baselines array — debug use), and `getStatus()` (cheap status-only read, delegates to `baselineTracker.getStatusSummary()` — hot-path use). Delegates baseline storage to `PerformanceBaselineTracker` — callers use `systemPerformanceMonitor.recordPerformance(operationType, metrics)`/`.getBaseline(operationType)` rather than reaching through `.baselineTracker`. `logDetailedMemoryDebug(operationType, alert)` fires automatically in dev mode on every critical alert (from `checkImmediateAlerts`), not just from manual devtool use.
-
-**`classifyMemoryPressure(ratio)`** (static, added 2026-08-26 architecture-review candidate #2 grilling) is the single tier classifier — `static MEMORY_PRESSURE_THRESHOLDS = { WATCH: 0.5, ELEVATED: 0.65, CRITICAL: 0.8 }` — both `checkRealMemory()` (dev-console status, reached via `window.systemPerformanceMonitor.checkRealMemory()`) and `generateRecommendations()`'s memory-pressure warning read from. Previously two independently-tuned ladders (20/30/50% vs an 80% cutoff) that silently disagreed by 30+ points; unified onto the 80%-anchored scale since `jsHeapSizeLimit` is a generous browser-set ceiling and a 20%-triggers-CRITICAL ladder produced alarm fatigue. `MemoryLeakDetector.js`'s separate `cleanupThresholds` (75/85/95%) is a deliberately different concern — it drives live automatic-cleanup/GC actions during translation, not a diagnostic read — and was not folded into this table.
-
-Entry point: `src/utils/performance/SystemPerformanceMonitor.js`.
-
-## PerformanceBaselineTracker
-
-Owns the statistical baseline and trend state for all operation types. Manages: `performanceHistory[]`, `baselines` Map (LRU, cap 100), `trends` Map (LRU, cap 200), `alerts[]` (cap 50). Public API: `recordPerformance(operationType, metrics)`, `getBaseline(operationType)` (public LRU-touching accessor — replaces reaching into `.baselines` directly), `getHealthSummary()` (full, builds baselines array), `getStatusSummary()` (cheap, status only — no array build), `exportData()`, `destroy()`, `reset()`. No `cacheHitRate` tracking (deleted 2026-07-24, ADR-032 — was permanently unfed, zero producers ever called `recordPerformance` with a `cacheHitRate` field).
-
-**No dependency on any other monitoring module beyond `logger`, plus one injected callback.** Constructor option `onCriticalAlert(alert)` (added 2026-08-26, architecture-review candidate #1 grilling) — `checkImmediateAlerts` calls it on a critical alert instead of falling back to `logBasicMemoryDebug`; `alert.operationType` is already set by the time it fires, so the callback takes just `alert`. Previously reached through `window.systemPerformanceMonitor.logDetailedMemoryDebug(...)` directly — a real dependency the old "no dependency" claim here was already false against. `SystemPerformanceMonitor`'s constructor is the sole injector: passes the callback only when `process.env.NODE_ENV === 'development'`, `undefined` otherwise, so the tracker no longer runs its own `NODE_ENV` check — presence of the callback is the gate. Since `SystemPerformanceMonitor` is a module-level singleton constructed unconditionally (dev and prod alike), the callback is live from construction — no longer dependent on `installDevConsole` having run at least once first, which the old global-reach-through version was.
-
-Entry point: `src/utils/performance/PerformanceBaselineTracker.js`.
 
 ## PatternVariableCache
 
@@ -381,7 +351,7 @@ Committing half, `commitEdit` (`src/components/dictionary/EditCommitter.ts`, pla
 
 The user dictionaries in memory, the unread ones, and the list of dictionaries that exist (`dictionaryTypes`), with one queue for every write to them (architecture review 2026-09-30, candidate #1; ADR-055). `createDictionaryStore(deps)` in `src/components/dictionary/DictionaryStore.ts`, a plain module; `DictionaryProvider` builds one and reads it through `useSyncExternalStore`.
 
-Operations, each one turn of the queue: `loadAll(options?)` (startup, force reload, and import with `invalidate: true`), `commit(plan, onCommitted?)` (a Dictionary Edit), `reload(id)` (the Reload button, a created dictionary; a failed read makes it unread, a new id is listed), and `rename(renames, onApplied?)` (a pair rename: loads each new id and drops each old one together). `onApplied` runs inside the turn — import and rename clear history there, so no undo queued before them runs after them.
+Operations, each one turn of the queue: `loadAll(options?)` (startup and force reload), `importAll(onApplied?)` (the import itself: the `importFiles` dependency asks for a file and rewrites the dictionary files, then every dictionary is re-read with the engine invalidated, all in one turn, so no save can land between the rewrite and the reload; returns `imported`, `reload-failed` or `failed`, never rejects), `commit(plan, onCommitted?)` (a Dictionary Edit), `reload(id)` (the Reload button, a created dictionary; a failed read makes it unread, a new id is listed), and `rename(renames, onApplied?)` (a pair rename: loads each new id and drops each old one together). `onApplied` runs inside the turn — import and rename clear history there, so no undo queued before them runs after them.
 
 - **Memory is the source of truth.** Selecting a dictionary reads nothing from disk; duplicate mode reloads nothing. Until 2026-09-30 every selection re-read the dictionary, and import reloaded only the selected one, so the next edit to any other saved its stale copy over the imported file.
 - **A reload of one dictionary keeps history.** An undo whose keys the reload changed is refused by the changed-key check, like any stale undo.
@@ -667,7 +637,7 @@ Entry point: `src/utils/dictionary/DictionaryManager.js`, private method — `tr
 
 ## Memory signals on macOS
 
-**The app targets macOS only (decided 2026-10-03), where the web view is WKWebView, and WebKit has no `performance.memory`** (checked in the deployed app: `typeof performance.memory === "undefined"`). Everything that reads it is inert there: `SmartMemoryPressureDetector` (used by `WasmMemoryPoolManager`) reports level `unknown`, ratio 0, and never emits a cleanup event; `SystemPerformanceMonitor`'s memory metrics have no data; `window.checkRealMemory()` prints nothing useful. Two places keep a fallback: `calculateMaxTokensForDevice` and `AdaptiveVirtualScrolling`.
+**The app targets macOS only (decided 2026-10-03), where the web view is WKWebView, and WebKit has no `performance.memory`** (checked in the deployed app: `typeof performance.memory === "undefined"`). Everything that reads it is inert there: `SmartMemoryPressureDetector` (used by `WasmMemoryPoolManager`) reports level `unknown`, ratio 0, and never emits a cleanup event; the dev-console memory readers (`SystemPerformanceMonitor`, `window.checkRealMemory`) were deleted with the regression detector (ADR-069). One place keeps a fallback: `calculateMaxTokensForDevice` (`AdaptiveVirtualScrolling`, the other, was deleted 2026-10-03).
 
 What bounds memory is deterministic: `SEGMENT_CLEANUP_HARD_CEILING` in `trackTranslationSegment`, `batchPerformanceHistory` reset per translation, the Lookup memo's LRU size, and the Reader's single decoded book. **The pressure-reactive batch stack was deleted 2026-10-03 (architecture review round 3, candidate #5):** `SmartMemoryCoordinator`, `BackgroundCleanupManager`, `ComponentMemoryProfiler`, `BatchMemoryCleanup`, `MemoryLeakDetector` (the engine's `memoryTracker`), the every-5th-batch growth check and `getEngineStats().smartMemoryStats`. They were inert on macOS, and `BatchMemoryCleanup` was reachable only from those inert triggers, so it never ran (this section used to list its keep-counts as a bound, wrongly). Git history is the way back if a Windows target ever exists; that port would choose its own memory signal after measuring. `SmartMemoryPressureDetector` stays only because `WasmMemoryPoolManager` uses it, so its fate goes with the WASM dictionary tier (see "DictionaryMatchLookup"). **Open, not built:** a real memory signal for the reloads below. App-process RSS would not do, since WebKit's content runs in a separate process; two data points in the termination log are too few to design from.
 
@@ -687,7 +657,7 @@ Builds the `onProgress` payload for `translateWithProgressiveBatches`. Owns the 
 
 Interface: `buildProgressiveProgressUpdate(input) → { send: true, payload } | { send: false, log }`. Extracted 2026-07-29 (architecture review candidate #1) — pure function, no engine state.
 
-Entry point: `src/utils/performance/ProgressiveProgressReporter.js`. Not barrel-exported from `src/utils/performance/index.ts` — that barrel's sole export is `performanceHealth` (ADR-030); `TranslationEngine.js` imports this module directly. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
+Entry point: `src/utils/performance/ProgressiveProgressReporter.js`. `TranslationEngine.js` imports this module directly; `utils/performance` has no barrel. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
 
 ## WordSegmentMatcher
 

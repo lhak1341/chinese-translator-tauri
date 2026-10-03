@@ -5,7 +5,6 @@ import { EngineProvider } from './components/EngineContext';
 import { BookBindingProvider } from './components/BookBindingContext';
 import { VisibleTabProvider } from './components/VisibleTabContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
-import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
 import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
 import { loadAppearanceConfig } from './utils/appearanceConfig';
@@ -38,30 +37,10 @@ function App() {
       }
     };
 
-    const initializePerformanceMonitoring = () => {
-      // Start system-wide performance regression detection
-      performanceHealth.startMonitoring(30000); // 30-second intervals
-      logger.log('📊 Performance monitoring initialized:', {
-        status: performanceHealth.getReport().status,
-      });
-
-      // Set up cleanup on unmount.
-      // Only stop the performance monitor (it owns a setInterval). Do NOT touch
-      // WASM/cache singletons here — they outlive React component lifecycle and
-      // calling their .cleanup() races with module-load auto-init under StrictMode.
-      return () => {
-        performanceHealth.destroy();
-        logger.log('🔍 Performance monitoring destroyed');
-      };
-    };
-
     loadAppearanceSettings();
-
-    const cleanup = initializePerformanceMonitoring();
 
     return () => {
       isMountedRef.current = false;
-      cleanup();
     };
   }, []);
 

@@ -1,7 +1,8 @@
 // @ts-check
-import init, { TextAssembler } from '../../wasm/translation_wasm_core.js';
+import { TextAssembler } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { loadSharedWasmModule } from './WasmSharedModule';
 
 /**
  * High-performance text assembly using Rust WASM
@@ -39,7 +40,7 @@ class WasmTextAssemblerWrapper {
       return false;
     }
     try {
-      await init();
+      await loadSharedWasmModule();
       // Re-check: cascade may have fired while suspended at the await above.
       if (this.initializationFailed) {
         return false;
@@ -232,7 +233,7 @@ export function needsSpace(currentType, nextType, currentText, nextText) {
 export const wasmTextAssembler = new WasmTextAssemblerWrapper();
 registerCascadeHandler(() => wasmTextAssembler.retireOnSharedModulePanic());
 
-// Auto-initialize in background (same pattern as WasmNumberProcessor.js)
+// Auto-initialize in background (same pattern as the other wrappers)
 if (import.meta.env.MODE !== 'test') {
   wasmTextAssembler.initialize().catch((err) => {
     logger.warn('Background WASM TextAssembler initialization failed:', err);

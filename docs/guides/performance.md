@@ -9,7 +9,7 @@ This guide covers performance monitoring, optimization strategies, cache managem
 ### Check Real Memory Usage
 
 ```javascript
-window.checkRealMemory(); // Shows real heap usage %
+window.performanceDashboard.getStats(); // avgTime, totalOperations, opsPerSecond
 // Healthy: 10-20% usage
 // Warning: >30% usage indicates actual memory pressure
 // False alarm: Memory warnings with <20% usage = baseline comparison errors
@@ -154,7 +154,7 @@ console.log(
 
 ### Rust-side matcher profiling is not wired up
 
-`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, `performanceDashboard`, `systemPerformanceMonitor`, `checkRealMemory`, `optimizationBenchmarks` and `runOptimizationBenchmarks`. To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
+`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, `performanceDashboard` (`getStats` only, ADR-069), `optimizationBenchmarks` and `runOptimizationBenchmarks`. To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
 
 ### Prevention Strategy
 
@@ -181,7 +181,7 @@ Timers follow the same rule: every `setInterval`/`setTimeout` needs its id store
 
 Historical impact, for calibration on whether a regression here matters: long sessions went 50MB → <10MB (timer cleanup), dictionary switching 20-50MB → <5MB (bounded collections), translation cache 12.6MB → <5MB (quota monitoring).
 
-Verifying at runtime: `window.checkRealMemory()` for real heap % (Chromium/WebView2 only: macOS's WebKit has no `performance.memory`, so it shows nothing there; see CONTEXT.md, "Memory signals on macOS"), and `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
+Verifying at runtime: `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
 
 ---
 

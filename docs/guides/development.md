@@ -24,7 +24,7 @@ An ESLint rule warns on new `console.*` usage (see `eslint.config.js`).
 
 **Every `window.*` debugging API must be wrapped in a dev-only guard** — `if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development')`. Exposing internal engine/dictionary state in production enables reverse engineering and leaks internals; this is the one rule in this section that's actually load-bearing, not just a catalog of current APIs (those rot — grep `window\.` assignments in `src/` for the current list rather than trusting a hardcoded one here).
 
-Two real examples of the pattern, current as of this writing: `window.translationEngine` (engine state; `dictionaryManager.getWasmStatus()` is a documented public-API-contract method, asserted by `DictionaryManager.apiContract.test.js` — don't delete it as dead code on a plain caller-count grep) and `window.checkRealMemory()` (heap usage %).
+Two real examples of the pattern, current as of this writing: `window.translationEngine` (engine state; `dictionaryManager.getWasmStatus()` is a documented public-API-contract method, asserted by `DictionaryManager.apiContract.test.js` — don't delete it as dead code on a plain caller-count grep) and `window.performanceDashboard.getStats()` (translation timing).
 
 ---
 

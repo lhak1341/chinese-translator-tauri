@@ -30,6 +30,7 @@ vi.mock('../../../utils/dictionary/DictionaryBackend', () => ({
 }));
 
 const saveDictionary = vi.fn();
+const importDictionaries = vi.fn();
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <DictionaryProvider>{children}</DictionaryProvider>;
@@ -56,7 +57,8 @@ beforeEach(() => {
     disk[id] = structuredClone(data);
     return { success: true };
   });
-  (window as any).electronAPI = { saveDictionary };
+  importDictionaries.mockResolvedValue({ success: true, message: 'Imported' });
+  (window as any).electronAPI = { saveDictionary, importDictionaries };
 });
 
 describe('DictionaryContext — applyRename', () => {
@@ -82,14 +84,17 @@ describe('DictionaryContext — applyRename', () => {
   });
 });
 
-describe('DictionaryContext — reloadAfterImport', () => {
+describe('DictionaryContext — importDictionaries', () => {
   test('re-reads every dictionary, so an edit to one that was not selected keeps the import', async () => {
     const result = await ready();
     expect(result.current.selectedDictionary).toBe('properNouns');
 
-    disk['properNouns-Test'] = { 李四: 'imported', 赵六: 'imported too' };
+    importDictionaries.mockImplementation(async () => {
+      disk['properNouns-Test'] = { 李四: 'imported', 赵六: 'imported too' };
+      return { success: true, message: 'Imported' };
+    });
     await act(async () => {
-      await result.current.reloadAfterImport();
+      await result.current.importDictionaries();
     });
     await act(async () => {
       await result.current.addEntry('properNouns-Test', '王五', 'Vương Ngũ');
@@ -106,7 +111,7 @@ describe('DictionaryContext — reloadAfterImport', () => {
     });
 
     await act(async () => {
-      await result.current.reloadAfterImport();
+      await result.current.importDictionaries();
     });
 
     expect(result.current.canUndo).toBe(false);
