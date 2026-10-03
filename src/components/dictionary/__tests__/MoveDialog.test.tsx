@@ -24,7 +24,7 @@ const mockDictionaryTypes = {
   'properNouns-NovelName': { label: 'Proper Nouns - NovelName' },
   'properNouns-Unloaded': { label: 'Proper Nouns - Unloaded' },
   patterns: { label: 'Patterns' },
-  'patterns-f_NovelName': { label: 'Pattern - f_NovelName' },
+  'patterns-f_NovelName': { label: 'Patterns - f_NovelName' },
   conversion: { label: 'Conversion' },
   punctuation: { label: 'Punctuation' },
 };

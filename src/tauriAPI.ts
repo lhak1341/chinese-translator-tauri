@@ -8,6 +8,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from './utils/logger.js';
 import { extractErrorMessage } from './utils/errorHelpers';
+import { isValidDictionaryId } from './utils/dictionary/DictionaryIdClassifier';
 import type {
   ElectronResult,
   DictionaryLoadResult,
@@ -102,17 +103,11 @@ export interface LookupIndexResult extends ElectronResult {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-// CODE REVIEW FIX (CRITICAL-2): Whitelist validation for dictionary IDs to prevent path traversal
-const VALID_DICTIONARY_ID = /^[a-zA-Z0-9_.-]+$/;
-
-function validateDictionaryId(dictionaryId: string): boolean {
-  if (!dictionaryId || typeof dictionaryId !== 'string') return false;
-  if (!VALID_DICTIONARY_ID.test(dictionaryId)) return false;
-  if (dictionaryId.includes('..') || dictionaryId.includes('/') || dictionaryId.includes('\\'))
-    return false;
-  if (dictionaryId.startsWith('/') || /^[a-zA-Z]:/.test(dictionaryId)) return false;
-  return true;
-}
+// The rule lives with the other id rules (`isValidDictionaryId`): ASCII letters, digits and
+// `_ . -`, no `..`, at most 100 characters. Rust re-checks every id it is handed
+// (`validate_dictionary_id`), so this is the first line, with an error the form can show.
+const INVALID_DICTIONARY_ID_ERROR =
+  'Invalid dictionary ID: use letters, digits, _ . - only, at most 100 characters';
 
 /**
  * Validates one or more named dictionary IDs; returns the standard rejection
@@ -121,9 +116,9 @@ function validateDictionaryId(dictionaryId: string): boolean {
 function requireValidDictionaryIds(
   ids: Record<string, string>
 ): { success: false; error: string } | null {
-  if (Object.values(ids).every(validateDictionaryId)) return null;
+  if (Object.values(ids).every(isValidDictionaryId)) return null;
   logger.error('Invalid dictionary ID format:', ids);
-  return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+  return { success: false, error: INVALID_DICTIONARY_ID_ERROR };
 }
 
 // ── IPC seam ──────────────────────────────────────────────────────────────────
@@ -277,7 +272,7 @@ const tauriAPI = {
   },
 
   loadDictionariesParallel: async (dictionaryIds: string[]): Promise<BatchDictionaryResponse> => {
-    const invalidIds = dictionaryIds.filter((id) => !validateDictionaryId(id));
+    const invalidIds = dictionaryIds.filter((id) => !isValidDictionaryId(id));
     if (invalidIds.length > 0) {
       logger.error('Invalid dictionary ID format(s):', invalidIds);
       return {
@@ -287,9 +282,7 @@ const tauriAPI = {
         results: dictionaryIds.map((id) => ({
           dictionary_id: id,
           success: false,
-          error: validateDictionaryId(id)
-            ? 'Batch validation failed'
-            : 'Invalid dictionary ID format (no path traversal allowed)',
+          error: isValidDictionaryId(id) ? 'Batch validation failed' : INVALID_DICTIONARY_ID_ERROR,
         })),
       };
     }

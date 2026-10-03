@@ -1235,16 +1235,19 @@ fn save_json_file(
     Ok(DictionaryResponse::ok())
 }
 
-/// The 3 single-JSON-blob persistence kinds sharing `load_json_file_with_default`/
+/// The 4 single-JSON-blob persistence kinds sharing `load_json_file_with_default`/
 /// `save_json_file` (architecture review 2026-09-08, candidate #2 grilling). Each
 /// `#[tauri::command]` pair below is a 1-line delegation to `load_blob`/`save_blob` —
-/// this enum is the single place that knows about all 3 kinds, so a 4th blob type is
+/// this enum is the single place that knows about all 4 kinds, so a 5th blob type is
 /// one match arm here instead of 2 new near-duplicate command functions. Kept as an
-/// internal Rust-only enum, never serialized across IPC: the 6 command names and their
+/// internal Rust-only enum, never serialized across IPC: the 8 command names and their
 /// `tauriAPI.ts`/`ElectronTypes.d.ts` call sites are unchanged, since collapsing the IPC
-/// surface itself would touch 3 unrelated TS modules for the same organizational win —
-/// see CONTEXT.md's "Transform Rule" entry area / this review round's report for why
-/// that was scoped out.
+/// surface itself would touch unrelated TS modules for the same organizational win.
+///
+/// Rust owns each file's *shape* only. What an absent or set-aside file holds is the
+/// kind's empty value; the app's defaults (fonts, the active dictionary list…) live in the
+/// TS module that wraps the file (`appearanceConfig.ts`, `appConfig.ts`), which parses the
+/// empty value into them (2026-10-03, architecture review candidate #3 grilling).
 enum BlobKind {
     Config,
     TransformRules,
@@ -1269,38 +1272,18 @@ impl BlobKind {
         }
     }
 
-    fn default_value(&self) -> serde_json::Value {
+    /// What an absent or quarantined file reads as: the kind's shape, no content.
+    fn empty_value(&self) -> serde_json::Value {
         match self {
-            BlobKind::Config => serde_json::json!({ "activeProperNouns": ["properNouns"] }),
             BlobKind::TransformRules => serde_json::json!([]),
-            BlobKind::Books => serde_json::json!({}),
-            BlobKind::Appearance => serde_json::json!({
-                "chineseText": {
-                    "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "fullTranslation": {
-                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "characterOnly": {
-                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "uiFont": {
-                    "fontFamily": "Inter, system-ui, Arial, sans-serif"
-                }
-            }),
+            BlobKind::Config | BlobKind::Appearance | BlobKind::Books => serde_json::json!({}),
         }
     }
 }
 
 fn load_blob(app_handle: &tauri::AppHandle, kind: BlobKind) -> Result<DictionaryResponse, String> {
     let path = get_app_data_dir(app_handle)?.join(kind.filename());
-    load_json_file_with_default(&path, kind.default_value())
+    load_json_file_with_default(&path, kind.empty_value())
 }
 
 fn save_blob(
@@ -2517,26 +2500,15 @@ mod tests {
     }
 
     #[test]
-    fn test_blob_kind_default_values() {
-        assert_eq!(
-            BlobKind::Config.default_value(),
-            serde_json::json!({ "activeProperNouns": ["properNouns"] })
-        );
-        assert_eq!(BlobKind::TransformRules.default_value(), serde_json::json!([]));
-        assert_eq!(BlobKind::Books.default_value(), serde_json::json!({}));
-        let appearance_default = BlobKind::Appearance.default_value();
-        assert_eq!(
-            appearance_default["chineseText"]["fontSize"],
-            serde_json::json!("1.25rem")
-        );
-        assert_eq!(
-            appearance_default["uiFont"]["fontFamily"],
-            serde_json::json!("Inter, system-ui, Arial, sans-serif")
-        );
+    fn test_blob_kind_empty_values_carry_a_shape_and_no_content() {
+        assert_eq!(BlobKind::TransformRules.empty_value(), serde_json::json!([]));
+        for kind in [BlobKind::Config, BlobKind::Appearance, BlobKind::Books] {
+            assert_eq!(kind.empty_value(), serde_json::json!({}), "{}", kind.filename());
+        }
     }
 
     /// Exercises the same `load_json_file_with_default`/`save_json_file` round trip
-    /// `load_blob`/`save_blob` delegate to, for all 3 `BlobKind`s — `load_blob`/`save_blob`
+    /// `load_blob`/`save_blob` delegate to, for all 4 `BlobKind`s — `load_blob`/`save_blob`
     /// themselves need a real `AppHandle` (path resolution only) so aren't unit-tested
     /// directly; this covers the part that actually varies per kind.
     #[test]
@@ -2550,14 +2522,14 @@ mod tests {
             let dir = temp_test_dir(&format!("blob_round_trip_{}", kind.filename()));
             let path = dir.join(kind.filename());
 
-            // Missing file returns the kind's own default.
-            let loaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
-            assert_eq!(loaded.data, Some(kind.default_value()));
+            // Missing file returns the kind's empty value.
+            let loaded = load_json_file_with_default(&path, kind.empty_value()).unwrap();
+            assert_eq!(loaded.data, Some(kind.empty_value()));
 
             // Saved data round-trips exactly, independent of the default.
             let payload = serde_json::json!({ "marker": kind.filename() });
             save_json_file(&path, &payload).unwrap();
-            let reloaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
+            let reloaded = load_json_file_with_default(&path, kind.empty_value()).unwrap();
             assert_eq!(reloaded.data, Some(payload));
 
             let _ = fs::remove_dir_all(&dir);
@@ -2576,9 +2548,9 @@ mod tests {
             let path = dir.join(kind.filename());
             fs::write(&path, "{ not json").unwrap();
 
-            let loaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
+            let loaded = load_json_file_with_default(&path, kind.empty_value()).unwrap();
 
-            assert_eq!(loaded.data, Some(kind.default_value()));
+            assert_eq!(loaded.data, Some(kind.empty_value()));
             let name = loaded.quarantined.expect("the response names the set-aside file");
             // Moved, not deleted: the unreadable bytes survive beside the path, and the path
             // itself is free for the next save.
@@ -2927,6 +2899,24 @@ mod tests {
             if let Some(patterns_id) = row["patternsId"].as_str() {
                 assert_eq!(to_patterns_id(id), patterns_id, "to_patterns_id({id:?})");
             }
+        }
+    }
+
+    /// Rust accepts every id the TS product rule accepts, and rejects the unsafe ones. It is
+    /// looser than TS on purpose (it accepts `properNouns-Foo!`): tightening it would stop it
+    /// listing a file already on disk. `src/utils/__tests__/DictionaryIdRules.parity.test.ts`
+    /// holds the TS half of the table.
+    #[test]
+    fn test_dictionary_id_safety_matches_the_shared_fixture() {
+        let fixture = id_rules_fixture();
+        for row in fixture["idValidity"].as_array().unwrap() {
+            let id = row["id"].as_str().unwrap();
+            let safe = row["safe"].as_bool().unwrap();
+            assert_eq!(
+                validate_dictionary_id(id).is_ok(),
+                safe,
+                "validate_dictionary_id({id:?})"
+            );
         }
     }
 

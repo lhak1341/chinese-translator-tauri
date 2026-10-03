@@ -98,35 +98,52 @@ export interface BindingConfigChange {
 }
 
 /**
- * The config a binding implies, from `current`, and what that changed — the one place the
- * "diff the active list and the quick-add default" step lives, for an answer (`binding`) and
- * for a tier move (`activate`, then the binding if a book is open).
+ * The active list after `edit`, and whether it differs from `current` — the one place the
+ * list's diff lives. Changes are measured against `current`, not against the list after
+ * `activate`.
  *
- * `activate` adds a dictionary to the active list when it is not there (promoting a fiction
- * dictionary activates the generic it becomes, so its books keep its names). `binding`
- * applies a book's answer on top; leave it out when no book is open, since only an open book
- * is authoritative for the fiction slice. Changes are measured against `current`, not
- * against the list after `activate`.
+ * `activate` adds a dictionary when it is not there (promoting a fiction dictionary
+ * activates the generic it becomes, so its books keep its names; creating one activates it).
+ * `binding` then applies a book's answer to the fiction slice; leave it out when no book is
+ * open, since only an open book is authoritative for that slice.
+ *
+ * Only the list: an operation that must leave the quick-add default alone (creating a
+ * dictionary) calls this rather than `bindingConfigChange`, which moves both.
  */
-export function bindingConfigChange(
-  current: BindingConfigFields,
+export function activeListChange(
+  current: readonly string[],
   edit: { activate?: string; binding?: { bound: string | null } }
-): BindingConfigChange {
-  let activeProperNouns = [...current.activeProperNouns];
-  let defaultQuickAddDictionary = current.defaultQuickAddDictionary;
+): { activeProperNouns: string[]; changed: boolean } {
+  let activeProperNouns = [...current];
   if (edit.activate && !activeProperNouns.includes(edit.activate)) {
     activeProperNouns.push(edit.activate);
   }
   if (edit.binding) {
     activeProperNouns = activeProperNounsForBinding(activeProperNouns, edit.binding.bound);
-    defaultQuickAddDictionary = quickAddTargetForBinding(
-      edit.binding.bound,
-      defaultQuickAddDictionary
-    );
   }
-  const activeChanged =
-    activeProperNouns.length !== current.activeProperNouns.length ||
-    activeProperNouns.some((id, index) => id !== current.activeProperNouns[index]);
+  const changed =
+    activeProperNouns.length !== current.length ||
+    activeProperNouns.some((id, index) => id !== current[index]);
+  return { activeProperNouns, changed };
+}
+
+/**
+ * The config a binding implies, from `current`, and what that changed — the "diff the active
+ * list and the quick-add default" step, for an answer (`binding`) and for a tier move
+ * (`activate`, then the binding if a book is open). The list half is `activeListChange`; this
+ * adds the quick-add default, which a binding points at the bound dictionary.
+ */
+export function bindingConfigChange(
+  current: BindingConfigFields,
+  edit: { activate?: string; binding?: { bound: string | null } }
+): BindingConfigChange {
+  const { activeProperNouns, changed: activeChanged } = activeListChange(
+    current.activeProperNouns,
+    edit
+  );
+  const defaultQuickAddDictionary = edit.binding
+    ? quickAddTargetForBinding(edit.binding.bound, current.defaultQuickAddDictionary)
+    : current.defaultQuickAddDictionary;
   return {
     activeProperNouns,
     defaultQuickAddDictionary,

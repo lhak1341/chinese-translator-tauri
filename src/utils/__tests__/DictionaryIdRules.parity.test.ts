@@ -10,6 +10,7 @@ import {
   tierOf,
   hasPairedPatterns,
   toPatternsId,
+  isValidDictionaryId,
 } from '../dictionary/DictionaryIdClassifier';
 import { saveAppConfig } from '../appConfig';
 import { installFakeConfigDisk } from '../../test/fakeConfigDisk';
@@ -22,6 +23,24 @@ describe('dictionary id rules (shared with Rust)', () => {
     expect(tierOf(id)).toBe(tier);
     expect(hasPairedPatterns(id)).toBe(paired);
     if (patternsId) expect(toPatternsId(id)).toBe(patternsId);
+  });
+});
+
+describe('dictionary id validity (shared with Rust)', () => {
+  // `safe` is Rust's rule, `valid` is the product rule here; valid implies safe, so Rust accepts
+  // every id this side lets through, and is looser on purpose (`dictionary_commands.rs` holds
+  // the other half of the table).
+  test.each(fixture.idValidity.map((row) => [JSON.stringify(row.id), row] as const))(
+    '%s',
+    (_label, { id, safe, valid }) => {
+      expect(isValidDictionaryId(id)).toBe(valid);
+      if (valid) expect(safe).toBe(true);
+    }
+  );
+
+  test('a non-string is not a valid id', () => {
+    expect(isValidDictionaryId(undefined)).toBe(false);
+    expect(isValidDictionaryId(42)).toBe(false);
   });
 });
 

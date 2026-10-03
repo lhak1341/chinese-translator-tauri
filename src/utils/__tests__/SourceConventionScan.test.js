@@ -66,6 +66,15 @@ const DETECTORS = [
     clean: 'const paired = toPatternsId(id);',
   },
   {
+    name: 'hand-rolled dictionary-name strip',
+    fix: 'use bareNameOf(id) from utils/dictionary/DictionaryIdClassifier, or the label for the screen from utils/dictionary/DictionaryLabels',
+    // The strip is the inverse of toProperNounsDictionaryId. Seven copies of it, on four
+    // screens, disagreed on what the root dictionary and a patterns dictionary are called.
+    pattern: /\.replace\(\s*(['"])(?:properNouns|patterns)-\1/,
+    violating: "const name = id.replace('properNouns-', '');",
+    clean: 'const name = bareNameOf(id);',
+  },
+  {
     name: 'new URL() with a template literal',
     fix: "pass a hard-coded string literal — Vite's asset URL transform cannot see through a template literal, and the breakage appears only in production builds",
     pattern: /new URL\(\s*`/,

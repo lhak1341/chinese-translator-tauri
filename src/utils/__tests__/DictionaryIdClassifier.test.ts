@@ -12,6 +12,8 @@ import {
   otherPairedTierId,
   entryCapabilities,
   showsSemanticType,
+  dictionaryNameProblem,
+  MAX_DICTIONARY_NAME_LENGTH,
 } from '../dictionary/DictionaryIdClassifier';
 
 // Every id shape that exists on disk (the id space is closed: fixed names, or ids built by
@@ -134,5 +136,32 @@ describe('showsSemanticType', () => {
     ['characters', true, false],
   ])('%s with VAR %s → %s', (id, allowAsPatternVariable, shows) => {
     expect(showsSemanticType(id, allowAsPatternVariable)).toBe(shows);
+  });
+});
+
+describe('dictionaryNameProblem', () => {
+  test.each(['Custom', 'f_TruTien', '_AiCap', 'My Novel', 'v2.1-beta'])(
+    'accepts %s (spaces are stripped, as the id is built)',
+    (name) => {
+      expect(dictionaryNameProblem(name)).toBeNull();
+    }
+  );
+
+  test.each([
+    ['Tây Du Ký', /letters A-Z \(no accents\)/],
+    ['Foo!', /letters A-Z/],
+    ['a..b', /'\.\.'/],
+  ])('refuses %s with words a reader can act on', (name, message) => {
+    expect(dictionaryNameProblem(name)).toMatch(message);
+  });
+
+  test('the limit leaves room for the properNouns- prefix, so 88 characters fit and 89 do not', () => {
+    expect(MAX_DICTIONARY_NAME_LENGTH).toBe(88);
+    expect(dictionaryNameProblem('a'.repeat(88))).toBeNull();
+    expect(dictionaryNameProblem('a'.repeat(89))).toMatch(/88 characters or fewer/);
+  });
+
+  test('the limit counts the name after whitespace is stripped, as the id does', () => {
+    expect(dictionaryNameProblem(`${'a'.repeat(88)}   `)).toBeNull();
   });
 });

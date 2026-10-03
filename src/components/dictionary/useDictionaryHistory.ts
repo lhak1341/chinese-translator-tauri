@@ -3,6 +3,7 @@ import toast from '../../utils/toast';
 import { invert } from '../../utils/dictionary/DictionaryEdit';
 import type { DictionaryEdit } from '../../utils/dictionary/DictionaryEdit';
 import type { EditCommitter, CommitResult } from './EditCommitter';
+import { describeReplayFailure } from './CommitFeedback';
 
 const MAX_HISTORY = 100;
 
@@ -18,17 +19,8 @@ export interface DictionaryHistoryAPI {
 }
 
 function reportFailure(action: 'undo' | 'redo', result: CommitResult): void {
-  if (result.status === 'refused') {
-    toast.warning(
-      `Can't ${action}: ${result.changedKeys.join(', ')} changed since — edit it directly instead`
-    );
-  } else if (result.status === 'saveFailed') {
-    toast.error(
-      result.rolledBack
-        ? `Failed to save the ${action}`
-        : `Failed to save the ${action} and could not fully revert it — reload dictionaries before editing further`
-    );
-  }
+  const feedback = describeReplayFailure(action, result);
+  if (feedback) toast[feedback.level](feedback.message);
 }
 
 /**

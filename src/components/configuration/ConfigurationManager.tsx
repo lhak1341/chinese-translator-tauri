@@ -11,10 +11,12 @@ import {
   CircleArrowDown,
 } from 'lucide-react';
 import {
+  bareNameOf,
   tierOf,
   isFictionProperNounsId,
   otherPairedTierId,
 } from '../../utils/dictionary/DictionaryIdClassifier';
+import { configurationDictionaryName } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/ConfigurationManager.module.css';
 import menuStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { useDictionaryConfigManagement } from './useDictionaryConfigManagement';
@@ -51,7 +53,7 @@ const TierMenu: React.FC<TierMenuProps> = ({
   }, [onClose]);
 
   if (!targetId) return null;
-  const targetName = targetId.replace('properNouns-', '');
+  const targetName = bareNameOf(targetId);
 
   return (
     <div
@@ -158,12 +160,6 @@ const ConfigurationManager: React.FC = () => {
     // untouched by this.
     const isLocked = isFictionLockedByBook && isFictionProperNounsId(dictionaryId);
 
-    // Get display name
-    const getDisplayName = (id: string): string => {
-      if (id === 'properNouns') return 'General Purpose Dictionary';
-      return id.replace('properNouns-', '');
-    };
-
     return (
       <div
         key={dictionaryId}
@@ -227,7 +223,7 @@ const ConfigurationManager: React.FC = () => {
                     : undefined
                 }
               />
-              {getDisplayName(dictionaryId)}
+              {configurationDictionaryName(dictionaryId)}
             </label>
             {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
             {isChecked && isNonRootProperNoun && (
@@ -280,7 +276,7 @@ const ConfigurationManager: React.FC = () => {
                 <>
                   {' • Add defaults to '}
                   <span className={styles.quickAddDefault}>
-                    {defaultQuickAddDictionary.replace('properNouns-', '')}
+                    {configurationDictionaryName(defaultQuickAddDictionary)}
                   </span>
                 </>
               )}

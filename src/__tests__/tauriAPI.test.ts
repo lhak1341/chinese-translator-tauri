@@ -69,7 +69,7 @@ describe('createProperNounsDictionary — validation runs before the seam', () =
     expect(mockInvoke).not.toHaveBeenCalled();
     expect(result).toEqual({
       success: false,
-      error: 'Invalid dictionary ID format (no path traversal allowed)',
+      error: 'Invalid dictionary ID: use letters, digits, _ . - only, at most 100 characters',
     });
   });
 

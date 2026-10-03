@@ -8,7 +8,7 @@ import {
   otherPairedTierId,
 } from '../utils/dictionary/DictionaryIdClassifier';
 import {
-  activeProperNounsForBinding,
+  activeListChange,
   bindingConfigChange,
   dictionaryInUse,
   quickAddViewForBinding,
@@ -328,22 +328,19 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
           // not this operation's to move). With a book open the fiction slice is its
           // binding's, so an unbound fiction dictionary does not join the list.
           await transformAppConfig((config) => {
-            let activeProperNouns = config.engine.activeProperNouns.includes(dictionaryId)
-              ? config.engine.activeProperNouns
-              : [...config.engine.activeProperNouns, dictionaryId];
-            if (snapshot.openBook) {
-              activeProperNouns = activeProperNounsForBinding(
-                activeProperNouns,
-                dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary)
-              );
-            }
-            const unchanged =
-              activeProperNouns.length === config.engine.activeProperNouns.length &&
-              activeProperNouns.every((id, index) => id === config.engine.activeProperNouns[index]);
+            const { activeProperNouns, changed } = activeListChange(
+              config.engine.activeProperNouns,
+              {
+                activate: dictionaryId,
+                binding: snapshot.openBook
+                  ? { bound: dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary) }
+                  : undefined,
+              }
+            );
             return {
-              value: unchanged
-                ? config
-                : { ...config, engine: { ...config.engine, activeProperNouns } },
+              value: changed
+                ? { ...config, engine: { ...config.engine, activeProperNouns } }
+                : config,
               result: undefined,
             };
           });

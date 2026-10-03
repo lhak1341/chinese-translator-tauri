@@ -6,7 +6,7 @@
  */
 
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
-import { getDictionaryLabel } from '../dictionaryHelpers';
+import { getDictionaryLabel } from './DictionaryLabels';
 
 /**
  * Represents a single row in the duplicate view table

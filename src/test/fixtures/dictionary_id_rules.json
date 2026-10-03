@@ -1,5 +1,5 @@
 {
-  "_comment": "Shared by src/utils/__tests__/DictionaryIdRules.parity.test.ts (DictionaryIdClassifier, appConfig.ts) and the parity tests in src-tauri/src/dictionary_commands.rs (has_paired_patterns, to_patterns_id, substitute_dictionary_reference). ADR-060. configKeys lists every key appConfig.ts toRaw writes to config.json: dictionaryReference keys hold a dictionary id (shape: string, or an array of ids) and a rename must rewrite them; other keys must be left alone. Adding a key to toRaw fails the TS test until it is classified here.",
+  "_comment": "Shared by src/utils/__tests__/DictionaryIdRules.parity.test.ts (DictionaryIdClassifier, appConfig.ts) and the parity tests in src-tauri/src/dictionary_commands.rs (has_paired_patterns, to_patterns_id, substitute_dictionary_reference). ADR-060. configKeys lists every key appConfig.ts toRaw writes to config.json: dictionaryReference keys hold a dictionary id (shape: string, or an array of ids) and a rename must rewrite them; other keys must be left alone. Adding a key to toRaw fails the TS test until it is classified here. idValidity (ADR-060 addendum 2026-10-03): for each id, `safe` = Rust's validate_dictionary_id accepts it (no empty, '..', separators, control characters, or more than 100 characters) and `valid` = the TS product rule isValidDictionaryId accepts it (ASCII letters, digits, _ . -; no '..'; at most 100). valid implies safe: TS is the stricter side on purpose, and Rust must not tighten (it would stop listing a file already on disk).",
   "ids": [
     {
       "id": "properNouns",
@@ -73,11 +73,98 @@
     }
   ],
   "configKeys": {
-    "activeProperNouns": { "role": "dictionaryReference", "shape": "array" },
-    "lastSelectedDictionary": { "role": "dictionaryReference", "shape": "string" },
-    "defaultQuickAddDictionary": { "role": "dictionaryReference", "shape": "string" },
-    "libraryPath": { "role": "other" },
-    "lastBook": { "role": "other" },
-    "resumeOnLaunch": { "role": "other" }
-  }
+    "activeProperNouns": {
+      "role": "dictionaryReference",
+      "shape": "array"
+    },
+    "lastSelectedDictionary": {
+      "role": "dictionaryReference",
+      "shape": "string"
+    },
+    "defaultQuickAddDictionary": {
+      "role": "dictionaryReference",
+      "shape": "string"
+    },
+    "libraryPath": {
+      "role": "other"
+    },
+    "lastBook": {
+      "role": "other"
+    },
+    "resumeOnLaunch": {
+      "role": "other"
+    }
+  },
+  "idValidity": [
+    {
+      "id": "properNouns-f_TapDo",
+      "safe": true,
+      "valid": true
+    },
+    {
+      "id": "properNouns-Custom.v2-1",
+      "safe": true,
+      "valid": true
+    },
+    {
+      "id": "patterns-_AiCap",
+      "safe": true,
+      "valid": true
+    },
+    {
+      "id": "properNouns-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "safe": true,
+      "valid": true
+    },
+    {
+      "id": "properNouns-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "properNouns-TâyDuKý",
+      "safe": true,
+      "valid": false
+    },
+    {
+      "id": "properNouns-Foo!",
+      "safe": true,
+      "valid": false
+    },
+    {
+      "id": "properNouns-Foo Bar",
+      "safe": true,
+      "valid": false
+    },
+    {
+      "id": "",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "../etc/passwd",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "properNouns-a..b",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "properNouns-a/b",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "properNouns-a\\b",
+      "safe": false,
+      "valid": false
+    },
+    {
+      "id": "properNouns-a\u0000b",
+      "safe": false,
+      "valid": false
+    }
+  ]
 }

@@ -16,7 +16,7 @@ import React, { useEffect } from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 import { useDictionaryConfigManagement } from '../useDictionaryConfigManagement';
 import { useBookBinding } from '../../BookBindingContext';
-import { saveAppConfig } from '../../../utils/appConfig';
+import { loadAppConfig, saveAppConfig } from '../../../utils/appConfig';
 import { installRealStores, withPatterns, type StoresHarness } from './realStores';
 
 // The engine module is 300+ KB and only its debug-level enum is needed here.
@@ -370,5 +370,31 @@ describe('creating and renaming go through the binding context', () => {
     });
     expect(result.current.tab.activeDictionaries).not.toContain('properNouns-Custom');
     expect(result.current.tab.error).toContain('not activated');
+  });
+});
+
+describe('the saved config the tab mirrors', () => {
+  test('fills the rows when the config was already cached before the tab mounted', async () => {
+    // `DictionaryContext` loads config at startup, so by the time the tab's mount effect reads
+    // it the read is a cache hit — and a cache hit notifies nobody. Only the mount effect's
+    // own mirror can fill the rows then; this pins that it is not redundant with the
+    // subscription.
+    await loadAppConfig();
+
+    const { result } = await renderTab();
+
+    expect(result.current.tab.activeDictionaries).toEqual(['properNouns', 'properNouns-f_TruTien']);
+  });
+
+  test('follows a write made after it mounted', async () => {
+    const { result } = await renderTab();
+
+    await act(async () => {
+      await saveAppConfig({ ui: { defaultQuickAddDictionary: 'properNouns-_AiCap' } });
+    });
+
+    await waitFor(() =>
+      expect(result.current.tab.defaultQuickAddDictionary).toBe('properNouns-_AiCap')
+    );
   });
 });

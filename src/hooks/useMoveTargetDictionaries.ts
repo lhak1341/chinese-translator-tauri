@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
-import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../utils/dictionaryHelpers';
+import { compareDictionaryOrder } from '../utils/dictionaryHelpers';
+import { getDictionaryDropdownLabel } from '../utils/dictionary/DictionaryLabels';
 import { canMoveBetween } from '../utils/dictionary';
 
 export interface MoveTargetDictionary {

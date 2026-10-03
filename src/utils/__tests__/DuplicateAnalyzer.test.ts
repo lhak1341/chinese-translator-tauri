@@ -12,7 +12,7 @@ import {
   findConflictingEntries,
   type DuplicateRow,
 } from '../dictionary/DuplicateAnalyzer';
-import { getDictionaryLabel } from '../dictionaryHelpers';
+import { getDictionaryLabel } from '../dictionary/DictionaryLabels';
 
 describe('DuplicateAnalyzer', () => {
   describe('createDuplicateKey', () => {

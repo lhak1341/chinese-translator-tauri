@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   activeProperNounsAfterToggle,
   activeProperNounsForBinding,
+  activeListChange,
   bindingConfigChange,
   dictionaryInUse,
   quickAddTargetForBinding,
@@ -194,5 +195,47 @@ describe('bindingConfigChange', () => {
       activeProperNouns: ['properNouns', 'properNouns-f_TruTien'],
       changed: false,
     });
+  });
+});
+
+describe('activeListChange', () => {
+  const current = ['properNouns', 'properNouns-f_TruTien'];
+
+  test('adds an activated dictionary that is not there, and reports the change', () => {
+    expect(activeListChange(current, { activate: 'properNouns-Custom' })).toEqual({
+      activeProperNouns: ['properNouns', 'properNouns-f_TruTien', 'properNouns-Custom'],
+      changed: true,
+    });
+  });
+
+  test('an activated dictionary already there changes nothing', () => {
+    expect(activeListChange(current, { activate: 'properNouns' })).toEqual({
+      activeProperNouns: current,
+      changed: false,
+    });
+  });
+
+  test('a binding replaces the fiction slice, so an activated fiction dictionary the book is not bound to does not stay', () => {
+    expect(
+      activeListChange(current, {
+        activate: 'properNouns-f_Other',
+        binding: { bound: 'properNouns-f_TruTien' },
+      })
+    ).toEqual({ activeProperNouns: current, changed: false });
+  });
+
+  test('is measured against the list it was given, not the list after activating', () => {
+    expect(
+      activeListChange(current, {
+        activate: 'properNouns-_Theme',
+        binding: { bound: 'properNouns-f_TruTien' },
+      }).changed
+    ).toBe(true);
+  });
+
+  test('no edit changes nothing, and returns a copy', () => {
+    const result = activeListChange(current, {});
+    expect(result).toEqual({ activeProperNouns: current, changed: false });
+    expect(result.activeProperNouns).not.toBe(current);
   });
 });

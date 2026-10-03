@@ -2,8 +2,7 @@ import { useCallback } from 'react';
 import toast from '../utils/toast';
 import { validatePersistEntry } from '../utils/dictionary/PersistTimeValidator';
 import { logger } from '../utils/logger';
-import { ValidationError, SaveError, isValidationError, isSaveError } from '../utils/errors';
-import { extractErrorMessage } from '../utils/errorHelpers';
+import { ValidationError, SaveError } from '../utils/errors';
 import {
   isLookupTableDict,
   sanitizeDictionaryEntry,
@@ -15,6 +14,10 @@ import type { EntryFields, EntryPatch } from '../utils/dictionary';
 import { planAdd, planUpdate, planDelete, planMove } from '../utils/dictionary/DictionaryEdit';
 import type { Dictionaries, DictionaryEdit, PlanResult } from '../utils/dictionary/DictionaryEdit';
 import type { EditCommitter } from '../components/dictionary/EditCommitter';
+import {
+  describeFreshFailure,
+  describeOperationError,
+} from '../components/dictionary/CommitFeedback';
 import type {
   DictionaryEntryValue,
   DictionaryEntryMetadata,
@@ -69,40 +72,35 @@ function prepareMutationEntry(
   return { cleanSource, targetValue };
 }
 
-const HALF_APPLIED =
-  'The save failed and could not be fully reverted — reload dictionaries before editing further';
-
 /**
  * Commits a plan, recording it in history on success. Turns every other outcome into a typed
- * throw: an invalid plan is a `ValidationError` (toasted here only when `toastInvalid`, for the
- * methods whose catch does not toast validation errors), a failed save a `SaveError` (toasted
- * here unless `quiet`). Move ops pass `quiet` — `MoveDialog` owns their error display.
+ * throw: an invalid plan is a `ValidationError` (never toasted here — the caller's `fail`
+ * shows it), a failed save a `SaveError` (toasted here unless `quiet`, since `fail` skips it).
+ * Move ops pass `quiet` — `MoveDialog` owns their error display.
  */
 async function commitOrThrow(
   committer: EditCommitter,
   record: RecordEdit,
   plan: (dicts: Dictionaries) => PlanResult,
   failMessage: string,
-  { toastInvalid = false, quiet = false }: { toastInvalid?: boolean; quiet?: boolean } = {}
+  { quiet = false }: { quiet?: boolean } = {}
 ): Promise<DictionaryEdit> {
   const result = await committer.commit(plan, record);
-  switch (result.status) {
-    case 'ok':
-      return result.edit;
-    case 'invalid':
-      if (toastInvalid) toast.error(result.reason);
-      throw new ValidationError(result.reason);
-    case 'refused':
-      // A fresh plan reads the values it replaces from the same dictionaries it is checked
-      // against, so this is unreachable short of a bug; fail loudly rather than silently.
-      if (!quiet) toast.error(failMessage);
-      throw new SaveError(`${failMessage}: ${result.changedKeys.join(', ')} changed`);
-    case 'saveFailed': {
-      const msg = result.rolledBack ? failMessage : `${failMessage}. ${HALF_APPLIED}`;
-      if (!quiet) toast.error(msg);
-      throw new SaveError(msg);
-    }
-  }
+  if (result.status === 'ok') return result.edit;
+  if (result.status === 'invalid') throw new ValidationError(result.reason);
+  // A `refused` outcome of a fresh plan is unreachable short of a bug (it reads the values it
+  // replaces from the same dictionaries it is checked against); fail loudly, not silently.
+  const { toast: feedback, errorMessage } = describeFreshFailure(result, failMessage);
+  if (!quiet) toast.error(feedback.message);
+  throw new SaveError(errorMessage);
+}
+
+/** An operation threw: log it, tell the user once, and rethrow for the caller. */
+function fail(error: unknown, verb: string, logMessage: string): never {
+  logger.error(logMessage, error);
+  const feedback = describeOperationError(error, verb);
+  if (feedback) toast[feedback.level](feedback.message);
+  throw error;
 }
 
 /**
@@ -141,13 +139,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
           toast.success('Entry added successfully');
         }
       } catch (error) {
-        logger.error('Error adding dictionary entry:', error);
-        if (isValidationError(error)) {
-          toast.error(error.message);
-        } else if (!isSaveError(error)) {
-          toast.error(`Could not add entry: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'add entry', 'Error adding dictionary entry:');
       }
     },
     [committer, record]
@@ -176,13 +168,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         );
         toast.success('Entry updated successfully');
       } catch (error) {
-        logger.error('Error updating dictionary entry:', error);
-        if (isValidationError(error)) {
-          toast.error(error.message);
-        } else if (!isSaveError(error)) {
-          toast.error(`Could not update entry: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'update entry', 'Error updating dictionary entry:');
       }
     },
     [committer, record]
@@ -222,13 +208,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         );
         toast.success('Entry updated successfully');
       } catch (error) {
-        logger.error('Error updating dictionary entry:', error);
-        if (isValidationError(error)) {
-          toast.error(error.message);
-        } else if (!isSaveError(error)) {
-          toast.error(`Could not update entry: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'update entry', 'Error updating dictionary entry:');
       }
     },
     [committer, record]
@@ -261,13 +241,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         );
         toast.success('Entry updated successfully');
       } catch (error) {
-        logger.error('Error renaming dictionary entry:', error);
-        if (isValidationError(error)) {
-          toast.error(error.message);
-        } else if (!isSaveError(error)) {
-          toast.error(`Could not rename entry: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'rename entry', 'Error renaming dictionary entry:');
       }
     },
     [committer, record]
@@ -280,21 +254,19 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
           committer,
           record,
           (d) => planDelete(d, dictionaryId, [source]),
-          'Failed to delete dictionary entry',
-          { toastInvalid: true }
+          'Failed to delete dictionary entry'
         );
         if (edit.outcome.kind === 'deleted' && edit.outcome.count === 0) {
-          const msg = `Entry '${source}' not found in dictionary`;
-          toast.warning(msg);
-          throw new ValidationError(msg);
+          throw new ValidationError(
+            `Entry '${source}' not found in dictionary`,
+            undefined,
+            undefined,
+            'warning'
+          );
         }
         toast.success('Entry deleted successfully');
       } catch (error) {
-        logger.error('Error deleting dictionary entry:', error);
-        if (!isValidationError(error) && !isSaveError(error)) {
-          toast.error(`Could not delete entry: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'delete entry', 'Error deleting dictionary entry:');
       }
     },
     [committer, record]
@@ -313,8 +285,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
           committer,
           record,
           (d) => planDelete(d, dictionaryId, sources),
-          'Failed to save dictionary after bulk delete',
-          { toastInvalid: true }
+          'Failed to save dictionary after bulk delete'
         );
         const { count, missing } =
           edit.outcome.kind === 'deleted' ? edit.outcome : { count: 0, missing: [] };
@@ -323,11 +294,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
           errors: missing.map((s) => `Entry "${s}" not found in dictionary`),
         };
       } catch (error) {
-        logger.error('Error bulk deleting entries:', error);
-        if (!isValidationError(error) && !isSaveError(error)) {
-          toast.error(`Could not bulk delete entries: ${extractErrorMessage(error)}`);
-        }
-        throw error;
+        fail(error, 'bulk delete entries', 'Error bulk deleting entries:');
       }
     },
     [committer, record]

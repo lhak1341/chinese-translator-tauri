@@ -9,6 +9,7 @@ import toast from '../../utils/toast';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import type { DictionaryData } from '../../types/DictionaryTypes.js';
 import { baseValidation, validatePatternEntry } from '../../utils/dictionary/PersistTimeValidator';
+import { dictionarySelectorLabel } from '../../utils/dictionary/DictionaryLabels';
 import {
   listFictionPatternDictionaryIds,
   listProperNounsDictionaryIds,
@@ -86,10 +87,7 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
     for (const dictId of allProperNouns) {
       properNounsTypes[dictId] = {
         id: dictId,
-        label:
-          dictId === 'properNouns'
-            ? 'Proper Nouns'
-            : `Proper Nouns - ${dictId.replace('properNouns-', '')}`,
+        label: dictionarySelectorLabel(dictId),
         description: 'Context-specific translations for names and titles',
         data: dictId === 'properNouns' ? (properNounsDict as DictionaryData) : null, // null indicates dynamic loading needed
         validate: baseValidation,
@@ -99,10 +97,9 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
     // Create paired structural pattern dictionary types (fiction and generic)
     const fictionPatternTypes: Record<string, DictionaryTypeDefinition> = {};
     for (const patternsId of allFictionPatterns) {
-      const suffix = patternsId.slice('patterns-'.length); // e.g. "f_DuongThan", "_AiCap"
       fictionPatternTypes[patternsId] = {
         id: patternsId,
-        label: `Pattern - ${suffix}`,
+        label: dictionarySelectorLabel(patternsId),
         description: 'Fiction- or theme-specific structural pattern translations',
         data: null,
         validate: DICTIONARY_TYPES['patterns'].validate,

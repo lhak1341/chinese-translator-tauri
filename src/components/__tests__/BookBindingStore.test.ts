@@ -523,6 +523,29 @@ describe('creating a dictionary from the Configuration tab', () => {
     expect(reinitializeEngine).not.toHaveBeenCalled();
   });
 
+  test('leaves a quick-add default the reader set where it is', async () => {
+    config.ui.defaultQuickAddDictionary = 'properNouns-_AiCap';
+    const store = setup();
+
+    await store.createDictionary('properNouns-Custom');
+
+    expect(disk.disk.raw.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+  });
+
+  test('leaves it where it is with a book open too, whatever the book is bound to', async () => {
+    config.ui.defaultQuickAddDictionary = 'properNouns-_AiCap';
+    const store = setup();
+    store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    await settle();
+    // Opening the book pointed quick-add at its dictionary; this is the value to hold.
+    const afterOpen = disk.disk.raw.defaultQuickAddDictionary;
+    disk.saveConfiguration.mockClear();
+
+    await store.createDictionary('properNouns-Custom');
+
+    expect(disk.disk.raw.defaultQuickAddDictionary).toBe(afterOpen);
+  });
+
   test('with no book open a new fiction dictionary is activated too', async () => {
     const store = setup();
 

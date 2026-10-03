@@ -112,6 +112,18 @@ export function toProperNounsId(patternsId: string): string {
 }
 
 /**
+ * The name a paired or custom dictionary carries after its kind prefix — the inverse of
+ * `toProperNounsDictionaryId`: "properNouns-f_X" -> "f_X", "patterns-_Theme" -> "_Theme". A
+ * root id has no name of its own and comes back unchanged. Every label and every rename
+ * field that shows a dictionary's name asks this, rather than stripping the prefix itself.
+ */
+export function bareNameOf(id: string): string {
+  const kind = kindOf(id);
+  if ((kind !== 'patterns' && kind !== 'properNouns') || tierOf(id) === 'root') return id;
+  return id.slice(kind.length + 1);
+}
+
+/**
  * Derives a properNouns dictionary ID from a raw user-typed name (create/rename forms) —
  * strips whitespace, prefixes `properNouns-`. Was independently reimplemented at 2 call sites
  * (`handleCreateDictionary`, `handleConfirmRename` in `useDictionaryConfigManagement.ts`)
@@ -121,6 +133,55 @@ export function toProperNounsId(patternsId: string): string {
  */
 export function toProperNounsDictionaryId(rawName: string): string {
   return `properNouns-${rawName.trim().replace(/\s+/g, '')}`;
+}
+
+/** The longest id Rust's `validate_dictionary_id` accepts. It counts the whole id, prefix
+ * included, so what a reader types has less room than this. */
+export const MAX_DICTIONARY_ID_LENGTH = 100;
+
+/** The longest name a proper-nouns dictionary can be given: its id is `properNouns-<name>`. */
+export const MAX_DICTIONARY_NAME_LENGTH = MAX_DICTIONARY_ID_LENGTH - 'properNouns-'.length;
+
+const VALID_DICTIONARY_ID = /^[a-zA-Z0-9_.-]+$/;
+
+/**
+ * Whether `id` is a dictionary id the app will create or load: ASCII letters, digits and
+ * `_ . -`, no `..`, at most `MAX_DICTIONARY_ID_LENGTH` characters. Every IPC wrapper that
+ * names a dictionary asks this before calling Rust, and the create and rename forms ask it
+ * through `dictionaryNameProblem`.
+ *
+ * This is the product rule, and deliberately narrower than Rust's `validate_dictionary_id`,
+ * which only blocks what is unsafe (empty, `..`, separators, control characters, too long)
+ * and so also accepts `properNouns-Tạpđồ`. Rust must not tighten to match: it would stop
+ * listing a file already on disk. The app's own suggestion folds a title to ASCII
+ * (`toFictionDictionaryId`), so no id the app builds is outside this rule. ADR-060, addendum
+ * 2026-10-03: `dictionary_id_rules.json` holds the two to "every id this accepts, Rust accepts".
+ */
+export function isValidDictionaryId(id: unknown): id is string {
+  return (
+    typeof id === 'string' &&
+    id.length <= MAX_DICTIONARY_ID_LENGTH &&
+    VALID_DICTIONARY_ID.test(id) &&
+    !id.includes('..')
+  );
+}
+
+/**
+ * What is wrong with a name a reader typed for a new or renamed proper-nouns dictionary, in
+ * words they can act on, or `null` when it is fine. Checked against the id it would become
+ * (`toProperNounsDictionaryId`), so the form refuses what the IPC wrapper would otherwise
+ * refuse with a less helpful message after the form had accepted it.
+ */
+export function dictionaryNameProblem(rawName: string): string | null {
+  const id = toProperNounsDictionaryId(rawName);
+  if (id.length > MAX_DICTIONARY_ID_LENGTH) {
+    return `Keep the name to ${MAX_DICTIONARY_NAME_LENGTH} characters or fewer`;
+  }
+  if (id.includes('..')) return "A name cannot contain '..'";
+  if (!VALID_DICTIONARY_ID.test(id)) {
+    return 'Use only letters A-Z (no accents), digits, and _ . - in the name';
+  }
+  return null;
 }
 
 /**

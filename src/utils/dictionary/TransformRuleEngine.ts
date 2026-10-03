@@ -8,7 +8,7 @@ import type { TransformRule } from '../../types/TransformRuleTypes';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import { shouldSkipKey } from './DuplicateAnalyzer';
-import { getDictionaryLabel } from '../dictionaryHelpers';
+import { getDictionaryLabel } from './DictionaryLabels';
 import {
   titleCaseExceptLastN,
   moveLastNWordsToBeginning,

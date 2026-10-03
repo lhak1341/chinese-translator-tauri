@@ -72,6 +72,7 @@ export {
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,
+  dictionaryNameProblem,
   isFictionProperNounsId,
   isFictionPatternsId,
   hasPairedPatterns,

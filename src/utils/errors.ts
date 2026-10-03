@@ -21,7 +21,10 @@ export class ValidationError extends DictionaryError {
   constructor(
     message: string,
     public readonly field?: string,
-    public readonly value?: unknown
+    public readonly value?: unknown,
+    /** How the message is toasted: a refusal the user caused is an error, a harmless miss
+     * (deleting an entry that is already gone) a warning. */
+    public readonly severity: 'error' | 'warning' = 'error'
   ) {
     super(message);
     this.name = 'ValidationError';
