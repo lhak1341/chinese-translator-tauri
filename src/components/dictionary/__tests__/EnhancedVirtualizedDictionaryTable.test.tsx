@@ -151,16 +151,46 @@ describe('normal mode — headers', () => {
     expect(screen.getByText('Source Text')).toBeTruthy();
   });
 
-  test('header and row share the same column width class — no drift between the two (architecture review 2026-08-28, candidate #2)', () => {
-    setDict('phrases', { 你好: { translation: 'Xin chào' } });
-    const { container } = render(
-      <EnhancedVirtualizedDictionaryTable selectedDictionary="phrases" />
-    );
+  test.each([
+    [
+      'patterns',
+      'patternsSourceCol',
+      'patternsTranslationCol',
+      { X的Y: { translation: 'của X Y' } },
+    ],
+    [
+      'patterns-f_novel',
+      'patternsSourceCol',
+      'patternsTranslationCol',
+      { X的Y: { translation: 'của X Y' } },
+    ],
+    ['phrases', 'phrasesSourceCol', 'phrasesTranslationCol', { 你好: { translation: 'Xin chào' } }],
+    [
+      'properNouns',
+      'properNounsSourceCol',
+      'properNounsTranslationCol',
+      { 张三: { translation: 'Trương Tam' } },
+    ],
+    [
+      'properNouns-f_novel',
+      'properNounsSourceCol',
+      'properNounsTranslationCol',
+      { 张三: { translation: 'Trương Tam' } },
+    ],
+    ['characters', 'simpleSourceCol', 'simpleTranslationCol', { 你: { translation: 'bạn' } }],
+  ] as const)(
+    '%s: header and row share the same column width classes — no drift between the two (architecture review 2026-08-28, candidate #2)',
+    (dictionaryId, sourceCol, translationCol, entries) => {
+      setDict(dictionaryId, entries);
+      const { container } = render(
+        <EnhancedVirtualizedDictionaryTable selectedDictionary={dictionaryId} />
+      );
 
-    // Exactly 2 elements should carry each class: the header cell and the one row cell.
-    expect(container.getElementsByClassName(styles.phrasesSourceCol)).toHaveLength(2);
-    expect(container.getElementsByClassName(styles.phrasesTranslationCol)).toHaveLength(2);
-  });
+      // Exactly 2 elements should carry each class: the header cell and the one row cell.
+      expect(container.getElementsByClassName(styles[sourceCol])).toHaveLength(2);
+      expect(container.getElementsByClassName(styles[translationCol])).toHaveLength(2);
+    }
+  );
 });
 
 describe('filter button visibility', () => {

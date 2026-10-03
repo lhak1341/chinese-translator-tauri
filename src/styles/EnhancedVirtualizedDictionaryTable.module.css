@@ -117,7 +117,7 @@
 
 /* Column widths — dictionary table (EnhancedVirtualizedDictionaryTable + VirtualRowComponent).
    Single source of truth shared by the header cell and the matching row cell (same className
-   on both) so header/row columns can't drift out of alignment the way independently-set
+   on both, both chosen by `tableColumns` in components/dictionary/TableColumns.ts) so header/row columns can't drift out of alignment the way independently-set
    inline widths could (architecture review 2026-08-28, candidate #2 grilling). One class per
    (dictionary type, column) pair, even where two types currently share the same value —
    keeps each type's column set independently editable without hunting who else reuses it.

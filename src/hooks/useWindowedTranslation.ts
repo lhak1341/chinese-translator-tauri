@@ -17,12 +17,6 @@ export interface UseWindowedTranslationOptions {
   linesVersion: number;
   getLine: (index: number) => string | undefined;
   /**
-   * Whether a line is one of the file's own paragraph breaks. Must be the panels' own rule
-   * (`useReaderPanels`' `isBlankAt`): a row's `isBlank` and its estimated height have to
-   * agree, or it jumps when it mounts. Must be stable.
-   */
-  isBlankAt: (index: number) => boolean;
-  /**
    * One engine call. Must be referentially stable, and must come from `createReaderEngine`
    * (`src/utils/reader/ReaderEngine.ts`) — the `EngineCall` brand is what makes wiring a
    * callback that bypasses the Reader's engine queue a compile error.
@@ -70,8 +64,8 @@ export interface WindowedTranslation {
  * fill's rules — planning, the two staleness signals, the cache, when `isTranslating`
  * clears — are the filler's and are tested there, without `renderHook`.
  *
- * What stays here is display: the row getters, which apply the panels' own `isBlankAt`
- * rule to the filler's rows, and `contentVersion`.
+ * What stays here is display: the row getters, which hand the filler's rows to `rowAt`
+ * (which decides blankness from the line), and `contentVersion`.
  *
  * `translateChunk`/`translateGloss` are read once, when the filler is built — they must be
  * stable, and `BookReader` remounts per book (ADR-050).
@@ -83,7 +77,6 @@ export function useWindowedTranslation({
   overscanLines,
   linesVersion,
   getLine,
-  isBlankAt,
   translateChunk,
   translateGloss,
   dictionaryVersion,
@@ -122,18 +115,18 @@ export function useWindowedTranslation({
   // changes identity; `contentVersion` is what tells a memoized panel to look again.
   const translationRow = useCallback(
     (index: number): PanelRow =>
-      rowAt(filler.getSnapshot().rows, 'translation', index, getLine(index), isBlankAt(index)),
-    [filler, getLine, isBlankAt]
+      rowAt(filler.getSnapshot().rows, 'translation', index, getLine(index)),
+    [filler, getLine]
   );
   const originalRow = useCallback(
     (index: number): PanelRow =>
-      rowAt(filler.getSnapshot().rows, 'original', index, getLine(index), isBlankAt(index)),
-    [filler, getLine, isBlankAt]
+      rowAt(filler.getSnapshot().rows, 'original', index, getLine(index)),
+    [filler, getLine]
   );
   const characterOnlyRow = useCallback(
     (index: number): PanelRow =>
-      rowAt(filler.getSnapshot().rows, 'characterOnly', index, getLine(index), isBlankAt(index)),
-    [filler, getLine, isBlankAt]
+      rowAt(filler.getSnapshot().rows, 'characterOnly', index, getLine(index)),
+    [filler, getLine]
   );
 
   const getRow = useMemo(

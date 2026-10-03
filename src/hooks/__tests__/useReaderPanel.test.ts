@@ -22,6 +22,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 }));
 
 import { useReaderPanel } from '../useReaderPanel';
+import { EMPTY_PANEL_ROWS, isBlankLine, rowAt } from '../../utils/reader/PanelRows';
 
 /** The lines every case below draws from: blank, unfetched, and ordinary prose. */
 const BLANK_LINE = 1;
@@ -34,7 +35,7 @@ function renderPanel(lines: Record<number, string | undefined>) {
       lineCount: 10,
       emPerChar: 1,
       charCountAt: (index) => lines[index]?.length ?? 0,
-      isBlankAt: (index) => lines[index]?.trim() === '',
+      isBlankAt: (index) => isBlankLine(lines[index]),
     })
   );
 }
@@ -71,5 +72,20 @@ describe('useReaderPanel estimateSize', () => {
   it('treats a whitespace-only line as blank — a paragraph break is often spaces or a tab', () => {
     renderPanel({ ...lines, [BLANK_LINE]: '  \t ' });
     expect(capturedOptions.estimateSize?.(BLANK_LINE)).toBe(0);
+  });
+
+  it('estimates zero exactly when the rendered row collapses, so a row never jumps on mount', () => {
+    const sample: Record<number, string | undefined> = {
+      0: '第一章 開始',
+      1: '',
+      2: undefined,
+      3: '  \t ',
+      4: '\u3000',
+    };
+    renderPanel(sample);
+    for (const index of [0, 1, 2, 3, 4]) {
+      const collapsed = rowAt(EMPTY_PANEL_ROWS, 'translation', index, sample[index]).isBlank;
+      expect(capturedOptions.estimateSize?.(index) === 0).toBe(collapsed);
+    }
   });
 });

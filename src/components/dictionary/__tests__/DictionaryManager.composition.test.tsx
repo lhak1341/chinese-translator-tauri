@@ -416,3 +416,47 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
   });
 });
+
+describe('Show in Finder', () => {
+  const stubOpenFolder = (openDictionaryFolder: () => Promise<unknown>): void => {
+    global.window.electronAPI = {
+      openDictionaryFolder,
+    } as unknown as typeof window.electronAPI;
+  };
+
+  test('a failed open shows the error banner, as export and import do', async () => {
+    stubOpenFolder(async () => ({ success: false, error: 'Failed to open dictionary folder' }));
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByRole('button', { name: /Show in Finder/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Open folder failed: Failed to open dictionary folder'
+    );
+  });
+
+  test('a rejected call shows the error banner too', async () => {
+    stubOpenFolder(async () => {
+      throw new Error('ipc down');
+    });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByRole('button', { name: /Show in Finder/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Open folder error: ipc down');
+  });
+
+  test('a successful open shows nothing — the folder opening is the feedback', async () => {
+    const open = vi.fn(async () => ({ success: true }));
+    stubOpenFolder(open);
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByRole('button', { name: /Show in Finder/ }));
+
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});

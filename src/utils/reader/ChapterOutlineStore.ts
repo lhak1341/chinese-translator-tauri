@@ -1,4 +1,3 @@
-import tauriAPI from '../../tauriAPI';
 import { extractErrorMessage } from '../errorHelpers';
 import { logger } from '../logger';
 import { setChapterOutline, setManualChapterPattern } from './BookRecordsBackend';
@@ -157,7 +156,9 @@ export class ChapterOutlineStore {
     try {
       const next =
         known ??
-        (pattern ? await tauriAPI.chapterHeadersForPattern(this.fingerprint, pattern) : []);
+        (pattern
+          ? await window.electronAPI.chapterHeadersForPattern(this.fingerprint, pattern)
+          : []);
       if (!isNewest()) return;
       this.headers = next;
       this.publish();
@@ -183,7 +184,7 @@ export class ChapterOutlineStore {
       return;
     }
     try {
-      const outline = await tauriAPI.detectChapterOutline(this.fingerprint);
+      const outline = await window.electronAPI.detectChapterOutline(this.fingerprint);
       if (this.closed) return;
       // Election's outcome lands whatever was chosen meanwhile.
       this.elected = outline.elected;

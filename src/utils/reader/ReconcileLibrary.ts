@@ -5,7 +5,6 @@ import type {
   LibraryBook,
   LibraryScan,
 } from '../../types/ReaderTypes';
-import tauriAPI from '../../tauriAPI';
 import { logger } from '../logger';
 import { extractErrorMessage } from '../errorHelpers';
 import { loadBookRecords, transformRecords } from './BookRecordsBackend';
@@ -41,7 +40,7 @@ export type FingerprintFn = (
 ) => Promise<BookFingerprint>;
 
 const defaultFingerprintFn: FingerprintFn = (fileName, libraryPath) =>
-  tauriAPI.fingerprintBook(fileName, libraryPath);
+  window.electronAPI.fingerprintBook(fileName, libraryPath);
 
 /** What one scan will do, decided once from the records as first read. */
 export interface ReconciliationPlan {
@@ -234,7 +233,7 @@ export interface ScanShelfDeps {
 }
 
 const defaultScanShelfDeps: ScanShelfDeps = {
-  scanLibrary: (libraryPath) => tauriAPI.scanLibrary(libraryPath),
+  scanLibrary: (libraryPath) => window.electronAPI.scanLibrary(libraryPath),
   reconcile: (books, libraryPath) => reconcileLibraryScan(books, libraryPath),
 };
 

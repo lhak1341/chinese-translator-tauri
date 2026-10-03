@@ -23,7 +23,7 @@ const tauriAPI = vi.hoisted(() => ({
   scanLibrary: vi.fn(),
   openBook: vi.fn(),
 }));
-vi.mock('../../../tauriAPI', () => ({ default: tauriAPI }));
+global.window.electronAPI = tauriAPI as unknown as typeof window.electronAPI;
 
 const appConfig = vi.hoisted(() => ({
   loadAppConfig: vi.fn(),

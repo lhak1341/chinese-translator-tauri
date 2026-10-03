@@ -13,9 +13,9 @@ const { mockBuildLookupIndex, mockToastWarning } = vi.hoisted(() => ({
   mockToastWarning: vi.fn(),
 }));
 
-vi.mock('../../tauriAPI', () => ({
-  default: { buildLookupIndex: mockBuildLookupIndex },
-}));
+global.window.electronAPI = {
+  buildLookupIndex: mockBuildLookupIndex,
+} as unknown as typeof window.electronAPI;
 vi.mock('../toast', () => ({ default: { warning: mockToastWarning } }));
 vi.mock('../logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

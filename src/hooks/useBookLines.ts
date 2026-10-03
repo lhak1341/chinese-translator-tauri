@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react';
-import tauriAPI from '../tauriAPI';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 
@@ -63,7 +62,7 @@ export function useBookLines(fingerprint: string | null, lineCount: number): Boo
       const start = page * LINES_PER_PAGE;
       const end = Math.min(start + LINES_PER_PAGE, lineCount);
       try {
-        const result = await tauriAPI.readBookLines(fingerprint, start, end);
+        const result = await window.electronAPI.readBookLines(fingerprint, start, end);
         pagesRef.current.set(page, result.lines);
         setError(null);
         setLinesVersion((n) => n + 1);

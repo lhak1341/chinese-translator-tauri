@@ -16,7 +16,9 @@
  *   instead of leaving the Chinese showing.
  * - The original panel is pending only on its own page, and fills back in, as plain text,
  *   whatever part of a line no run covers.
- * - A blank line is decided from the Chinese, so all three panels collapse the same rows.
+ * - A blank line is decided from the Chinese (`isBlankLine`), so all three panels collapse the
+ *   same rows — and the panels' estimated row height asks the same function, so a row's
+ *   collapse and its estimate cannot disagree.
  *
  * Pure — no engine, no DOM, no React. The Window Filler (`WindowFiller.ts`) owns when to project.
  */
@@ -222,17 +224,27 @@ function vietnamesePanelRow(
 }
 
 /**
+ * Whether a line is one of the file's own paragraph breaks — rendered at zero height, see
+ * `PanelRow.isBlank`, and estimated at zero too.
+ *
+ * `undefined` (a line whose page has not been fetched) is not blank: that row keeps its
+ * full estimated height, so the scrollbar does not shrink and then grow as pages land.
+ */
+export function isBlankLine(line: string | undefined): boolean {
+  return line?.trim() === '';
+}
+
+/**
  * Panel `panel`'s row for raw file line `index`. `line` is that line as fetched now
- * (`undefined` before its page lands); `isBlank` must be the panels' own rule, so a row's
- * collapse and its estimated height agree.
+ * (`undefined` before its page lands).
  */
 export function rowAt(
   snapshot: PanelRowsSnapshot,
   panel: Panel,
   index: number,
-  line: string | undefined,
-  isBlank: boolean
+  line: string | undefined
 ): PanelRow {
+  const isBlank = isBlankLine(line);
   if (panel === 'translation') {
     return vietnamesePanelRow(
       snapshot.translatedLines.get(index),

@@ -1,6 +1,8 @@
 /**
  * Result types for the Tauri IPC wrapper (`src/tauriAPI.ts`), and the `window.electronAPI`
- * declaration. The name is from the Electron days; the global kept it.
+ * declaration. The name is from the Electron days; the global kept it (renaming it is its own
+ * change — see CONTEXT.md "tauriAPI"). `window.electronAPI` is the only way production code
+ * reaches the adapter; `TauriApiAccessPath.test.js` enforces it.
  *
  * `ElectronAPI` is derived from `tauriAPI`, not declared here: a command is declared once, in
  * the wrapper, so the type cannot drift from what the wrapper implements.

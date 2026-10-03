@@ -11,13 +11,11 @@ const chapterHeadersForPattern = vi.fn();
 const setChapterOutline = vi.fn();
 const setManualChapterPattern = vi.fn();
 
-vi.mock('../../../tauriAPI', () => ({
-  default: {
-    detectChapterOutline: (fingerprint: string) => detectChapterOutline(fingerprint),
-    chapterHeadersForPattern: (fingerprint: string, pattern: string) =>
-      chapterHeadersForPattern(fingerprint, pattern),
-  },
-}));
+global.window.electronAPI = {
+  detectChapterOutline: (fingerprint: string) => detectChapterOutline(fingerprint),
+  chapterHeadersForPattern: (fingerprint: string, pattern: string) =>
+    chapterHeadersForPattern(fingerprint, pattern),
+} as unknown as typeof window.electronAPI;
 
 vi.mock('../BookRecordsBackend', () => ({
   setChapterOutline: (fingerprint: string, outline: unknown) =>

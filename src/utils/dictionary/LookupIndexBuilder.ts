@@ -1,6 +1,6 @@
 import { DICTIONARY_LOOKUP } from '../../constants/TranslationConstants.js';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
-import tauriAPI, { type LookupIndexDictionary, type LookupIndexEntry } from '../../tauriAPI';
+import type { LookupIndexDictionary, LookupIndexEntry } from '../../tauriAPI';
 import { logger } from '../logger';
 import { FallbackManager } from '../FallbackManager';
 
@@ -92,7 +92,11 @@ export async function buildLookupIndexOrFallback(
     const dictionaries = toRustDictionaries(dictionaryManager, dictionaryOrder);
 
     // Rust applies its own defaults for the minimum text length, indexing and parallelism.
-    const indexResult = await tauriAPI.buildLookupIndex(text, dictionaries, dictionaryOrder);
+    const indexResult = await window.electronAPI.buildLookupIndex(
+      text,
+      dictionaries,
+      dictionaryOrder
+    );
 
     if (!indexResult.success || !indexResult.index) {
       recordFailure(indexResult.error);

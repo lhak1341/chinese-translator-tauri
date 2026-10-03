@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   EMPTY_PANEL_ROWS,
+  isBlankLine,
   projectPanelRows,
   rowAt,
   type Panel,
@@ -50,7 +51,7 @@ const PANELS: Panel[] = ['translation', 'original', 'characterOnly'];
 describe('rowAt — before anything lands', () => {
   test('a Vietnamese row shows its Chinese, dimmed and without runs', () => {
     for (const panel of ['translation', 'characterOnly'] as const) {
-      const row = rowAt(EMPTY_PANEL_ROWS, panel, 0, '你好', false);
+      const row = rowAt(EMPTY_PANEL_ROWS, panel, 0, '你好');
       expect(row).toEqual({ text: '你好', isPending: true, lang: 'zh', isBlank: false });
       // Runs describe the Vietnamese the row will become, not the stand-in.
       expect(row.segments).toBeUndefined();
@@ -58,12 +59,12 @@ describe('rowAt — before anything lands', () => {
   });
 
   test('the original row is pending only on its own page, never on translation', () => {
-    expect(rowAt(EMPTY_PANEL_ROWS, 'original', 0, '你好', false)).toMatchObject({
+    expect(rowAt(EMPTY_PANEL_ROWS, 'original', 0, '你好')).toMatchObject({
       text: '你好',
       isPending: false,
       lang: 'zh',
     });
-    expect(rowAt(EMPTY_PANEL_ROWS, 'original', 1, undefined, false)).toMatchObject({
+    expect(rowAt(EMPTY_PANEL_ROWS, 'original', 1, undefined)).toMatchObject({
       text: undefined,
       isPending: true,
     });
@@ -71,7 +72,7 @@ describe('rowAt — before anything lands', () => {
 
   test('a blank source line is blank in all three panels', () => {
     for (const panel of PANELS) {
-      expect(rowAt(EMPTY_PANEL_ROWS, panel, 0, '', true).isBlank).toBe(true);
+      expect(rowAt(EMPTY_PANEL_ROWS, panel, 0, '').isBlank).toBe(true);
     }
   });
 });
@@ -80,17 +81,17 @@ describe('rowAt — after chunks land', () => {
   test('shows the Vietnamese and the gloss once both land, with their runs', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào', 'bạn tốt')]);
 
-    expect(rowAt(rows, 'translation', 0, '你好', false)).toMatchObject({
+    expect(rowAt(rows, 'translation', 0, '你好')).toMatchObject({
       text: 'Xin chào',
       isPending: false,
       lang: 'vi',
     });
-    expect(rowAt(rows, 'characterOnly', 0, '你好', false)).toMatchObject({
+    expect(rowAt(rows, 'characterOnly', 0, '你好')).toMatchObject({
       text: 'bạn tốt',
       isPending: false,
       lang: 'vi',
     });
-    const runs = rowAt(rows, 'translation', 0, '你好', false).segments ?? [];
+    const runs = rowAt(rows, 'translation', 0, '你好').segments ?? [];
     expect(runs.map((r) => r.text).join('')).toBe('Xin chào');
     expect(runs[0].chunkKey).toBe('0:0-0:2');
   });
@@ -98,8 +99,8 @@ describe('rowAt — after chunks land', () => {
   test('a chunk whose gloss has not landed leaves the reference panel on its Chinese, not blank', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào', null)]);
 
-    expect(rowAt(rows, 'translation', 0, '你好', false).isPending).toBe(false);
-    expect(rowAt(rows, 'characterOnly', 0, '你好', false)).toEqual({
+    expect(rowAt(rows, 'translation', 0, '你好').isPending).toBe(false);
+    expect(rowAt(rows, 'characterOnly', 0, '你好')).toEqual({
       text: '你好',
       isPending: true,
       lang: 'zh',
@@ -112,9 +113,9 @@ describe('rowAt — after chunks land', () => {
       landed(plan(0, 0, 1, 2), '你好\n再见', 'Xin chào\nTạm biệt', 'a\nb'),
     ]);
 
-    expect(rowAt(rows, 'translation', 0, '你好', false).text).toBe('Xin chào');
-    expect(rowAt(rows, 'translation', 1, '再见', false).text).toBe('Tạm biệt');
-    expect(rowAt(rows, 'characterOnly', 1, '再见', false).text).toBe('b');
+    expect(rowAt(rows, 'translation', 0, '你好').text).toBe('Xin chào');
+    expect(rowAt(rows, 'translation', 1, '再见').text).toBe('Tạm biệt');
+    expect(rowAt(rows, 'characterOnly', 1, '再见').text).toBe('b');
   });
 
   test('a line split across two chunks is rebuilt in line order, whatever order they landed in', () => {
@@ -122,12 +123,12 @@ describe('rowAt — after chunks land', () => {
     const head = landed(plan(0, 0, 0, 2), '你好', 'Xin chào,');
     const rows = projectPanelRows([tail, head]);
 
-    expect(rowAt(rows, 'translation', 0, '你好再见', false).text).toBe('Xin chào, tạm biệt');
+    expect(rowAt(rows, 'translation', 0, '你好再见').text).toBe('Xin chào, tạm biệt');
   });
 
   test('a line split across two chunks, only the head landed, shows the rest in dimmed Chinese', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào,')]);
-    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+    const row = rowAt(rows, 'translation', 0, '你好再见');
 
     expect(row).toMatchObject({ text: 'Xin chào,再见', isPending: false, lang: 'vi' });
     const runs = row.segments ?? [];
@@ -139,7 +140,7 @@ describe('rowAt — after chunks land', () => {
 
   test('only the tail landed: the head shows in dimmed Chinese before it', () => {
     const rows = projectPanelRows([landed(plan(0, 2, 0, 4), '再见', 'tạm biệt')]);
-    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+    const row = rowAt(rows, 'translation', 0, '你好再见');
 
     expect(row.text).toBe('你好tạm biệt');
     expect(row.segments?.map((r) => [r.text, r.lineStart, !!r.isPending])).toEqual([
@@ -153,7 +154,7 @@ describe('rowAt — after chunks land', () => {
       landed(plan(0, 0, 0, 1), '一', 'một '),
       landed(plan(0, 2, 0, 3), '三', ' ba'),
     ]);
-    const row = rowAt(rows, 'translation', 0, '一二三', false);
+    const row = rowAt(rows, 'translation', 0, '一二三');
 
     expect(row.text).toBe('một 二 ba');
     expect(row.segments?.filter((r) => r.isPending).map((r) => r.text)).toEqual(['二']);
@@ -161,7 +162,7 @@ describe('rowAt — after chunks land', () => {
 
   test('the gloss panel shows its own missing pieces the same way', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào,', 'bạn tốt')]);
-    const row = rowAt(rows, 'characterOnly', 0, '你好再见', false);
+    const row = rowAt(rows, 'characterOnly', 0, '你好再见');
 
     expect(row.text).toBe('bạn tốt再见');
     expect(row.segments?.filter((r) => r.isPending).map((r) => r.text)).toEqual(['再见']);
@@ -171,7 +172,7 @@ describe('rowAt — after chunks land', () => {
     const rows = projectPanelRows([
       landed(plan(0, 0, 0, 2), '你好', 'Xin chào,', null, { prebuiltSegments: [] }),
     ]);
-    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+    const row = rowAt(rows, 'translation', 0, '你好再见');
 
     expect(row.segments?.map((r) => [r.text, !!r.isPending])).toEqual([
       ['Xin chào,', false],
@@ -184,7 +185,7 @@ describe('rowAt — after chunks land', () => {
       landed(plan(0, 0, 0, 2), '你好', 'Xin chào,'),
       landed(plan(0, 2, 0, 4), '再见', ' tạm biệt'),
     ]);
-    const row = rowAt(rows, 'translation', 0, '你好再见', false);
+    const row = rowAt(rows, 'translation', 0, '你好再见');
 
     expect(row.text).toBe('Xin chào, tạm biệt');
     expect(row.segments?.some((r) => r.isPending)).toBe(false);
@@ -198,17 +199,42 @@ describe('rowAt — after chunks land', () => {
       }),
     ]);
 
-    const runs = rowAt(rows, 'original', 0, '你好', false).segments ?? [];
+    const runs = rowAt(rows, 'original', 0, '你好').segments ?? [];
     expect(runs.map((r) => r.text).join('')).toBe('你好');
   });
 
   test('the original row has no runs while its page is unfetched, even if a chunk covered it', () => {
     const rows = projectPanelRows([landed(plan(0, 0, 0, 2), '你好', 'Xin chào')]);
-    expect(rowAt(rows, 'original', 0, undefined, false).segments).toBeUndefined();
+    expect(rowAt(rows, 'original', 0, undefined).segments).toBeUndefined();
   });
 
   test('a projection is frozen: later projections replace it, never change it', () => {
     const rows = projectPanelRows([]);
     expect(Object.isFrozen(rows)).toBe(true);
+  });
+});
+
+describe('isBlankLine', () => {
+  test.each([
+    ['', true],
+    ['   ', true],
+    ['\u3000', true],
+    ['\t\n', true],
+    ['你好', false],
+    [' a ', false],
+  ])('%j → %s', (line, expected) => {
+    expect(isBlankLine(line)).toBe(expected);
+  });
+
+  test('a line whose page has not landed is not blank', () => {
+    expect(isBlankLine(undefined)).toBe(false);
+  });
+
+  test('a row is blank in every panel exactly when isBlankLine says so', () => {
+    for (const line of ['', '  ', '你好', undefined]) {
+      for (const panel of PANELS) {
+        expect(rowAt(EMPTY_PANEL_ROWS, panel, 0, line).isBlank).toBe(isBlankLine(line));
+      }
+    }
   });
 });

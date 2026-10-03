@@ -155,7 +155,6 @@ import {
   isActiveProperNounSource,
 } from './dictionary/FictionDictionaryFilter';
 import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
-import tauriAPI from '../tauriAPI.js';
 import {
   getTokenSpanForText,
   reconstructTextFromIndex,
@@ -296,7 +295,7 @@ export class TranslationEngine {
 
       // Dictionary Precomputation: 5-7x faster loading with cached tries
       enablePrecomputedCache: true,
-      tauriAPI: tauriAPI,
+      tauriAPI: window.electronAPI,
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
     this.textChunker = new TextChunker();

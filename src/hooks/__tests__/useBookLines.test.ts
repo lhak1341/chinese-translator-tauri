@@ -4,12 +4,10 @@ import { useBookLines, LINES_PER_PAGE, PAGE_KEEP_RADIUS } from '../useBookLines'
 
 const readBookLines = vi.fn();
 
-vi.mock('../../tauriAPI', () => ({
-  default: {
-    readBookLines: (fingerprint: string, start: number, end: number) =>
-      readBookLines(fingerprint, start, end),
-  },
-}));
+global.window.electronAPI = {
+  readBookLines: (fingerprint: string, start: number, end: number) =>
+    readBookLines(fingerprint, start, end),
+} as unknown as typeof window.electronAPI;
 
 /** A page whose every line names its own file line number, so misfiling is visible. */
 function pageFor(

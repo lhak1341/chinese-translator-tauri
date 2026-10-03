@@ -6,13 +6,11 @@ import type { EngineCall } from '../../utils/reader/ReaderEngine';
 
 const chapterHeadersForPattern = vi.fn();
 
-vi.mock('../../tauriAPI', () => ({
-  default: {
-    detectChapterOutline: vi.fn(),
-    chapterHeadersForPattern: (fingerprint: string, pattern: string) =>
-      chapterHeadersForPattern(fingerprint, pattern),
-  },
-}));
+global.window.electronAPI = {
+  detectChapterOutline: vi.fn(),
+  chapterHeadersForPattern: (fingerprint: string, pattern: string) =>
+    chapterHeadersForPattern(fingerprint, pattern),
+} as unknown as typeof window.electronAPI;
 
 vi.mock('../../utils/reader/BookRecordsBackend', () => ({
   setChapterOutline: vi.fn().mockResolvedValue(undefined),

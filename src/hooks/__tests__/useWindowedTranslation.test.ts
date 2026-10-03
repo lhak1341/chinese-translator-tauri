@@ -28,7 +28,6 @@ function render(
   chunkImpl = async (text: string): Promise<ChunkTranslationResult> => chunkResult(`T(${text})`)
 ) {
   const getLine = (i: number): string | undefined => lines[i];
-  const isBlankAt = (i: number): boolean => getLine(i)?.trim() === '';
   const translateChunk = vi.fn(chunkImpl);
   const translateGloss = vi.fn(async (text: string) => glossResult(`G(${text})`));
   const hook = renderHook(
@@ -40,7 +39,6 @@ function render(
         overscanLines: 0,
         linesVersion: props.linesVersion,
         getLine,
-        isBlankAt,
         translateChunk: translateChunk as unknown as EngineCall<ChunkTranslationResult>,
         translateGloss: translateGloss as unknown as EngineCall<GlossResult>,
         dictionaryVersion: 0,

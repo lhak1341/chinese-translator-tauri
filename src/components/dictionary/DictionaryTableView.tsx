@@ -5,12 +5,8 @@ import MoveDialog from './MoveDialog';
 import EntryContextMenu from './EntryContextMenu';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import {
-  isPatternsDict,
-  isPhrasesDict,
-  isProperNounsDict,
-  entryCapabilities,
-} from '../../utils/dictionary';
+import { entryCapabilities } from '../../utils/dictionary';
+import { tableColumns } from './TableColumns';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
@@ -57,55 +53,15 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
     widthClassName: styles.patternsTypeCol,
     title: `Type constraints for variable ${v}`,
   });
-  // Which capability columns appear comes from the entry capabilities; each kind's column
-  // classes and labels below are layout.
+  // Which capability columns appear comes from the entry capabilities; the Source and
+  // Translation columns — classes, labels, titles — from `tableColumns`, which every row reads too.
   const caps = entryCapabilities(dictionaryId);
-  const capabilityColumns = (semanticTitle: string): HeaderColumn[] => [
+  const { source, translation, semanticTitle } = tableColumns(dictionaryId);
+  return [
+    source,
+    translation,
     ...(caps.semantic !== 'none' ? [semantic(semanticTitle)] : []),
     ...(caps.variableTypes ? [variableType('X'), variableType('Y')] : []),
-  ];
-  if (isPatternsDict(dictionaryId)) {
-    return [
-      {
-        label: 'Source',
-        className: styles.patternsSourceCol,
-        title: 'Pattern with highlighted variables',
-      },
-      {
-        label: 'Translation',
-        className: styles.patternsTranslationCol,
-        title: 'Translation with metadata badges (VAR = Allow as variable, LP = Low priority)',
-      },
-      ...capabilityColumns('Output semantic type (shown when pattern can be used as a variable)'),
-    ];
-  }
-  if (isPhrasesDict(dictionaryId)) {
-    return [
-      { label: 'Source', className: styles.phrasesSourceCol },
-      {
-        label: 'Translation',
-        className: styles.phrasesTranslationCol,
-        title: 'Translation with metadata badge (VAR = Allow as variable)',
-      },
-      ...capabilityColumns('Semantic type'),
-    ];
-  }
-  if (isProperNounsDict(dictionaryId)) {
-    return [
-      { label: 'Source', className: styles.properNounsSourceCol },
-      // Stated once here rather than as the same badge on every row (EntryVarCell).
-      {
-        label: 'Translation',
-        className: styles.properNounsTranslationCol,
-        title: 'Proper nouns are always usable as variables',
-      },
-      ...capabilityColumns('Semantic type'),
-    ];
-  }
-  return [
-    { label: 'Source Text', className: styles.simpleSourceCol },
-    { label: 'Translation', className: styles.simpleTranslationCol },
-    ...capabilityColumns('Semantic type'),
   ];
 }
 

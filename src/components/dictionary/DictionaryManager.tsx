@@ -188,11 +188,14 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Handle opening dictionary folder
   const handleOpenFolder = async (): Promise<void> => {
     try {
+      setError(null);
       const result = await window.electronAPI.openDictionaryFolder();
       if (!result.success) {
         logger.error('Failed to open folder:', result.error);
+        setError(`Open folder failed: ${result.error}`);
       }
     } catch (error) {
+      setError(`Open folder error: ${(error as Error).message}`);
       logger.error('Error opening dictionary folder:', error);
     }
   };

@@ -89,20 +89,34 @@ export function useDictionaryModals({
   // Counts opens, for each open's `openId`.
   const openCountRef = useRef(0);
 
-  const openQuickAdd = useCallback(
-    async (dictionaryId: string, source = ''): Promise<void> => {
-      const view = await loadView();
-      shortlistRef.current = null;
+  // Every opener ends here: all of the modal's state is set in one update, after the
+  // dictionary is resolved, so the dialog never opens with the source set and the dictionary
+  // not (empty fields). `shortlist` is `null` for an Add with no shortlist.
+  const present = useCallback(
+    (
+      view: QuickAddView | null,
+      dictionaryId: string,
+      source: string,
+      shortlist: QuickAddShortlist | null
+    ): void => {
+      shortlistRef.current = shortlist;
       setModalState({
         isOpen: true,
         dictionaryId,
         source,
         view,
-        shortlist: null,
+        shortlist,
         openId: ++openCountRef.current,
       });
     },
-    [loadView]
+    []
+  );
+
+  const openQuickAdd = useCallback(
+    async (dictionaryId: string, source = ''): Promise<void> => {
+      present(await loadView(), dictionaryId, source, null);
+    },
+    [loadView, present]
   );
 
   const openQuickAddShortlist = useCallback(
@@ -114,17 +128,9 @@ export function useDictionaryModals({
         remembered !== undefined && shortlist.ids.includes(remembered)
           ? remembered
           : shortlist.ids[0];
-      shortlistRef.current = shortlist;
-      setModalState({
-        isOpen: true,
-        dictionaryId,
-        source,
-        view,
-        shortlist,
-        openId: ++openCountRef.current,
-      });
+      present(view, dictionaryId, source, shortlist);
     },
-    [dictionaries, loadView, shortlistMemory]
+    [dictionaries, loadView, present, shortlistMemory]
   );
 
   const openQuickAddCharacter = useCallback<OpenQuickAdd>(
@@ -152,10 +158,6 @@ export function useDictionaryModals({
    * for Cmd-5 (`properNoun`) or Cmd-6 (`structuralPattern`) over the view loaded at call time.
    * After a force reload, invalidateAppConfig() has been called so the next open picks up the
    * fresh value automatically. Only Cmd-6 can miss (`pairMissing`); Cmd-5 always opens.
-   *
-   * CRITICAL FIX (2026-01-20): Set ALL modal state atomically after determining
-   * the dictionary — avoids the React batching issue where the source is set
-   * before the dictionary is resolved, leaving empty dialog fields for Cmd-5.
    */
   const openQuickAddTarget = useCallback(
     async (kind: QuickAddKind, source = ''): Promise<void> => {
@@ -165,17 +167,9 @@ export function useDictionaryModals({
         toast.error(quickAddMissMessage(target));
         return;
       }
-      shortlistRef.current = null;
-      setModalState({
-        isOpen: true,
-        dictionaryId: target.dictionaryId,
-        source,
-        view,
-        shortlist: null,
-        openId: ++openCountRef.current,
-      });
+      present(view, target.dictionaryId, source, null);
     },
-    [dictionaries, loadView, unreadDictionaryIds]
+    [dictionaries, loadView, present, unreadDictionaryIds]
   );
 
   const openQuickAddCustomProperNoun = useCallback<OpenQuickAdd>(

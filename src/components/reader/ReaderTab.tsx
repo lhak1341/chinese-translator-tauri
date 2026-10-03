@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import tauriAPI from '../../tauriAPI';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
@@ -135,7 +134,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       openingFileNameRef.current = book.fileName;
       setOpenError(null);
       try {
-        const result = await tauriAPI.openBook(
+        const result = await window.electronAPI.openBook(
           book.fileName,
           configuredPath,
           encodingOverride ?? null

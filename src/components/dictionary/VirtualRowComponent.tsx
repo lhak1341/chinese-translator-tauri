@@ -1,17 +1,12 @@
 import React from 'react';
-import {
-  isPatternsDict,
-  isPhrasesDict,
-  isProperNounsDict,
-  entryFields,
-  toggleVariableType,
-} from '../../utils/dictionary';
+import { isPatternsDict, entryFields, toggleVariableType } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { DictionaryEntryValue, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { highlightPatternVariables } from '../../utils/text';
 import { RowShell, CheckboxCell } from './TableBuildingBlocks';
 import { ControlledEditableCell } from '../EditableCell';
+import { tableColumns } from './TableColumns';
 import { EntryVarCell, EntrySemanticCell, EntryTypeCells, entryPatcher } from './EntryCells';
 
 /** Width of the per-row Semantic-type column (patterns/phrases/properNouns). Shared constant
@@ -20,22 +15,6 @@ import { EntryVarCell, EntrySemanticCell, EntryTypeCells, entryPatcher } from '.
  * be a className the way Source/Translation are (architecture review 2026-08-28, candidate #2
  * grilling). */
 export const DICTIONARY_SEMANTIC_COLUMN_WIDTH = '15%';
-
-/** Each kind's Source/Translation column classes — layout only; see
- * EnhancedVirtualizedDictionaryTable.module.css's "Column widths" comment block, which this
- * shares with the header. What else a row shows comes from `EntryCells`. */
-function columnClasses(dictionaryId: string): { source: string; translation: string } {
-  if (isPatternsDict(dictionaryId)) {
-    return { source: styles.patternsSourceCol, translation: styles.patternsTranslationCol };
-  }
-  if (isPhrasesDict(dictionaryId)) {
-    return { source: styles.phrasesSourceCol, translation: styles.phrasesTranslationCol };
-  }
-  if (isProperNounsDict(dictionaryId)) {
-    return { source: styles.properNounsSourceCol, translation: styles.properNounsTranslationCol };
-  }
-  return { source: styles.simpleSourceCol, translation: styles.simpleTranslationCol };
-}
 
 export interface VirtualRowProps {
   source: string;
@@ -83,7 +62,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     );
 
     const patch = entryPatcher(onPatchEntry, selectedDictionary, source);
-    const columns = columnClasses(selectedDictionary);
+    const columns = tableColumns(selectedDictionary);
 
     return (
       <RowShell
@@ -92,7 +71,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       >
         <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 
-        <div className={`${styles.cell} ${columns.source}`}>
+        <div className={`${styles.cell} ${columns.source.className}`}>
           <ControlledEditableCell
             edit={sourceEdit}
             value={source}
@@ -105,7 +84,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           />
         </div>
 
-        <div className={`${styles.cellEditable} ${columns.translation}`}>
+        <div className={`${styles.cellEditable} ${columns.translation.className}`}>
           <ControlledEditableCell
             edit={translEdit}
             value={translationText}

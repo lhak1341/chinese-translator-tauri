@@ -51,3 +51,7 @@ Rejected: save/move ops are already thin and behind typed abstractions; `window.
 ## Addendum 2026-09-29
 
 The three save operations named above (`persistDictionaryMutation`, `commitMutation`, `commitMoveOp`) no longer exist. They were replaced by one `EditCommitter` (ADR-052), which fixed undo data loss rather than extracting IPC into the backend. The load-only decision here stands: `DictionaryBackend` still owns load, and saves still call `saveDictionary` from the provider's committer.
+
+## Addendum 2026-10-04
+
+"Trivially mockable" now holds for the whole adapter: production code reaches it only through `window.electronAPI` (the Reader's `ReconcileLibrary`, `ChapterOutlineStore`, `ReaderTab`, `useBookLines`, `LookupIndexBuilder` and `TranslationEngine.js` used to import `tauriAPI` directly), and `TauriApiAccessPath.test.js` scans for a regression. The load-only decision stands.

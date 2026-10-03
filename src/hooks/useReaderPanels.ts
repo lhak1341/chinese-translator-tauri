@@ -3,6 +3,7 @@ import type React from 'react';
 import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
 import { useReaderPanel } from './useReaderPanel';
 import { usePanelSync } from './usePanelSync';
+import { isBlankLine } from '../utils/reader/PanelRows';
 
 /**
  * How wide one source Chinese character renders in each panel, in em.
@@ -72,9 +73,6 @@ export interface ReaderPanels {
   };
   /** Space / Shift+Space. */
   pageBy: (direction: 1 | -1) => void;
-  /** Whether a line is one of the file's own paragraph breaks — the estimate's rule, which
-   * a rendered row's `isBlank` must agree with or its height jumps when it mounts. */
-  isBlankAt: (index: number) => boolean;
 }
 
 /**
@@ -104,10 +102,7 @@ export function useReaderPanels({
    * not been fetched: an unfetched row keeps its full estimated height, so the scrollbar
    * does not shrink and then grow again as pages land.
    */
-  const isBlankAt = useCallback(
-    (index: number): boolean => getLine(index)?.trim() === '',
-    [getLine]
-  );
+  const isBlankAt = useCallback((index: number): boolean => isBlankLine(getLine(index)), [getLine]);
 
   const translation = useReaderPanel({
     lineCount,
@@ -233,6 +228,5 @@ export function useReaderPanels({
       },
     },
     pageBy,
-    isBlankAt,
   };
 }
