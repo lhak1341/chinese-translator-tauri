@@ -193,4 +193,21 @@ describe('writeExternally', () => {
     await file.writeExternally(async () => ({ success: false }));
     expect(file.snapshot()).toEqual(['a']);
   });
+  test('a load that raced an invalidate does not cache the pre-invalidate content', async () => {
+    const file = createAppFile(spec());
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    load.mockImplementationOnce(async () => {
+      const stale = structuredClone(onDisk); // read before the external write...
+      await gate; // ...delivered after it
+      return { success: true, data: stale };
+    });
+    const pending = file.read();
+    onDisk = ['a', 'external'];
+    file.invalidate();
+    release();
+    const { value } = await pending;
+    expect(value).toEqual(['a', 'external']);
+    expect(file.snapshot()).toEqual(['a', 'external']);
+  });
 });

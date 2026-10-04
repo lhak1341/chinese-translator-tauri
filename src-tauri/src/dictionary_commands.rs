@@ -263,12 +263,17 @@ const MAX_CACHE_ENTRIES: usize = 5;
 /// are `LruCache`'s; this adds the id-keyed invalidation the write commands call.
 pub struct DictionaryCache {
     lru: LruCache<String, serde_json::Value>,
+    /// Bumped by every invalidation. A loader that read the file before an invalidation
+    /// must not cache what it read after it (`set_if_current`), or a stale copy outlives the
+    /// write that replaced it.
+    generation: AtomicU64,
 }
 
 impl DictionaryCache {
     pub fn new() -> Self {
         Self {
             lru: LruCache::new("Dictionary", MAX_CACHE_ENTRIES, record_mutex_poisoning),
+            generation: AtomicU64::new(0),
         }
     }
 
@@ -276,13 +281,27 @@ impl DictionaryCache {
         self.lru.get(key)
     }
 
+    #[cfg(test)]
     pub fn set(&self, key: String, value: serde_json::Value) {
         self.lru.set(key, value);
+    }
+
+    /// The invalidation count, read before a load touches the file.
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
+    }
+
+    /// Cache `value` only if nothing was invalidated since `generation` was read.
+    pub fn set_if_current(&self, key: String, value: serde_json::Value, generation: u64) {
+        if self.generation() == generation {
+            self.lru.set(key, value);
+        }
     }
 
     /// Drop one dictionary's entry, or every entry for `None`. Keys are bare dictionary ids
     /// (e.g. "phrases", "properNouns-MyNovel"), so a targeted invalidation is an exact match.
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
+        self.generation.fetch_add(1, Ordering::SeqCst);
         match dictionary_id {
             Some(id) => self.lru.remove(id),
             None => self.lru.clear(),
@@ -712,12 +731,18 @@ pub async fn create_fiction_dictionary_pair(
 
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
+    // An orphaned patterns file must never be overwritten with `{}` — refuse before
+    // creating anything, so the pair stays all-or-nothing.
+    let patterns_file_path = dictionary_path.join(format!("{}.json", patterns_id));
+    if let Some(msg) = collision_message(&patterns_file_path, &patterns_id, "Patterns") {
+        return Ok(DictionaryResponse::err(msg));
+    }
+
     if let Err(err) = create_proper_noun_file(&dictionary_path, &proper_noun_id) {
         return Ok(DictionaryResponse::err(err));
     }
     cache.invalidate(Some(&proper_noun_id));
 
-    let patterns_file_path = dictionary_path.join(format!("{}.json", patterns_id));
     let empty_dict = serde_json::json!({});
     if let Err(err) = save_json_file(&patterns_file_path, &empty_dict) {
         // Roll back the properNouns half so callers never see a half-created pair.
@@ -802,7 +827,11 @@ fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Result<(), Strin
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| format!("Invalid {} name", context))?;
-    let tmp_path = parent.join(format!("{}.tmp.{}", file_name, std::process::id()));
+    // pid alone is shared by every writer in this process; the counter keeps two concurrent
+    // writes to one path from sharing a temp file.
+    static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp_path = parent.join(format!("{}.tmp.{}.{}", file_name, std::process::id(), seq));
 
     fs::write(&tmp_path, bytes).map_err(|e| sanitize_io_error(e, context))?;
 
@@ -861,6 +890,15 @@ pub async fn load_dictionary(
     if let Some(cached_data) = cache.get(&cache_key) {
         return Ok(DictionaryResponse::ok_with_data(cached_data));
     }
+    let generation = cache.generation();
+
+    // A missing file is a soft failure (`tauriAPI.loadDictionary` expects exactly this error
+    // text) — checked before the size guard, whose metadata call would turn it into an `Err`.
+    if let Err(e) = fs::metadata(&file_path) {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            return Ok(DictionaryResponse::err("File not found"));
+        }
+    }
 
     // SECURITY: Check file size before reading
     validate_file_size(&file_path, MAX_JSON_SIZE_BYTES)?;
@@ -879,7 +917,7 @@ pub async fn load_dictionary(
                 .map_err(|e| format!("Dictionary '{}': {}", dictionary_id, e))?;
 
             // Cache the result
-            cache.set(cache_key, data.clone());
+            cache.set_if_current(cache_key, data.clone(), generation);
 
             Ok(DictionaryResponse::ok_with_data(data))
         }
@@ -1482,6 +1520,7 @@ fn load_dictionaries_parallel_impl(
             if let Some(cached_data) = cache.get(&cache_key) {
                 return BatchDictionaryResult::ok(dictionary_id, cached_data);
             }
+            let generation = cache.generation();
 
             // A dictionary whose file does not exist yet is empty, not unread: nothing seeds the
             // dictionary directory, so a fresh install or a reset has no `phrases.json` until the
@@ -1513,7 +1552,7 @@ fn load_dictionaries_parallel_impl(
                             }
 
                             // Cache the result (thread-safe)
-                            cache.set(cache_key, data.clone());
+                            cache.set_if_current(cache_key, data.clone(), generation);
 
                             BatchDictionaryResult::ok(dictionary_id, data)
                         }
@@ -1911,6 +1950,19 @@ mod tests {
         cache.set("key".to_string(), serde_json::json!({"v": 1}));
         cache.set("key".to_string(), serde_json::json!({"v": 2}));
         assert_eq!(cache.get("key"), Some(serde_json::json!({"v": 2})));
+    }
+
+    #[test]
+    fn test_set_if_current_drops_a_load_that_raced_an_invalidation() {
+        let cache = DictionaryCache::new();
+        let generation = cache.generation();
+        cache.invalidate(Some("phrases")); // a write lands while the loader holds old bytes
+        cache.set_if_current("phrases".to_string(), serde_json::json!({"old": 1}), generation);
+        assert!(cache.get("phrases").is_none());
+
+        let generation = cache.generation();
+        cache.set_if_current("phrases".to_string(), serde_json::json!({"new": 1}), generation);
+        assert!(cache.get("phrases").is_some());
     }
 
     #[test]

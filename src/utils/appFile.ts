@@ -102,7 +102,12 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
   const listeners = new Set<() => void>();
   let queue: Promise<unknown> = Promise.resolve();
 
-  function setCache(next: T | null): void {
+  /** Bumped by every write-through and invalidation — not by a load caching its own result —
+   * so a load that started before one can tell its result is stale. */
+  let epoch = 0;
+
+  function setCache(next: T | null, isLoad = false): void {
+    if (!isLoad) epoch++;
     cache = next;
     listeners.forEach((listener) => listener());
   }
@@ -118,7 +123,11 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
 
   async function read(): Promise<AppFileRead<T>> {
     if (cache !== null) return { value: cache, dropped: 0 };
+    const startedAt = epoch;
     const raw = await spec.load();
+    // A save, external write or invalidate landed while this load was in flight: what it
+    // read may predate it, and caching it would resurrect the old file. Read again.
+    if (epoch !== startedAt) return read();
     const result = validateApiResult<unknown>(raw, `load ${spec.fileName}`);
     if (!result.success) {
       // Cached nowhere: the next read tries the file again.
@@ -131,7 +140,7 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
     reportQuarantine(raw, spec.what);
     const { value, dropped } = spec.parse(result.data);
     if (dropped > 0) logger.warn(`${spec.fileName}: dropped ${dropped} invalid item(s)`);
-    setCache(value);
+    setCache(value, true);
     return { value, dropped };
   }
 

@@ -104,6 +104,8 @@ impl TextChunker {
         // No Vec<char> allocation — iterate chars directly to avoid a large heap block
         // that, when freed alongside many small TextChunkResult strings, triggers
         // dlmalloc 0.2.9's coalescing assertion (psize >= size + min_overhead).
+        // UTF-16 code units, not chars: JS indexes the same text by UTF-16, so a character
+        // outside the BMP (CJK Ext-B, emoji) counts 2.
         let mut char_index = 0usize;
 
         // Helper closure: move strings into chunk via std::mem::take — zero clones in hot path.
@@ -201,7 +203,7 @@ impl TextChunker {
                 current_content.push(ch);
             }
 
-            char_index += 1;
+            char_index += ch.len_utf16();
         }
 
         // Flush final chunk

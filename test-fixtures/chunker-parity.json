@@ -644,6 +644,44 @@
       "expectAgreement": true,
       "rust": [],
       "js": []
+    },
+    {
+      "name": "astral_char_start_index_is_utf16_agree",
+      "description": "startIndex counts UTF-16 code units (an astral character is 2), so it indexes the JS string directly.",
+      "input": "𠮷你，世界",
+      "expectAgreement": true,
+      "rust": [
+        {
+          "content": "𠮷你",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ],
+      "js": [
+        {
+          "content": "𠮷你",
+          "punctuation": "，",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "",
+          "startIndex": 4,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ]
     }
   ]
 }

@@ -14,14 +14,13 @@ function validatePosition(
   tokenIndex: number,
   translatedText: string
 ): boolean {
-  if (lastPositionSet !== -1 && startPos <= lastPositionSet) {
+  if (lastPositionSet !== -1 && startPos < lastPositionSet) {
     logger.error('❌ setPositionByMatch overlap detected - REJECTING!', {
       tokenIndex,
       translatedText,
-      expectedMinStart: lastPositionSet + 1,
+      expectedMinStart: lastPositionSet,
       actualStart: startPos,
-      violation:
-        startPos < lastPositionSet ? 'Position decreased' : 'Position overlaps with previous range',
+      violation: 'Position overlaps with previous range',
       impact:
         'Rejected to prevent duplicate position mappings and bidirectional highlighting corruption',
     });

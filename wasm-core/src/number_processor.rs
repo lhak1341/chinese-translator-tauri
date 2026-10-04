@@ -139,7 +139,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     // Thousands: 三千七百 → 3,700
     add_pattern!(
         "thousands",
-        r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|零[一二三四五六七八九]|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$",
+        r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|零[一二三四五六七八九]|[一二两三四五六七八九]百[一二三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$",
         NumberProcessor::convert_thousands,
         "Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015). Handles implicit tens patterns."
     );
@@ -155,7 +155,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     // Percentage: 百分之三十 → 30%, 百分之十五 → 15%
     add_pattern!(
         "percentage",
-        r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|百|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)(?:点([一二三四五六七八九零]+))?$",
+        r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二三四五六七八九]?十?[一二三四五六七八九]?|百|[一二两三四五六七八九]十[一二三四五六七八九]|[一二两三四五六七八九]十|十[一二三四五六七八九]|十|[一二两三四五六七八九]|\d+)(?:点([一二三四五六七八九零]+))?$",
         NumberProcessor::convert_percentage,
         "Percentages like 百分之三十 (30%), 百分之十五 (15%), 百分之百 (100%), 百分之九十九点九 (99.9%)"
     );
@@ -227,7 +227,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     // Hundreds: 三百五十 → 350
     add_pattern!(
         "hundreds",
-        r"^([一二两三四五六七八九])百([一二两三四五六七八九]十[一二两三四五六七八九]?|[一二两三四五六七八九]十|十[一二两三四五六七八九]|[一二三四五六七八九])?$",
+        r"^([一二两三四五六七八九])百([一二两三四五六七八九]十[一二三四五六七八九]?|[一二两三四五六七八九]十|十[一二三四五六七八九]|[一二三四五六七八九])?$",
         NumberProcessor::convert_hundreds,
         "Hundreds like 三百五十 (350)"
     );
@@ -1003,6 +1003,18 @@ mod tests {
         assert!(m.is_some(), "Pattern should match");
         let m = m.unwrap();
         assert_eq!(m.result, "200%");
+    }
+
+    #[test]
+    fn test_liang_tael_unit_is_not_consumed_as_a_digit() {
+        let p = NumberProcessor::new();
+        // 一千五百两 → 1,500 + 两 left alone (a tael unit); 五百二十两 → 520 + 两.
+        for (text, expected, end) in [("一千五百两", "1,500", 3), ("五百二十两", "520", 3)] {
+            let tokens: Vec<Token> = text.chars().map(|c| tok(&c.to_string())).collect();
+            let m = p.find_longest_number_match(&tokens, 0).expect("should match");
+            assert_eq!(m.result, expected, "{}", text);
+            assert_eq!(m.end_index, end, "{}", text);
+        }
     }
 
     #[test]

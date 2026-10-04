@@ -79,4 +79,21 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       expect(builder.estimatedCapacity).toBeLessThanOrEqual(1000);
     });
   });
+  describe('Bug Fix: adjacent units are not overlapping', () => {
+    it('accepts a unit starting exactly where the previous one ended (e.g. "A" then "1")', () => {
+      const builder = new SemanticArrayBuilder();
+      builder.addUnit('abc', 'abc', 'characters', 0);
+      builder.addUnit('123', '123', 'characters', 1);
+      expect(builder.setPositionByMatch(0, 'abc', 0, 3, 0)).toBe(true);
+      expect(builder.setPositionByMatch(1, '123', 3, 6, 3)).toBe(true);
+    });
+
+    it('still rejects a genuinely overlapping range', () => {
+      const builder = new SemanticArrayBuilder();
+      builder.addUnit('abc', 'abc', 'characters', 0);
+      builder.addUnit('123', '123', 'characters', 1);
+      builder.setPositionByMatch(0, 'abc', 0, 3, 0);
+      expect(builder.setPositionByMatch(1, '123', 2, 5, 3)).toBe(false);
+    });
+  });
 });

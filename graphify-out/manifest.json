@@ -60,8 +60,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1791044735.286235,
-    "ast_hash": "a58e4b0696809235bb607bba6c018fea",
+    "mtime": 1791123778.0547674,
+    "ast_hash": "f35fb91d1a4a7c136e325943ade8bcaa",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/text_chunker.rs": {
-    "mtime": 1791097635.6755035,
-    "ast_hash": "ee8fc14c095e95453e1466fae53fceab",
+    "mtime": 1791123778.058181,
+    "ast_hash": "a708f4418d6cbf4d1081d74fda718668",
     "semantic_hash": ""
   },
   "wasm-core/src/string_processor.rs": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/number_processor.rs": {
-    "mtime": 1788966792.0742776,
-    "ast_hash": "bcc1102ddee64c4d70cf5b92783b8a58",
+    "mtime": 1791123778.0575871,
+    "ast_hash": "5131ca01f285d7e310de1d2b7a2cceb0",
     "semantic_hash": ""
   },
   "wasm-core/src/text_assembly.rs": {
@@ -320,8 +320,8 @@
     "semantic_hash": ""
   },
   "src/utils/NumberProcessor.js": {
-    "mtime": 1791100072.2934682,
-    "ast_hash": "fb8bd47c6956982dfae1d9c376ee69f4",
+    "mtime": 1791123778.055109,
+    "ast_hash": "b8262d3d4cc9a4258002cd074ade9183",
     "semantic_hash": ""
   },
   "src/utils/GraphemeHelper.ts": {
@@ -370,8 +370,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/SemanticArrayBuilder.ts": {
-    "mtime": 1788879773.7487545,
-    "ast_hash": "de4222fb7d8fe1d6e1f8edc7edf8b426",
+    "mtime": 1791123778.0565598,
+    "ast_hash": "73aed6a60c9084a97c84589b4c17b40c",
     "semantic_hash": ""
   },
   "src/utils/highlighting/TextPositionMapper.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
-    "mtime": 1779467704.7008452,
-    "ast_hash": "2bfbf03579af36c73d9739a28dfee3e4",
-    "semantic_hash": "2bfbf03579af36c73d9739a28dfee3e4"
+    "mtime": 1791123778.0567722,
+    "ast_hash": "03b8adf7ba50255b4ec5608327f6a31a",
+    "semantic_hash": ""
   },
   "src/utils/text/PunctuationProcessor.ts": {
     "mtime": 1788797557.1167104,
@@ -590,8 +590,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/TextChunker.js": {
-    "mtime": 1790987434.4340556,
-    "ast_hash": "ddd43a232b467e9c6cdc53d18c38f227",
+    "mtime": 1791123778.0569875,
+    "ast_hash": "b684cfd5903d3e69b260082d1bcfae90",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
@@ -855,8 +855,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryFilter.ts": {
-    "mtime": 1790705363.3220882,
-    "ast_hash": "13053bcc5ecdca0c59010bf1c130478d",
+    "mtime": 1791122003.314617,
+    "ast_hash": "c20b561b79955278e782ea134f85472e",
     "semantic_hash": ""
   },
   "src/hooks/useTranslationResults.js": {
@@ -945,8 +945,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791098502.0131626,
-    "ast_hash": "8a4d8e32ff030c14403f8ce6af4b095f",
+    "mtime": 1791122653.4068668,
+    "ast_hash": "0ad2bae53b34c1c94fc5fa5c256abb47",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -955,8 +955,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1791098502.0131626,
-    "ast_hash": "8a4d8e32ff030c14403f8ce6af4b095f",
+    "mtime": 1791122653.4068668,
+    "ast_hash": "0ad2bae53b34c1c94fc5fa5c256abb47",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1055,8 +1055,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1791117999.584696,
-    "ast_hash": "296d502aeb18882c215d08a5c32d8116",
+    "mtime": 1791121840.9654307,
+    "ast_hash": "837ec6c4e5f10ad82c3958725d744bc6",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1230,8 +1230,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791121419.670267,
-    "ast_hash": "ff23e2c20b002d47298e60c0e917bb04",
+    "mtime": 1791122653.4076169,
+    "ast_hash": "47293ea86bdf8dd8273334a4b4472742",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1790757126.5626595,
-    "ast_hash": "0abfe73056c1af4f7aaf0f2a5c7b6c14",
+    "mtime": 1791122003.313334,
+    "ast_hash": "d92d307a1b4261b4ea1bc0edce5859da",
     "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-043-skip-shared-windowed-fill-primitive.md": {
-    "mtime": 1790756251.3766828,
-    "ast_hash": "5b1023edee29edcdfd32a03fa41a07f2",
+    "mtime": 1791121840.968517,
+    "ast_hash": "20d4f177a2cf05f5ceed8cbc209d4d9f",
     "semantic_hash": ""
   },
   "docs/adr/ADR-044-skip-splitting-openbook.md": {
@@ -2110,8 +2110,8 @@
     "semantic_hash": ""
   },
   "src/utils/appFile.ts": {
-    "mtime": 1790696640.980063,
-    "ast_hash": "1f18d0425a89e2dfb1fd662570bc20dd",
+    "mtime": 1791123788.6053548,
+    "ast_hash": "0625a2c31c0cd95c1314e57cfde39ff3",
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
@@ -2260,8 +2260,8 @@
     "semantic_hash": ""
   },
   "test-fixtures/chunker-parity.json": {
-    "mtime": 1790987414.7308087,
-    "ast_hash": "f70ce7ec246806b293fb904cd3503b8d",
+    "mtime": 1791123778.0572436,
+    "ast_hash": "63e091584310011b26212aba58b06ff9",
     "semantic_hash": ""
   },
   "src/components/dictionary/CommitFeedback.ts": {
@@ -2352,6 +2352,16 @@
   "docs/adr/ADR-073-delete-the-wasm-dictionary-lookup-tier.md": {
     "mtime": 1791118609.5777128,
     "ast_hash": "57bad48472bdbeeee41f2534716f47af",
+    "semantic_hash": ""
+  },
+  "src/utils/ui/toggled.ts": {
+    "mtime": 1791122003.25694,
+    "ast_hash": "c62f23c5e17eba0937f477339d27bd65",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-074-skip-outline-title-fill-extraction.md": {
+    "mtime": 1791121840.9129362,
+    "ast_hash": "e663441e6fe1485631ca18c42c4ef7c3",
     "semantic_hash": ""
   }
 }

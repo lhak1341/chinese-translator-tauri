@@ -210,7 +210,7 @@ import {
  * @property {number}  [chunkStartChar=0]        - CHARACTER position of this chunk's start
  *                                                 in the full source text. Passed to postProcess()
  *                                                 so originalStart values are absolute, not chunk-relative.
- *                                                 token.start (bytes) is chunk-relative; add chunkStartChar
+ *                                                 token.start is chunk-relative; add chunkStartChar
  *                                                 to get the absolute character position.
  * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
  * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
@@ -2238,8 +2238,8 @@ export class TranslationEngine {
     const chunkStartChar = typeof options?.chunkStartChar === 'number' ? options.chunkStartChar : 0;
 
     // Compute cumulative character positions from token value lengths.
-    // token.start from the WASM tokenizer is a BYTE offset (Chinese chars = 3 bytes each),
-    // not a character offset. Summing value.length gives the correct char position.
+    // token.start is a code-point index (WASM) or UTF-16 index (JS fallback), never bytes, and the
+    // two differ after an astral char. Summing value.length gives the UTF-16 position.
     const tokenCharPositions = new Array(tokens.length);
     {
       let _cp = 0;

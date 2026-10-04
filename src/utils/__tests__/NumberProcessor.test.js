@@ -441,4 +441,17 @@ describe('NumberProcessor', () => {
       expect(getTranslations(tokens)).toEqual(['50,000,000']);
     });
   });
+  describe('两 as tael unit after a number', () => {
+    it.each([
+      ['五百二十两', '520', 4],
+      ['一千五百两', '1,500', 4],
+      ['三千五百两', '3,500', 4],
+      ['两千五百两', '2,500', 4],
+    ])('%s converts the number and leaves 两 unconsumed', (text, expected, consumedEnd) => {
+      const tokens = createTokens(text);
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual([expected]);
+      expect(tokens[consumedEnd].translationSource).toBeNull();
+    });
+  });
 });

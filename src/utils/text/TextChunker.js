@@ -146,8 +146,13 @@ export class TextChunker {
       chunkStartIndex = -1;
     };
 
+    // UTF-16 offset of `char` in `text` (matches Rust's chunker and `String.slice`): an
+    // astral character is one element of `chars` but two code units.
+    let utf16Index = 0;
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
+      const charStart = utf16Index;
+      utf16Index += char.length;
 
       if (char === '\r' || char === '\n') {
         // Handle line breaks
@@ -163,13 +168,13 @@ export class TextChunker {
       } else {
         // Handle content characters
         if (chunkStartIndex === -1) {
-          chunkStartIndex = i;
+          chunkStartIndex = charStart;
         }
 
         // If we have accumulated punctuation or line breaks, flush previous chunk
         if (currentPunctuation || currentLineBreaks) {
           flushChunk();
-          chunkStartIndex = i;
+          chunkStartIndex = charStart;
         }
 
         currentContent += char;

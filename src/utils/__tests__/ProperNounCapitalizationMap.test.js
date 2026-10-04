@@ -37,8 +37,15 @@ describe('buildProperNounCapitalizationMap', () => {
     expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
-  test('skips non-string dictionary values', () => {
-    const dictionaries = { properNouns: { a: { translation: 'Aa' } } };
+  test('reads the translation of object-format entries', () => {
+    const dictionaries = { properNouns: { a: { translation: 'Aa' }, b: 'Bb' } };
+    const result = buildProperNounCapitalizationMap(dictionaries, ['properNouns'], 1000);
+    expect(result.get('aa')).toBe('Aa');
+    expect(result.get('bb')).toBe('Bb');
+  });
+
+  test('skips values with no string translation', () => {
+    const dictionaries = { properNouns: { a: { translation: 5 }, b: null, c: {} } };
     const result = buildProperNounCapitalizationMap(dictionaries, ['properNouns'], 1000);
     expect(result.size).toBe(0);
   });

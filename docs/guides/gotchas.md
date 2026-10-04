@@ -169,6 +169,8 @@ Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.
 
 ### Fake timers and async ordering
 
+**A throwaway probe test's `console.log` is swallowed by the setup** — assert with `toEqual` and read the diff. Filter results with `^ *Tests |^ FAIL`; `Error:` also matches the logged noise from deliberate-failure tests.
+
 **`vi.useFakeTimers()` does not fake `performance.now()` by default** — pass `{ toFake: ['setTimeout','clearTimeout','setInterval','clearInterval','Date','performance'] }` explicitly when testing code with `performance.now()`-based thresholds or growth-rate math.
 
 **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check crosses the boundary rather than merely reaching it.

@@ -24,8 +24,13 @@ export function buildProperNounCapitalizationMap(
       continue;
     }
 
-    for (const [, vietnamese] of Object.entries(dictionary)) {
-      if (typeof vietnamese !== 'string') continue;
+    for (const [, value] of Object.entries(dictionary)) {
+      // Entries are a bare string (legacy) or `{ translation, ... }` (what the app writes).
+      const vietnamese =
+        typeof value === 'string'
+          ? value
+          : (value as { translation?: unknown } | null)?.translation;
+      if (typeof vietnamese !== 'string' || vietnamese === '') continue;
       if (result.size >= limit) {
         if (!limitWarningFired) {
           logger.warn(
