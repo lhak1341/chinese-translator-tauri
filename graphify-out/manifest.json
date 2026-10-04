@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/types/TranslationEngineTypes.d.ts": {
-    "mtime": 1791099370.9577093,
-    "ast_hash": "53bf474a584b32278e3381cc94ccc1a0",
+    "mtime": 1791120169.850153,
+    "ast_hash": "ccba6c51f3d02be7f3806731f90ebe88",
     "semantic_hash": ""
   },
   "src/types/DictionaryManagerTypes.d.ts": {
@@ -305,8 +305,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791118557.7113218,
-    "ast_hash": "b11098b8f0273f5818663604c6184523",
+    "mtime": 1791120169.8785872,
+    "ast_hash": "d8943460c3ae62faf1079048a87131d3",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -1635,8 +1635,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1791118678.6361957,
-    "ast_hash": "8e3513e953d4736fcc6bf7725f0730b8",
+    "mtime": 1791119860.7355638,
+    "ast_hash": "94ad24cb4c1187651712449e80b101f9",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1655,8 +1655,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791118609.5793908,
-    "ast_hash": "cde23266877f361fbbc90ca544e2398a",
+    "mtime": 1791120187.8238978,
+    "ast_hash": "160c02d6d9b1fc81e3ac7c572c890ca9",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1815,8 +1815,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationWindow.ts": {
-    "mtime": 1791006450.1971438,
-    "ast_hash": "4dac94fe5d635203e8104e7ab4904288",
+    "mtime": 1791120187.8224955,
+    "ast_hash": "9e2a02fa3fd800b40b41e31c5529c3b4",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
@@ -2120,8 +2120,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PanelRows.ts": {
-    "mtime": 1791048124.5815656,
-    "ast_hash": "32a964fb902b2d084749bc0f1403afef",
+    "mtime": 1791120187.8232505,
+    "ast_hash": "350643bf2d43aaf71ece4ca47e453ddd",
     "semantic_hash": ""
   },
   "src/hooks/useLibrary.ts": {

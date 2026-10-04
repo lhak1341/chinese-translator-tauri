@@ -149,8 +149,12 @@ function clampRange(range: LineRange, lineCount: number): LineRange {
   return { start, end };
 }
 
-/** A line that is only whitespace separates paragraphs; it is never translated. */
-export function isBlankLine(line: string | undefined): boolean {
+/**
+ * A line that is only whitespace separates paragraphs; it is never translated. A line that has
+ * not been fetched (`undefined`) also ends a paragraph here — unlike `PanelRows.isBlankLine`,
+ * where `undefined` is NOT blank (the row keeps its estimated height).
+ */
+function isParagraphBreak(line: string | undefined): boolean {
   return line === undefined || line.trim().length === 0;
 }
 
@@ -208,10 +212,14 @@ export function snapRangeToParagraphs(
   if (clamped.start >= clamped.end) return clamped;
 
   let { start, end } = clamped;
-  while (start > 0 && !isBlankLine(getLine(start)) && !isBlankLine(getLine(start - 1))) {
+  while (start > 0 && !isParagraphBreak(getLine(start)) && !isParagraphBreak(getLine(start - 1))) {
     start -= 1;
   }
-  while (end < lineCount && !isBlankLine(getLine(end - 1)) && !isBlankLine(getLine(end))) {
+  while (
+    end < lineCount &&
+    !isParagraphBreak(getLine(end - 1)) &&
+    !isParagraphBreak(getLine(end))
+  ) {
     end += 1;
   }
   return { start, end };
@@ -389,12 +397,12 @@ export function planChunks(
   let line = range.start;
 
   while (line < range.end) {
-    if (isBlankLine(getLine(line))) {
+    if (isParagraphBreak(getLine(line))) {
       line += 1;
       continue;
     }
     let paragraphEnd = line;
-    while (paragraphEnd + 1 < range.end && !isBlankLine(getLine(paragraphEnd + 1))) {
+    while (paragraphEnd + 1 < range.end && !isParagraphBreak(getLine(paragraphEnd + 1))) {
       paragraphEnd += 1;
     }
     if (isParagraphComplete(line, paragraphEnd, getLine, lineCount)) {

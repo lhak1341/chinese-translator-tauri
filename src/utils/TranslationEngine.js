@@ -15,7 +15,7 @@
  *     .postProcess()            Assembles semantic array after translation phases.
  *
  * =============================================================================
- * FILE STRUCTURE (6355 lines)
+ * FILE STRUCTURE
  * =============================================================================
  *
  * This file coordinates all 5 translation phases with shared token state.
@@ -26,69 +26,70 @@
  * Processing) code physically precede Phase 2 (Proper Noun) code, for example.
  * Section names below still carry "PHASE N" where that's the section's dominant
  * content, but treat that as a label, not a guarantee the section is phase-pure —
- * see SECTION 10's note. Rebuilt 2026-09-26 after ~1,500 lines of dead methods were
- * deleted — see docs/guides/deleted-symbols.md):
+ * see SECTION 10's note). Entries cite method NAMES, never line numbers: numbers
+ * drifted on every edit; `grep -n "name("` gives the live line. See
+ * docs/guides/deleted-symbols.md for what was removed:
  * ─────────────────────────────────────────────────────────────────────────────
- * 2. Core Engine Class - Constructor     (Lines 296-506)    [COUPLED]
+ * 2. Core Engine Class - Constructor                         [COUPLED]
  *    - Critical: Initializes all subsystems
  *
- * 3. Dictionary Operations               (Lines 507-575)    [COUPLED]
+ * 3. Dictionary Operations                                   [COUPLED]
  *    - Semantic caching with phase priority
  *    - Critical: Cache timing affects phase order
  *
- * 5. Engine Initialization               (Lines 754-936)    [COUPLED]
- *    - initialize()                      (Line 820) — dictionary loading & WASM setup
+ * 5. Engine Initialization                                   [COUPLED]
+ *    - initialize() — dictionary loading & WASM setup
  *    - Critical: Initialization order matters
  *
- * 6. Main Translation Entry Points       (Lines 937-1302)   [COUPLED]
- *    - translateWithCharactersOnly()     (Line 1005)
+ * 6. Main Translation Entry Points                           [COUPLED]
+ *    - translateWithCharactersOnly()
  *    - Note: the non-progressive translate()/translateWithChunking()-as-dispatcher path was
  *      deleted 2026-08-17 (zero production reachability — translateWithSegments always takes
  *      the progressive branch); translateWithChunking()/translateDirectly() still exist and
  *      are still live, reached via processChunksInParallel(), not via this section
  *
- * 7. Conflict Resolution & Segment Helpers (Lines 1303-1567) [COUPLED]
- *    - translateWithSegments()           (Line 1382)
- *    - createOptimalPhraseGroups()       (Line 1489) — Phase 4, physically here
- *    - resolveGlobalConflicts()          (Line 1551) — Phase 4 conflict resolution
+ * 7. Conflict Resolution & Segment Helpers                   [COUPLED]
+ *    - translateWithSegments()
+ *    - createOptimalPhraseGroups() — Phase 4, physically here
+ *    - resolveGlobalConflicts() — Phase 4 conflict resolution
  *
- * 8. Phase 1 - Pattern Processing        (Lines 1568-1890)  [COUPLED]
- *    - applyPatterns()                   (Line 1636)
+ * 8. Phase 1 - Pattern Processing                            [COUPLED]
+ *    - applyPatterns()
  *    - Hierarchical two-phase WASM patterns
  *    - Critical: Must run first (highest priority)
  *
- * 9. Phase 4 - Phrase Processing         (Lines 1891-2357)  [COUPLED]
+ * 9. Phase 4 - Phrase Processing                             [COUPLED]
  *    - The phase's entry, createOptimalPhraseGroups(), sits in section 7, not here
  *
- * 10. Phase 5 - Character Processing     (Lines 2358-2721)  [COUPLED]
+ * 10. Phase 5 - Character Processing                         [COUPLED]
  *     - Also contains Phase 2 (Proper Noun) logic: applyDictionaryTranslation()
- *       (Line 2492) sits inside this range, not its own section. The main Phase 5
- *       method, processRemainingTokensInBatches(), is NOT here — it's at Line
- *       4000, physically inside section 12 (Parallel Processing). Phase content
- *       and physical section boundaries diverge throughout this file; do not
- *       assume a section named after a phase contains only that phase's code.
+ *       sits inside this section, not its own. The main Phase 5 method,
+ *       processRemainingTokensInBatches(), is NOT here — it's physically inside
+ *       section 12 (Parallel Processing). Phase content and physical section
+ *       boundaries diverge throughout this file; do not assume a section named
+ *       after a phase contains only that phase's code.
  *
- * 11. Post-Processing                    (Lines 2722-3801)  [COUPLED]
- *     - postProcess()                    (Line 2798)
+ * 11. Post-Processing                                        [COUPLED]
+ *     - postProcess()
  *     - Semantic array, position mapping, text assembly
  *     - Critical: Position precision for clickable highlighting
  *
- * 12. Parallel Processing                (Lines 3802-4282)  [COUPLED]
- *     - processChunksInParallel()        (Line 3831)
- *     - processRemainingTokensInBatches() (Line 4000) — Phase 5's main method, see note above
+ * 12. Parallel Processing                                    [COUPLED]
+ *     - processChunksInParallel()
+ *     - processRemainingTokensInBatches() — Phase 5's main method, see note above
  *     - Critical: assigns semantic indices by chunk-completion order
  *
- * 13. Progressive Batch Translation      (Lines 4283-4707)  [COUPLED]
- *     - translateWithProgressiveBatches() (Line 4294)
+ * 13. Progressive Batch Translation                          [COUPLED]
+ *     - translateWithProgressiveBatches()
  *
- * 14. Chunked Translation Paths          (Lines 4708-5089)  [COUPLED]
- *     - translateWithChunking()          (Line 4785)
- *     - translateDirectly()              (Line 5003)
+ * 14. Chunked Translation Paths                              [COUPLED]
+ *     - translateWithChunking()
+ *     - translateDirectly()
  *     - Note: translateWithChunking's only production entry point is
  *       translateDirectly's own oversized-input recursive fallback — see section 6
  *
- * 15. Core 5-Phase Pipeline              (Lines 5090-6268)  [COUPLED]
- *     - translateSinglePass()            (Line 5207)
+ * 15. Core 5-Phase Pipeline                                  [COUPLED]
+ *     - translateSinglePass()
  *       • Phase 1: Patterns
  *       • Phase 2: Proper Nouns
  *       • Phase 3: Numbers (NumberProcessor.processTokens, via this.numberProcessor —
@@ -98,25 +99,11 @@
  *       • Phase 5: Characters
  *     - Critical: Phase order is IMMUTABLE
  *
- * 16. Cache Management                   (Lines 6269-6347)  [EXTENSION]
- *     - invalidateDictionaryCaches()     (Line 6298) — targeted, after a dictionary edit
+ * 16. Cache Management                                       [EXTENSION]
+ *     - invalidateDictionaryCaches() — targeted, after a dictionary edit
  *
- * 17. Utility Methods & Factory          (Lines 6348-6355)  [SAFE]
- *     - createTranslationEngine()        (Line 6355)
- *
- * NOTE: Key function anchors (rebuilt 2026-09-26):
- *       initialize 820, translateWithCharactersOnly 1005,
- *       translateWithSegments 1382, resolveGlobalConflicts 1551,
- *       applyPatterns 1636, postProcess 2798,
- *       processChunksInParallel 3831, translateWithProgressiveBatches 4294,
- *       translateWithChunking 4785, translateDirectly 5003,
- *       translateSinglePass 5207, invalidateDictionaryCaches 6298,
- *       createTranslationEngine 6355.
- *
- * These numbers WILL drift again the next time this file is edited — they are a
- * navigation aid accurate as of this commit, not a maintained invariant enforced
- * by any test or lint rule. Treat a mismatch as expected, not a bug, and re-grep
- * before trusting a specific line number cited here.
+ * 17. Utility Methods & Factory                              [SAFE]
+ *     - createTranslationEngine()
  *
  * =============================================================================
  * ARCHITECTURAL NOTES
@@ -212,16 +199,6 @@ import {
  * @import {
  *   TranslationEngine,
  *   TranslationEngineInitOptions,
- *   TranslationOptions,
- *   TranslationResult,
- *   CharacterOnlyResult,
- *   TranslationProgressData,
- *   EngineStats,
- *   MemoryPressureThresholds,
- *   MemoryCleanupEvent,
- *   MemorySnapshot,
- *   BatchPerformanceMetrics,
- *   TranslationSegment,
  * } from '../types/TranslationEngineTypes'
  */
 
@@ -1761,108 +1738,6 @@ export class TranslationEngine {
   // moved to PatternTemplateEngine utility (2026-01-30)
   // See: src/utils/PatternTemplateEngine.js
 
-  /**
-   * Update tokens with proper segmentation after pattern matching
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Start of sequence
-   * @param {number} endIndex - End of sequence
-   * @param {string} beforeMatch - Text before the match
-   * @param {string} matchedReplacement - The replacement for the matched part
-   * @param {string} afterMatch - Text after the match
-   * @param {number} matchStart - Start position of match in sequence
-   * @param {number} matchEnd - End position of match in sequence
-   */
-  updateTokensWithPatternSegmentation(
-    tokens,
-    startIndex,
-    endIndex,
-    beforeMatch,
-    matchedReplacement,
-    afterMatch,
-    matchStart,
-    matchEnd
-  ) {
-    // CRITICAL FIX: Mark all tokens in sequence as consumed by pattern processing
-    // Consumed tokens MUST have translationSource set to prevent double-processing
-    for (let j = startIndex; j < endIndex; j++) {
-      tokens[j].translated = null;
-      tokens[j].translationSource = consumedSource('pattern'); // REQUIRED for consumption contract
-    }
-
-    // Put the pattern replacement in the first token
-    tokens[startIndex].translated = matchedReplacement;
-    tokens[startIndex].translationSource = 'pattern'; // Main token gets pattern source
-
-    // If there's text after the match, we need to preserve it for later translation
-    if (afterMatch.length > 0) {
-      // Find where to place the afterMatch text
-      // We need to create new virtual tokens or modify existing ones
-      // For now, let's put afterMatch as untranslated content that phases 4-5 can handle
-
-      // Find the token that corresponds to the start of afterMatch
-      let afterMatchTokenIndex = this.findTokenIndexForPosition(
-        tokens,
-        startIndex,
-        endIndex,
-        matchEnd
-      );
-      if (afterMatchTokenIndex < endIndex && afterMatchTokenIndex >= startIndex) {
-        // CRITICAL FIX: Use separate flag to avoid state violation with consumed token contract
-        // isPatternPartialReset indicates token should be re-processed by later phases
-        // Pattern wants these tokens re-processed by later phases (phrases, characters)
-        // but we need to track that they were partially processed by patterns
-        tokens[afterMatchTokenIndex].translated = null;
-        tokens[afterMatchTokenIndex].isPatternPartialReset = true; // Separate boolean flag
-        tokens[afterMatchTokenIndex].translationSource = null; // Don't set source (not consumed)
-
-        // Also reset subsequent tokens that are part of afterMatch
-        for (let k = afterMatchTokenIndex + 1; k < endIndex; k++) {
-          const tokenEndPos = this.getTokenPositionInSequence(tokens, startIndex, k);
-          if (tokenEndPos <= matchEnd + afterMatch.length) {
-            tokens[k].translated = null;
-            tokens[k].isPatternPartialReset = true; // Separate boolean flag
-            tokens[k].translationSource = null; // Don't set source (not consumed)
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Find token index for a specific position in the sequence
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Start of sequence
-   * @param {number} endIndex - End of sequence
-   * @param {number} position - Position to find
-   * @returns {number} Token index
-   */
-  findTokenIndexForPosition(tokens, startIndex, endIndex, position) {
-    let currentPos = 0;
-    for (let i = startIndex; i < endIndex; i++) {
-      const tokenLength = tokens[i].value.length;
-      if (currentPos + tokenLength > position) {
-        return i;
-      }
-      currentPos += tokenLength;
-    }
-    return endIndex - 1;
-  }
-
-  /**
-   * Get the end position of a token within a sequence
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Start of sequence
-   * @param {number} tokenIndex - Token index
-   * @returns {number} End position
-   */
-  getTokenPositionInSequence(tokens, startIndex, tokenIndex) {
-    let position = 0;
-    for (let i = startIndex; i <= tokenIndex; i++) {
-      position += tokens[i].value.length;
-    }
-    return position;
-  }
-
   // ============================================================================
   // SECTION 10: PHASE 5 - CHARACTER PROCESSING
   // ============================================================================
@@ -2391,18 +2266,6 @@ export class TranslationEngine {
     const cleaned = cleanupFormatting(result, options, (char) => this.lookupPunctuation(char));
 
     return cleaned;
-  }
-
-  /**
-   * Reconstruct Chinese text from tokens for pattern matching
-   * @param {Token[]} tokens - Array of tokens
-   * @returns {string} Chinese text
-   */
-  reconstructChineseText(tokens) {
-    return tokens
-      .filter((t) => t.type === TokenType.CHINESE_WORD || t.type === TokenType.CHINESE_CHAR)
-      .map((t) => t.value)
-      .join('');
   }
 
   /**

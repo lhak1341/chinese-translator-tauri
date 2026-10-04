@@ -229,6 +229,7 @@ function vietnamesePanelRow(
  *
  * `undefined` (a line whose page has not been fetched) is not blank: that row keeps its
  * full estimated height, so the scrollbar does not shrink and then grow as pages land.
+ * (`TranslationWindow`'s private `isParagraphBreak` takes the opposite view of `undefined`.)
  */
 export function isBlankLine(line: string | undefined): boolean {
   return line?.trim() === '';

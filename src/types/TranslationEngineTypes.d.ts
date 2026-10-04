@@ -101,71 +101,6 @@ interface DictionaryManagerConfig {
 }
 
 // ============================================================================
-// Memory Management Configuration
-// ============================================================================
-
-/**
- * Smart memory pressure detection thresholds
- */
-export interface MemoryPressureThresholds {
-  /** Low memory pressure threshold (0-1) - default 0.6 */
-  lowPressure: number;
-  /** Medium memory pressure threshold (0-1) - default 0.75 */
-  mediumPressure: number;
-  /** High memory pressure threshold (0-1) - default 0.85 */
-  highPressure: number;
-  /** Critical memory pressure threshold (0-1) - default 0.95 */
-  criticalPressure: number;
-  /** Memory sampling interval in milliseconds - default 10000 */
-  samplingInterval: number;
-  /** Memory growth rate threshold in MB/minute - default 15 */
-  growthThreshold: number;
-}
-
-/**
- * Memory cleanup urgency levels
- */
-type MemoryCleanupUrgency = 'low' | 'medium' | 'high' | 'critical' | 'emergency';
-
-/**
- * Memory cleanup event data
- */
-export interface MemoryCleanupEvent {
-  /** Cleanup urgency level */
-  urgency: MemoryCleanupUrgency;
-  /** Current memory pressure state */
-  pressure: {
-    level: 'low' | 'medium' | 'high' | 'critical';
-    ratio: number;
-  };
-  /** Memory growth rate in MB/minute */
-  growthRate: number;
-}
-
-/**
- * Memory tracker snapshot data
- */
-export interface MemorySnapshot {
-  /** Snapshot timestamp */
-  timestamp: number;
-  /** Heap used in bytes */
-  heapUsed: number;
-  /** Heap total in bytes */
-  heapTotal: number;
-  /** Heap limit in bytes */
-  heapLimit: number;
-  /** Memory usage ratio (0-1) */
-  ratio: number;
-  /** Additional metadata */
-  metadata?: {
-    phase?: string;
-    batchSize?: number;
-    processedChunks?: number;
-    [key: string]: any;
-  };
-}
-
-// ============================================================================
 // Translation Engine Configuration
 // ============================================================================
 
@@ -203,8 +138,6 @@ export interface TranslationEngineInitOptions {
   activeProperNouns?: string[];
   /** Dictionary manager configuration */
   dictionaryManager?: DictionaryManagerConfig;
-  /** Memory pressure thresholds */
-  memoryPressure?: MemoryPressureThresholds;
   /** Pattern processing settings */
   patternSettings?: PatternProcessingSettings;
   /** Semantic array builder configuration */
@@ -415,26 +348,6 @@ export interface EngineStats {
     peakUsage: number;
     averageUsage: number;
   };
-}
-
-/**
- * Batch performance metrics
- */
-export interface BatchPerformanceMetrics {
-  /** Batch index */
-  batchIndex: number;
-  /** Batch size (number of chunks) */
-  batchSize: number;
-  /** Total batch processing time */
-  totalTime: number;
-  /** Average time per chunk */
-  avgTimePerChunk: number;
-  /** Memory snapshot before processing */
-  memoryBefore: number;
-  /** Memory snapshot after processing */
-  memoryAfter: number;
-  /** Memory delta (growth) */
-  memoryDelta: number;
 }
 
 /**
