@@ -4,7 +4,6 @@
  * Replaces ~90 lines of scattered number conversion with unified approach
  */
 
-import { logger } from './logger.js';
 import { consumedSource } from './TranslationSourcePriority.js';
 
 export class NumberProcessor {
@@ -152,24 +151,6 @@ export class NumberProcessor {
   processTokens(tokens, options = {}) {
     const TokenType = { CHINESE_CHAR: 'chinese_char' }; // Import from TokenType if available
 
-    const debugLevel = options.debugLevel || 0;
-    const log = (level, message, data = null) => {
-      if (process.env.NODE_ENV === 'development' && debugLevel >= level) {
-        logger.log(message, data || '');
-      }
-    };
-
-    log(2, '🔢 Starting unified Chinese number conversion');
-
-    // Filter untranslated Chinese characters for processing
-    const untranslatedChars = tokens
-      .filter(
-        (t) => t.type === TokenType.CHINESE_CHAR && t.translated === null && !t.translationSource
-      )
-      .map((t) => t.value);
-
-    log(3, '🔢 Available untranslated Chinese characters:', untranslatedChars);
-
     // Process each token position for number patterns
     for (let i = 0; i < tokens.length; i++) {
       if (
@@ -181,14 +162,9 @@ export class NumberProcessor {
       }
 
       // Try to match number patterns starting from this position
-      const matchResult = this.findLongestNumberMatch(tokens, i, { log, debugLevel });
+      const matchResult = this.findLongestNumberMatch(tokens, i);
 
       if (matchResult) {
-        log(
-          2,
-          `🔢 Number converted: "${matchResult.originalText}" -> "${matchResult.result}" (${matchResult.patternName})`
-        );
-
         // Apply conversion result to tokens
         this.applyConversionResult(tokens, i, matchResult, options);
 
@@ -202,12 +178,9 @@ export class NumberProcessor {
    * Find the longest number match starting from a token position
    * @param {Token[]} tokens - Array of tokens
    * @param {number} startIndex - Starting position
-   * @param {Object} options - Options including log function
    * @returns {Object|null} Match result or null
    */
-  findLongestNumberMatch(tokens, startIndex, options = {}) {
-    const { log = () => {} } = options;
-
+  findLongestNumberMatch(tokens, startIndex) {
     let longestMatch = null;
     let longestMatchLength = 0;
 
@@ -235,7 +208,7 @@ export class NumberProcessor {
         .map((t) => t.value)
         .join('');
 
-      const converted = this.convertSequence(testSequence, log);
+      const converted = this.convertSequence(testSequence);
       if (converted && testSequence.length > longestMatchLength) {
         longestMatch = {
           originalText: testSequence,
@@ -254,17 +227,11 @@ export class NumberProcessor {
    * Convert a whole numeral string with the first conversion pattern that
    * matches all of it and whose converter accepts the match.
    * @param {string} sequence - Chinese numeral text, e.g. "三十七"
-   * @param {Function} [log] - Debug logger (level, message)
    * @returns {{result: string, patternName: string, matchData: RegExpMatchArray}|null}
    */
-  convertSequence(sequence, log = () => {}) {
+  convertSequence(sequence) {
     for (const pattern of this.CONVERSION_PATTERNS) {
       const match = sequence.match(new RegExp('^' + pattern.regex.source + '$'));
-
-      log(
-        3,
-        `🔍 Testing sequence "${sequence}" against ${pattern.name}: ${match ? 'MATCH' : 'no match'}`
-      );
 
       if (!match) continue;
 

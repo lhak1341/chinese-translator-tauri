@@ -13,7 +13,6 @@ describe('NumberProcessor', () => {
   beforeEach(() => {
     processor = new NumberProcessor();
     mockOptions = {
-      debugLevel: 0,
       semanticArrayBuilder: {
         addUnit: () => {},
       },

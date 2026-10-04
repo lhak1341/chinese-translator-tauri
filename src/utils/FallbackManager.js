@@ -11,7 +11,7 @@ import { TOAST_DURATIONS } from '../constants/toastConfig';
  * and shows one-time user notifications.
  *
  * EXTRACTED (2026-01-28): Eliminates 80+ lines of duplicate failure handling
- * logic from WasmDictionaryManager.js and the Rust lookup-index builder (LookupIndexBuilder.ts).
+ * logic from the Rust lookup-index builder (LookupIndexBuilder.ts); WasmDictionaryManager.js, its other user, was deleted 2026-10-04.
  *
  * @example
  * const fallback = new FallbackManager({

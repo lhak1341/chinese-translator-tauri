@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
-import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 
 /**
  * @typedef {import('./useReloadExecutionContexts.js').ForceReloadContext} ForceReloadContext
@@ -104,7 +103,6 @@ export function useForceReload(
         if (!isLoading) {
           const outcome = await ctx.reinitializeEngine(freshDictionaries, {
             forceConfigReload: true,
-            debugLevel: DEBUG_LEVELS.ERROR,
           });
 
           if (!outcome.ok) {

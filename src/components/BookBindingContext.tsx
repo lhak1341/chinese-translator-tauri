@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import type { BookBinding } from '../types/ReaderTypes';
 import type { DictionaryCreateResult } from '../types/ElectronTypes';
-import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
 import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
@@ -149,7 +148,6 @@ export function BookBindingProvider({
       rebuildEngine: async () => {
         const outcome = await latest.current.reinitializeEngine(latest.current.getDictionaries(), {
           forceConfigReload: true,
-          debugLevel: DEBUG_LEVELS.ERROR,
         });
         // The store reports a failed rebuild through a rejection (applyError, tier-move failures).
         if (!outcome.ok) throw new Error(outcome.error);

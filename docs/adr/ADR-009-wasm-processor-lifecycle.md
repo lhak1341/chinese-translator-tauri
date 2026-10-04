@@ -1,6 +1,6 @@
 # ADR-009: WasmProcessorLifecycle — Shared Init Contract for All WASM Processors
 
-**Status**: Accepted
+**Status**: Accepted — `WasmDictionaryManager.js` was deleted 2026-10-04 (ADR-073), so six wrappers hold a lifecycle, not seven
 **Date**: 2026-05-17
 **Decision Makers**: Development Team
 **Affected Components**: `WasmProcessorLifecycle.js`, `WasmSharedModule.js`, and the seven wrappers that hold a lifecycle: `WasmPatternProcessor.js`, `WasmDictionaryManager.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmTextAssembler.js`, `WasmConflictResolution.js`

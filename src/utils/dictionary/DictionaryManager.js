@@ -15,7 +15,6 @@
  *   DictionarySearchOrder,
  *   TranslationResult,
  *   DictionaryMatchResult,
- *   DebugLevel,
  *   CacheConfiguration,
  *   DictionaryManagerOptions,
  *   DictionaryLoadOptions,
@@ -27,18 +26,9 @@
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
-import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 import { resolveDictionaryPriority, buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
-
-// Debug logging levels
-const DEBUG_LEVELS = {
-  ERROR: 0, // Only errors and warnings
-  INFO: 1, // Key milestones and results
-  DEBUG: 2, // Detailed phase information
-  VERBOSE: 3, // Ultra-detailed token-by-token logging
-};
 
 export class DictionaryManager {
   constructor(options = {}) {
@@ -47,7 +37,6 @@ export class DictionaryManager {
     this.metadata = new Map(); // Dictionary metadata
     this.loadTime = 0;
     this.ready = false;
-    this.debugLevel = DEBUG_LEVELS.INFO; // Default to INFO level
 
     // Initialize translation caching system
     this.cache = new TranslationCache({
@@ -59,49 +48,12 @@ export class DictionaryManager {
     this.enablePrecomputedCache = options.enablePrecomputedCache !== false;
     this.tauriAPI = options.tauriAPI || null; // Required for cache file operations
 
-    // WASM acceleration — provide wasmAdapter option to enable (omit for pure-JS / tests)
-    this.wasmLookup = options.wasmAdapter
-      ? new DictionaryWasmLookup(options.wasmAdapter, {
-          getEntries: () => this.flatEntries,
-          getPriorities: () => this._extractPriorityMap(),
-        })
-      : null;
-    if (this.wasmLookup) {
-      this.wasmLookup.startBackgroundInit({
-        maxMemoryMB: 15,
-        cacheSize: this.cache?.lookupCacheSize,
-      });
-    }
-
     this.matchLookup = new DictionaryMatchLookup({
       dictionaries: this.dictionaries,
       metadata: this.metadata,
-      wasmLookup: this.wasmLookup,
       getDefaultSearchOrder: () => this.getDefaultSearchOrder(),
       isReady: () => this.ready,
     });
-  }
-
-  /**
-   * Log message based on debug level
-   * @param {number} level - Debug level required
-   * @param {string} message - Message to log
-   * @param {*} data - Optional data to log
-   */
-  log(level, message, data = null) {
-    if (this.debugLevel >= level) {
-      // CRITICAL ERRORS (level 0) always show, regardless of NODE_ENV
-      const isCritical = level === DEBUG_LEVELS.ERROR;
-      const isDevelopment = process.env.NODE_ENV === 'development';
-
-      if (isCritical || isDevelopment) {
-        if (data !== null) {
-          logger.log(message, data);
-        } else {
-          logger.log(message);
-        }
-      }
-    }
   }
 
   /**
@@ -112,11 +64,6 @@ export class DictionaryManager {
   async loadDictionaries(dictionaryData, options = {}) {
     const startTime = performance.now();
 
-    // Set debug level from options
-    this.debugLevel = options.debugLevel !== undefined ? options.debugLevel : DEBUG_LEVELS.INFO;
-
-    this.log(DEBUG_LEVELS.INFO, 'Loading dictionaries into trie structures...');
-
     // CODE REVIEW FIX (CRITICAL-1): Dispose existing tries before clearing to prevent memory leaks
     // Each dictionary trie contains nested Map structures that need recursive cleanup
     // Without disposal, 2-10MB per dictionary can leak on reload
@@ -124,9 +71,8 @@ export class DictionaryManager {
       if (trie && typeof trie.dispose === 'function') {
         try {
           trie.dispose(); // Recursively clean up trie nodes and their children Maps
-          this.log(DEBUG_LEVELS.DEBUG, `🗑️ Disposed dictionary "${name}" before reload`);
         } catch (error) {
-          this.log(DEBUG_LEVELS.ERROR, `Error disposing dictionary ${name}:`, error);
+          logger.error(`Error disposing dictionary ${name}:`, error);
         }
       }
     }
@@ -150,13 +96,12 @@ export class DictionaryManager {
     // by `filterDictionariesForEngine` in `TranslationEngine.initialize`.
     for (const [dictionaryName, dictionary] of Object.entries(dictionaryData)) {
       if (!dictionary || typeof dictionary !== 'object') {
-        this.log(DEBUG_LEVELS.ERROR, `Skipping invalid dictionary: ${dictionaryName}`);
+        logger.error(`Skipping invalid dictionary: ${dictionaryName}`);
         continue;
       }
 
       let trie;
       let entryCount = 0;
-      let fromCache = false;
 
       // Try loading from precomputed cache if enabled
       if (this.enablePrecomputedCache && this.tauriAPI) {
@@ -169,22 +114,10 @@ export class DictionaryManager {
 
           if (cacheResult) {
             trie = cacheResult.trie;
-            fromCache = cacheResult.fromCache;
             entryCount = trie.size;
-
-            if (fromCache) {
-              this.log(
-                DEBUG_LEVELS.INFO,
-                `⚡ Loaded ${dictionaryName} from cache (${entryCount} entries, ${cacheResult.loadTime.toFixed(2)}ms)`
-              );
-            }
           }
-        } catch (cacheError) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `Cache load failed for ${dictionaryName}, building from dictionary:`,
-            cacheError
-          );
+        } catch {
+          // Cache unreadable: fall through to building the trie from the dictionary
         }
       }
 
@@ -195,8 +128,7 @@ export class DictionaryManager {
         trie = built.trie;
         entryCount = built.entryCount;
         for (const invalidSource of built.invalidSources) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
           );
         }
@@ -211,23 +143,10 @@ export class DictionaryManager {
         priority,
         stats: trie.getStats(),
       });
-
-      this.log(DEBUG_LEVELS.DEBUG, `Loaded ${dictionaryName}: ${entryCount} entries`);
     }
 
     this.loadTime = performance.now() - startTime;
     this.ready = true;
-
-    this.log(DEBUG_LEVELS.INFO, `✅ Dictionary loading completed in ${this.loadTime.toFixed(2)}ms`);
-    this.log(DEBUG_LEVELS.DEBUG, '📊 Dictionary stats:', this.getGlobalStats());
-
-    if (this.wasmLookup?.isReady()) {
-      try {
-        await this.syncDictionariesToWasm();
-      } catch (error) {
-        this.log(1, '⚠️ WASM sync failed, continuing with JavaScript only:', error);
-      }
-    }
   }
 
   /**
@@ -238,16 +157,8 @@ export class DictionaryManager {
    */
   translate(word, dictionaryOrder = null) {
     if (!this.ready) {
-      this.log(DEBUG_LEVELS.ERROR, 'Dictionary manager not ready');
+      logger.error('Dictionary manager not ready');
       return null;
-    }
-
-    if (this.wasmLookup?.isReady()) {
-      try {
-        return this.wasmLookup.translate(word, dictionaryOrder || this.getDefaultSearchOrder());
-      } catch (error) {
-        this.log(1, '⚠️ WASM translate failed, falling back to JavaScript:', error);
-      }
     }
 
     const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
@@ -274,10 +185,8 @@ export class DictionaryManager {
   }
 
   /**
-   * Pure search-order trie walk — no cache reads/writes, no WASM dispatch. Used by
-   * translate()'s JS-fallback path (which layers caching on top of the result) and as
-   * the cache-free JS oracle for the WASM/JS lookup parity tests — a cache hit would
-   * mask a live WASM/JS divergence instead of surfacing it.
+   * Pure search-order trie walk — no cache reads or writes. translate() layers the lookup
+   * cache on top of it.
    * @param {string} word
    * @param {Array<string>} searchOrder - Already-resolved dictionary search order.
    * @returns {Object|null} {word, translation, dictionary, metadata} or null
@@ -311,18 +220,6 @@ export class DictionaryManager {
    */
   findAllMatches(text, startPos = 0, dictionaryOrder = null) {
     return this.matchLookup.findAllMatches(text, startPos, dictionaryOrder);
-  }
-
-  /**
-   * Find all possible matches with automatic parallel/sequential selection
-   * (WASM-first, JS fallback). Delegates to DictionaryMatchLookup.
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Promise<Array>} All possible matches sorted by priority and length
-   */
-  async findAllMatchesAsync(text, startPos = 0, dictionaryOrder = null) {
-    return this.matchLookup.findAllMatchesAsync(text, startPos, dictionaryOrder);
   }
 
   /**
@@ -400,7 +297,7 @@ export class DictionaryManager {
         try {
           trie.dispose(); // Let trie clean up its internal structures
         } catch (error) {
-          this.log(DEBUG_LEVELS.ERROR, `Error disposing dictionary ${name}:`, error);
+          logger.error(`Error disposing dictionary ${name}:`, error);
         }
       }
     }
@@ -426,15 +323,9 @@ export class DictionaryManager {
       this.cache = null;
     }
 
-    // Cleanup WASM lookup
-    this.wasmLookup?.dispose();
-    this.wasmLookup = null;
-
     // Reset state flags
     this.ready = false;
     this.loadTime = 0;
-
-    this.log(DEBUG_LEVELS.INFO, '🧹 DictionaryManager disposed successfully');
   }
 
   /**
@@ -473,65 +364,10 @@ export class DictionaryManager {
     return this.dictionaries.get(name) ?? null;
   }
 
-  // ─── WASM Acceleration ────────────────────────────────────────────────────
-
-  /**
-   * Push dictionary entries into the WASM engine.
-   *
-   * @param {string} [dictionaryName] - Sync only this dictionary. Omit to sync all.
-   *
-   * Scoped by name wherever the caller knows it, because this is not cheap: a sync
-   * serializes every entry of every named dictionary to JSON, hands the string to Rust to
-   * deserialize, and rebuilds the trie on the other side. The characters dictionary alone
-   * is 27,000+ entries. Editing one entry used to re-upload all of them — and the editor
-   * calls `invalidateDictionaryCaches(dictionaryName)` after *every* add, so adding twenty
-   * entries in a reading session paid that twenty times over.
-   *
-   * An unknown name syncs nothing rather than falling back to everything: a silent full
-   * sync is exactly the cost this parameter exists to avoid, and a typo that quietly still
-   * works is a typo that never gets fixed.
-   */
-  async syncDictionariesToWasm(dictionaryName) {
-    if (!this.wasmLookup?.isReady()) return;
-
-    if (dictionaryName !== undefined && dictionaryName !== null) {
-      const entries = this.flatEntries.get(dictionaryName);
-      if (entries === undefined) {
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `Skipping WASM sync for unknown dictionary: ${dictionaryName}`
-        );
-        return;
-      }
-      return this.wasmLookup.sync(new Map([[dictionaryName, entries]]), this._extractPriorityMap());
-    }
-
-    return this.wasmLookup.sync(this.flatEntries, this._extractPriorityMap());
-  }
-
-  _extractPriorityMap() {
-    const result = new Map();
-    for (const [name, meta] of this.metadata) {
-      result.set(name, meta.priority ?? 999);
-    }
-    return result;
-  }
-
-  getWasmStatus() {
-    return (
-      this.wasmLookup?.getStatus() ?? {
-        initialized: false,
-        ready: false,
-        hasAdapter: false,
-      }
-    );
-  }
-
   getMemoryUsage() {
     return {
       dictionaries: this.dictionaries?.size ?? 0,
       cacheEnabled: !!this.cache,
-      wasmMemory: this.wasmLookup?.getTimingStats()?.memoryUsage ?? null,
     };
   }
 }

@@ -1,6 +1,6 @@
 # ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential
 
-**Status**: Revised — Remove Batch Attempt (was: Accepted Workaround)
+**Status**: Superseded (2026-10-04) by ADR-073 — the WASM dictionary tier was deleted. Previously: Revised — Remove Batch Attempt (was: Accepted Workaround)
 **Date (original)**: 2026-01-28
 **Date (revised)**: 2026-05-16
 **Decision Makers**: Development Team

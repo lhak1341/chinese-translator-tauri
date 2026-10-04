@@ -77,7 +77,7 @@ function setup(): BookBindingStore {
     createDictionaryFiles: (dictionaryId) => createDictionary(dictionaryId, pairOps),
     renameDictionary: (oldId, newId) => renameDictionary(oldId, newId, pairOps),
     rebuildEngine: async () => {
-      await reinitializeEngine(getDictionaries(), { forceConfigReload: true, debugLevel: 0 });
+      await reinitializeEngine(getDictionaries(), { forceConfigReload: true });
     },
   });
   return current;
@@ -162,7 +162,6 @@ describe('opening a book', () => {
     await waitFor(() => expect(lastSavedActive()).toEqual(['properNouns', 'properNouns-f_TapDo']));
     expect(reinitializeEngine).toHaveBeenCalledWith(dictionaries, {
       forceConfigReload: true,
-      debugLevel: 0,
     });
     expect(inUse()).toBe('properNouns-f_TapDo');
   });

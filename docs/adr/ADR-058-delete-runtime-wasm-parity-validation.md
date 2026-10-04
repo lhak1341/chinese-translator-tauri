@@ -1,6 +1,6 @@
 # ADR-058: Delete the Runtime WASM Parity Validation; Parity Lives in Tests
 
-**Status:** Decided
+**Status:** Superseded (2026-10-04) — the WASM dictionary tier was deleted (ADR-073); the JS parity test remains
 **Date:** 2026-10-02
 
 ## Context
@@ -18,9 +18,9 @@ Reading the code in the grilling:
 
 Delete the runtime check: the hook's validation block (and its toast and logger imports), `validateWasmFallback`, `_getSampleTestWords`, `_translateJSDirect`, and the hook test's validation cases. `useEngineReinitializer` is now `reinitialize` then `isReady()`.
 
-Keep `getWasmStatus()` (a documented dev-console command asserted by `DictionaryManager.apiContract.test.js`; see `deleted-symbols.md`), `getMemoryUsage()`, and `_findInDictionaries` (the JS path of `translate()`).
+Keep `getWasmStatus()` (deleted 2026-10-04 with the WASM tier; a documented dev-console command asserted by `DictionaryManager.apiContract.test.js`; see `deleted-symbols.md`), `getMemoryUsage()`, and `_findInDictionaries` (the JS path of `translate()`).
 
-Parity moves to a test, in the ADR-033 / ADR-041 shape: one fixture, `wasm-core/tests/fixtures/trie_lookup_parity.json`, read by `wasm-core/tests/trie_lookup_parity_test.rs` (calls `TrieNode::find_matches`, a plain `pub fn`, the same call `DictionaryWasmLookup.translate` makes through `engine.find_matches`) and by `src/utils/__tests__/DictionaryLookup.parity.test.js` (calls `_findInDictionaries`).
+(Both halves were retired 2026-10-04 with the WASM tier and `trie.rs`, ADR-073; `DictionaryManager.exactLookup.test.js` keeps the six cases for the JS path.) Parity moves to a test, in the ADR-033 / ADR-041 shape: one fixture, `wasm-core/tests/fixtures/trie_lookup_parity.json`, read by `wasm-core/tests/trie_lookup_parity_test.rs` (calls `TrieNode::find_matches`, a plain `pub fn`, the same call `DictionaryWasmLookup.translate` makes through `engine.find_matches`) and by `src/utils/__tests__/DictionaryLookup.parity.test.js` (calls `_findInDictionaries`).
 
 ## Reasoning
 

@@ -20,7 +20,7 @@ Delete `PerformanceBaselineTracker`, `SystemPerformanceMonitor`, `PerformanceHea
 
 `usePerformanceMonitoring` calls `globalPerformanceMonitor` directly and returns `{ avgTime, recordTranslation }`. `TranslatorControls` takes `avgTime` and shows the average ms; the status dot is gone. `window.performanceDashboard.getStats()` returns `globalPerformanceMonitor.getMetrics()`.
 
-`WasmMemoryPoolManager` stays. `WasmDictionaryManager` still takes it as its allocator, so its fate goes with the WASM dictionary tier decision, not this one.
+`WasmMemoryPoolManager` stayed here; it was deleted separately on 2026-10-04 (nothing borrowed its buffers, and its pressure detector was inert on macOS).
 
 ## Consequences
 

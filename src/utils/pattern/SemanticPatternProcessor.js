@@ -94,9 +94,8 @@ export class SemanticPatternProcessor {
   /**
    * Initialize patterns with semantic parsing and indexing
    * @param {Object} patternsDict - Pattern dictionary from patterns.json
-   * @param {Object} options - Initialization options
    */
-  async initializePatterns(patternsDict, options = {}) {
+  async initializePatterns(patternsDict) {
     this.patterns = [];
     this.patternIndex.clear();
 
@@ -149,21 +148,13 @@ export class SemanticPatternProcessor {
       this.wasmInitialized = this.wasmAvailable;
 
       if (this.wasmAvailable) {
-        this.log(options.debugLevel, 5, '✅ WASM pattern matching enabled (10-50x speedup)');
       } else {
-        this.log(options.debugLevel, 5, '⚠️ WASM pattern matching unavailable, using JavaScript');
       }
     } catch (error) {
       logger.warn('Failed to initialize WASM pattern processor:', error);
       this.wasmAvailable = false;
       this.wasmInitialized = false;
     }
-
-    this.log(
-      options.debugLevel,
-      5,
-      `🔧 SemanticPatternProcessor initialized with ${this.patterns.length} patterns`
-    );
   }
 
   /**
@@ -478,28 +469,14 @@ export class SemanticPatternProcessor {
       throw new Error('SemanticPatternProcessor not initialized');
     }
 
-    const debugLevel = options.debugLevel || 3; // TEMP: Enable debug for pattern investigation
     const prioritizedPatterns = options.prioritizedPatterns || [];
     /** @type {import('../../types/PatternProcessingTypes').PatternProcessorResult[]} */
     const results = [];
     const consumedOriginalIndices = new Set();
 
-    this.log(debugLevel, 5, '🔍 Starting semantic pattern matching');
-
     // Process prioritized patterns first — collect as results, do not mutate tokens
     if (prioritizedPatterns.length > 0) {
-      this.log(
-        debugLevel,
-        5,
-        `🎯 Processing ${prioritizedPatterns.length} prioritized patterns first`
-      );
-
       for (const prioritizedMatch of prioritizedPatterns) {
-        this.log(
-          debugLevel,
-          5,
-          `🎯 Applying prioritized pattern: "${prioritizedMatch.pattern.originalPattern}"`
-        );
         const matchResult = this.convertPrioritizedPatternToMatchResult(prioritizedMatch, tokens);
         if (!matchResult) continue;
         const startIndex = matchResult.matchedTokens[0].originalIndex;
@@ -542,21 +519,6 @@ export class SemanticPatternProcessor {
       this.precomputedStrings = strings;
       this.usingWasm = usingWasm;
 
-      if (usingWasm) {
-        const stats = strings.getStats();
-        this.log(
-          debugLevel,
-          5,
-          `⚡ WASM: Pre-computed ${stats.cacheSize} strings in ${(performance.now() - precomputeStart).toFixed(2)}ms (${(stats.memoryBytes / 1024).toFixed(1)}KB)`
-        );
-      } else {
-        this.log(
-          debugLevel,
-          5,
-          `⚡ JS: Pre-computed ${strings.stats.totalPrecomputed} strings in ${(performance.now() - precomputeStart).toFixed(2)}ms`
-        );
-      }
-
       const precomputeTime = performance.now() - precomputeStart;
       this.stats.stringOptimization.enabled = true;
       this.stats.stringOptimization.precomputeTime += precomputeTime;
@@ -574,13 +536,6 @@ export class SemanticPatternProcessor {
       this.usingWasm = false;
       this.stats.stringOptimization.enabled = false;
     }
-
-    this.log(
-      debugLevel,
-      5,
-      `🔍 Processing ${semanticTokens.length} semantic tokens:`,
-      semanticTokens.map((t) => `"${t.value}"`).join(', ')
-    );
 
     // MEDIUM FIX: Add timeout protection to prevent pathological patterns from blocking indefinitely
     const MAX_PATTERN_PROCESSING_TIME = 5000; // 5 seconds
@@ -605,12 +560,6 @@ export class SemanticPatternProcessor {
       const matchResult = this.findBestPatternMatch(semanticTokens, i, options);
 
       if (matchResult) {
-        this.log(
-          debugLevel,
-          5,
-          `🎯 Pattern matched: "${matchResult.pattern.originalPattern}" -> "${matchResult.result}"`
-        );
-
         const startIndex = matchResult.matchedTokens[0].originalIndex;
         const endIndex =
           matchResult.matchedTokens[matchResult.matchedTokens.length - 1].originalIndex;
@@ -634,36 +583,6 @@ export class SemanticPatternProcessor {
     }
 
     return results;
-
-    // Calculate and log performance metrics for the optimization
-    if (this.stats.stringOptimization.enabled && this.precomputedStrings) {
-      const _precomputedStats = this.precomputedStrings.getStats();
-      const totalStringOps =
-        this.stats.stringOptimization.precomputedLookups +
-        this.stats.stringOptimization.dynamicStringOps;
-      const optimizationRate =
-        totalStringOps > 0
-          ? (this.stats.stringOptimization.precomputedLookups / totalStringOps) * 100
-          : 0;
-
-      // Estimate speedup: pre-computed lookup ~0.001ms vs dynamic generation ~0.1ms
-      const estimatedSpeedup =
-        totalStringOps > 0
-          ? (this.stats.stringOptimization.dynamicStringOps * 0.1 +
-              this.stats.stringOptimization.precomputedLookups * 0.001) /
-            (totalStringOps * 0.1)
-          : 1;
-
-      this.stats.stringOptimization.speedupFactor = 1 / estimatedSpeedup;
-
-      this.log(
-        debugLevel,
-        5,
-        `⚡ String optimization: ${optimizationRate.toFixed(1)}% lookups pre-computed (${this.stats.stringOptimization.precomputedLookups}/${totalStringOps}), estimated ${this.stats.stringOptimization.speedupFactor.toFixed(1)}x speedup`
-      );
-    }
-
-    this.log(debugLevel, 5, '✅ Semantic pattern matching completed');
   }
 
   /**
@@ -677,8 +596,6 @@ export class SemanticPatternProcessor {
     const firstToken = semanticTokens[position];
     if (!firstToken) return null;
 
-    const debugLevel = options.debugLevel || 3; // TEMP: Enable debug for pattern investigation
-
     // Use traditional O(1) lookup for reliable pattern matching
     // Trie optimization temporarily disabled due to traversal complexity
     const candidatePatterns = [
@@ -687,11 +604,6 @@ export class SemanticPatternProcessor {
     ];
 
     // Only log candidate counts at very high debug level to avoid console spam
-    this.log(
-      debugLevel,
-      5,
-      `🔍 Found ${candidatePatterns.length} candidates for "${firstToken.value}"`
-    );
 
     // Test candidate patterns at current position
 
@@ -701,17 +613,6 @@ export class SemanticPatternProcessor {
     // Test each candidate pattern
     for (const pattern of candidatePatterns) {
       const matchResult = this.testPatternMatch(pattern, semanticTokens, position, options);
-
-      // Only log successful matches to reduce noise
-      if (matchResult.success) {
-        if (debugLevel >= 6) {
-          this.log(
-            debugLevel,
-            6,
-            `✅ Pattern MATCH: "${pattern.originalPattern}" (priority: ${pattern.metadata.priority})`
-          );
-        }
-      }
 
       if (matchResult.success) {
         const matchLen = matchResult.matchedTokens.length;
@@ -729,14 +630,6 @@ export class SemanticPatternProcessor {
           bestPriority = pattern.metadata.priority;
         }
       }
-    }
-
-    if (bestMatch && debugLevel >= 6) {
-      this.log(
-        debugLevel,
-        6,
-        `🏆 WINNER: "${bestMatch.pattern.originalPattern}" (priority: ${bestMatch.pattern.metadata.priority})`
-      );
     }
 
     return bestMatch;
@@ -1260,26 +1153,6 @@ export class SemanticPatternProcessor {
         maxTime: 0,
       };
     });
-  }
-
-  /**
-   * Log debug message if debug level is sufficient
-   * @param {number} debugLevel - Current debug level
-   * @param {number} requiredLevel - Required level for this message
-   * @param {string} message - Message to log
-   * @param {*} data - Optional data to log
-   */
-  log(debugLevel, requiredLevel, message, data = null) {
-    if (debugLevel >= requiredLevel) {
-      // Only log in development for performance
-      if (process.env.NODE_ENV === 'development') {
-        if (data !== null) {
-          logger.log(message, data);
-        } else {
-          logger.log(message);
-        }
-      }
-    }
   }
 
   /**

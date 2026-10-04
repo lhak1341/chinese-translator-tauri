@@ -123,3 +123,61 @@ describe('source convention scan', () => {
     expect(offenders, `${detector.name} — ${detector.fix}`).toEqual([]);
   });
 });
+
+/**
+ * A test file that imports no production module can only assert on data and helpers it
+ * defines itself. Seven such files (about 2,000 lines) passed for months while asserting on
+ * inline copies of the logic they were named after, and ADR-004 cited one as the check that
+ * "validates order". Deleted 2026-10-04.
+ *
+ * Files that read src/ as text instead of importing it belong in this list, each with the
+ * reason.
+ */
+const TESTS_WITHOUT_PRODUCTION_IMPORT = new Set([
+  // Scans source files as text; the production code is its input, not its subject.
+  'utils/__tests__/SourceConventionScan.test.js',
+]);
+
+const IMPORT_RE = /(?:import[^'"]*from\s*|import\(\s*)['"]([^'"]+)['"]/g;
+
+/** True when the specifier points at production code rather than test support or data. */
+function isProductionImport(specifier) {
+  if (!specifier.startsWith('.') && !specifier.startsWith('@/')) return false;
+  if (/\.json$/.test(specifier)) return false;
+  return !/__tests__\/|__mocks__|test-fixtures|test-utils|testUtils/.test(specifier);
+}
+
+function importsProductionCode(source) {
+  return [...source.matchAll(IMPORT_RE)].some((m) => isProductionImport(m[1]));
+}
+
+const testFiles = readdirSync(srcDir, { recursive: true, encoding: 'utf8' })
+  .filter((rel) => /\.test\.[jt]sx?$/.test(rel))
+  .map((rel) => rel.split(path.sep).join('/'));
+
+describe('test files import production code', () => {
+  it('walks a populated test tree (liveness)', () => {
+    expect(testFiles.length).toBeGreaterThan(100);
+  });
+
+  it('the import check fires on a self-contained test (liveness)', () => {
+    const selfContained = "import { it, expect } from 'vitest';\nit('x', () => expect(1).toBe(1));";
+    const real = "import { it } from 'vitest';\nimport { thing } from '../thing.js';";
+    const helperOnly = "import { makeThing } from './__tests__/helpers.js';";
+    expect(importsProductionCode(selfContained)).toBe(false);
+    expect(importsProductionCode(real)).toBe(true);
+    expect(importsProductionCode(helperOnly)).toBe(false);
+  });
+
+  it('every test file imports at least one production module', () => {
+    const offenders = testFiles.filter(
+      (rel) =>
+        !TESTS_WITHOUT_PRODUCTION_IMPORT.has(rel) &&
+        !importsProductionCode(readFileSync(path.join(srcDir, rel), 'utf8'))
+    );
+    expect(
+      offenders,
+      'a test that imports no production module asserts on its own copy of the logic — import the module under test'
+    ).toEqual([]);
+  });
+});

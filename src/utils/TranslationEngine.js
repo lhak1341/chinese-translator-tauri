@@ -14,8 +14,6 @@
  *     .translateWithChunking()  Long-text path with adaptive chunking.
  *     .postProcess()            Assembles semantic array after translation phases.
  *
- *   DEBUG_LEVELS                Enum — verbosity constants for engine logging.
- *
  * =============================================================================
  * FILE STRUCTURE (6355 lines)
  * =============================================================================
@@ -154,7 +152,6 @@ import {
   filterDictionariesForEngine,
   isActiveProperNounSource,
 } from './dictionary/FictionDictionaryFilter';
-import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
 import {
   getTokenSpanForText,
   reconstructTextFromIndex,
@@ -179,7 +176,6 @@ import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
 import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
 import { buildLookupIndexOrFallback } from './dictionary/LookupIndexBuilder';
-import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
@@ -188,14 +184,11 @@ import {
   getSourcePriority as getSourcePriorityFn,
   consumedSource,
   isConsumedSource,
-  isPatternSource,
   validateConsumedTokenContract,
 } from './TranslationSourcePriority.js';
-import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
 import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
-import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
 import { wasmTextAssembler } from './wasm/WasmTextAssembler.js';
@@ -207,7 +200,6 @@ import {
   hasWasmPatternProcessorFailed,
 } from './wasm/WasmPatternProcessor.js';
 import {
-  PHRASE_PROCESSING,
   MEMORY_MANAGEMENT,
   getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
   PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
@@ -230,8 +222,6 @@ import {
  *   MemorySnapshot,
  *   BatchPerformanceMetrics,
  *   TranslationSegment,
- *   DEBUG_LEVELS,
- *   DebugLevel
  * } from '../types/TranslationEngineTypes'
  */
 
@@ -267,14 +257,6 @@ import {
 
 // PatternProcessorResult and PatternProcessorAdapter — canonical types in src/types/PatternProcessingTypes.d.ts
 
-// Debug logging levels
-export const DEBUG_LEVELS = {
-  ERROR: 0, // Only errors and warnings
-  INFO: 1, // Key milestones and results
-  DEBUG: 2, // Detailed phase information
-  VERBOSE: 3, // Ultra-detailed token-by-token logging
-};
-
 // WASM Number Processing Thresholds moved to TranslationConstants.js
 // Import via: import { WASM_NUMBER_THRESHOLDS } from '../constants/TranslationConstants.js';
 
@@ -294,10 +276,6 @@ export class TranslationEngine {
       // Enable caching with optimized cache sizes
       cacheEnabled: true,
       lookupCacheSize: 800,
-
-      // WASM acceleration via adapter (omit to get pure-JS / NullWasmAdapter behaviour)
-      wasmAdapter: new WasmDictionaryAdapter(),
-      debugLevel: 1,
 
       // Dictionary Precomputation: 5-7x faster loading with cached tries
       enablePrecomputedCache: true,
@@ -321,8 +299,8 @@ export class TranslationEngine {
     // ERROR HANDLING FIX: Track initialization error for better debugging
     this.initializationError = null;
     // PERFORMANCE OPTIMIZATION: Reduce default logging to prevent console spam
-    this.debugLevel =
-      process.env.NODE_ENV === 'production' ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.DEBUG; // Production: errors only, Development: debug messages
+    // Per-phase contract checks run only on an engine that was never initialized, outside production
+    this.validatePhaseContracts = process.env.NODE_ENV !== 'production';
     this.punctuationDict = {}; // Store punctuation translation dictionary
 
     // MEMORY MANAGEMENT: Bounded collection limits for stats
@@ -336,7 +314,6 @@ export class TranslationEngine {
     };
 
     // Initialize parallel processing configuration (will be set during first use)
-    this.parallelConfig = null;
 
     // Translation segments for interactive highlighting
     this.translationSegments = [];
@@ -366,52 +343,6 @@ export class TranslationEngine {
     // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
     // Prevents memory leak when translation is aborted before cleanup completes
     this.pendingCleanupCallbacks = new Set();
-  }
-
-  /**
-   * Log message based on debug level
-   * @param {number} level - Debug level required
-   * @param {string} message - Message to log
-   * @param {*} data - Optional data to log
-   */
-  /**
-   * CODE REVIEW FIX (LOW-1): Optimized logging with lazy evaluation support
-   * Accepts both strings and functions to avoid string interpolation overhead when logging disabled
-   * @param {number} level - Debug level threshold
-   * @param {string|Function} message - Message string or lazy function that returns message
-   * @param {*} data - Optional data to log
-   */
-  log(level, message, data = null) {
-    // Early exit before evaluating lazy message.
-    // globalPerformanceMonitor does its own level filtering, but we still
-    // gate on debugLevel so the lazy message function is never called
-    // when neither output path would actually log.
-    const levelEnabled = this.debugLevel >= level;
-    if (!levelEnabled && !globalPerformanceMonitor) {
-      return; // Skip evaluation entirely
-    }
-
-    // CODE REVIEW FIX (LOW-1): Lazy evaluation - only call function if needed
-    const evaluatedMessage = typeof message === 'function' ? message() : message;
-
-    // Use optimized performance monitor for environment-aware logging with sampling
-    if (globalPerformanceMonitor) {
-      if (data !== null) {
-        globalPerformanceMonitor.log(level, evaluatedMessage, data);
-      } else {
-        globalPerformanceMonitor.log(level, evaluatedMessage);
-      }
-    }
-    // Fallback to original behavior if monitor not available
-    else if (this.debugLevel >= level) {
-      if (process.env.NODE_ENV === 'development') {
-        if (data !== null) {
-          logger.log(evaluatedMessage, data);
-        } else {
-          logger.log(evaluatedMessage);
-        }
-      }
-    }
   }
 
   /**
@@ -449,10 +380,6 @@ export class TranslationEngine {
 
         // Return the minimum of memory-based and device-based limits
         const calculatedLimit = Math.min(maxTokensByMemory, deviceMaxTokens);
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🖥️ Device token limit: ${calculatedLimit} (memory: ${maxTokensByMemory}, device: ${deviceMaxTokens})`
-        );
 
         return Math.max(calculatedLimit, DEVICE_MEMORY_LIMITS.MIN_TOKEN_LIMIT);
       }
@@ -466,11 +393,7 @@ export class TranslationEngine {
         return 8000; // <2GB RAM
       }
     } catch (error) {
-      this.log(
-        DEBUG_LEVELS.WARN,
-        '⚠️ Device memory detection failed, using conservative limits:',
-        error
-      );
+      logger.warn('⚠️ Device memory detection failed, using conservative limits:', error);
     }
 
     return defaultMaxTokens;
@@ -484,43 +407,6 @@ export class TranslationEngine {
   // Extraction Potential: NONE - Timing-sensitive, phase-critical
   // Critical: Cache invalidation must coordinate with phase processing
   // ============================================================================
-
-  /**
-   * Dictionary Lookup (Direct - No Caching)
-   *
-   * IMPORTANT: Semantic caching was removed to fix phase priority violations.
-   * This method performs direct dictionary lookups without caching.
-   *
-   * @param {string} fullText - Full text to search
-   * @param {number} textPosition - Position in text
-   * @param {string[]} dictionaryTypes - Dictionary types to search
-   * @returns {Promise<Array>} Array of dictionary matches
-   *
-   * HISTORY: This method previously used semantic caching with phase priority validation
-   * PROBLEM: Cache served stale translations violating 5-phase priority order
-   *          (lower phases like proper nouns must override higher phases like characters)
-   * SOLUTION: Caching removed entirely - translation quality over performance
-   *
-   * If re-enabling caching in the future, MUST validate phase priority:
-   * - Phase 1 (patterns) = priority 1 (highest)
-   * - Phase 2 (proper nouns) = priority 2
-   * - Phase 3 (numbers) = priority 3
-   * - Phase 4 (phrases) = priority 4
-   * - Phase 5 (characters) = priority 5 (lowest)
-   * Cache entries from higher priority phases must override lower priority cached results.
-   *
-   * See git history for phase priority validation code (removed for simplicity)
-   */
-  async findAllMatches(fullText, textPosition, dictionaryTypes) {
-    // Perform direct dictionary lookup (no caching)
-    const matches = await this.dictionaryManager.findAllMatchesAsync(
-      fullText,
-      textPosition,
-      dictionaryTypes
-    );
-
-    return matches;
-  }
 
   /**
    * Sync dictionaries to Phase 6 Core Engine (Rust) - Deprecated
@@ -601,11 +487,6 @@ export class TranslationEngine {
     if (this.translationSegments.length > maxSegments) {
       const removedCount = this.translationSegments.length - maxSegments;
       this.translationSegments.splice(0, removedCount);
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🧹 Cleaned up ${removedCount} old segments, ${this.translationSegments.length} remaining (adaptive threshold: ${maxSegments})`
-      );
     }
   }
 
@@ -657,15 +538,11 @@ export class TranslationEngine {
 
     // Dispose the dictionary manager, rather than only clearing its cache.
     //
-    // `clearCache()` empties the translation cache and nothing else, so every trie, the
-    // flat entry list, and — through `wasmLookup` — the WASM `DictionaryEngine` holding a
-    // copy of every dictionary all outlived the engine that owned them. A reload builds a
-    // replacement engine, so that was a leak *per reload*, and WASM linear memory never
-    // shrinks: a session that reloads twenty times ends up carrying twenty copies of the
-    // character dictionary, which is what made a long reading session get slower the more
-    // entries were added.
+    // `clearCache()` empties the translation cache and nothing else, so every trie and the
+    // flat entry list outlived the engine that owned them. A reload builds a replacement
+    // engine, so that was a leak *per reload*.
     //
-    // `dispose()` is what releases all three. It leaves the manager unusable, which is
+    // `dispose()` is what releases them. It leaves the manager unusable, which is
     // exactly the contract this method already documents for the engine as a whole. It
     // also sets `ready = false`, so `isReady()` stays answerable rather than throwing on
     // the nulled fields.
@@ -789,10 +666,8 @@ export class TranslationEngine {
       `🔧 Stored dictionaries for Core Engine sync: ${Object.keys(dictionaries).join(', ')}`
     );
 
-    // Set debug level from options
-    // PERFORMANCE: Keep error-only logging for normal operation
-    this.debugLevel = DEBUG_LEVELS.ERROR;
-    const startTime = performance.now();
+    // An initialized engine skips the per-phase contract checks (O(n) snapshots per phase)
+    this.validatePhaseContracts = false;
 
     try {
       // Documented in TranslationEngineInitOptions (TranslationEngineTypes.d.ts) as
@@ -803,8 +678,6 @@ export class TranslationEngine {
       if (options.patternSettings) {
         this.settings = { ...this.settings, ...options.patternSettings };
       }
-
-      this.log(DEBUG_LEVELS.DEBUG, '🔧 Active proper noun dictionaries:', this.activeProperNouns);
 
       // Load dictionaries into trie structures
       // CRITICAL FIX: Deep copy options to prevent mutation leakage
@@ -822,50 +695,20 @@ export class TranslationEngine {
         this.activeProperNouns,
         this.MAX_PROPER_NOUN_TRANSLATIONS
       );
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🏛️ Loaded ${this.properNounTranslations.size} proper noun translations into cache`
-      );
 
       // Initialize semantic pattern processor
       if (dictionaries.patterns) {
-        const patternCount = Object.keys(dictionaries.patterns).length;
-        this.log(
-          DEBUG_LEVELS.INFO,
-          `🎯 Initializing pattern processor with ${patternCount} patterns`
-        );
-        await this.semanticPatternProcessor.initializePatterns(dictionaries.patterns, {
-          debugLevel: this.debugLevel,
-        });
-        this.log(
-          DEBUG_LEVELS.INFO,
-          `🎯 Pattern processor initialized with ${this.semanticPatternProcessor.patterns?.length || 0} processed patterns`
-        );
-      } else {
-        this.log(
-          DEBUG_LEVELS.INFO,
-          '⚠️ No patterns dictionary found - hierarchical processing will be disabled'
-        );
+        await this.semanticPatternProcessor.initializePatterns(dictionaries.patterns);
       }
 
       // Load punctuation dictionary for post-processing
       if (dictionaries.punctuation) {
         this.punctuationDict = dictionaries.punctuation;
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          '🔧 Loaded punctuation dictionary:',
-          Object.keys(this.punctuationDict).length,
-          'mappings'
-        );
       }
 
       this.isInitialized = true;
       // ERROR HANDLING FIX: Clear any previous initialization errors
       this.initializationError = null;
-      const initTime = performance.now() - startTime;
-
-      this.log(DEBUG_LEVELS.INFO, `✅ Translation Engine initialized in ${initTime.toFixed(2)}ms`);
-      this.log(DEBUG_LEVELS.DEBUG, '📊 Engine stats:', this.getEngineStats());
 
       // WASM Core Engine removed - dictionary sync no longer needed
     } catch (error) {
@@ -975,8 +818,7 @@ export class TranslationEngine {
     // Character-only mode benefits even more from pre-computed lookups!
     await buildLookupIndexOrFallback(text, options, {
       dictionaryManager: this.dictionaryManager,
-      logDebug: (msg) => this.log(DEBUG_LEVELS.DEBUG, msg),
-      logWarn: (msg) => this.log(DEBUG_LEVELS.WARN, msg),
+      logWarn: (msg) => logger.warn(msg),
     });
 
     // Create isolated semantic array builder to prevent conflicts with concurrent main translations
@@ -1178,13 +1020,6 @@ export class TranslationEngine {
           // Take the first (longest) match for characters
           if (indexedMatches.length > 0) {
             match = indexedMatches[0];
-          }
-
-          if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && match) {
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `📊 Character index: found "${match.word}" → "${match.translation}" at position ${textPosition}`
-            );
           }
         } else {
           // Fallback: Traditional character dictionary lookup
@@ -1399,8 +1234,7 @@ export class TranslationEngine {
    * // - translationSource: "phrase"
    *
    * @see translateSinglePass - Calls this method as Phase 4
-   * @see processRemainingPhrases - Sequential phrase processing implementation
-   * @see processRemainingPhrasesParallel - Parallel phrase processing (future optimization)
+   * @see processRemainingPhrases - Phrase processing implementation
    *
    * @performance
    * - Small texts (<1000 chars): ~10-20ms
@@ -1419,18 +1253,10 @@ export class TranslationEngine {
    */
   async createOptimalPhraseGroups(tokens, options) {
     if (this.settings.enableTwoPhasePatterns) {
-      this.log(
-        DEBUG_LEVELS.INFO,
-        `🎯 Using hierarchical phrase processing (${this.semanticPatternProcessor.patterns?.length ?? 0} patterns loaded)`
-      );
       return await this.createOptimalPhraseGroupsHierarchical(tokens, options);
     }
     // enableTwoPhasePatterns disabled (WASM pattern init failed) — phrases are pure JS, still process them
-    this.log(
-      DEBUG_LEVELS.INFO,
-      '🎯 Phrase processing (two-phase disabled, WASM patterns unavailable)'
-    );
-    await this.processRemainingPhrases(tokens, options);
+    this.processRemainingPhrases(tokens, options);
   }
 
   /**
@@ -1439,22 +1265,12 @@ export class TranslationEngine {
    * @param {Object} options - Options
    */
   async createOptimalPhraseGroupsHierarchical(tokens, options) {
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      '🎯 Starting phrase processing (patterns already processed in Phase 1)'
-    );
-
     try {
       // Skip pattern processing since it was already handled in Phase 1
       // Only process remaining phrases using traditional approach
-      await this.processRemainingPhrases(tokens, options);
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `✅ Phrase processing completed (patterns were processed in Phase 1)`
-      );
+      this.processRemainingPhrases(tokens, options);
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '🚨 Phrase processing failed:', error);
+      logger.error('🚨 Phrase processing failed:', error);
       throw new Error(
         'Two-phase pattern processing failed and legacy single-phase processing is disabled'
       );
@@ -1481,19 +1297,10 @@ export class TranslationEngine {
    * @returns {Array} Non-overlapping optimal matches
    */
   resolveGlobalConflicts(allMatches, _tokens) {
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `🎯 Resolving ${allMatches.length} global matches with longest-match-first`
-    );
-
     // Delegate sort + greedy selection to WASM (flat Uint32Array boundary).
     // Falls back to JS automatically when WASM is not yet initialized.
     const selectedMatches = resolveGlobalConflictsWasm(allMatches);
 
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `🎯 Global resolution complete: ${selectedMatches.length} optimal matches selected`
-    );
     return selectedMatches;
   }
 
@@ -1535,7 +1342,6 @@ export class TranslationEngine {
    * @param {string|null} tokens[].translationSource - Source of translation
    * @param {Object} [options={}] - Translation options
    * @param {Object} [options.dictionaryManager] - Dictionary manager for variable lookups
-   * @param {number} [options.debugLevel] - Debug logging level
    *
    * @returns {Promise<void>} Modifies tokens in-place
    *
@@ -1577,11 +1383,6 @@ export class TranslationEngine {
         this.settings.enableTwoPhasePatterns &&
         this.semanticPatternProcessor.patterns?.length > 0
       ) {
-        this.log(
-          DEBUG_LEVELS.INFO,
-          `🎯 Using hierarchical pattern processing in Phase 1 (${this.semanticPatternProcessor.patterns.length} patterns available)`
-        );
-
         // Apply hierarchical pattern processing here in Phase 1 (before phrases)
         // Create or reuse TwoPhasePatternProcessor instance
         if (!this.twoPhaseProcessor) {
@@ -1607,14 +1408,12 @@ export class TranslationEngine {
               ...(options.segments && { segments: [...options.segments] }),
               activeProperNouns: this.activeProperNouns,
               dictionaryManager: this.dictionaryManager,
-              debugLevel: this.debugLevel,
             }
           : {
               // Simple spread when no deep copy needed (reduces allocation overhead)
               ...options,
               activeProperNouns: this.activeProperNouns,
               dictionaryManager: this.dictionaryManager,
-              debugLevel: this.debugLevel,
             };
 
         const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
@@ -1623,11 +1422,6 @@ export class TranslationEngine {
         );
 
         this.applyHierarchicalResults(tokens, hierarchicalResults, options);
-
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
-        );
 
         const { recovered, previousCount } = this.patternFailureTracker.reportSuccess();
         if (recovered) {
@@ -1668,8 +1462,6 @@ export class TranslationEngine {
         return;
       }
 
-      this.log(DEBUG_LEVELS.DEBUG, '🔍 Starting semantic pattern matching phase');
-
       // Build variable cache by looking up tokens in proper-noun and phrase dictionaries.
       // This is the fallback path (runs as Phase 1, before Phase 2), so tokens have no
       // proper-noun translations yet — the cache is populated via dictionary lookups, not token state.
@@ -1691,18 +1483,14 @@ export class TranslationEngine {
               ...options,
               lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
               segments: options.segments ? [...options.segments] : undefined,
-              debugLevel: this.debugLevel,
               prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
             }
           : {
               ...options,
-              debugLevel: this.debugLevel,
               prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
             }
       );
       this.applyHierarchicalResults(tokens, jsResults, options);
-
-      this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
     } catch (error) {
       // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
@@ -1752,7 +1540,6 @@ export class TranslationEngine {
       }
     }
 
-    this.log(DEBUG_LEVELS.DEBUG, `🎯 Found ${prioritizedPatterns.length} prioritized patterns`);
     return prioritizedPatterns;
   }
 
@@ -1812,11 +1599,6 @@ export class TranslationEngine {
         'pattern',
         null
       );
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🎯 Applied ${result.type || 'pattern'} result: "${result.originalText}" -> "${result.translation}"`
-      );
     }
   }
 
@@ -1827,28 +1609,7 @@ export class TranslationEngine {
   // Dependencies: Previous phase results (patterns, proper nouns, numbers)
   // Extraction Potential: NONE - Sequential token consumption required
   // Critical: Only processes tokens not consumed by earlier phases
-  // Note: Supports both sequential and parallel processing modes
   // ============================================================================
-
-  /**
-   * Process remaining phrases that weren't handled by hierarchical patterns
-   * @param {Array} tokens - Token array
-   * @param {Object} options - Processing options
-   */
-  async processRemainingPhrases(tokens, options) {
-    const fullText = getTextFromTokens(tokens);
-
-    // Check if phase-level parallelization is enabled
-    const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
-    // BUGFIX COMPLETE: Fixed parallel phrase processing - now applies matches correctly
-    const enablePhaseLevelParallel = dictionaryConfig.enabled && tokens.length > 10;
-
-    if (enablePhaseLevelParallel) {
-      return this.processRemainingPhrasesParallel(tokens, options, fullText);
-    } else {
-      return this.processRemainingPhrasesSequential(tokens, options, fullText);
-    }
-  }
 
   /**
    * Find unprocessed ranges in token array for efficient phrase processing
@@ -1891,18 +1652,17 @@ export class TranslationEngine {
   }
 
   /**
-   * Process remaining phrases sequentially (optimized implementation)
+   * Process remaining phrases that weren't handled by hierarchical patterns: look up a phrase
+   * at every unprocessed token, resolve overlaps globally (longest wins), then apply.
+   * @param {Array} tokens - Token array
+   * @param {Object} options - Processing options
    */
-  async processRemainingPhrasesSequential(tokens, options, fullText) {
+  processRemainingPhrases(tokens, options) {
+    const fullText = getTextFromTokens(tokens);
     const allPotentialMatches = [];
 
     // HIGH-4 FIX: Pre-compute unprocessed ranges to avoid redundant checks
     const unprocessedRanges = this.findUnprocessedRanges(tokens);
-
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `🔍 Found ${unprocessedRanges.length} unprocessed ranges for phrase processing`
-    );
 
     // Process only unprocessed ranges
     for (const range of unprocessedRanges) {
@@ -1920,7 +1680,10 @@ export class TranslationEngine {
         }
 
         const textPosition = getTextPositionForTokenIndex(tokens, i);
-        const phraseMatches = await this.findAllMatches(fullText, textPosition, ['phrases']);
+        // The sync lookup: a one-dictionary search, which never takes the WASM tier anyway
+        const phraseMatches = this.dictionaryManager.findAllMatches(fullText, textPosition, [
+          'phrases',
+        ]);
 
         // Add matches for remaining phrases
         for (const match of phraseMatches) {
@@ -1990,189 +1753,7 @@ export class TranslationEngine {
 
         // Mark grouped tokens
         markPhraseFollowersConsumed(tokens, startIndex, tokenSpan);
-
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🎯 Remaining phrase: "${match.word}" -> "${match.translation}"`
-        );
       }
-    }
-  }
-
-  /**
-   * Process remaining phrases with batch-level parallelization
-   * Divides unprocessed tokens into batches and processes them concurrently
-   */
-  async processRemainingPhrasesParallel(tokens, options, fullText) {
-    // LOW-10 FIX: Use constant instead of magic number
-    const BATCH_SIZE = PHRASE_PROCESSING.BATCH_SIZE; // Process tokens concurrently for optimal I/O performance
-
-    // INTEGRATION #4: Use ReadonlyArray optimization for token scanning
-    let unprocessedIndices;
-
-    try {
-      const scanResult = scanTokens(
-        tokens,
-        (token) => {
-          // Match: unprocessed Chinese tokens
-          return (
-            token.translated === null &&
-            !token.translationSource &&
-            !token.isGrouped &&
-            (token.groupLeader === undefined || token.groupLeader === null) &&
-            (token.type === 'chinese_char' || token.type === 'chinese_word')
-          );
-        },
-        {
-          startIndex: 0,
-          endIndex: tokens.length,
-        }
-      );
-
-      unprocessedIndices = scanResult.indices;
-    } catch (readonlyError) {
-      // Fallback to manual loop if ReadonlyArray optimization fails
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        'ReadonlyArray optimization failed, using fallback:',
-        readonlyError.message || readonlyError
-      );
-
-      unprocessedIndices = [];
-      for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-
-        // Skip already processed tokens
-        if (
-          token.translated !== null ||
-          token.translationSource ||
-          token.isGrouped ||
-          (token.groupLeader !== undefined && token.groupLeader !== null)
-        ) {
-          continue;
-        }
-
-        // Only process Chinese content
-        if (token.type !== 'chinese_char' && token.type !== 'chinese_word') {
-          continue;
-        }
-
-        unprocessedIndices.push(i);
-      }
-    }
-
-    if (unprocessedIndices.length === 0) return;
-
-    // Process tokens in parallel batches
-    const allPotentialMatches = [];
-    const batches = [];
-
-    for (let i = 0; i < unprocessedIndices.length; i += BATCH_SIZE) {
-      const batch = unprocessedIndices.slice(i, i + BATCH_SIZE);
-      batches.push(batch);
-    }
-
-    // Process batches concurrently
-    const batchPromises = batches.map(async (batch) => {
-      const batchMatches = [];
-
-      // Batch dictionary lookup using JavaScript (WASM removed for reliability)
-      const positions = batch.map((tokenIndex) => getTextPositionForTokenIndex(tokens, tokenIndex));
-
-      const lookupResults = await Promise.all(
-        positions.map((pos) =>
-          this.dictionaryManager
-            .findAllMatchesAsync(fullText, pos, ['phrases'])
-            .then((matches) => ({ position: pos, matches }))
-        )
-      );
-
-      // Process all lookup results
-      for (let i = 0; i < batch.length; i++) {
-        const tokenIndex = batch[i];
-        const phraseMatches = lookupResults[i].matches;
-
-        // Add matches for this token
-        for (const match of phraseMatches) {
-          const tokenSpan = getTokenSpanForText(tokens, tokenIndex, match.word);
-
-          if (tokenSpan >= 1) {
-            // Check if any token in the span is already processed
-            let hasProcessedTokens = false;
-            for (let j = 0; j < tokenSpan; j++) {
-              const checkToken = tokens[tokenIndex + j];
-              if (
-                checkToken &&
-                (checkToken.translated !== null ||
-                  checkToken.translationSource ||
-                  checkToken.isGrouped)
-              ) {
-                hasProcessedTokens = true;
-                break;
-              }
-            }
-
-            if (!hasProcessedTokens) {
-              // Create data structure that matches what resolveGlobalConflicts expects
-              batchMatches.push({
-                startIndex: tokenIndex,
-                endIndex: tokenIndex + tokenSpan - 1,
-                match: match,
-                tokenSpan: tokenSpan,
-                type: 'phrase',
-                length: match.word.length,
-                priority: this.dictionaryManager.getPriorityForDictionary('phrases'),
-              });
-            }
-          }
-        }
-      }
-
-      return batchMatches;
-    });
-
-    // Wait for all batches to complete and combine results
-    const batchResults = await Promise.all(batchPromises);
-    batchResults.forEach((batchMatches) => {
-      allPotentialMatches.push(...batchMatches);
-    });
-
-    // Apply the optimal matches (same logic as sequential version)
-    const optimalMatches = this.resolveGlobalConflicts(allPotentialMatches, []);
-
-    for (const match of optimalMatches) {
-      const { startIndex: tokenIndex, tokenSpan } = match;
-
-      // Apply phrase translation to tokens (same as sequential method)
-      tokens[tokenIndex].isGrouped = true;
-      // CRITICAL FIX: Preserve originalValue before modifying for getTokenSpanForText()
-      if (!tokens[tokenIndex].originalValue) {
-        tokens[tokenIndex].originalValue = tokens[tokenIndex].value;
-      }
-      tokens[tokenIndex].value = match.match.word;
-      tokens[tokenIndex].phraseMatch = match.match;
-      tokens[tokenIndex].translated = match.match.translation;
-      tokens[tokenIndex].translationSource = 'phrases';
-
-      // Add to semantic array for bidirectional highlighting
-      const globalTokenIndex = tokenIndex + (options.chunkOffset || 0);
-      this.semanticArrayBuilder.addUnit(
-        match.match.word, // original text
-        match.match.translation, // translated text
-        'phrases', // source
-        globalTokenIndex, // global token index for proper ordering
-        'phrases',
-        match.match.dictionary
-      );
-
-      // Mark additional tokens as grouped if this is a multi-token phrase.
-      // postProcess() checks token.translated !== null to identify consumed tokens.
-      markPhraseFollowersConsumed(tokens, tokenIndex, tokenSpan);
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🎯 Remaining phrase: "${match.match.word}" -> "${match.match.translation}"`
-      );
     }
   }
 
@@ -2245,11 +1826,6 @@ export class TranslationEngine {
         }
       }
     }
-
-    this.log(
-      DEBUG_LEVELS.VERBOSE,
-      `🔧 Segmented pattern result: "${matchedReplacement}" + remaining untranslated: "${afterMatch}"`
-    );
   }
 
   /**
@@ -2342,7 +1918,7 @@ export class TranslationEngine {
    * // - translationSource: "properNoun"
    *
    * @see translateSinglePass - Calls this method as Phase 2
-   * @see DictionaryManager.findAllMatchesAsync - Performs dictionary lookups
+   * @see DictionaryManager.findAllMatches - Performs dictionary lookups
    * @see applyPatterns - Phase 1 (higher priority)
    *
    * @performance
@@ -2361,7 +1937,7 @@ export class TranslationEngine {
    */
   /**
    * Resolve candidate dictionary matches at a single token position, hiding the
-   * shared-lookup-index-vs-fallback branch and the onlyPatternVariables filter.
+   * shared-lookup-index-vs-fallback branch.
    * Shared by applyDictionaryTranslation's main scan and its lookahead-defer scan —
    * both need identical candidate resolution, just at a different position.
    * @param {Array} tokens
@@ -2371,51 +1947,31 @@ export class TranslationEngine {
    * @param {Array<string>} dictionaryOrder
    * @param {boolean} useSharedLookupIndex
    * @param {Object} options
-   * @param {string} logContext - 'main' or 'lookahead', for VERBOSE log disambiguation
-   * @returns {Promise<Array>}
+   * @returns {Array}
    */
-  async getCandidateMatchesAtPosition(
+  getCandidateMatchesAtPosition(
     tokens,
     pos,
     category,
     dictionarySet,
     dictionaryOrder,
     useSharedLookupIndex,
-    options,
-    logContext
+    options
   ) {
     let matches;
     if (useSharedLookupIndex) {
       const textPosition = getTextPositionForTokenIndex(tokens, pos);
       matches = getIndexedMatches(options.lookupIndex, textPosition, category);
       matches = matches.filter((match) => dictionarySet.has(match.dictionary));
-
-      if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && matches.length > 0) {
-        this.log(
-          DEBUG_LEVELS.VERBOSE,
-          `📊 Shared index (${logContext}): ${matches.length} matches found for position ${textPosition}, category ${category}`
-        );
-      }
     } else {
       // MEDIUM FIX: Validate token index before reconstruction
       if (pos >= tokens.length) {
-        this.log(
-          DEBUG_LEVELS.ERROR,
-          `⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`
-        );
+        logger.error(`⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`);
         matches = [];
       } else {
         const remainingText = reconstructTextFromIndex(tokens, pos);
-        matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
+        matches = this.dictionaryManager.findAllMatches(remainingText, 0, dictionaryOrder);
       }
-    }
-
-    if (options.onlyPatternVariables) {
-      matches = matches.filter(
-        (match) =>
-          match.dictionary !== 'phrases' ||
-          (match.metadata && match.metadata.allowAsPatternVariable === true)
-      );
     }
 
     return matches;
@@ -2430,19 +1986,6 @@ export class TranslationEngine {
     const useSharedLookupIndex = options.useSharedLookupIndex && options.lookupIndex;
 
     // Hot path optimization: Only log if debug level is sufficient
-    if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-      const indexInfo = useSharedLookupIndex
-        ? ` (using shared lookup index with ${options.lookupIndex.size} positions)`
-        : '';
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🔧 Starting ${phase} phase with dictionaries:${indexInfo}`,
-        dictionaryOrder
-      );
-    }
-
-    let phaseMatches = 0;
-    const startTime = performance.now();
 
     try {
       // OPTIMIZATION: Create dictionary Set once outside loop (hot path optimization)
@@ -2464,12 +2007,6 @@ export class TranslationEngine {
         // For phrases phase, check if token has a pre-stored phrase match
         if (phase === 'phrases' && token.phraseMatch) {
           // Hot path optimization: Only log if debug level is sufficient
-          if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🔍 Checking phrase match "${token.phraseMatch.word}" at token ${i}`
-            );
-          }
           // Check if any tokens in the phrase span were already consumed by patterns
           const tokenSpan = getTokenSpanForText(tokens, i, token.phraseMatch.word);
           let hasConsumedTokens = false;
@@ -2479,17 +2016,6 @@ export class TranslationEngine {
               const conflictToken = tokens[i + j];
               if (conflictToken.translationSource) {
                 hasConsumedTokens = true;
-                const extraInfo =
-                  isPatternSource(conflictToken.translationSource) && conflictToken.translated
-                    ? ` with result "${conflictToken.translated}"`
-                    : '';
-                // Hot path optimization: Only log if debug level is sufficient
-                if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-                  this.log(
-                    DEBUG_LEVELS.DEBUG,
-                    `🚨 Phrase match blocked: token ${i + j} already consumed by ${conflictToken.translationSource}${extraInfo}`
-                  );
-                }
                 break;
               }
             }
@@ -2498,7 +2024,6 @@ export class TranslationEngine {
           if (!hasConsumedTokens) {
             // Apply the pre-stored phrase match
             this.applyMatchToTokens(tokens, i, token.phraseMatch, options);
-            phaseMatches++;
 
             // Skip past grouped tokens
             i += tokenSpan - 1;
@@ -2506,12 +2031,6 @@ export class TranslationEngine {
           } else {
             // Skip this phrase match as some tokens were already consumed
             // Hot path optimization: Only log if debug level is sufficient
-            if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `🚫 Skipping phrase match "${token.phraseMatch.word}" - tokens already consumed`
-              );
-            }
             // Clear the phraseMatch to prevent future conflicts
             token.phraseMatch = null;
           }
@@ -2530,15 +2049,14 @@ export class TranslationEngine {
             characters: 'characters',
             general: 'phrases',
           }[phase] || 'phrases';
-        const filteredMatches = await this.getCandidateMatchesAtPosition(
+        const filteredMatches = this.getCandidateMatchesAtPosition(
           tokens,
           i,
           category,
           dictionarySet,
           dictionaryOrder,
           useSharedLookupIndex,
-          options,
-          'main'
+          options
         );
 
         if (filteredMatches.length > 0) {
@@ -2556,10 +2074,6 @@ export class TranslationEngine {
             // Check for overlap: match overlaps with range if they share any position
             if (!(matchEnd <= range.start || matchStart >= range.end)) {
               hasConflict = true;
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `🚨 ${phase} phase match blocked: "${bestMatch.word}" at position ${matchStart}-${matchEnd} conflicts with ${range.source} result at position ${range.start}-${range.end}`
-              );
               break;
             }
           }
@@ -2579,15 +2093,14 @@ export class TranslationEngine {
                 (tokens[j].translationSource && !tokens[j].isPatternPartialReset)
               )
                 continue;
-              const jMatches = await this.getCandidateMatchesAtPosition(
+              const jMatches = this.getCandidateMatchesAtPosition(
                 tokens,
                 j,
                 category,
                 dictionarySet,
                 dictionaryOrder,
                 useSharedLookupIndex,
-                options,
-                'lookahead'
+                options
               );
               if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
@@ -2599,7 +2112,6 @@ export class TranslationEngine {
 
             // Apply translation to the matched tokens
             this.applyMatchToTokens(tokens, i, bestMatch, options);
-            phaseMatches++;
 
             // CRITICAL FIX: Add processed range for O(n) conflict detection
             // Track this match's text range to prevent future overlaps
@@ -2615,25 +2127,10 @@ export class TranslationEngine {
               i += tokenSpan - 1;
             }
             // If tokenSpan is 0, just continue to next token (i will increment naturally)
-
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `🔧 ${phase} phase match: "${bestMatch.word}" -> "${bestMatch.translation}" (${bestMatch.dictionary})`
-            );
           } else {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🚫 Skipping ${phase} match "${bestMatch.word}" due to pattern conflict`
-            );
           }
         }
       }
-
-      const phaseTime = performance.now() - startTime;
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `📊 ${phase} phase completed: ${phaseMatches} matches in ${phaseTime.toFixed(1)}ms`
-      );
     } catch (error) {
       // CRITICAL ERROR HANDLING: Dictionary lookup failures should not crash translation
       logger.error(`❌ Error in ${phase} phase dictionary translation:`, error);
@@ -2641,10 +2138,7 @@ export class TranslationEngine {
 
       // Log error for diagnostics but allow translation to continue
       // Tokens remain untranslated, will fall back to later phases
-      this.log(
-        DEBUG_LEVELS.ERROR,
-        `🚨 ${phase} phase failed: ${error.message} - continuing with remaining phases`
-      );
+      logger.error(`🚨 ${phase} phase failed: ${error.message} - continuing with remaining phases`);
 
       // Don't re-throw - allow translation to continue with degraded quality
       // Better to have partial translation than complete failure
@@ -2728,8 +2222,6 @@ export class TranslationEngine {
    * Semantic arrays and text assembly must stay synchronized for highlighting accuracy.
    */
   postProcess(tokens, options) {
-    this.log(DEBUG_LEVELS.DEBUG, '🔧 Post-processing tokens:', tokens.length, 'tokens');
-
     // Reset position tracking for new chunk (positions start from 0 for each chunk)
     // This prevents "Position decreased" errors when processing multiple chunks
     if (
@@ -2754,8 +2246,6 @@ export class TranslationEngine {
         if (token.isProperNoun) {
           isProperNoun = true;
         }
-
-        this.log(DEBUG_LEVELS.VERBOSE, `🔧 Proper noun: "${token.value}" -> "${output}"`);
       } else if (token.translationSource) {
         // Token is consumed (part of a multi-token match). Normally skip — but guard against
         // orphaned consumed tokens whose leader was itself overwritten by a later phase.
@@ -2781,10 +2271,6 @@ export class TranslationEngine {
             `⚠️ Orphaned consumed token recovered via char fallback: "${token.originalValue ?? token.value}" (src: ${token.translationSource})`
           );
         } else {
-          this.log(
-            DEBUG_LEVELS.VERBOSE,
-            `🔧 Skipping consumed token: "${token.value}" (source: ${token.translationSource})`
-          );
           continue;
         }
       } else {
@@ -2866,12 +2352,6 @@ export class TranslationEngine {
       }
     }
 
-    this.log(
-      DEBUG_LEVELS.VERBOSE,
-      '🔧 Segments:',
-      segments.map((s) => `"${s.text}" (${s.tokenType})${s.isProperNoun ? ' [proper noun]' : ''}`)
-    );
-
     // Step 2: Join segments with appropriate spacing AND track positions for semantic array
     // WASM-accelerated path (30-50% faster); falls back to JS if WASM not ready.
     const { translatedText: result, positions: assembledPositions } =
@@ -2910,11 +2390,6 @@ export class TranslationEngine {
 
     const cleaned = cleanupFormatting(result, options, (char) => this.lookupPunctuation(char));
 
-    this.log(
-      DEBUG_LEVELS.VERBOSE,
-      '🔧 Final result:',
-      cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '')
-    );
     return cleaned;
   }
 
@@ -2940,8 +2415,7 @@ export class TranslationEngine {
   applyMatchToTokens(tokens, startIndex, match, options = {}) {
     // CRITICAL BUG FIX: Verify that the starting token is actually Chinese before applying the match
     if (startIndex >= tokens.length) {
-      this.log(
-        DEBUG_LEVELS.ERROR,
+      logger.error(
         `🚨 BUG: applyMatchToTokens called with invalid startIndex ${startIndex} >= ${tokens.length}`
       );
       return;
@@ -2956,10 +2430,6 @@ export class TranslationEngine {
     const tokenSpan = getTokenSpanForText(tokens, startIndex, match.word);
 
     // Debug logging for segment tracking
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `🔍 Segment tracking: "${match.word}" -> "${match.translation}" (${match.dictionary}), tokenSpan: ${tokenSpan}`
-    );
 
     // Mark the first token with the translation and create semantic group
     if (tokenSpan > 0) {
@@ -2967,10 +2437,6 @@ export class TranslationEngine {
       if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
         tokens[startIndex].translated = match.translation; // Keep original capitalization
         tokens[startIndex].isProperNoun = true;
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🏛️ Proper noun translation preserved: "${match.word}" -> "${match.translation}"`
-        );
       } else {
         tokens[startIndex].translated = match.translation;
       }
@@ -2978,10 +2444,6 @@ export class TranslationEngine {
       tokens[startIndex].translationSource = match.dictionary;
 
       // Track segment for interactive highlighting (legacy position-based system)
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `📍 Tracking segment: "${match.word}" -> "${match.translation}" (${match.dictionary})`
-      );
       this.trackTranslationSegment(tokens, startIndex, tokenSpan, match, options);
 
       // NEW: Capture semantic relationship for array-based highlighting
@@ -3067,11 +2529,6 @@ export class TranslationEngine {
             tokens[startIndex + i].groupLeader = startIndex;
           }
         }
-
-        this.log(
-          DEBUG_LEVELS.VERBOSE,
-          `🔗 Semantic group created: "${match.word}" (${tokenSpan} tokens)`
-        );
       }
     }
   }
@@ -3200,12 +2657,6 @@ export class TranslationEngine {
     }
 
     // Only log segment creation at DEBUG level to avoid performance impact
-    if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `✅ Segment created: "${match.word}" -> "${match.translation}" (${match.dictionary}) [${this.translationSegments.length} total]`
-      );
-    }
   }
 
   // calculateTranslatedPositions method removed - position tracking now handled inline during text construction
@@ -3316,7 +2767,7 @@ export class TranslationEngine {
           };
         }
       } catch (semanticError) {
-        this.log(DEBUG_LEVELS.WARN, '⚠️ Failed to get partial semantic arrays:', semanticError);
+        logger.warn('⚠️ Failed to get partial semantic arrays:', semanticError);
       }
 
       return {
@@ -3328,7 +2779,7 @@ export class TranslationEngine {
         timestamp: Date.now(),
       };
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '🚨 Failed to build partial translation result:', error);
+      logger.error('🚨 Failed to build partial translation result:', error);
       return {
         partialText: '',
         completedChunks: 0,
@@ -3440,40 +2891,6 @@ export class TranslationEngine {
     };
   }
 
-  /**
-   * Initialize parallel processing configuration based on device capabilities
-   * @param {Object} options - Configuration options
-   */
-  initializeParallelProcessing(options = {}) {
-    // Get device memory limitations
-    const maxTokensAllowed = this.calculateMaxTokensForDevice();
-
-    // Build device information for ParallelConfig adaptation
-    const deviceInfo = {
-      totalMemory: maxTokensAllowed * 50, // Rough estimate: 50 bytes per token
-      cpuCores: navigator.hardwareConcurrency || 4,
-      onBattery: false, // Could be enhanced with battery API if available
-    };
-
-    // Adapt ParallelConfig to current device
-    parallelConfig.adaptToDevice(deviceInfo);
-
-    // Get optimized configuration for chunk processing
-    const chunkConfig = parallelConfig.getOptimalConfig('chunk', {
-      textLength: options.textLength || 0,
-    });
-
-    // Set once per engine; translateBatchInParallel's guard reads it to know init has run
-    this.parallelConfig = { maxParallelChunks: chunkConfig.maxParallelChunks };
-
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `🔧 Parallel processing configured via ParallelConfig: ` +
-        `maxConcurrency=${this.parallelConfig.maxParallelChunks}, memoryLimit=${maxTokensAllowed}, ` +
-        `batteryOptimization=${parallelConfig.getConfig().device.batteryOptimization}`
-    );
-  }
-
   // ============================================================================
   // SECTION 12: PARALLEL PROCESSING
   // ============================================================================
@@ -3505,11 +2922,6 @@ export class TranslationEngine {
    */
   async processChunksInParallel(batch, options, batchStart) {
     const startTime = performance.now();
-
-    // Initialize parallel config if not already done - MUST BE FIRST
-    if (!this.parallelConfig) {
-      this.initializeParallelProcessing(options);
-    }
 
     // Chunks in a batch always run in parallel; there is no sequential fallback.
 
@@ -3556,12 +2968,6 @@ export class TranslationEngine {
           chunk.translated = await this.translateDirectly(chunk.content, chunkOptions);
 
           // Log individual chunk completion for debugging
-          if (this.debugLevel >= DEBUG_LEVELS.VERBOSE) {
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `✅ Chunk ${batchStart + index} completed: "${chunk.content.slice(0, 50)}..."`
-            );
-          }
         })
       );
 
@@ -3571,10 +2977,6 @@ export class TranslationEngine {
       // Use INFO level for better visibility of batch performance
       const actualBatchNumber =
         this.currentBatchNumber || Math.floor(batchStart / batch.length) + 1;
-      this.log(
-        DEBUG_LEVELS.INFO,
-        `🚀 Parallel batch ${actualBatchNumber}: ${batch.length} chunks in ${processingTime.toFixed(1)}ms (${avgTimePerChunk.toFixed(1)}ms/chunk)`
-      );
 
       // NEW: Call batch completion callback for streaming UI updates
       if (options.onBatchComplete) {
@@ -3587,7 +2989,7 @@ export class TranslationEngine {
             avgTimePerChunk: avgTimePerChunk,
           });
         } catch (callbackError) {
-          this.log(DEBUG_LEVELS.WARN, '⚠️ Batch completion callback failed:', callbackError);
+          logger.warn('⚠️ Batch completion callback failed:', callbackError);
         }
       }
 
@@ -3609,15 +3011,14 @@ export class TranslationEngine {
 
         if (degradationRatio > 2.0) {
           // >2x slower than first batch
-          this.log(
-            DEBUG_LEVELS.WARN,
+          logger.warn(
             `⚠️ Performance degradation detected: Batch ${currentBatch.batchNumber} is ${degradationRatio.toFixed(1)}x slower than batch 1 (${currentBatch.avgTimePerChunk.toFixed(1)}ms vs ${firstBatch.avgTimePerChunk.toFixed(1)}ms per chunk)`
           );
         }
       }
     } catch (error) {
       // Handle parallel processing errors with performance tracking
-      this.log(DEBUG_LEVELS.ERROR, 'Parallel chunk processing failed:', error);
+      logger.error('Parallel chunk processing failed:', error);
 
       throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {
@@ -3649,10 +3050,6 @@ export class TranslationEngine {
     }
 
     if (unprocessedCount > 0) {
-      this.log(
-        DEBUG_LEVELS.VERBOSE,
-        `🔍 Phase 5 Character Processing - Starting with ${unprocessedCount} unprocessed tokens`
-      );
     }
 
     try {
@@ -3717,8 +3114,8 @@ export class TranslationEngine {
         }
       }
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Phase 5 Character Processing failed:`, error);
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Phase 5 Error stack:`, error.stack);
+      logger.error(`🚨 Phase 5 Character Processing failed:`, error);
+      logger.error(`🚨 Phase 5 Error stack:`, error.stack);
     }
   }
 
@@ -3757,8 +3154,7 @@ export class TranslationEngine {
           const match = this.findLongestMatchAtPosition(tokens, i, dictionary, 'characters');
           return { index: i, match };
         } catch (error) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `🚨 Token batch lookup failed at index ${i} ("${tokens[i]?.value}"):`,
             error
           );
@@ -3870,19 +3266,6 @@ export class TranslationEngine {
    */
 
   /**
-   * translateWithProgressiveBatches' initial batch size: maxParallelChunks when chunking
-   * is enabled, MIN_BATCH_SIZE when not, floored at MIN_BATCH_SIZE (not a bare 2) so
-   * currentBatchSize never starts below the range calculateNextBatchSize's
-   * severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes — below
-   * that range the guard silently never fires (architecture review 2026-08-15).
-   * AdaptiveBatchSizer owns every later batch.
-   */
-  _initialBatchSize(chunkConfig) {
-    const base = chunkConfig.enabled ? chunkConfig.maxParallelChunks : MIN_BATCH_SIZE;
-    return Math.max(MIN_BATCH_SIZE, base);
-  }
-
-  /**
    * Verifies translationSegments position tracking and warns on any segment still
    * missing a position. Shared by translateWithSegments and translateWithProgressiveBatches
    * (3 call sites hand-copied the same filter+warn check before being unified here,
@@ -3892,8 +3275,7 @@ export class TranslationEngine {
   _logUnpositionedSegments(contextSuffix = '') {
     const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
     if (unpositionedSegments.length > 0) {
-      this.log(
-        DEBUG_LEVELS.WARN,
+      logger.warn(
         `⚠️ ${unpositionedSegments.length} segments missing positions${contextSuffix} - position tracking bug detected`
       );
     }
@@ -3909,8 +3291,6 @@ export class TranslationEngine {
   // ============================================================================
 
   async translateWithProgressiveBatches(text, options = {}) {
-    const startTime = performance.now();
-
     // Initialize segments collection for progressive translation
     this.translationSegments = [];
 
@@ -3943,22 +3323,13 @@ export class TranslationEngine {
       };
     }
 
-    const streamingEnabled = translatableChunks.length >= this.minChunksForStreaming;
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `🚀 Starting progressive translation: ${translatableChunks.length} chunks (streaming ${streamingEnabled ? 'ENABLED' : 'DISABLED - below ' + this.minChunksForStreaming + ' chunk threshold'})`
-    );
-
     // Store total chunks for streaming progress calculation
     this.totalChunks = translatableChunks.length;
 
-    // Step 2: Process chunks in adaptive batches with ParallelConfig integration
-    const chunkConfig = parallelConfig.getOptimalConfig('chunk', {
-      textLength: text.length,
-      chunkCount: translatableChunks.length,
-    });
-
-    let currentBatchSize = this._initialBatchSize(chunkConfig);
+    // Step 2: Process chunks in adaptive batches. Start at MIN_BATCH_SIZE — the floor the
+    // sizer's severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes —
+    // and let calculateNextBatchSize grow it toward MAX_BATCH_SIZE while batches stay fast.
+    let currentBatchSize = MIN_BATCH_SIZE;
 
     logger.info('[batch-sizing]', `📊 Initial batch size: ${currentBatchSize}`);
 
@@ -3979,7 +3350,7 @@ export class TranslationEngine {
       // CODE REVIEW FIX (2026-02-01): Check abort signal between batches
       // Allows users to cancel long translations mid-processing
       if (options.abortSignal?.aborted) {
-        this.log(DEBUG_LEVELS.WARN, '🛑 Translation cancelled by user (abort signal)');
+        logger.warn('🛑 Translation cancelled by user (abort signal)');
         throw new Error('Translation cancelled by user');
       }
 
@@ -3992,11 +3363,8 @@ export class TranslationEngine {
       });
       currentBatchSize = sizing.batchSize;
       performanceBaseline = sizing.performanceBaseline;
-      if (sizing.log) {
-        this.log(
-          sizing.log.level === 'warn' ? DEBUG_LEVELS.WARN : DEBUG_LEVELS.INFO,
-          sizing.log.message
-        );
+      if (sizing.log?.level === 'warn') {
+        logger.warn(sizing.log.message);
       }
 
       const batchStart = processedChunks; // Chunk index
@@ -4028,15 +3396,6 @@ export class TranslationEngine {
         return sum + this.tokenizer.tokenize(chunk.content).length;
       }, 0);
       cumulativeTokenCount += batchTokenCount;
-
-      if (batchIndex % 5 === 0) {
-        // Periodic diagnostics (semantic array size) — read-only, every 5th batch.
-        const currentArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-        this.log(
-          DEBUG_LEVELS.INFO,
-          `🧹 Batch ${batchIndex} semantic arrays: ${currentArrays?.originalSegments?.length || 0} original, ${currentArrays?.translatedSegments?.length || 0} translated segments`
-        );
-      }
 
       // PHASE 1 FIX: Process only current batch chunks, not all chunks (eliminates O(n²) redundancy)
       this.processBatchChunksProgressive(currentBatch, chunks, batchStart);
@@ -4082,7 +3441,6 @@ export class TranslationEngine {
           options.onProgress(update.payload);
           this.lastProgressUpdate = performance.now();
         } else {
-          this.log(DEBUG_LEVELS.DEBUG, update.log.message);
         }
       }
     }
@@ -4122,35 +3480,10 @@ export class TranslationEngine {
     }
 
     // Debug logging for semantic array building
-    if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-      const debugInfo = this.semanticArrayBuilder.getDebugInfo();
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🔍 Semantic arrays before final processing: ${debugInfo.totalUnits} units`
-      );
-      this.log(
-        DEBUG_LEVELS.VERBOSE,
-        `📋 Semantic mappings:`,
-        debugInfo.mappings?.slice(0, 10) || []
-      ); // Show first 10 for brevity
-    }
 
     // Verify position tracking worked correctly
     this._logUnpositionedSegments(' in final processing');
     this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
-
-    // Debug logging after final processing
-    if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-      const finalDebugInfo = this.semanticArrayBuilder.getDebugInfo();
-      this.log(DEBUG_LEVELS.DEBUG, `✅ Final semantic arrays: ${finalDebugInfo.totalUnits} units`);
-    }
-
-    const translationTime = performance.now() - startTime;
-
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `✅ Progressive translation completed: ${batchIndex} batches in ${translationTime.toFixed(1)}ms`
-    );
 
     // OPTIMIZED FIX: Use naturally accumulated semantic arrays and update with final text
     // PHASE 4: Validate progressive results before return
@@ -4158,8 +3491,7 @@ export class TranslationEngine {
     const fallbackTextLength = cleanedFinalResult.length;
 
     if (Math.abs(progressiveTextLength - fallbackTextLength) > 10) {
-      this.log(
-        DEBUG_LEVELS.WARN,
+      logger.warn(
         `⚠️ Progressive text length mismatch: ${progressiveTextLength} vs ${fallbackTextLength} (fallback)`
       );
     }
@@ -4167,11 +3499,6 @@ export class TranslationEngine {
     // BUGFIX: Use semanticArrayBuilder directly for final return to avoid duplicates
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
     const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `🎯 Progressive semantic arrays: ${finalSemanticArrays.original?.length || 0} segments built progressively`
-    );
 
     // BUGFIX: Use existing metadata from builder, fill gaps with defaults
     // CRITICAL FIX: Use explicit missing indicator for better debugging
@@ -4274,8 +3601,6 @@ export class TranslationEngine {
    * mutations.
    */
   async translateWithChunking(text, options = {}) {
-    const startTime = performance.now();
-
     // Initialize segments collection for chunked translation
     this.translationSegments = [];
 
@@ -4284,11 +3609,6 @@ export class TranslationEngine {
 
     // Step 1: Split text into chunks by punctuation boundaries
     const chunks = this.textChunker.chunkText(text);
-    const analysis = this.textChunker.analyzeChunks(chunks);
-
-    this.log(DEBUG_LEVELS.INFO, `🧩 Starting chunked translation: ${chunks.length} chunks`);
-
-    this.log(DEBUG_LEVELS.DEBUG, `📊 Chunk analysis:`, analysis);
 
     // Step 2: Get chunks that need translation (contain Chinese text)
     const translatableChunks = this.textChunker.getTranslatableChunks(chunks);
@@ -4302,8 +3622,6 @@ export class TranslationEngine {
     const enableParallel = options.parallel !== false && translatableChunks.length > 1;
 
     if (enableParallel) {
-      this.log(DEBUG_LEVELS.DEBUG, `🔄 Processing ${translatableChunks.length} chunks in parallel`);
-
       // Chunks write directly to the shared this.semanticArrayBuilder with a correct global
       // chunkOffset computed upfront — same strategy processChunksInParallel already uses in
       // production (see its identical chunkTokenCounts/chunkTokenOffsets computation below).
@@ -4346,7 +3664,7 @@ export class TranslationEngine {
 
       // CODE REVIEW FIX (2026-02-01): Check abort signal before parallel processing
       if (options.abortSignal?.aborted) {
-        this.log(DEBUG_LEVELS.WARN, '🛑 Translation cancelled by user (abort signal)');
+        logger.warn('🛑 Translation cancelled by user (abort signal)');
         throw new Error('Translation cancelled by user');
       }
 
@@ -4357,11 +3675,6 @@ export class TranslationEngine {
         chunk.translated = translatedContents[index];
       });
     } else {
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🔄 Processing ${translatableChunks.length} chunks sequentially with time-slicing`
-      );
-
       // CRITICAL: Chunks must be processed sequentially to maintain semantic array position order
       // Each chunk uses chunkOffset to calculate globalTokenIndex for semantic array tracking.
       // Parallel processing would corrupt position order, breaking clickable highlighting.
@@ -4425,12 +3738,6 @@ export class TranslationEngine {
     // Step 8: Store prebuilt segments for instant clickable highlighting
     this.prebuiltSegments = reconstructed.segments;
 
-    const translationTime = performance.now() - startTime;
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `✅ Chunked translation completed: ${chunks.length} chunks in ${translationTime.toFixed(1)}ms`
-    );
-
     return result;
   }
 
@@ -4486,7 +3793,6 @@ export class TranslationEngine {
    */
   async translateDirectly(text, options = {}) {
     // This is the original translate method logic, renamed for chunk-based architecture
-    const startTime = performance.now();
     const _translationId = this.stats.totalTranslations++;
 
     try {
@@ -4513,8 +3819,7 @@ export class TranslationEngine {
       // Only build if not already provided and text is large enough
       await buildLookupIndexOrFallback(text, options, {
         dictionaryManager: this.dictionaryManager,
-        logDebug: (msg) => this.log(DEBUG_LEVELS.DEBUG, msg),
-        logWarn: (msg) => this.log(DEBUG_LEVELS.WARN, msg),
+        logWarn: (msg) => logger.warn(msg),
       });
 
       // Phase 1: Tokenization with memory-based processing limits
@@ -4526,8 +3831,7 @@ export class TranslationEngine {
 
       if (tokens.length > maxTokensAllowed || estimatedTokenCount > maxTokensAllowed) {
         // Graceful degradation: split into manageable chunks
-        this.log(
-          DEBUG_LEVELS.WARN,
+        logger.warn(
           `⚠️ Large input detected: ${tokens.length} tokens (limit: ${maxTokensAllowed}). Applying chunking strategy.`
         );
 
@@ -4558,15 +3862,9 @@ export class TranslationEngine {
       // Phase 7: Post-processing and cleanup (simplified for direct mode)
       const result = this.postProcess(tokens, options);
 
-      const translationTime = performance.now() - startTime;
-      this.log(
-        DEBUG_LEVELS.VERBOSE,
-        `✅ Direct translation completed: ${tokens.length} tokens in ${translationTime.toFixed(1)}ms`
-      );
-
       return result;
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Translation error:`, error);
+      logger.error(`🚨 Translation error:`, error);
       throw error;
     }
   }
@@ -4689,9 +3987,6 @@ export class TranslationEngine {
    * Token state is shared - concurrent execution would corrupt results.
    */
   async translateSinglePass(tokens, options = {}) {
-    const startTime = performance.now();
-    this.log(DEBUG_LEVELS.VERBOSE, `🚀 Single-pass translation: ${tokens.length} tokens`);
-
     // CODE REVIEW FIX 2026-02-01 (IMPORTANT-2): Early document size validation
     // Validate token count before processing to prevent integer overflow in position calculations
     // Position mappings multiply segment indices by character positions, which can exceed
@@ -4827,13 +4122,12 @@ export class TranslationEngine {
       const tokensLengthBeforePhase1 = tokens.length;
       // Snapshot token state for priority validation — gated to debug builds
       // to avoid 5 × O(n) array allocations on every translation in production
-      const tokensBeforePhase1 =
-        this.debugLevel >= DEBUG_LEVELS.DEBUG
-          ? tokens.map((t) => ({
-              translated: t.translated,
-              translationSource: t.translationSource,
-            }))
-          : null;
+      const tokensBeforePhase1 = this.validatePhaseContracts
+        ? tokens.map((t) => ({
+            translated: t.translated,
+            translationSource: t.translationSource,
+          }))
+        : null;
       // CODE REVIEW FIX: Validate phase order and add timeout protection
       try {
         validatePhaseOrder('patterns');
@@ -4847,7 +4141,7 @@ export class TranslationEngine {
         completedPhases.add('patterns');
 
         // Post-phase validation — O(n) checks gated to debug builds
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+        if (this.validatePhaseContracts) {
           validateContract('patterns');
           validatePhasePriority('patterns', 1, tokensBeforePhase1);
         }
@@ -4878,13 +4172,12 @@ export class TranslationEngine {
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase2 = tokens.length;
-      const tokensBeforePhase2 =
-        this.debugLevel >= DEBUG_LEVELS.DEBUG
-          ? tokens.map((t) => ({
-              translated: t.translated,
-              translationSource: t.translationSource,
-            }))
-          : null;
+      const tokensBeforePhase2 = this.validatePhaseContracts
+        ? tokens.map((t) => ({
+            translated: t.translated,
+            translationSource: t.translationSource,
+          }))
+        : null;
       try {
         validatePhaseOrder('properNouns');
         await withTimeout(
@@ -4900,7 +4193,7 @@ export class TranslationEngine {
         );
         completedPhases.add('properNouns');
 
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+        if (this.validatePhaseContracts) {
           validateContract('properNouns');
           validatePhasePriority('properNouns', 2, tokensBeforePhase2);
         }
@@ -4931,13 +4224,12 @@ export class TranslationEngine {
       // This prevents phrase-level matches from breaking up number tokens
       // CODE REVIEW FIX 2026-01-27: Add token count snapshot for corruption detection
       const tokensLengthBeforePhase3 = tokens.length;
-      const tokensBeforePhase3 =
-        this.debugLevel >= DEBUG_LEVELS.DEBUG
-          ? tokens.map((t) => ({
-              translated: t.translated,
-              translationSource: t.translationSource,
-            }))
-          : null;
+      const tokensBeforePhase3 = this.validatePhaseContracts
+        ? tokens.map((t) => ({
+            translated: t.translated,
+            translationSource: t.translationSource,
+          }))
+        : null;
       try {
         validatePhaseOrder('numbers');
         // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
@@ -4950,7 +4242,6 @@ export class TranslationEngine {
         await withTimeout(
           this.phaseProfiler.profile('numbers', async () => {
             this.numberProcessor.processTokens(tokens, {
-              debugLevel: this.debugLevel,
               semanticArrayBuilder: this.semanticArrayBuilder,
               ...options,
             });
@@ -4962,7 +4253,7 @@ export class TranslationEngine {
           'numbers'
         );
 
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+        if (this.validatePhaseContracts) {
           validateContract('numbers');
           validatePhasePriority('numbers', 3, tokensBeforePhase3);
         }
@@ -4993,13 +4284,12 @@ export class TranslationEngine {
       // Phase 4: Apply phrases with global longest-match optimization
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase4 = tokens.length;
-      const tokensBeforePhase4 =
-        this.debugLevel >= DEBUG_LEVELS.DEBUG
-          ? tokens.map((t) => ({
-              translated: t.translated,
-              translationSource: t.translationSource,
-            }))
-          : null;
+      const tokensBeforePhase4 = this.validatePhaseContracts
+        ? tokens.map((t) => ({
+            translated: t.translated,
+            translationSource: t.translationSource,
+          }))
+        : null;
       try {
         validatePhaseOrder('phrases');
         // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
@@ -5018,7 +4308,7 @@ export class TranslationEngine {
         );
         completedPhases.add('phrases');
 
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+        if (this.validatePhaseContracts) {
           validateContract('phrases');
           validatePhasePriority('phrases', 4, tokensBeforePhase4); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
@@ -5068,13 +4358,12 @@ export class TranslationEngine {
       // Phase 5: Process remaining tokens for character-level translation (fallback)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase5 = tokens.length;
-      const tokensBeforePhase5 =
-        this.debugLevel >= DEBUG_LEVELS.DEBUG
-          ? tokens.map((t) => ({
-              translated: t.translated,
-              translationSource: t.translationSource,
-            }))
-          : null;
+      const tokensBeforePhase5 = this.validatePhaseContracts
+        ? tokens.map((t) => ({
+            translated: t.translated,
+            translationSource: t.translationSource,
+          }))
+        : null;
       try {
         validatePhaseOrder('characters');
         // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
@@ -5093,7 +4382,7 @@ export class TranslationEngine {
         );
         completedPhases.add('characters');
 
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+        if (this.validatePhaseContracts) {
           validateContract('characters');
           validatePhasePriority('characters', 5, tokensBeforePhase5); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
@@ -5142,26 +4431,18 @@ export class TranslationEngine {
           timestamp: Date.now(),
         };
 
-        this.log(
-          DEBUG_LEVELS.WARN,
+        logger.warn(
           `⚠️ Translation completed with ${failedPhases.length} failed phase(s): ${failedPhases.join(', ')}`
         );
 
         // Log failure reasons for each failed phase
         for (const [phase, reason] of phaseFailures) {
-          this.log(DEBUG_LEVELS.WARN, `  - ${phase}: ${reason}`);
+          logger.warn(`  - ${phase}: ${reason}`);
         }
-
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `✅ Completed phases: ${Array.from(completedPhases).join(', ')}`
-        );
 
         // Store on engine instance for diagnostics API
         this.lastPhaseFailures = failureReport;
       } else {
-        this.log(DEBUG_LEVELS.DEBUG, '✅ All 5 phases completed successfully');
-
         // Clear last failure report on successful run
         this.lastPhaseFailures = null;
       }
@@ -5194,12 +4475,6 @@ export class TranslationEngine {
         }
       }
     });
-
-    const translationTime = performance.now() - startTime;
-    this.log(
-      DEBUG_LEVELS.VERBOSE,
-      `✅ Single-pass completed: ${tokens.length} tokens in ${translationTime.toFixed(1)}ms`
-    );
   }
 
   /**
@@ -5330,7 +4605,7 @@ export class TranslationEngine {
       };
     } catch (error) {
       // PHASE 4: Progressive error handling - graceful degradation
-      this.log(DEBUG_LEVELS.ERROR, `❌ Progressive batch processing failed: ${error.message}`);
+      logger.error(`❌ Progressive batch processing failed: ${error.message}`);
       logger.error('Progressive positioning error:', error);
 
       // Fallback: Return basic batch info
@@ -5371,11 +4646,6 @@ export class TranslationEngine {
 
           // Check if this next token is "两" translated as "lưỡng"
           if (nextToken.value === '两' && nextToken.translated === 'lưỡng') {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🔧 Converting 两 unit: "${currentToken.translated} lưỡng" -> "${currentToken.translated} lượng"`
-            );
-
             // Update the translation from "lưỡng" to "lượng" for tael unit
             nextToken.translated = 'lượng';
             nextToken.translationSource = 'number_plus_liang_fix';
@@ -5426,47 +4696,18 @@ export class TranslationEngine {
    * @param {string} dictionaryName - Dictionary that was modified
    */
   async invalidateDictionaryCaches(dictionaryName) {
-    const startTime = performance.now();
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `🧹 Invalidating dictionary-specific caches for: ${dictionaryName}`
-    );
-
     try {
       // 1. Dictionary Manager Cache (specific dictionary only)
       if (this.dictionaryManager) {
         this.dictionaryManager.invalidateCache(dictionaryName);
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `✅ Dictionary manager cache invalidated for ${dictionaryName}`
-        );
       }
 
       // 2. Proper Noun Translation Cache (all proper noun translations)
       if (this.properNounTranslations) {
         this.properNounTranslations.clear();
-        this.log(DEBUG_LEVELS.DEBUG, '✅ Proper noun translation cache cleared');
       }
-
-      // 3. Re-sync specific dictionary to WASM
-      if (this.dictionaryManager) {
-        try {
-          // The comment above this block always said "specific dictionary"; it now is one.
-          await this.dictionaryManager.syncDictionariesToWasm(dictionaryName);
-          this.log(DEBUG_LEVELS.DEBUG, `✅ WASM dictionary re-synced for ${dictionaryName}`);
-        } catch (wasmError) {
-          // Non-critical: WASM sync failure falls back to JavaScript dictionaries
-          this.log(
-            DEBUG_LEVELS.WARN,
-            `⚠️ WASM re-sync failed (fallback to JavaScript): ${wasmError.message}`
-          );
-        }
-      }
-
-      const duration = performance.now() - startTime;
-      this.log(DEBUG_LEVELS.INFO, `✅ Dictionary caches invalidated in ${duration.toFixed(2)}ms`);
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '❌ Error invalidating dictionary caches:', error);
+      logger.error('❌ Error invalidating dictionary caches:', error);
       throw error;
     }
   }

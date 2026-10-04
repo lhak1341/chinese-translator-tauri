@@ -1,6 +1,6 @@
 # ADR-017: Skip WasmMemoryPool Analytics Separation
 
-**Status:** Decided  
+**Status:** Superseded (2026-10-04) — the pool was deleted  
 **Date:** 2026-06-05
 
 ## Context

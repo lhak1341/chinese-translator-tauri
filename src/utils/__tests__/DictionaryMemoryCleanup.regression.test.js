@@ -14,7 +14,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 import { DictionaryTrie } from '../dictionary/DictionaryTrie.js';
 import { TranslationCache } from '../dictionary/TranslationCache.js';
-import { WasmDictionaryManager } from '../wasm/WasmDictionaryManager.js';
 
 describe('Dictionary Memory Cleanup Regression Tests', () => {
   describe('CRITICAL-1: Dictionary dispose() on reload', () => {
@@ -234,137 +233,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     });
   });
 
-  describe('HIGH-2: WASM cleanup', () => {
-    it('should call clearAllDictionaries before cleanup', () => {
-      const manager = new WasmDictionaryManager();
-
-      // Mock initialized engine with spy
-      const clearSpy = vi.fn();
-      manager.initialized = true;
-      manager.engine = {
-        clear_all_dictionaries: clearSpy,
-        get_dictionary_count: vi.fn(() => 0),
-      };
-
-      manager.cleanup();
-
-      // Check spy (engine is now null, but spy was called before nullification)
-      expect(clearSpy).toHaveBeenCalled();
-      expect(manager.engine).toBeNull();
-    });
-
-    it('should handle missing clearAllDictionaries gracefully', () => {
-      const manager = new WasmDictionaryManager();
-
-      manager.initialized = true;
-      manager.engine = {}; // No clear_all_dictionaries method
-
-      // Should not throw
-      expect(() => manager.cleanup()).not.toThrow();
-    });
-
-    it('should handle cleanup errors gracefully', () => {
-      const manager = new WasmDictionaryManager();
-
-      manager.initialized = true;
-      manager.engine = {
-        clear_all_dictionaries: vi.fn(() => {
-          throw new Error('WASM cleanup failed');
-        }),
-      };
-
-      // Should catch error and continue cleanup
-      expect(() => manager.cleanup()).not.toThrow();
-      expect(manager.initialized).toBe(false);
-    });
-
-    it('should nullify engine after cleanup', () => {
-      const manager = new WasmDictionaryManager();
-
-      manager.initialized = true;
-      manager.engine = {
-        clear_all_dictionaries: vi.fn(),
-      };
-
-      manager.cleanup();
-
-      expect(manager.engine).toBeNull();
-      expect(manager.initialized).toBe(false);
-    });
-
-    // `clear_all_dictionaries()` releases the entries; the struct itself is only released
-    // by destroying it. Dropping the JS reference alone leaves the Rust value in WASM
-    // linear memory until a non-deterministic GC, and linear memory never shrinks — so a
-    // session that reloads repeatedly accumulates one dictionary engine per reload.
-    // `__destroy_into_raw()` rather than `.free()` is the house rule in
-    // src/utils/wasm/CLAUDE.md: it is JS-only, so it stays safe after a `panic = "abort"`.
-    it('destroys the owned DictionaryEngine, not just its dictionaries', () => {
-      const manager = new WasmDictionaryManager();
-      const destroySpy = vi.fn();
-
-      manager.initialized = true;
-      manager.engine = {
-        clear_all_dictionaries: vi.fn(),
-        __destroy_into_raw: destroySpy,
-      };
-
-      manager.cleanup();
-
-      expect(destroySpy).toHaveBeenCalledTimes(1);
-      expect(manager.engine).toBeNull();
-    });
-
-    it('still nullifies the engine when destroying it throws', () => {
-      const manager = new WasmDictionaryManager();
-
-      manager.initialized = true;
-      manager.engine = {
-        clear_all_dictionaries: vi.fn(),
-        __destroy_into_raw: vi.fn(() => {
-          throw new Error('already destroyed');
-        }),
-      };
-
-      expect(() => manager.cleanup()).not.toThrow();
-      expect(manager.engine).toBeNull();
-      expect(manager.initialized).toBe(false);
-    });
-
-    // `memoryPool` is the module singleton `wasmMemoryPoolManager`, shared with every
-    // other WASM wrapper, and its `cleanup()` clears the 30s optimization interval and
-    // drops the pressure detector with nothing to recreate either. This method runs once
-    // per dictionary reload, so tearing the pool down here would silently disable buffer
-    // pooling process-wide from the first reload onward.
-    it('leaves the shared memory pool alone', () => {
-      const poolCleanup = vi.fn();
-      const manager = new WasmDictionaryManager({
-        cleanup: poolCleanup,
-        getStats: () => ({ totalMemoryUsage: 0 }),
-      });
-
-      manager.initialized = true;
-      manager.engine = { clear_all_dictionaries: vi.fn() };
-
-      manager.cleanup();
-
-      expect(poolCleanup).not.toHaveBeenCalled();
-    });
-
-    // A resolved promise left behind would let a later `initialize()` short-circuit and
-    // hand the caller back this retired instance.
-    it('clears the memoized initialization promise', async () => {
-      const manager = new WasmDictionaryManager();
-
-      manager.initialized = true;
-      manager.initializationPromise = Promise.resolve(true);
-      manager.engine = { clear_all_dictionaries: vi.fn() };
-
-      manager.cleanup();
-
-      expect(manager.initializationPromise).toBeNull();
-    });
-  });
-
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {
     it('a second loadDictionaries disposes the tries it replaces', async () => {
       const manager = new DictionaryManager();
@@ -382,30 +250,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       });
 
       expect(disposeSpy).toHaveBeenCalled();
-    });
-
-    it('should report WASM memory usage from the real wasmLookup seam', async () => {
-      const mockWasmAdapter = {
-        initialize: vi.fn(async () => true),
-        isReady: vi.fn(() => true),
-        loadDictionary: vi.fn(async () => true),
-        findMatches: vi.fn(() => []),
-        hasDictionary: vi.fn(() => false),
-        clearAll: vi.fn(),
-        getTimingStats: vi.fn(() => ({ memoryUsage: 42 })),
-        cleanup: vi.fn(),
-      };
-
-      const manager = new DictionaryManager({ wasmAdapter: mockWasmAdapter });
-      await manager.wasmLookup.initialize({});
-
-      expect(manager.getMemoryUsage().wasmMemory).toBe(42);
-    });
-
-    it('should report null WASM memory usage when no WASM adapter is configured', () => {
-      const manager = new DictionaryManager();
-
-      expect(manager.getMemoryUsage().wasmMemory).toBeNull();
     });
   });
 

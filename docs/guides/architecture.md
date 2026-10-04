@@ -25,7 +25,7 @@ Know which path runs before adding a debug log.
 
 **4-layer state synchronization** (React → JS → WASM → Rust) can diverge if WASM sync fails silently.
 
-**Parity validation** (replaces the January 2025 runtime check, ADR-058): the runtime post-reload check never ran and is deleted. WASM/JS lookup parity is a test: `wasm-core/tests/trie_lookup_parity_test.rs` and `src/utils/__tests__/DictionaryLookup.parity.test.js` read one fixture, `wasm-core/tests/fixtures/trie_lookup_parity.json`. Add a case there when the two lookups can disagree.
+**Parity validation** (replaces the January 2025 runtime check, ADR-058): the runtime post-reload check never ran and is deleted. The WASM dictionary lookup tier it compared against was itself deleted 2026-10-04 (ADR-073), along with the Rust trie; `src/utils/__tests__/DictionaryManager.exactLookup.test.js` keeps the exact-lookup cases for the JS path.
 
 ---
 

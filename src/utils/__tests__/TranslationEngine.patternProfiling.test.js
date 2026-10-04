@@ -21,7 +21,6 @@ import { logger } from '../logger.js';
 
 function makeEngine() {
   return new TranslationEngine({
-    debugLevel: 0,
     enableMemoryMonitoring: false,
     enablePerformanceMonitoring: false,
   });

@@ -27,7 +27,7 @@ Aho-corasick's real single-threaded per-step algorithmic advantage (confirmed, 2
 
 Do not swap `lookup_index_engine`'s trie-based lookup index for aho-corasick. The prototype (`AhoIndex` struct, `TrieNode::collect_entries()` helper, 3 parity/unit tests) was built, verified correct, benchmarked, and then fully removed from the codebase per the user's request — nothing from this investigation is wired into any live path.
 
-What remains: `src-tauri/benches/trie_matching.rs` and `wasm-core/benches/trie_matching.rs`, comparing the raw trie-walk vs. aho-corasick-single-pass cost (the isolated, non-full-pipeline number) at several dictionary sizes, for future reference.
+What remained (the `wasm-core` bench and `trie.rs` itself were deleted 2026-10-04, ADR-073): `src-tauri/benches/trie_matching.rs` and `wasm-core/benches/trie_matching.rs`, comparing the raw trie-walk vs. aho-corasick-single-pass cost (the isolated, non-full-pipeline number) at several dictionary sizes, for future reference.
 
 ## Reasoning
 

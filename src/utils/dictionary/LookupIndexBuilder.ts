@@ -18,7 +18,6 @@ interface LookupIndexDictionaryManager {
 
 interface LookupIndexBuilderDeps {
   dictionaryManager: LookupIndexDictionaryManager;
-  logDebug: (message: string) => void;
   logWarn: (message: string) => void;
 }
 
@@ -75,7 +74,7 @@ function toRustDictionaries(
 export async function buildLookupIndexOrFallback(
   text: string,
   options: LookupIndexOptions,
-  { dictionaryManager, logDebug, logWarn }: LookupIndexBuilderDeps
+  { dictionaryManager, logWarn }: LookupIndexBuilderDeps
 ): Promise<void> {
   if (
     options.lookupIndex ||
@@ -87,7 +86,6 @@ export async function buildLookupIndexOrFallback(
   }
 
   try {
-    const indexStartTime = performance.now();
     const dictionaryOrder = dictionaryManager.getDefaultSearchOrder() || [];
     const dictionaries = toRustDictionaries(dictionaryManager, dictionaryOrder);
 
@@ -109,11 +107,6 @@ export async function buildLookupIndexOrFallback(
       Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
     );
     options.useSharedLookupIndex = true;
-
-    const indexTime = performance.now() - indexStartTime;
-    logDebug(
-      `🦀 Rust lookup index built: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
-    );
   } catch (error) {
     // No index: phases fall back to traditional per-position lookup.
     recordFailure(error);

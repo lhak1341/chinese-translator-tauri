@@ -177,8 +177,6 @@ export interface PhaseAResult extends PatternMatchResult {
  * Pattern processing options
  */
 export interface PatternProcessingOptions {
-  /** Debug level for logging */
-  debugLevel?: number;
   /** Prioritized patterns to apply first */
   prioritizedPatterns?: PatternMatchResult[];
   /** Active proper noun dictionaries */

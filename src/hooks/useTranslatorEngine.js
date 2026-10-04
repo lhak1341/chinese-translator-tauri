@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
-import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
+import { createTranslationEngine } from '../utils/TranslationEngine.js';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 
@@ -73,7 +73,7 @@ export function useTranslatorEngine() {
    * the replacement is what enforces that, not caller discipline.
    */
   const runEngineInit = useCallback(async (dictionaries, activeProperNouns, options = {}) => {
-    const { priorities = ENGINE_PRIORITIES, debugLevel = DEBUG_LEVELS.ERROR } = options;
+    const { priorities = ENGINE_PRIORITIES } = options;
     try {
       if (engineRef.current) {
         try {
@@ -86,7 +86,6 @@ export function useTranslatorEngine() {
       await engineRef.current.initialize(dictionaries, {
         priorities,
         activeProperNouns,
-        debugLevel,
       });
       setInitError(null);
       setEngineVersion((version) => version + 1);
@@ -106,7 +105,7 @@ export function useTranslatorEngine() {
   /** One queued request: the optional config reload, then the init. Never rejects. */
   const runRequest = useCallback(
     async ({ rawDictionaries, options }) => {
-      const { forceConfigReload = false, priorities = ENGINE_PRIORITIES, debugLevel } = options;
+      const { forceConfigReload = false, priorities = ENGINE_PRIORITIES } = options;
       try {
         if (forceConfigReload) {
           invalidateAppConfig();
@@ -116,7 +115,7 @@ export function useTranslatorEngine() {
         return await runEngineInit(
           rawDictionaries,
           activeProperNounsRef.current ?? ['properNouns'],
-          { priorities, debugLevel }
+          { priorities }
         );
       } catch (error) {
         // Only the config reload can land here (runEngineInit reports its own failures):
@@ -144,7 +143,6 @@ export function useTranslatorEngine() {
    * @param {Object} rawDictionaries
    * @param {Object} [options]
    * @param {boolean} [options.forceConfigReload=false] - Re-read config from disk; updates activeProperNounsFromConfig state
-   * @param {string} [options.debugLevel] - Engine debug level
    * @returns {Promise<{ok: true} | {ok: false, error: string}>}
    */
   const reinitialize = useCallback(

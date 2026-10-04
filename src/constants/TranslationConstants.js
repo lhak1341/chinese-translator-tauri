@@ -6,17 +6,6 @@
  */
 
 /**
- * Phrase Processing Configuration
- */
-export const PHRASE_PROCESSING = {
-  // Optimal batch size for concurrent phrase processing (I/O-bound operations)
-  BATCH_SIZE: 5,
-
-  // Minimum unprocessed tokens to justify parallel processing
-  PARALLEL_THRESHOLD: 10,
-};
-
-/**
  * Number Processing Configuration
  * CODE REVIEW FIX (MEDIUM-8): Document magic numbers with empirical rationale
  */

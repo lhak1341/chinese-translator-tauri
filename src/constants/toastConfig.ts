@@ -83,9 +83,6 @@ export const TOAST_IDS = {
   /** WASM number processor fallback */
   WASM_NUMBER_FALLBACK: 'wasm-number-fallback',
 
-  /** WASM dictionary manager fallback */
-  WASM_DICT_FALLBACK: 'wasm-dict-fallback',
-
   /** Rust lookup index unavailable */
   RUST_INDEX_UNAVAILABLE: 'rust-index-unavailable',
 

@@ -229,7 +229,7 @@ We maintain two independent implementations for the following reasons:
    - Position mapping precision affects both
 
 4. **Update Tests**: Add regression test for specific bug
-   - `PhaseIntegration.test.js` for translation-side issues
+   - `TranslationSourcePriority.contract.test.ts` for translation-side issues
    - `SegmentPrecomputer.test.js` for character-only issues
 
 **Common Pitfalls** (documented from real bugs):

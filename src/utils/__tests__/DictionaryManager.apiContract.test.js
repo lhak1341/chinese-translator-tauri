@@ -94,14 +94,6 @@ describe('DictionaryManager API Contract', () => {
       expect(Array.isArray(result)).toBe(true);
       expect(result).not.toBeInstanceOf(Promise);
     });
-
-    test('findAllMatchesAsync() must return a Promise', async () => {
-      const result = manager.findAllMatchesAsync('在那里', 0, ['test_dict']);
-
-      expect(result).toBeInstanceOf(Promise);
-      const resolved = await result;
-      expect(Array.isArray(resolved)).toBe(true);
-    });
   });
 
   describe('loadDictionaries() method contract', () => {
@@ -138,65 +130,6 @@ describe('DictionaryManager API Contract', () => {
     test('dispose() nullifies flatEntries alongside dictionaries', () => {
       manager.dispose();
       expect(manager.flatEntries).toBeNull();
-    });
-  });
-});
-
-describe('DictionaryManager (WASM adapter) API Contract', () => {
-  let manager;
-
-  beforeEach(async () => {
-    manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({
-      test_dict: {
-        在: 'ở',
-        那: 'đó',
-      },
-    });
-  });
-
-  describe('translate() inheritance contract', () => {
-    test('CRITICAL: Enhanced translate() must remain synchronous', () => {
-      const result = manager.translate('在', ['test_dict']);
-
-      // CRITICAL: Must NOT break synchronous contract
-      expect(result).not.toBeInstanceOf(Promise);
-
-      // Should work identically to parent
-      expect(result).toMatchObject({
-        word: '在',
-        translation: 'ở',
-      });
-    });
-
-    test('Enhanced translate() must handle WASM initialization gracefully', () => {
-      // Even during WASM init, translate() must stay synchronous
-      const result = manager.translate('那', ['test_dict']);
-
-      expect(result).not.toBeInstanceOf(Promise);
-      expect(result.translation).toBe('đó');
-    });
-
-    test('translate() must answer synchronously from JS when no WASM is ready', () => {
-      // This manager has no WASM adapter, so `translate()` takes the JS path.
-      const result = manager.translate('在', ['test_dict']);
-
-      // Should still work synchronously via JS fallback
-      expect(result).not.toBeInstanceOf(Promise);
-      expect(result.translation).toBe('ở');
-    });
-  });
-
-  describe('WASM integration contract', () => {
-    test('getWasmStatus() must return object (not Promise)', () => {
-      const status = manager.getWasmStatus();
-
-      expect(status).not.toBeInstanceOf(Promise);
-      expect(status).toMatchObject({
-        initialized: expect.any(Boolean),
-        ready: expect.any(Boolean),
-        hasAdapter: expect.any(Boolean),
-      });
     });
   });
 });
@@ -295,7 +228,7 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
     expect(setLookupSpy).toHaveBeenCalledWith('不存在', manager.getDefaultSearchOrder(), null);
   });
 
-  test('_findInDictionaries never reads or writes the cache (the JS oracle for WASM/JS parity)', async () => {
+  test('_findInDictionaries never reads or writes the cache', async () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({ chars: { 在: 'ở' } });
 

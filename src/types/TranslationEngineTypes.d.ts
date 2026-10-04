@@ -66,22 +66,6 @@ type TranslationConsumedSource =
 export type TranslationSource = TranslationLeaderSource | TranslationConsumedSource;
 
 // ============================================================================
-// Debug and Logging Configuration
-// ============================================================================
-
-/**
- * Debug levels for translation engine logging
- */
-export const DEBUG_LEVELS: {
-  ERROR: 0;
-  INFO: 1;
-  DEBUG: 2;
-  VERBOSE: 3;
-};
-
-export type DebugLevel = (typeof DEBUG_LEVELS)[keyof typeof DEBUG_LEVELS];
-
-// ============================================================================
 // Dictionary Configuration
 // ============================================================================
 
@@ -217,8 +201,6 @@ export interface TranslationEngineInitOptions {
   priorities?: DictionaryPriorities;
   /** Active proper noun dictionary names */
   activeProperNouns?: string[];
-  /** Debug logging level */
-  debugLevel?: DebugLevel;
   /** Dictionary manager configuration */
   dictionaryManager?: DictionaryManagerConfig;
   /** Memory pressure thresholds */
@@ -616,14 +598,10 @@ export interface TranslationEngine {
   getEngineStats(): EngineStats;
 
   // Configuration
-  debugLevel: DebugLevel;
   settings: PatternProcessingSettings;
   activeProperNouns: string[];
 
   // Internal State
   translationSegments: TranslationSegment[];
   semanticArrayBuilder: any;
-
-  // Logging
-  log(level: DebugLevel, ...args: any[]): void;
 }

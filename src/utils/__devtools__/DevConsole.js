@@ -5,7 +5,6 @@ export function installDevConsole(engine) {
   window.translationEngine = engine;
 
   window.performanceDashboard = {
-    // getWasmSyncMetrics: see ADR-020 for restoration shape (DictionaryWasmLookup.getSyncMetrics)
     getStats: () => globalPerformanceMonitor.getMetrics(),
     help: () =>
       logger.log(`

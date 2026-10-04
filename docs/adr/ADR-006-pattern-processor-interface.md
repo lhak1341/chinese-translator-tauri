@@ -56,7 +56,7 @@ the `@typedef PatternProcessor` contract defined in `TranslationEngine.js:276`.
 // endIndex:   number       — last consumed token index
 // originalText: string     — concatenated source values
 // translation: string      — output translation
-// translationSource: TranslationSource — 'pattern' (JS) | 'hierarchical_pattern' (WASM)
+// translationSource: TranslationSource — 'pattern' (JS) | 'hierarchical_patterns' (WASM)
 // semanticType: string|null
 // pattern: Object          — exposes .originalPattern for debug
 // type: 'simple'|'composite'|'hierarchical'
@@ -68,7 +68,7 @@ the `@typedef PatternProcessor` contract defined in `TranslationEngine.js:276`.
 ```javascript
 `${result.translationSource}_consumed`;
 // JS adapter leader: 'pattern' → consumed: 'pattern_consumed'
-// WASM adapter leader: 'hierarchical_pattern' → consumed: 'hierarchical_pattern_consumed'
+// WASM adapter leader: 'hierarchical_patterns' → consumed: 'hierarchical_patterns_consumed'
 ```
 
 ## Critical Invariants

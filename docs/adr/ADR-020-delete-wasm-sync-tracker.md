@@ -1,6 +1,6 @@
 # ADR-020: Delete WasmDictionaryManager Sync Tracking Instead of Extracting
 
-**Status:** Decided  
+**Status:** Superseded (2026-10-04) — the WASM dictionary tier was deleted (ADR-073)  
 **Date:** 2026-06-14
 
 ## Context

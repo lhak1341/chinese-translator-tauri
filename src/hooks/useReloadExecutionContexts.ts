@@ -49,7 +49,7 @@ export interface ForceReloadContext {
   clearHighlighting: () => void;
   reinitializeEngine: (
     dicts: Record<string, unknown>,
-    opts: { forceConfigReload: boolean; debugLevel: string }
+    opts: { forceConfigReload: boolean }
   ) => Promise<EngineInitOutcome>;
   retranslate: (inputText: string) => Promise<void>;
   saveScrollPositions: () => unknown;

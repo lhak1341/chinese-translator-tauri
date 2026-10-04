@@ -5,20 +5,14 @@
 import { logger } from '../logger.js';
 import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 
-/** The WASM tier is only tried for a lookup across at least this many dictionaries. */
-const WASM_MIN_DICTIONARIES = 2;
-
 /**
- * Owns the match-lookup dispatch: thread-safe trie walk, sequential scan, and the
- * WASM-first choice for multi-dictionary lookups. DictionaryManager exposes exactly two
- * public methods (findAllMatches, findAllMatchesAsync) that delegate here — this class
- * owns everything behind them.
+ * Owns the match lookup: thread-safe trie walk and the sequential scan across a search order.
+ * DictionaryManager's `findAllMatches` delegates here — this class owns everything behind it.
  */
 export class DictionaryMatchLookup {
-  constructor({ dictionaries, metadata, wasmLookup, getDefaultSearchOrder, isReady }) {
+  constructor({ dictionaries, metadata, getDefaultSearchOrder, isReady }) {
     this._dictionaries = dictionaries;
     this._metadata = metadata;
-    this._wasmLookup = wasmLookup;
     this._getDefaultSearchOrder = getDefaultSearchOrder;
     this._isReady = isReady;
   }
@@ -63,7 +57,7 @@ export class DictionaryMatchLookup {
    * @param {DictionarySearchOrder|null} dictionaryOrder - Dictionary search order
    * @returns {DictionaryMatchResult[]} All matches sorted by priority and length
    */
-  findAllMatchesSequential(text, startPos = 0, dictionaryOrder = null) {
+  findAllMatches(text, startPos = 0, dictionaryOrder = null) {
     if (!this._isReady()) return [];
 
     const searchOrder = dictionaryOrder || this._getDefaultSearchOrder();
@@ -89,42 +83,5 @@ export class DictionaryMatchLookup {
     }
 
     return allMatches.sort(compareMatchesBySpecificityThenPriority);
-  }
-
-  /**
-   * Always-sequential lookup — the sync entry point. Required by callers
-   * (e.g. PatternVariableCache's per-position hot loop) that cannot await.
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {DictionarySearchOrder|null} dictionaryOrder - Dictionary search order
-   * @returns {DictionaryMatchResult[]} All matches sorted by priority and length
-   */
-  findAllMatches(text, startPos = 0, dictionaryOrder = null) {
-    return this.findAllMatchesSequential(text, startPos, dictionaryOrder);
-  }
-
-  /**
-   * Async lookup. A lookup across WASM_MIN_DICTIONARIES or more dictionaries tries the WASM
-   * tier first when it is ready; a WASM failure, or any other lookup, takes the sequential
-   * JS scan. Callers never need to know WASM is involved.
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {DictionarySearchOrder|null} dictionaryOrder - Dictionary search order
-   * @returns {Promise<DictionaryMatchResult[]>} All matches sorted by priority and length
-   */
-  async findAllMatchesAsync(text, startPos = 0, dictionaryOrder = null) {
-    if (!this._isReady()) return [];
-
-    const searchOrder = dictionaryOrder || this._getDefaultSearchOrder();
-
-    if (searchOrder.length >= WASM_MIN_DICTIONARIES && this._wasmLookup?.isReady()) {
-      try {
-        return await this._wasmLookup.findAllMatches(text, startPos, searchOrder);
-      } catch (error) {
-        logger.warn('⚠️ WASM lookup failed, using JavaScript:', error);
-      }
-    }
-
-    return this.findAllMatchesSequential(text, startPos, searchOrder);
   }
 }

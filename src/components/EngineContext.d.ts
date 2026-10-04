@@ -26,7 +26,6 @@ export interface EngineContextValue {
     options?: {
       forceConfigReload?: boolean;
       priorities?: Record<string, number>;
-      debugLevel?: number;
     }
   ) => Promise<EngineInitOutcome>;
   /** Frees the idle engine early; does nothing while an init runs (that init's engine is half-built). */

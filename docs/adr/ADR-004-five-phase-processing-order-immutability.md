@@ -418,7 +418,7 @@ async translateSinglePass(tokens) {
 
 **Validation**:
 
-- Phase integration tests: `PhaseIntegration.test.js` (16 tests)
+- Source-string and priority contract: `TranslationSourcePriority.contract.test.ts`, `TranslationEngine.sourceStrings.test.js` (`PhaseIntegration.test.js` was deleted 2026-10-04: it asserted on inline copies of the logic)
 - Token consumption tests: Verify consumed tokens skipped
 - Priority tests: Verify earlier phases override later phases
 
@@ -438,7 +438,7 @@ async translateSinglePass(tokens) {
 
 - Implementation: `src/utils/TranslationEngine.js` — `translateSinglePass()` (~7445)
 - Documentation: CLAUDE.md "5-Phase Translation Pipeline (IMMUTABLE)" section
-- Tests: `src/utils/__tests__/PhaseIntegration.test.js` (validates order)
+- Tests: `src/utils/__tests__/TranslationSourcePriority.contract.test.ts` (priority per source string); `TranslationEngine.pipeline.test.js` ('phase order') asserts the run order (a spy on `phaseProfiler.profile`) and that proper noun beats number beats phrase beats character over a shared span. Phase 1 (patterns) does nothing in jsdom unless the test hands the lifecycle the real binary: `TranslationEngine.phase1.test.js` does that (three `vi.mock`s, its header explains them) and asserts a pattern beats a proper noun and a phrase over the same span. A pattern's variable binds only when it is a proper noun or a phrase flagged `allowAsPatternVariable`. The stale `TranslationEngine.integration.test.js` (22 tests, skipped since 2026-07-30, never WASM-bound) was deleted 2026-10-04
 - Failed Attempts: `docs/archive/refactoring-2026/` (phase extraction attempts)
 - Token Consumption: `src/utils/TokenHelpers.ts` (getSemanticTokens, token state management)
 

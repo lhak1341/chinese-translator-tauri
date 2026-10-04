@@ -13,7 +13,6 @@ import { BookBindingProvider, useBookBinding } from '../BookBindingContext';
 import { installFakeConfigDisk } from '../../test/fakeConfigDisk';
 
 // The engine module is 300+ KB and only its debug-level enum is needed here.
-vi.mock('../../utils/TranslationEngine.js', () => ({ DEBUG_LEVELS: { ERROR: 0 } }));
 
 const { setBookBinding } = vi.hoisted(() => ({
   setBookBinding: vi.fn().mockResolvedValue(undefined),
@@ -163,7 +162,6 @@ describe('the engine the store rebuilds', () => {
     // The Dictionary Store's map, read when the rebuild runs.
     expect(engine.reinitializeEngine).toHaveBeenCalledWith(dictionaries, {
       forceConfigReload: true,
-      debugLevel: 0,
     });
   });
 });

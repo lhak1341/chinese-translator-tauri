@@ -73,7 +73,7 @@ Check what a non-ASCII character-class range matches against a real fixture befo
 
 **`||` and `??` are not interchangeable wherever a legitimate falsy value can reach the operator** — this bug class has now produced three distinct variants here, so treat any swap as a change in behavior rather than a style fix. The two directions fail differently:
 
-- **`||` where `0` is meaningful** — a caller-supplied numeric limit of `0` gets silently replaced by the default. `WasmMemoryPoolManager`'s `initialPoolSize`/`shrinkThreshold` and `VocabularyWarmup`'s `maxCharacters`/`maxPhrases` both had this; grep for `|| 50` / `|| 30` style defaults before assuming `0` is impossible.
+- **`||` where `0` is meaningful** — a caller-supplied numeric limit of `0` gets silently replaced by the default. `VocabularyWarmup`'s `maxCharacters`/`maxPhrases` had this (and the deleted `WasmMemoryPoolManager`'s `initialPoolSize`/`shrinkThreshold`); grep for `|| 50` / `|| 30` style defaults before assuming `0` is impossible.
 - **`??` applied to a `cond && value` expression** — when `cond` fails, `&&` returns the literal falsy left-hand value (e.g. `false`), not `undefined`, so `??` treats it as non-nullish and stops, skipping the fallback `||` would have reached. Rewrite to `cond ? value : undefined` first, then swap. Found in `useDictionaryEntryForm.ts` (2026-08-12).
 
 The general test before either swap: enumerate which falsy values can actually arrive at that operator, and check whether the two behave the same on each.
@@ -212,7 +212,7 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 **`logger.warn`/`logger.error` always reach `console`** regardless of `NODE_ENV`, while `logger.log`/`.info`/`.debug`/`.group` are dev-only no-ops in the test env. Mock the logger module in any test exercising a warning or error path, or console output gets noisy.
 
-**Module-level state survives between tests in one file** — a singleton-exported class (`parallelConfig`: `vi.resetModules()` and re-import it per test, as `ParallelConfig.test.js` does; or construct a fresh `new ClassName()` when the class is exported), or a cache. Every App File (`config`, `appearance`, `transform-rules`, `books` — `src/utils/appFile.ts`) caches its first load, so a test that stubs its IPC must call the file's own invalidate (`invalidateAppConfig`, `invalidateAppearanceConfig`, `invalidateTransformRules`, `invalidateBookRecords`) in `beforeEach`, or it silently tests the first seed. Stubbing at the IPC with that invalidate runs the real cache and lock under the test, and survives a change to the backend's own exports that a module-shaped `vi.mock` factory would freeze (see the contract-change bullet below; `useTransformRules.test.ts`'s `wireIpc`, 2026-09-29).
+**Module-level state survives between tests in one file** — a singleton-exported class (`globalPerformanceMonitor`: call its `reset()` in `beforeEach`, as `PerformanceMonitor.test.js` does, or `vi.resetModules()` and re-import it per test; or construct a fresh `new ClassName()` when the class is exported), or a cache. Every App File (`config`, `appearance`, `transform-rules`, `books` — `src/utils/appFile.ts`) caches its first load, so a test that stubs its IPC must call the file's own invalidate (`invalidateAppConfig`, `invalidateAppearanceConfig`, `invalidateTransformRules`, `invalidateBookRecords`) in `beforeEach`, or it silently tests the first seed. Stubbing at the IPC with that invalidate runs the real cache and lock under the test, and survives a change to the backend's own exports that a module-shaped `vi.mock` factory would freeze (see the contract-change bullet below; `useTransformRules.test.ts`'s `wireIpc`, 2026-09-29).
 
 **`vi.mock(path, …)` replaces a module's exports for its importers, never for its own internal calls.** A function that calls a sibling export directly (not through an import) still reaches the real one, so a test that mocks the sibling passes while the real code runs. Give the function an injectable dependency and call the real function with fakes (`scanShelf(path, { scanLibrary, reconcile })`, `ReaderTab.openBook.test.tsx`), 2026-09-29.
 
@@ -239,11 +239,9 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Any mocked WASM class instance whose wrapper calls `__destroy_into_raw()` on retire must include `__destroy_into_raw: vi.fn()`** — the retire path calls `instance?.__destroy_into_raw()` and throws "not a function" without it. Check this on every new WASM wrapper mock; it was found again on `WasmTextChunker.test.js` (2026-08-12) after already being documented for `WasmPatternProcessor`.
 
-**`WasmMemoryPoolManager` mocks must satisfy `WasmBufferAllocator`**: `{ getBuffer: vi.fn(() => new ArrayBuffer(1024)), returnBuffer: vi.fn(), getStats: vi.fn(() => ({ totalMemoryUsage: 0 })), cleanup: vi.fn() }`. Do **not** include `getCurrentMemoryUsage` — it is private and not on the interface. `WasmDictionaryManager.loadDictionary` calls `getStats()` on success, so omitting it throws into the catch block.
-
 **`WasmCascadeRegistry.fireCascadeRetire()` swallows exceptions from every registered retire callback** via a per-handler `catch (_) {}`, including a broken mock's. If a cascade-retire test does not retire the wrapper as expected, look for a swallowed exception in the retire path (a missing `__destroy_into_raw`, typically) before suspecting cascade registration.
 
-**Failure-handling tests must trigger via the real method throwing**, not by calling `handleFailure()`/`recordFailure()` directly — a direct call only proves the notification logic works, not that a real WASM error reaches it through the actual `catch`. Found in `WasmDictionaryManager.errorHandling.test.js` (2026-07-27).
+**Failure-handling tests must trigger via the real method throwing**, not by calling `handleFailure()`/`recordFailure()` directly — a direct call only proves the notification logic works, not that a real WASM error reaches it through the actual `catch`. Found in `WasmDictionaryManager.errorHandling.test.js` (2026-07-27; the file was deleted with the WASM dictionary tier, 2026-10-04).
 
 ### Engine and pipeline tests
 
@@ -251,7 +249,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Simulate Phase 1 output in jsdom** by pre-marking tokens with `{ translated: 'X', translationSource: 'pattern' }` — later phases skip pre-marked tokens, so Phase 4/5 guards can be tested without WASM.
 
-**`TranslationEngine` can be constructed bare** — `new TranslationEngine({debugLevel:0, enableMemoryMonitoring:false, enablePerformanceMonitoring:false})`, no `.initialize()` and no WASM — for testing thin delegator and guard methods. Full pipeline tests still need `.initialize()` plus WASM (see `TranslationEngine.integration.test.js`, `describe.skip`'d for that reason).
+**`TranslationEngine` can be constructed bare** — `new TranslationEngine({enableMemoryMonitoring:false, enablePerformanceMonitoring:false})`, no `.initialize()` and no WASM — for testing thin delegator and guard methods. Pipeline tests need `.initialize()` and run in jsdom without WASM for phases 2–5 (`TranslationEngine.pipeline.test.js`); phase 1 patterns do nothing without the WASM binary, which `src/test/setup.ts` mocks to throw — `TranslationEngine.phase1.test.js` shows the three `vi.mock`s that load the real one from disk.
 
 **Testing orchestration upstream of the WASM pipeline** (logic inside `translateWithChunking`/`translateWithProgressiveBatches` before `translateDirectly` is reached): bare-construct the engine, stub the one heavy call to `throw` immediately after the logic under test has run, then `await expect(...).rejects.toThrow()` and assert the side effect. See `TranslationEngine.regression.test.js`'s "parallel branch wiring" and "adaptiveChunker reset wiring" blocks (2026-08-18).
 
@@ -294,6 +292,8 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 **Verify a fixture's expected value by running it, not by computing it in your head** — regexes, heuristic calculations (density scores, complexity weights), and interval arithmetic alike; a quick `node -e` snippet first. CJK-range regexes are easy to misjudge; one "proper noun density" pattern actually fired on nearly any punctuated Chinese sentence. Half-open ranges are the arithmetic case: a `countVisibleLines` fixture was asserted at 3 because one of four rows overlapping `[100, 400)` was miscounted by hand, and a keep-band test treated a chunk starting exactly at `end` as inside the band. For modules with tunable magic-number weights, assert directional or boundary relationships (`x > y`, `below threshold N → strategy A`) rather than pinning exact float outputs, so the test survives re-tuning.
 
 **Temporary debug instrumentation in huge files (`TranslationEngine.js`, `SemanticPatternProcessor.js`) is easy to leave behind** — grep for `console.error`/`console.log`/whatever debug tag you added before considering a bug hunt finished. File size makes a stray line easy to miss on a final read-through.
+
+**A throwaway probe test reports through a file, not `console.log`** — test output doesn't reach the terminal here (observed 2026-10-04: `console.log` from a `src/utils/__tests__/Zz*.test.js` probe printed nothing), so `fs.writeFileSync` the result to the scratchpad and read it back; name probes `Zz*` and confirm `ls src/utils/__tests__ | grep -c '^Zz'` is 0 before you finish.
 
 ## `// @ts-check` Coverage
 

@@ -21,9 +21,6 @@ vi.mock('../../utils/toast', () => ({
 vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../../utils/TranslationEngine.js', () => ({
-  DEBUG_LEVELS: { ERROR: 'error' },
-}));
 
 /** The provider's `reloadAllDictionaries`: the Dictionary Store's reload of every dictionary. */
 const reloadAll = vi.fn();

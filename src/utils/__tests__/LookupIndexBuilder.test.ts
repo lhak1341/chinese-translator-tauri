@@ -41,11 +41,10 @@ function makeDictionaryManager(overrides: Record<string, unknown> = {}) {
 async function loadBuilder() {
   vi.resetModules();
   const { buildLookupIndexOrFallback } = await import('../dictionary/LookupIndexBuilder');
-  const logDebug = vi.fn();
   const logWarn = vi.fn();
   const build = (text: string, options: Options, dictionaryManager = makeDictionaryManager()) =>
-    buildLookupIndexOrFallback(text, options, { dictionaryManager, logDebug, logWarn } as never);
-  return { build, logDebug, logWarn };
+    buildLookupIndexOrFallback(text, options, { dictionaryManager, logWarn } as never);
+  return { build, logWarn };
 }
 
 beforeEach(() => {
@@ -78,7 +77,7 @@ describe('buildLookupIndexOrFallback — when it does nothing', () => {
 
 describe('buildLookupIndexOrFallback — a successful build', () => {
   it('sets lookupIndex as a number-keyed Map and marks the index shared', async () => {
-    const { build, logDebug } = await loadBuilder();
+    const { build } = await loadBuilder();
     const options: Options = {};
     mockBuildLookupIndex.mockResolvedValue({
       ...SUCCESS,
@@ -94,7 +93,6 @@ describe('buildLookupIndexOrFallback — a successful build', () => {
       characters: [{ word: '测', translation: 'test' }],
     });
     expect(options.useSharedLookupIndex).toBe(true);
-    expect(logDebug).toHaveBeenCalledTimes(1);
   });
 
   it('sends the text, the dictionaries and the order, and leaves the options to Rust', async () => {

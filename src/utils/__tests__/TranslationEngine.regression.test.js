@@ -15,7 +15,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
 import { cleanupFormatting } from '../text/FormattingPasses';
-import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
 
 // Mock TranslationEngine with minimal implementation for testing
 class MockTranslationEngine {
@@ -167,38 +166,6 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('_initialBatchSize wiring (architecture review 2026-08-15)', () => {
-    // AdaptiveBatchSizer.test.ts covers calculateNextBatchSize's own boundary
-    // behavior (shrink guard inert below MIN_BATCH_SIZE). This proves the real
-    // TranslationEngine call site never hands it a currentBatchSize below that
-    // floor in the first place — the disabled-chunking case previously hardcoded
-    // a bare 2, one below MIN_BATCH_SIZE (3).
-    let engine;
-
-    beforeEach(() => {
-      engine = new TranslationEngine({
-        debugLevel: 0,
-        enableMemoryMonitoring: false,
-        enablePerformanceMonitoring: false,
-      });
-    });
-
-    it('floors at MIN_BATCH_SIZE, not 2, when chunking is disabled', () => {
-      const result = engine._initialBatchSize({ enabled: false });
-      expect(result).toBe(MIN_BATCH_SIZE);
-    });
-
-    it('uses maxParallelChunks when chunking is enabled', () => {
-      const result = engine._initialBatchSize({ enabled: true, maxParallelChunks: MAX_BATCH_SIZE });
-      expect(result).toBe(MAX_BATCH_SIZE);
-    });
-
-    it('still floors at MIN_BATCH_SIZE when maxParallelChunks is below it', () => {
-      const result = engine._initialBatchSize({ enabled: true, maxParallelChunks: 1 });
-      expect(result).toBe(MIN_BATCH_SIZE);
-    });
-  });
-
   describe('translateWithChunking parallel branch wiring (architecture review 2026-08-18, candidate #2)', () => {
     // A prior isolated-per-chunk-builder approach here mutated the shared
     // this.semanticArrayBuilder field around await boundaries inside translateDirectly —
@@ -209,8 +176,8 @@ describe('TranslationEngine Regression Tests', () => {
     // processChunksInParallel already does. This proves the replacement lands every
     // chunk's semantic units at the correct global tokenIndex regardless of which chunk's
     // translateDirectly call actually resolves first — translateSinglePass itself needs
-    // WASM/dictionaries (see TranslationEngine.integration.test.js, skipped for that
-    // reason), so translateDirectly is stubbed here to isolate this orchestration logic.
+    // initialized dictionaries (see TranslationEngine.pipeline.test.js), so translateDirectly
+    // is stubbed here to isolate this orchestration logic.
     let engine;
     const fakeChunks = [
       { content: 'aaa', startIndex: 0 },
@@ -220,7 +187,6 @@ describe('TranslationEngine Regression Tests', () => {
 
     beforeEach(() => {
       engine = new TranslationEngine({
-        debugLevel: 0,
         enableMemoryMonitoring: false,
         enablePerformanceMonitoring: false,
       });

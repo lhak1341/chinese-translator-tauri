@@ -1,10 +1,8 @@
 // @ts-check
 /**
  * Optimized Performance Monitor
- * Reduces monitoring overhead through sampling and environment-aware logging
+ * Running timing stats for translations, with sampled detail
  */
-
-import { logger } from '../logger.js';
 
 class PerformanceMonitor {
   /**
@@ -44,53 +42,35 @@ class PerformanceMonitor {
   }
 
   /**
-   * Start timing an operation (only if sampling)
-   * @param {string} operationId
-   */
-  startTimer(operationId) {
-    if (!this.shouldSample()) return null;
-
-    return {
-      id: operationId,
-      startTime: performance.now(),
-      sampled: true,
-    };
-  }
-
-  /**
-   * End timing and record results (lightweight for non-sampled operations)
-   * @param {{ id: string, startTime: number, sampled: boolean }|null} timer
+   * Record one finished operation. The running stats always update; the detailed sample is
+   * kept only for the sampled fraction of operations.
+   * @param {number} durationMs
    * @param {string} operationName
    */
-  endTimer(timer, operationName = 'operation') {
-    if (!timer || !this.enabled) return;
+  record(durationMs, operationName = 'operation') {
+    if (!this.enabled) return;
 
-    const endTime = performance.now();
-    const duration = endTime - timer.startTime;
-
-    // Always update basic aggregated stats (very fast)
     this.aggregatedStats.totalOperations++;
-    this.aggregatedStats.totalTime += duration;
+    this.aggregatedStats.totalTime += durationMs;
     this.aggregatedStats.avgTime =
       this.aggregatedStats.totalTime / this.aggregatedStats.totalOperations;
-    this.aggregatedStats.minTime = Math.min(this.aggregatedStats.minTime, duration);
-    this.aggregatedStats.maxTime = Math.max(this.aggregatedStats.maxTime, duration);
+    this.aggregatedStats.minTime = Math.min(this.aggregatedStats.minTime, durationMs);
+    this.aggregatedStats.maxTime = Math.max(this.aggregatedStats.maxTime, durationMs);
 
-    // Only store detailed samples if this operation was sampled
-    if (timer.sampled) {
+    // Metrics read the running stats, so a recorded operation always stales the cache
+    this.cachedMetrics = null;
+
+    if (this.shouldSample()) {
       this.samples.push({
         operation: operationName,
-        duration,
-        timestamp: endTime,
+        duration: durationMs,
+        timestamp: performance.now(),
       });
 
       // Prevent memory growth - keep only recent samples
       if (this.samples.length > this.maxSamples) {
         this.samples = this.samples.slice(-this.maxSamples);
       }
-
-      // Invalidate cached metrics
-      this.cachedMetrics = null;
     }
   }
 
@@ -147,37 +127,6 @@ class PerformanceMonitor {
       lastResetTime: performance.now(),
     };
     this.cachedMetrics = null;
-  }
-
-  /**
-   * Environment-aware logging with levels
-   * @param {number} level
-   * @param {string} message
-   * @param {...any} args
-   */
-  log(level, message, ...args) {
-    // ULTRA-AGGRESSIVE PERFORMANCE OPTIMIZATION: Disable almost all logging
-    // Only show actual errors (level 0) to prevent console spam completely
-    if (level === 0) {
-      logger.error('🚨 ERROR:', message, ...args);
-    }
-    // Everything else (warnings, info, debug, verbose) is completely silenced
-  }
-
-  /**
-   * Batch log performance summary (reduced frequency)
-   */
-  logSummary() {
-    if (!this.enabled || this.aggregatedStats.totalOperations === 0) return;
-
-    // Only log summary every 10 operations or more
-    if (this.aggregatedStats.totalOperations % 10 === 0) {
-      const metrics = this.getMetrics();
-      this.log(
-        2,
-        `Performance Summary: ${metrics.totalOperations} ops, ${metrics.avgTime.toFixed(1)}ms avg, ${metrics.opsPerSecond.toFixed(1)} ops/sec`
-      );
-    }
   }
 }
 

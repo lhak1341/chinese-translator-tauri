@@ -15,7 +15,6 @@ import ConfigurationManager from '../ConfigurationManager';
 import { installRealStores, withPatterns, type StoresHarness } from './realStores';
 
 // The engine module is 300+ KB and only its debug-level enum is needed here.
-vi.mock('../../../utils/TranslationEngine.js', () => ({ DEBUG_LEVELS: { ERROR: 0 } }));
 vi.mock('../../../utils/reader/BookRecordsBackend', () => ({
   setBookBinding: vi.fn().mockResolvedValue(undefined),
   renameBoundDictionary: vi.fn().mockResolvedValue(undefined),

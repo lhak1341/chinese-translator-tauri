@@ -15,7 +15,6 @@ vi.mock('../../components/dictionary/DictionaryContext', () => ({
 
 vi.mock('../../utils/TranslationEngine.js', () => ({
   createTranslationEngine: vi.fn(),
-  DEBUG_LEVELS: { ERROR: 0 },
 }));
 
 vi.mock('../../utils/appConfig', () => ({

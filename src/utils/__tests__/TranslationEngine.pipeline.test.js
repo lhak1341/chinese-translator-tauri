@@ -1,17 +1,20 @@
 /**
  * Pipeline tests for TranslationEngine.translateSinglePass.
  *
- * Covers the three pure-JS phases testable in jsdom:
+ * Covers the four pure-JS phases testable in jsdom:
  *   Phase 2 — proper nouns  (JS trie lookup, no WASM dependency)
+ *   Phase 3 — numbers       (JS NumberProcessor)
  *   Phase 4 — phrases       (JS trie lookup, no WASM dependency)
  *   Phase 5 — character fallback (JS trie lookup)
  *
- * Phase 1 (WASM structural patterns) and Phase 3 (WASM number conversion)
- * require the WASM binary — covered in wasm-core Rust tests.
+ * Phase 1 (WASM structural patterns) does nothing without the WASM binary — see
+ * TranslationEngine.phase1.test.js, which loads the real one.
  * Pre-marked token tests below simulate Phase 1 output to verify Phase 4/5 guards.
+ * 'phase order' asserts ADR-004: the run order, and that an earlier phase wins a shared span.
  */
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
+import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
 
 const DICTS = {
   characters: {
@@ -249,6 +252,134 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       expect(nounTokens[1].translationSource).toMatch(/_consumed$/);
       expect(nounTokens[1].translated).toBeNull();
     });
+  });
+});
+
+describe('TranslationEngine.translateSinglePass — phase order (ADR-004)', () => {
+  let engine;
+
+  beforeAll(async () => {
+    engine = createTranslationEngine();
+    await engine.initialize(
+      {
+        characters: { 三: 'ba', 十: 'mười', 五: 'năm', 我: 'tôi' },
+        phrases: { 三十: 'PHRASE_30' },
+        patterns: {},
+        properNouns: { 三十五: 'PROPER_35' },
+        conversion: {},
+      },
+      { activeProperNouns: ['properNouns'] }
+    );
+  }, 30_000);
+
+  const sources = (tokens) => tokens.map((t) => t.translationSource);
+
+  test('runs Pattern, Proper Noun, Number, Phrase, Character, inside the total', async () => {
+    const profile = vi.spyOn(engine.phaseProfiler, 'profile');
+    try {
+      await engine.translateSinglePass([tok('我', 0)], {});
+      expect(profile.mock.calls.map(([phase]) => phase)).toEqual([
+        'total',
+        'patterns',
+        'properNouns',
+        'numbers',
+        'phrases',
+        'characters',
+      ]);
+    } finally {
+      profile.mockRestore();
+    }
+  });
+
+  test('number beats phrase over the same span', async () => {
+    const tokens = [tok('三', 0), tok('十', 1)];
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[0].translated).toBe('30');
+    expect(sources(tokens)).toEqual(['number_conversion', 'number_conversion_consumed']);
+  });
+
+  test('number beats character fallback', async () => {
+    const tokens = [tok('我', 0), tok('五', 1), tok('十', 2)];
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[0].translationSource).toBe('characters');
+    expect(tokens[1].translated).toBe('50');
+    expect(tokens[1].translationSource).toBe('number_conversion');
+  });
+
+  test('proper noun beats number over the same span', async () => {
+    const tokens = [tok('三', 0), tok('十', 1), tok('五', 2)];
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[0].translated).toBe('PROPER_35');
+    expect(sources(tokens)).toEqual([
+      'properNouns',
+      'properNouns_consumed',
+      'properNouns_consumed',
+    ]);
+  });
+});
+
+describe('TranslationEngine.translateSinglePass — phrases over a whole chunk', () => {
+  // Phrase lookup used to take a separate path above 10 tokens, which no test reached: every
+  // fixture above is shorter. A real chunk is always longer.
+  let engine;
+
+  beforeAll(async () => {
+    engine = createTranslationEngine();
+    await engine.initialize(
+      {
+        characters: { 我: 'tôi' },
+        phrases: { 中国: 'TQ', 中国人: 'người TQ', 国人: 'quốc nhân' },
+        patterns: {},
+        properNouns: {},
+        conversion: {},
+      },
+      { activeProperNouns: [] }
+    );
+  }, 30_000);
+
+  const chunk = () => [...'我我中国人我我国人我中国我'].map((value, i) => tok(value, i));
+
+  test('a chunk longer than 10 tokens still gets its phrases applied', async () => {
+    const tokens = chunk();
+    expect(tokens.length).toBeGreaterThan(10);
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens.map((t) => t.translationSource)).toEqual([
+      'characters',
+      'characters',
+      'phrases',
+      'phrases_consumed',
+      'phrases_consumed',
+      'characters',
+      'characters',
+      'phrases',
+      'phrases_consumed',
+      'characters',
+      'phrases',
+      'phrases_consumed',
+      'characters',
+    ]);
+  });
+
+  test('the longest phrase wins where phrases overlap', async () => {
+    const tokens = chunk();
+    await engine.translateSinglePass(tokens, {});
+    expect(tokens[2].translated).toBe('người TQ'); // 中国人, not 中国 or 国人
+    expect(tokens[7].translated).toBe('quốc nhân'); // 国人 alone
+    expect(tokens[10].translated).toBe('TQ'); // 中国 alone
+  });
+
+  test("chunkOffset shifts the phrases' semantic-unit token indices", async () => {
+    const tokens = chunk();
+    engine.semanticArrayBuilder = new SemanticArrayBuilder();
+    await engine.translateSinglePass(tokens, { chunkOffset: 7 });
+    const phraseUnits = engine.semanticArrayBuilder
+      .getArrays()
+      .metadata.filter((unit) => unit.dictionary === 'phrases');
+    expect(phraseUnits.map((unit) => [unit.originalText, unit.tokenIndex])).toEqual([
+      ['中国人', 9],
+      ['国人', 14],
+      ['中国', 17],
+    ]);
   });
 });
 

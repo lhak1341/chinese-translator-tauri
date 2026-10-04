@@ -35,14 +35,9 @@ features = [
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-aho-corasick = "1.1"  # Bench-only: comparison baseline against the hand-rolled trie in src/trie.rs
 
 [[bench]]
 name = "pattern_matching"
-harness = false
-
-[[bench]]
-name = "trie_matching"
 harness = false
 
 [[bench]]

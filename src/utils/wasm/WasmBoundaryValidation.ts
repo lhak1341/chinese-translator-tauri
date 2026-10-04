@@ -16,10 +16,10 @@
  * 5. Two-phase validation (validate before modifying)
  * 6. Error propagation (fail fast on invalid data)
  *
- * See ADR-037 for why this file only validated dictionary matches for a while —
- * the token/pattern/lookup validators that used to live here were deleted as
- * dead code, and the live WASM wrappers (WasmPatternProcessor.js,
- * WasmTextChunker.js) did no structural validation of their own until
+ * See ADR-037 for why the token/pattern/lookup validators that used to live here were
+ * deleted as dead code (`validateWasmDictionaryMatch` went with the WASM dictionary tier,
+ * 2026-10-04), and the live WASM wrappers (WasmPatternProcessor.js, WasmTextChunker.js)
+ * did no structural validation of their own until
  * `isPatternMatchInBounds`/`areChunksInBounds` closed that gap (2026-09-09,
  * architecture review candidate #2 grilling). Both Rust result structs
  * (`PatternProcessingResult`, `TextChunkResult`) guarantee field presence/type
@@ -27,47 +27,6 @@
  * -correctly-typed index from a Rust-side arithmetic bug, so these two check
  * index bounds only, not general field shape.
  */
-
-/**
- * Validate WASM dictionary match result
- * @param match - Dictionary match from WASM
- * @returns Validated dictionary match
- * @throws {Error} If match structure is invalid
- */
-export function validateWasmDictionaryMatch(match: unknown): Record<string, unknown> {
-  if (!match || typeof match !== 'object') {
-    throw new Error(`Invalid dictionary match: expected object, got ${typeof match}`);
-  }
-  const m = match as Record<string, unknown>;
-
-  // Required fields
-  if (typeof m.word !== 'string') {
-    throw new Error(`Dictionary match missing word: expected string, got ${typeof m.word}`);
-  }
-
-  if (typeof m.translation !== 'string') {
-    throw new Error(
-      `Dictionary match missing translation: expected string, got ${typeof m.translation}`
-    );
-  }
-
-  // Infer length from word if not provided
-  const length = typeof m.length === 'number' ? m.length : (m.word as string).length;
-
-  // Default priority if not provided
-  const priority = typeof m.priority === 'number' ? m.priority : 0;
-
-  return {
-    word: m.word,
-    translation: m.translation,
-    startPos: m.startPos === undefined ? 0 : m.startPos,
-    endPos: m.endPos === undefined ? ((m.startPos as number) ?? 0) + length : m.endPos,
-    length,
-    priority,
-    metadata: m.metadata === undefined ? null : m.metadata,
-    dictionary: m.dictionary || 'unknown',
-  };
-}
 
 /**
  * Bounds-check a WASM pattern-match result before it's applied to a `tokens` array.
