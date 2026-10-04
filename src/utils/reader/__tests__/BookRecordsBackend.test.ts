@@ -16,13 +16,12 @@ import {
 } from '../BookRecordsBackend';
 import { READER_ANSWER_FIELDS } from '../BookRecord';
 import { makeBookRecord } from './bookRecordFixture';
+import { installFakeAppFile } from '../../../test/fakeAppFile';
 
 beforeEach(() => {
   invalidateBookRecords();
-  global.window.electronAPI = {
-    loadBookRecords: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    saveBookRecords: vi.fn().mockResolvedValue({ success: true }),
-  } as unknown as typeof window.electronAPI;
+  global.window.electronAPI = {} as unknown as typeof window.electronAPI;
+  installFakeAppFile({ load: 'loadBookRecords', save: 'saveBookRecords' }, {});
 });
 
 describe('loadBookRecords', () => {

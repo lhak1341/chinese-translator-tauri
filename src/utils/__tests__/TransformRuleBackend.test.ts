@@ -7,6 +7,7 @@ import {
   subscribeTransformRules,
 } from '../dictionary/TransformRuleBackend';
 import type { TransformRule } from '../../types/TransformRuleTypes';
+import { installFakeAppFile } from '../../test/fakeAppFile';
 
 function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
   return {
@@ -23,10 +24,8 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
 
 beforeEach(() => {
   invalidateTransformRules();
-  global.window.electronAPI = {
-    loadTransformRules: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    saveTransformRules: vi.fn().mockResolvedValue({ success: true }),
-  } as unknown as typeof window.electronAPI;
+  global.window.electronAPI = {} as unknown as typeof window.electronAPI;
+  installFakeAppFile({ load: 'loadTransformRules', save: 'saveTransformRules' }, []);
 });
 
 describe('loadTransformRules', () => {

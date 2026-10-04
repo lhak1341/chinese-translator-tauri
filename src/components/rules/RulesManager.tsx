@@ -5,6 +5,7 @@ import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
+import { toggled } from '../../utils/ui/toggled';
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';
 import RuleRow from './RuleRow';
@@ -56,12 +57,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<SemanticType>>(new Set());
   const toggleSemanticTypeFilter = (type: SemanticType) => {
-    setFilterSemanticTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+    setFilterSemanticTypes((prev) => toggled(prev, type));
   };
 
   const sortedRules = useMemo(() => [...rules].sort(compareRulePrecedence), [rules]);

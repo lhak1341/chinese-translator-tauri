@@ -27,23 +27,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 const { loadTransformRules } = vi.hoisted(() => ({ loadTransformRules: vi.fn() }));
-import { invalidateTransformRules } from '../../utils/dictionary/TransformRuleBackend';
-
-/** The hoisted backend-shaped stubs, wired in at the IPC so the real backend (cache, lock,
- * snapshot) runs between them and the hooks. */
-function wireTransformRulesIpc(): void {
-  invalidateTransformRules();
-  const api = (window.electronAPI ?? {}) as unknown as Record<string, unknown>;
-  window.electronAPI = Object.assign(api, {
-    loadTransformRules: async () => {
-      const { rules } = await loadTransformRules();
-      return { success: true, data: rules };
-    },
-    saveTransformRules: async () => {
-      return { success: true };
-    },
-  }) as unknown as typeof window.electronAPI;
-}
+import { wireTransformRulesIpc } from '../../test/wireTransformRulesIpc';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,7 +63,7 @@ function stubEmptyClipboard() {
 
 beforeEach(() => {
   loadTransformRules.mockReset().mockResolvedValue({ rules: [], droppedCount: 0 });
-  wireTransformRulesIpc();
+  wireTransformRulesIpc({ load: loadTransformRules });
 });
 
 // ─── Initial state ────────────────────────────────────────────────────────────

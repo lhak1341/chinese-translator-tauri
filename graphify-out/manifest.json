@@ -29,11 +29,6 @@
     "ast_hash": "e8211198c64fce56cdbb226bc2499b57",
     "semantic_hash": ""
   },
-  "scripts/precompute-dictionaries.js": {
-    "mtime": 1769850829.8082783,
-    "ast_hash": "8606a92fbff0292a92368bdba6ea7bc5",
-    "semantic_hash": "8606a92fbff0292a92368bdba6ea7bc5"
-  },
   "scripts/generate-wasm-hashes.js": {
     "mtime": 1769922750.5004783,
     "ast_hash": "7dea7b2fe81e3f9ff7cc2c8c52b9ffcf",
@@ -1235,8 +1230,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791117946.929888,
-    "ast_hash": "99a055db3b5de78518f8469a57ec4623",
+    "mtime": 1791121419.670267,
+    "ast_hash": "ff23e2c20b002d47298e60c0e917bb04",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1345,8 +1340,8 @@
     "semantic_hash": "6786123685bc3cbadc7101541a02dffb"
   },
   "package.json": {
-    "mtime": 1789573446.3829799,
-    "ast_hash": "235b127b86ecf778308ce9ef7a4f2225",
+    "mtime": 1791121087.4989765,
+    "ast_hash": "e95da35cdb4b1952bbe8d1c65eb3ce70",
     "semantic_hash": ""
   },
   "src-tauri/capabilities/default.json": {
@@ -1655,8 +1650,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791120187.8238978,
-    "ast_hash": "160c02d6d9b1fc81e3ac7c572c890ca9",
+    "mtime": 1791121087.499909,
+    "ast_hash": "9a2ea2661a41582b85ea778844281edb",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1815,8 +1810,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationWindow.ts": {
-    "mtime": 1791120187.8224955,
-    "ast_hash": "9e2a02fa3fd800b40b41e31c5529c3b4",
+    "mtime": 1791120256.9670563,
+    "ast_hash": "a314b22d4f3fb83efefe8d9dfda4fd95",
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {

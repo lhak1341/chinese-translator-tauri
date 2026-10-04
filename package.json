@@ -24,7 +24,6 @@
     "tauri:build": "bun run build-wasm && tauri build",
     "tauri:deploy": "bun run tauri:build && cp -r 'src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app' /Applications/ && bun run sweep-targets",
     "sweep-targets": "cargo sweep --time 7 src-tauri && cargo sweep --time 7 wasm-core",
-    "precompute-dictionaries": "node scripts/precompute-dictionaries.js",
     "prepare": "husky",
     "lint:fix": "eslint . --fix",
     "lint:baseline": "node scripts/lint-ratchet.mjs --update"

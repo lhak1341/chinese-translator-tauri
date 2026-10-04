@@ -3,6 +3,7 @@ import { useThrottledValue } from './useThrottledValue';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
 import { entryCapabilities, entryFields } from '../utils/dictionary';
+import { toggled } from '../utils/ui/toggled';
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -172,21 +173,11 @@ export function useDictionaryEntryFilter(
   }, [filteredDuplicateRows, showDuplicatesMode]);
 
   const toggleSemanticType = useCallback((type: string): void => {
-    setFilterSemanticTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+    setFilterSemanticTypes((prev) => toggled(prev, type));
   }, []);
 
   const togglePatternType = useCallback((type: 'x-only' | 'x-y' | 'no-variable'): void => {
-    setFilterPatternType((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
+    setFilterPatternType((prev) => toggled(prev, type));
   }, []);
 
   const setVariable = useCallback((v: 'all' | 'allowed' | 'not-allowed'): void => {

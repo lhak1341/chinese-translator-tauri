@@ -137,6 +137,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-071](./ADR-071-skip-backends-for-one-shot-ipc.md)                              | Skip Backends for one-shot IPC                               | Decided                           | A Backend holds a protocol; one-shot commands have none.                                                                                             |
 | [ADR-072](./ADR-072-skip-dictionaryprovider-policy-extraction.md)                   | Keep DictionaryProvider policy in place                      | Decided                           | Startup-load and invalidation policy is wiring; provider is the test seam.                                                                           |
 | [ADR-073](./ADR-073-delete-the-wasm-dictionary-lookup-tier.md)                      | Delete the WASM dictionary lookup tier                       | Decided                           | Measured 2.5x–22x slower than JS; deleted.                                                                                                           |
+| [ADR-074](./ADR-074-skip-outline-title-fill-extraction.md)                          | Keep the outline-title fill inside its hook                  | Decided                           | Eight hook tests pin the stale/abandoned split; extracting moves the loop, not complexity.                                                           |
 
 ## ADR Format
 
@@ -190,5 +191,5 @@ Write an ADR when making decisions about:
 - **2026-10-01**: ADR-057
 - **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063; ADR-064; ADR-065
 - **2026-10-03**: ADR-066; ADR-067; ADR-068; ADR-069
-- **2026-10-04**: ADR-070; ADR-071; ADR-072; ADR-073
+- **2026-10-04**: ADR-070; ADR-071; ADR-072; ADR-073; ADR-074
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

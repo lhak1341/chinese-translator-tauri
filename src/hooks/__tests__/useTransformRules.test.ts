@@ -1,8 +1,8 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTransformRuleEditor, useTransformRules } from '../useTransformRules';
-import { invalidateTransformRules } from '../../utils/dictionary/TransformRuleBackend';
 import type { TransformRule } from '../../types/TransformRuleTypes';
+import { wireTransformRulesIpc } from '../../test/wireTransformRulesIpc';
 
 const { loadTransformRules, saveTransformRules, toastError, toastWarning } = vi.hoisted(() => ({
   loadTransformRules: vi.fn(),
@@ -30,28 +30,11 @@ function loadResult(rules: TransformRule[], droppedCount = 0) {
   return { rules, droppedCount };
 }
 
-/** The hoisted stubs, wired in at the IPC so the real backend — the App File's cache and its
- * commit queue — runs between them and the hooks. A dropped count becomes that many invalid
- * items in the loaded data. */
-function wireIpc(): void {
-  invalidateTransformRules();
-  window.electronAPI = Object.assign((window.electronAPI ?? {}) as object, {
-    loadTransformRules: async () => {
-      const { rules, droppedCount } = await loadTransformRules();
-      return { success: true, data: [...rules, ...Array(droppedCount).fill({ junk: true })] };
-    },
-    saveTransformRules: async (rules: TransformRule[]) => {
-      await saveTransformRules(rules);
-      return { success: true };
-    },
-  }) as unknown as typeof window.electronAPI;
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   loadTransformRules.mockResolvedValue(loadResult([]));
   saveTransformRules.mockResolvedValue(undefined);
-  wireIpc();
+  wireTransformRulesIpc({ load: loadTransformRules, save: saveTransformRules });
 });
 
 describe('useTransformRules — read-only', () => {

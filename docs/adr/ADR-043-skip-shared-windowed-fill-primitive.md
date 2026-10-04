@@ -31,3 +31,5 @@ Future architecture reviews should not re-flag these two hooks' "duplicated cach
 ## Addendum (2026-09-30)
 
 The viewport fill's plan lifecycle moved out of `useWindowedTranslation`'s effect into a plain `WindowFiller` class (`src/utils/reader/WindowFiller.ts`, architecture review candidate #2). That deepens one hook and shares nothing with `useOutlineTranslations`; this decision stands. A later review should not read the filler as the start of a shared primitive and try to fold the outline loop into it.
+
+ADR-074 (2026-10-04) extends this to the outline-title loop: it stays in its hook, for the same reason; a plain-class `OutlineFiller` was considered and skipped.

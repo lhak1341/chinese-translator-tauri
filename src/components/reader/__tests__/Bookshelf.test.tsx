@@ -19,6 +19,7 @@ import type {
   UnavailableBook,
 } from '../../../utils/reader/ReconcileLibrary';
 import type { BookRecords } from '../../../types/ReaderTypes';
+import { installFakeAppFile } from '../../../test/fakeAppFile';
 
 const book: ShelfBook = {
   fileName: 'novel.txt',
@@ -62,10 +63,8 @@ beforeEach(() => {
   // The layout toggle persists its choice; a test that switches to cards must not leave
   // the next one starting there.
   localStorage.clear();
-  global.window.electronAPI = {
-    loadBookRecords: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    saveBookRecords: vi.fn().mockResolvedValue({ success: true }),
-  } as unknown as typeof window.electronAPI;
+  global.window.electronAPI = {} as unknown as typeof window.electronAPI;
+  installFakeAppFile({ load: 'loadBookRecords', save: 'saveBookRecords' }, {});
 });
 
 describe('Bookshelf when the book records could not be read', () => {
