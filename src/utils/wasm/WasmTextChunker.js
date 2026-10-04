@@ -1,9 +1,5 @@
 // @ts-check
-import {
-  TextChunker,
-  recordFallback,
-  getGlobalChunkerStats,
-} from '../../wasm/translation_wasm_core.js';
+import { TextChunker } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
@@ -35,7 +31,7 @@ const lifecycle = new WasmProcessorLifecycle({
   name: 'TextChunker',
   wasmFileName: 'translation_wasm_core_bg.wasm',
   wasmBinaryUrl: _WASM_BINARY_URL,
-  expectedMethods: ['chunkText', 'getStats', 'resetStats', 'free'],
+  expectedMethods: ['chunkText', 'free'],
 });
 
 /** @type {TextChunker | null} */
@@ -72,10 +68,6 @@ async function _initializeTextChunker(timeoutMs = 10000) {
 
 export class WasmTextChunker {
   constructor() {
-    /** @type {number} */
-    this.wasmHits = 0;
-    /** @type {number} */
-    this.fallbackHits = 0;
     /** @type {boolean} - Re-entrancy guard: prevents a second WASM borrow_mut while one is live */
     this.isProcessing = false;
   }
@@ -104,12 +96,6 @@ export class WasmTextChunker {
 
     if (!lifecycle.isReady || !_chunker) {
       logger.log('[WASM TextChunker] Not ready, using JS fallback');
-      try {
-        recordFallback();
-      } catch {
-        // WASM not loaded, ignore
-      }
-      this.fallbackHits++;
       return null;
     }
 
@@ -117,7 +103,6 @@ export class WasmTextChunker {
     // borrow_mut is still active, the second call would get "recursive use" panic. Return null
     // (JS fallback) instead so the outer call can complete cleanly.
     if (this.isProcessing) {
-      this.fallbackHits++;
       return null;
     }
 
@@ -135,11 +120,9 @@ export class WasmTextChunker {
         logger.error('[WASM TextChunker] Chunk array failed bounds check, falling back to JS:', {
           textLength: text.length,
         });
-        this.fallbackHits++;
         return null;
       }
       logger.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
-      this.wasmHits++;
       return chunks;
     } catch (/** @type {any} */ error) {
       // A WASM trap (Rust panic → `unreachable` instruction) leaves the WASM linear memory
@@ -155,75 +138,9 @@ export class WasmTextChunker {
       );
       // The cascade retires this chunker too: its own handler destroys and fails it.
       fireCascadeRetire();
-      try {
-        recordFallback();
-      } catch {
-        // WASM not loaded, ignore
-      }
-      this.fallbackHits++;
       return null;
     } finally {
       this.isProcessing = false;
-    }
-  }
-
-  /**
-   * Get performance statistics
-   *
-   * @returns {Object} Statistics object with chunksProcessed, totalTimeUs, avgTimeUs, fallbackCount
-   */
-  getStats() {
-    if (!lifecycle.isReady || !_chunker) {
-      return {
-        chunksProcessed: 0,
-        totalTimeUs: 0,
-        avgTimeUs: 0,
-        fallbackCount: this.fallbackHits,
-        wasmHits: this.wasmHits,
-        hitRate: 0,
-      };
-    }
-
-    try {
-      const wasmStats = JSON.parse(_chunker.getStats());
-      const total = this.wasmHits + this.fallbackHits;
-      const hitRate = total > 0 ? ((this.wasmHits / total) * 100).toFixed(1) : 0;
-
-      return {
-        ...wasmStats,
-        wasmHits: this.wasmHits,
-        fallbackHits: this.fallbackHits,
-        hitRate: `${hitRate}%`,
-      };
-    } catch (error) {
-      logger.error('Failed to get WASM TextChunker stats:', error);
-      return {
-        chunksProcessed: 0,
-        totalTimeUs: 0,
-        avgTimeUs: 0,
-        fallbackCount: this.fallbackHits,
-        wasmHits: this.wasmHits,
-        hitRate: 0,
-      };
-    }
-  }
-
-  /**
-   * Get global statistics across all instances
-   *
-   * @returns {Object} Global statistics
-   */
-  getGlobalStats() {
-    try {
-      return JSON.parse(getGlobalChunkerStats());
-    } catch (error) {
-      logger.error('Failed to get global chunker stats:', error);
-      return {
-        totalChunks: 0,
-        totalTimeUs: 0,
-        avgTimeUs: 0,
-        fallbackCount: 0,
-      };
     }
   }
 
@@ -237,21 +154,6 @@ export class WasmTextChunker {
     _chunker?.__destroy_into_raw();
     _chunker = null;
     lifecycle.permanentlyFail();
-  }
-
-  /**
-   * Reset hit statistics
-   */
-  resetStats() {
-    this.wasmHits = 0;
-    this.fallbackHits = 0;
-    if (lifecycle.isReady && _chunker) {
-      try {
-        _chunker.resetStats();
-      } catch (error) {
-        logger.error('Failed to reset WASM TextChunker stats:', error);
-      }
-    }
   }
 }
 

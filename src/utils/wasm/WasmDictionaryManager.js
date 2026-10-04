@@ -110,7 +110,7 @@ export class WasmDictionaryManager {
   }
 
   async loadDictionary(name, entries) {
-    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
+    if (!this.isUsable()) {
       logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
@@ -205,7 +205,7 @@ export class WasmDictionaryManager {
   }
 
   findMatches(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || _sharedModuleCorrupted || this.fallbackHandler.isInFallbackMode()) {
+    if (!this.isUsable()) {
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
 
@@ -254,7 +254,7 @@ export class WasmDictionaryManager {
   }
 
   findLongestMatch(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || _sharedModuleCorrupted || this.fallbackHandler.isInFallbackMode()) {
+    if (!this.isUsable()) {
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
 
@@ -333,27 +333,31 @@ export class WasmDictionaryManager {
   }
 
   getDictionaryCount() {
-    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
-      ? this.engine.get_dictionary_count()
-      : 0;
+    return this.isUsable() ? this.engine.get_dictionary_count() : 0;
   }
 
   getTotalEntries() {
-    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
-      ? this.engine.get_total_entries()
-      : 0;
+    return this.isUsable() ? this.engine.get_total_entries() : 0;
   }
 
   hasDictionary(name) {
-    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
-      ? this.engine.has_dictionary(name)
-      : false;
+    return this.isUsable() ? this.engine.has_dictionary(name) : false;
   }
 
   clearAllDictionaries() {
-    if (this.initialized && !this.fallbackHandler.isInFallbackMode()) {
+    if (this.isUsable()) {
       this.engine.clear_all_dictionaries();
     }
+  }
+
+  /**
+   * The one readiness verdict: may callers touch the engine right now? False before init, in
+   * fallback mode, and for good once any shared-binary panic has fired the cascade (the engine
+   * lives on the corrupted allocator). Every engine call and every caller's WASM-vs-JS branch
+   * goes through this.
+   */
+  isUsable() {
+    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode();
   }
 
   // Status check methods

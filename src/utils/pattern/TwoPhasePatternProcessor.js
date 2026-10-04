@@ -4,6 +4,7 @@ import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
 import { getSemanticTokens } from '../TokenHelpers.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
+import { isPatternSource } from '../TranslationSourcePriority.js';
 
 /**
  * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
@@ -109,10 +110,7 @@ class TwoPhasePatternProcessor {
       if (
         token.translated &&
         token.patternSemanticType &&
-        (token.translationSource === 'pattern' ||
-          token.translationSource === 'hierarchical_pattern' ||
-          token.translationSource === 'hierarchical_patterns' ||
-          token.translationSource === 'hierarchical_patterns_composite')
+        isPatternSource(token.translationSource)
       ) {
         cache[token.value] = {
           translation: token.translated,

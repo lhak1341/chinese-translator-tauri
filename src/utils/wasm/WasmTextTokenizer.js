@@ -18,8 +18,8 @@
  * Shares `translation_wasm_core.js`'s linear memory with the other 6 WASM
  * wrappers — goes through `WasmProcessorLifecycle` + `WasmCascadeRegistry`
  * like the rest of them (see src/utils/CLAUDE.md, "All 7 WASM Wrappers
- * Share One Binary"). Exposes no owned WASM struct instance (tokenizeText /
- * getTokenizerStats are plain wasm-bindgen free functions), so retire is
+ * Share One Binary"). Exposes no owned WASM struct instance (tokenizeText is a plain
+ * wasm-bindgen free function), so retire is
  * just a lifecycle flag flip — no `__destroy_into_raw()` needed.
  *
  * Usage:
@@ -29,7 +29,7 @@
  * ```
  */
 
-import { tokenizeText, getTokenizerStats } from '../../wasm/translation_wasm_core.js';
+import { tokenizeText } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger.js';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
@@ -42,17 +42,17 @@ const lifecycle = new WasmProcessorLifecycle({
   name: 'TextTokenizer',
   wasmFileName: 'translation_wasm_core_bg.wasm',
   wasmBinaryUrl: _WASM_BINARY_URL,
-  expectedMethods: ['tokenizeText', 'getTokenizerStats'],
+  expectedMethods: ['tokenizeText'],
 });
 
 async function _initializeTextTokenizer() {
   return lifecycle.initialize(async () => {
     await loadSharedWasmModule();
     logger.log('✅ WASM TextTokenizer initialized');
-    // tokenizeText/getTokenizerStats are live bindings to this same module's
-    // top-level `wasm` var — no owned instance to hand back, just prove the
-    // expected functions exist for verifyWasmInstance.
-    return { tokenizeText, getTokenizerStats };
+    // tokenizeText is a live binding to this same module's top-level `wasm` var —
+    // no owned instance to hand back, just prove the expected function exists for
+    // verifyWasmInstance.
+    return { tokenizeText };
   });
 }
 
@@ -100,22 +100,6 @@ class WasmTextTokenizer {
         error
       );
       fireCascadeRetire();
-      return null;
-    }
-  }
-
-  /**
-   * Get tokenizer statistics
-   *
-   * @returns {Object|null} Statistics or null if not initialized
-   */
-  getStats() {
-    if (!lifecycle.isReady) return null;
-
-    try {
-      return getTokenizerStats();
-    } catch (error) {
-      logger.warn('⚠️ Error getting WASM tokenizer stats:', error);
       return null;
     }
   }

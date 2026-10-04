@@ -1,26 +1,12 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 const mockChunkText = vi.fn(() => JSON.stringify([]));
-const mockGetStats = vi.fn(() =>
-  JSON.stringify({ chunksProcessed: 0, totalTimeUs: 0, avgTimeUs: 0 })
-);
-const mockResetStats = vi.fn();
-const mockRecordFallback = vi.fn();
-const mockGetGlobalChunkerStats = vi.fn(() =>
-  JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
-);
 const mockInit = vi.fn();
 const mockDestroy = vi.fn();
 
 class MockTextChunker {
   chunkText(text) {
     return mockChunkText(text);
-  }
-  getStats() {
-    return mockGetStats();
-  }
-  resetStats() {
-    return mockResetStats();
   }
   // WasmTextChunker's retire path calls this wasm-bindgen internal — see CLAUDE.md's
   // documented WASM mock gotcha (WasmPatternProcessor instances need the same).
@@ -32,8 +18,6 @@ class MockTextChunker {
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: (...args) => mockInit(...args),
   TextChunker: MockTextChunker,
-  recordFallback: (...args) => mockRecordFallback(...args),
-  getGlobalChunkerStats: (...args) => mockGetGlobalChunkerStats(...args),
 }));
 
 // The shared loader fetches and verifies the real binary; these tests drive the mocked `default`
@@ -106,16 +90,6 @@ describe('WasmTextChunker', () => {
   beforeEach(() => {
     mockChunkText.mockReset();
     mockChunkText.mockReturnValue(JSON.stringify([]));
-    mockGetStats.mockReset();
-    mockGetStats.mockReturnValue(
-      JSON.stringify({ chunksProcessed: 0, totalTimeUs: 0, avgTimeUs: 0 })
-    );
-    mockResetStats.mockReset();
-    mockRecordFallback.mockReset();
-    mockGetGlobalChunkerStats.mockReset();
-    mockGetGlobalChunkerStats.mockReturnValue(
-      JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
-    );
     mockInit.mockReset();
     mockDestroy.mockReset();
   });
@@ -214,55 +188,11 @@ describe('WasmTextChunker', () => {
     });
   });
 
-  describe('getStats() / resetStats() / getGlobalStats()', () => {
-    test('getStats returns zeroed shape when not ready', async () => {
+  describe('before init completes', () => {
+    test('returns null so the caller uses the JS fallback', async () => {
       const { wasmTextChunker } = await importFresh();
 
-      expect(wasmTextChunker.getStats()).toMatchObject({ chunksProcessed: 0, wasmHits: 0 });
-    });
-
-    test('getStats merges WASM stats with wasmHits/fallbackHits once ready', async () => {
-      const { wasmTextChunker } = await importFresh();
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
-      wasmTextChunker.chunkText('warm up');
-      await flushMicrotasks();
-      wasmTextChunker.chunkText('one'); // wasmHits = 1
-
-      const stats = wasmTextChunker.getStats();
-      expect(stats.wasmHits).toBe(1);
-      expect(stats).toHaveProperty('hitRate');
-    });
-
-    test('resetStats zeroes hit counters and calls into the WASM instance', async () => {
-      const { wasmTextChunker } = await importFresh();
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
-      wasmTextChunker.chunkText('warm up');
-      await flushMicrotasks();
-      wasmTextChunker.chunkText('one');
-
-      wasmTextChunker.resetStats();
-
-      expect(mockResetStats).toHaveBeenCalled();
-      expect(wasmTextChunker.getStats().wasmHits).toBe(0);
-    });
-
-    test('getGlobalStats reads the module-level Rust counter', async () => {
-      const { wasmTextChunker } = await importFresh();
-      mockGetGlobalChunkerStats.mockReturnValue(JSON.stringify({ totalChunks: 5 }));
-
-      expect(wasmTextChunker.getGlobalStats()).toEqual({ totalChunks: 5 });
-    });
-  });
-
-  describe('fallback tracking when WASM is not ready', () => {
-    test('records a fallback hit and increments fallbackHits before any init completes', async () => {
-      const { wasmTextChunker } = await importFresh();
-
-      const result = wasmTextChunker.chunkText('too early');
-
-      expect(result).toBeNull();
-      expect(mockRecordFallback).toHaveBeenCalled();
-      expect(wasmTextChunker.getStats().fallbackCount).toBeGreaterThanOrEqual(1);
+      expect(wasmTextChunker.chunkText('too early')).toBeNull();
     });
   });
 

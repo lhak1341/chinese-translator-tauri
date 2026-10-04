@@ -31,7 +31,7 @@ export class WasmDictionaryAdapter {
   }
 
   isReady() {
-    return this._inner.isInitialized() && !this._inner.isInFallbackMode();
+    return this._inner.isUsable();
   }
 
   async loadDictionary(name, entries) {

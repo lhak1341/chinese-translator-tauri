@@ -14,7 +14,17 @@
  * no error. Always use a TranslationLeaderSource at assignment sites.
  */
 
-import type { TranslationSource } from '../types/TranslationEngineTypes';
+import type {
+  ProperNounSource,
+  TranslationLeaderSource,
+  TranslationSource,
+} from '../types/TranslationEngineTypes';
+import { logger } from './logger';
+
+/** Every static leader source; the proper-noun sources are dynamic (dictionary names). */
+type StaticLeaderSource = Exclude<TranslationLeaderSource, ProperNounSource>;
+
+const CONSUMED_SUFFIX = '_consumed';
 
 export const PHASE_PRIORITIES: Record<string, number> = {
   // Phase 1 — Pattern (all source strings from JS and WASM paths)
@@ -30,7 +40,36 @@ export const PHASE_PRIORITIES: Record<string, number> = {
   phrases: 4,
   // Phase 5 — Character
   characters: 5,
-};
+} satisfies Record<StaticLeaderSource, number>; // a source added to the type but not here fails tsc
+
+/** The leader sources a Phase 1 pattern match writes (JS adapter and WASM paths). */
+const PATTERN_SOURCES: ReadonlySet<string> = new Set(
+  Object.keys(PHASE_PRIORITIES).filter((source) => PHASE_PRIORITIES[source] === 1)
+);
+
+/** Source a follower of `leaderSource` carries: consumed by that leader, `translated: null`. */
+export function consumedSource(leaderSource: string): string {
+  return leaderSource + CONSUMED_SUFFIX;
+}
+
+/**
+ * True when `source` marks a consumed follower. With `leaderSource`, true only for a follower
+ * of exactly that leader.
+ */
+export function isConsumedSource(
+  source: string | null | undefined,
+  leaderSource?: string
+): boolean {
+  if (!source) return false;
+  return leaderSource === undefined
+    ? source.endsWith(CONSUMED_SUFFIX)
+    : source === consumedSource(leaderSource);
+}
+
+/** True for any Phase 1 pattern leader source. */
+export function isPatternSource(source: string | null | undefined): boolean {
+  return !!source && PATTERN_SOURCES.has(source);
+}
 
 /**
  * Returns the phase priority for a leader translationSource string.
@@ -46,7 +85,7 @@ export function getSourcePriority(
   translationSource: TranslationSource | string | null | undefined,
   activeProperNouns: string[] = []
 ): number | null {
-  if (!translationSource || translationSource.includes('_consumed')) {
+  if (!translationSource || isConsumedSource(translationSource)) {
     return null;
   }
   if (Object.prototype.hasOwnProperty.call(PHASE_PRIORITIES, translationSource)) {
@@ -56,4 +95,56 @@ export function getSourcePriority(
     return 2;
   }
   return 999;
+}
+
+interface ContractToken {
+  value?: string;
+  translated?: unknown;
+  translationSource?: string | null;
+}
+
+/**
+ * Enforces the consumed-token contract after a phase, in both directions:
+ *   (A) consumed source  -> `translated` must be null (corrected in place, so no "undefined"
+ *       reaches the output);
+ *   (B) leader source    -> `translated` must NOT be null (postProcess skips a null leader and
+ *       its characters vanish), and the source must be one `getSourcePriority` recognises
+ *       (an unrecognised one ranks 999, below the character fallback, with no other symptom).
+ * Violations are logged, never thrown — the pipeline keeps going with the best state it has.
+ */
+export function validateConsumedTokenContract(
+  tokens: ContractToken[],
+  phaseName: string,
+  activeProperNouns: string[] = []
+): void {
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token.translationSource) continue;
+
+    if (isConsumedSource(token.translationSource)) {
+      if (token.translated !== null) {
+        logger.error(
+          `🚨 ${phaseName} consumed token contract violation at token ${i}: ` +
+            `translated="${token.translated}" (expected null), ` +
+            `source="${token.translationSource}"`
+        );
+        token.translated = null;
+      }
+      continue;
+    }
+
+    if (token.translated === null) {
+      logger.error(
+        `🚨 ${phaseName} leader token contract violation at token ${i}: ` +
+          `translationSource="${token.translationSource}" but translated=null ` +
+          `(token value="${token.value}" — characters will be deleted from output)`
+      );
+    }
+    if (getSourcePriority(token.translationSource, activeProperNouns) === 999) {
+      logger.error(
+        `🚨 ${phaseName} unrecognised leader source at token ${i}: ` +
+          `"${token.translationSource}" ranks 999, below the character fallback`
+      );
+    }
+  }
 }

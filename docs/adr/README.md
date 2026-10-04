@@ -133,6 +133,9 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-067](./ADR-067-keep-pair-operations-in-the-binding-store.md)                   | Keep pair operations in the binding store                    | Decided                           | Create, rename and move each read or write the binding, so a pair module would take that state through getters, with one adapter.                    |
 | [ADR-068](./ADR-068-one-lru-module-under-both-dictionary-caches.md)                 | One LRU module under both dictionary caches                  | Decided                           | The two caches had drifted (a recency guard only one carried); one lock, a counter clock and one poison path remove the cases the copies patched.    |
 | [ADR-069](./ADR-069-delete-the-baseline-regression-detector.md)                     | Delete the baseline regression detector                      | Decided                           | The tracker, 30 s poll and status dot could not fire; ADR-018 and ADR-030 superseded.                                                                |
+| [ADR-070](./ADR-070-skip-wasm-call-or-fallback-shell.md)                            | Skip a WASM-call-or-fallback shell                           | Decided                           | Catch blocks share two lines; unread wrapper stats deleted.                                                                                          |
+| [ADR-071](./ADR-071-skip-backends-for-one-shot-ipc.md)                              | Skip Backends for one-shot IPC                               | Decided                           | A Backend holds a protocol; one-shot commands have none.                                                                                             |
+| [ADR-072](./ADR-072-skip-dictionaryprovider-policy-extraction.md)                   | Keep DictionaryProvider policy in place                      | Decided                           | Startup-load and invalidation policy is wiring; provider is the test seam.                                                                           |
 
 ## ADR Format
 
@@ -186,4 +189,5 @@ Write an ADR when making decisions about:
 - **2026-10-01**: ADR-057
 - **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063; ADR-064; ADR-065
 - **2026-10-03**: ADR-066; ADR-067; ADR-068; ADR-069
+- **2026-10-04**: ADR-070; ADR-071; ADR-072
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

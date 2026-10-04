@@ -1,13 +1,11 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 const mockTokenizeText = vi.fn(() => null);
-const mockGetTokenizerStats = vi.fn();
 const mockInit = vi.fn();
 
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: (...args) => mockInit(...args),
   tokenizeText: (...args) => mockTokenizeText(...args),
-  getTokenizerStats: (...args) => mockGetTokenizerStats(...args),
 }));
 
 // The shared loader fetches and verifies the real binary; these tests drive the mocked `default`
@@ -78,7 +76,6 @@ describe('WasmTextTokenizer', () => {
   beforeEach(() => {
     mockTokenizeText.mockReset();
     mockTokenizeText.mockReturnValue(null);
-    mockGetTokenizerStats.mockReset();
     mockInit.mockReset();
   });
 
@@ -139,34 +136,6 @@ describe('WasmTextTokenizer', () => {
       fireCascadeRetire();
 
       expect(wasmTextTokenizer.tokenize('你')).toBeNull();
-    });
-  });
-
-  describe('getStats()', () => {
-    test('returns null when not initialized', async () => {
-      const { wasmTextTokenizer } = await importFresh();
-
-      expect(wasmTextTokenizer.getStats()).toBeNull();
-    });
-
-    test('returns stats from the WASM module when initialized', async () => {
-      const { wasmTextTokenizer } = await importFresh();
-      wasmTextTokenizer.tokenize('warm up');
-      await flushMicrotasks();
-      mockGetTokenizerStats.mockReturnValue({ implementation: 'wasm' });
-
-      expect(wasmTextTokenizer.getStats()).toEqual({ implementation: 'wasm' });
-    });
-
-    test('returns null when the WASM call throws', async () => {
-      const { wasmTextTokenizer } = await importFresh();
-      wasmTextTokenizer.tokenize('warm up');
-      await flushMicrotasks();
-      mockGetTokenizerStats.mockImplementation(() => {
-        throw new Error('boom');
-      });
-
-      expect(wasmTextTokenizer.getStats()).toBeNull();
     });
   });
 });

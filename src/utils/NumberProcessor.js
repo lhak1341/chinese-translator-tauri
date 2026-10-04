@@ -5,6 +5,7 @@
  */
 
 import { logger } from './logger.js';
+import { consumedSource } from './TranslationSourcePriority.js';
 
 export class NumberProcessor {
   constructor() {
@@ -292,7 +293,7 @@ export class NumberProcessor {
     // Mark consumed tokens
     for (let i = startIndex + 1; i <= matchResult.endIndex; i++) {
       tokens[i].translated = null;
-      tokens[i].translationSource = 'number_conversion_consumed';
+      tokens[i].translationSource = consumedSource('number_conversion');
       tokens[i].groupLeader = startIndex;
     }
 

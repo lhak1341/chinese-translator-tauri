@@ -192,21 +192,6 @@ fn get_byte_position(_text: &str, _chars: &[char], char_index: usize) -> usize {
     char_index
 }
 
-/**
- * Get tokenizer statistics
- */
-#[wasm_bindgen(js_name = getTokenizerStats)]
-pub fn get_tokenizer_stats() -> Result<JsValue, JsValue> {
-    let stats = serde_json::json!({
-        "implementation": "wasm",
-        "algorithm": "direct_character_classification",
-        "expectedSpeedup": "3-8x"
-    });
-
-    serde_wasm_bindgen::to_value(&stats)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize stats: {}", e)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -184,7 +184,13 @@ import { parallelConfig } from './ParallelConfig.js';
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 
-import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
+import {
+  getSourcePriority as getSourcePriorityFn,
+  consumedSource,
+  isConsumedSource,
+  isPatternSource,
+  validateConsumedTokenContract,
+} from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
 import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
@@ -1154,7 +1160,10 @@ export class TranslationEngine {
       const token = tokens[i];
 
       // Skip already processed tokens (including WASM number conversions)
-      if (token.translated != null || token.translationSource === 'number_conversion_consumed') {
+      if (
+        token.translated != null ||
+        isConsumedSource(token.translationSource, 'number_conversion')
+      ) {
         continue;
       }
 
@@ -1776,11 +1785,11 @@ export class TranslationEngine {
       // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
       // Derive consumed source from leader so both JS ('pattern_consumed') and
       // WASM ('hierarchical_pattern_consumed') paths produce the correct string.
-      const consumedSource = `${result.translationSource || 'hierarchical_pattern'}_consumed`;
+      const followerSource = consumedSource(result.translationSource || 'hierarchical_pattern');
       for (let i = result.startIndex + 1; i <= result.endIndex; i++) {
         if (tokens[i]) {
           tokens[i].translated = null; // Must be null - postProcess checks !== null
-          tokens[i].translationSource = consumedSource;
+          tokens[i].translationSource = followerSource;
           tokens[i].groupLeader = result.startIndex; // needed by postProcess orphan check
         }
       }
@@ -2196,7 +2205,7 @@ export class TranslationEngine {
     // Consumed tokens MUST have translationSource set to prevent double-processing
     for (let j = startIndex; j < endIndex; j++) {
       tokens[j].translated = null;
-      tokens[j].translationSource = 'pattern_consumed'; // REQUIRED for consumption contract
+      tokens[j].translationSource = consumedSource('pattern'); // REQUIRED for consumption contract
     }
 
     // Put the pattern replacement in the first token
@@ -2471,7 +2480,7 @@ export class TranslationEngine {
               if (conflictToken.translationSource) {
                 hasConsumedTokens = true;
                 const extraInfo =
-                  conflictToken.translationSource === 'pattern' && conflictToken.translated
+                  isPatternSource(conflictToken.translationSource) && conflictToken.translated
                     ? ` with result "${conflictToken.translated}"`
                     : '';
                 // Hot path optimization: Only log if debug level is sufficient
@@ -3033,9 +3042,9 @@ export class TranslationEngine {
               if (
                 tokens[startIndex + i].translated !== null &&
                 priorSrc &&
-                !priorSrc.endsWith('_consumed')
+                !isConsumedSource(priorSrc)
               ) {
-                const orphanedSrc = priorSrc + '_consumed';
+                const orphanedSrc = consumedSource(priorSrc);
                 const newMatchEnd = startIndex + tokenSpan;
                 for (let k = newMatchEnd; k < tokens.length; k++) {
                   if (tokens[k].translationSource === orphanedSrc) {
@@ -3053,7 +3062,7 @@ export class TranslationEngine {
             // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract.
             // translationSource must contain "_consumed" so validateConsumedTokenContract detects violations.
             tokens[startIndex + i].translated = null; // Must be null - postProcess checks !== null
-            tokens[startIndex + i].translationSource = match.dictionary + '_consumed';
+            tokens[startIndex + i].translationSource = consumedSource(match.dictionary);
             tokens[startIndex + i].isGrouped = true;
             tokens[startIndex + i].groupLeader = startIndex;
           }
@@ -4739,45 +4748,10 @@ export class TranslationEngine {
       ]);
     };
 
-    // CODE REVIEW FIX (CRITICAL-3): Consumed token contract validation
-    // Ensures phases correctly mark consumed tokens with { translated: null, translationSource: "X_consumed" }
-    // Contract has two directions:
-    //   (A) consumed leaders  — translationSource includes "_consumed" → translated MUST be null
-    //   (B) translation leaders — translationSource set, no "_consumed" → translated MUST NOT be null
-    //       (a leader with translated=null is silently skipped by postProcess, deleting characters)
-    const validateConsumedTokenContract = (phaseName) => {
-      for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-        if (!token.translationSource) {
-          continue;
-        }
-
-        if (token.translationSource.includes('_consumed')) {
-          // Direction A: consumed tokens MUST have translated=null (not undefined!)
-          if (token.translated !== null) {
-            logger.error(
-              `🚨 ${phaseName} consumed token contract violation at token ${i}: ` +
-                `translated="${token.translated}" (expected null), ` +
-                `source="${token.translationSource}"`
-            );
-            // Force correct state to prevent "undefined" appearing in output
-            token.translated = null;
-          }
-        } else {
-          // Direction B: leader tokens MUST have translated !== null.
-          // If a leader has translated=null, postProcess skips it and those characters
-          // vanish from the output silently.
-          if (token.translated === null) {
-            logger.error(
-              `🚨 ${phaseName} leader token contract violation at token ${i}: ` +
-                `translationSource="${token.translationSource}" but translated=null ` +
-                `(token value="${token.value}" — characters will be deleted from output)`
-            );
-            // Do not auto-correct: we don't know the right translation; log for investigation.
-          }
-        }
-      }
-    };
+    // CODE REVIEW FIX (CRITICAL-3): the consumed-token contract (both directions) lives in
+    // TranslationSourcePriority.ts beside the source strings it checks.
+    const validateContract = (phaseName) =>
+      validateConsumedTokenContract(tokens, phaseName, this.activeProperNouns ?? []);
 
     // CODE REVIEW FIX (HIGH-2): Phase priority validation
     // Ensures lower-priority phases don't override higher-priority translations
@@ -4874,7 +4848,7 @@ export class TranslationEngine {
 
         // Post-phase validation — O(n) checks gated to debug builds
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          validateConsumedTokenContract('patterns');
+          validateContract('patterns');
           validatePhasePriority('patterns', 1, tokensBeforePhase1);
         }
         checkSemanticArrayCorruption('patterns');
@@ -4927,7 +4901,7 @@ export class TranslationEngine {
         completedPhases.add('properNouns');
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          validateConsumedTokenContract('properNouns');
+          validateContract('properNouns');
           validatePhasePriority('properNouns', 2, tokensBeforePhase2);
         }
         checkSemanticArrayCorruption('properNouns');
@@ -4989,7 +4963,7 @@ export class TranslationEngine {
         );
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          validateConsumedTokenContract('numbers');
+          validateContract('numbers');
           validatePhasePriority('numbers', 3, tokensBeforePhase3);
         }
         checkSemanticArrayCorruption('numbers');
@@ -5045,7 +5019,7 @@ export class TranslationEngine {
         completedPhases.add('phrases');
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          validateConsumedTokenContract('phrases');
+          validateContract('phrases');
           validatePhasePriority('phrases', 4, tokensBeforePhase4); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
         checkSemanticArrayCorruption('phrases');
@@ -5120,7 +5094,7 @@ export class TranslationEngine {
         completedPhases.add('characters');
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          validateConsumedTokenContract('characters');
+          validateContract('characters');
           validatePhasePriority('characters', 5, tokensBeforePhase5); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
         checkSemanticArrayCorruption('characters');
@@ -5391,7 +5365,7 @@ export class TranslationEngine {
           const nextToken = tokens[j];
 
           // Skip consumed tokens (from number conversion)
-          if (nextToken.translationSource === 'number_conversion_consumed') {
+          if (isConsumedSource(nextToken.translationSource, 'number_conversion')) {
             continue;
           }
 

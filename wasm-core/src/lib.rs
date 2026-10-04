@@ -32,7 +32,7 @@ pub mod conflict_resolution;
 
 // Re-export WASM wrappers for JavaScript
 pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
-pub use text_tokenizer::{tokenize_text, get_tokenizer_stats};
+pub use text_tokenizer::tokenize_text;
 pub use string_processor::StringProcessor;
 pub use text_assembly::TextAssembler;
 pub use text_chunker::TextChunker;

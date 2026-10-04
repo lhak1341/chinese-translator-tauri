@@ -1,11 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU32, Ordering};
 use unicode_properties::{UnicodeGeneralCategory, GeneralCategory};
-
-/// Statistics for text chunking performance tracking
-static CHUNK_COUNT: AtomicU32 = AtomicU32::new(0);
-static FALLBACK_COUNT: AtomicU32 = AtomicU32::new(0);
 
 /// Text chunk result matching JavaScript TextChunk structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -32,10 +27,7 @@ pub struct TextChunkResult {
 /// - Rust: ~0.3-0.7ms for same workload (native Unicode + zero-copy)
 /// - Speedup: 2-3x, significant for long texts with heavy punctuation
 #[wasm_bindgen]
-pub struct TextChunker {
-    /// Performance statistics (AtomicU32 so chunk_text can use &self, avoiding RefCell::borrow_mut)
-    chunks_processed: AtomicU32,
-}
+pub struct TextChunker {}
 
 impl Default for TextChunker {
     fn default() -> Self {
@@ -48,9 +40,7 @@ impl TextChunker {
     /// Create new text chunker
     #[wasm_bindgen(constructor)]
     pub fn new() -> TextChunker {
-        TextChunker {
-            chunks_processed: AtomicU32::new(0),
-        }
+        TextChunker {}
     }
 
     /// Check if a character is a punctuation separator
@@ -224,10 +214,6 @@ impl TextChunker {
             &mut results,
         );
 
-        // Update statistics (pure Rust, no JS allocation)
-        self.chunks_processed.fetch_add(1, Ordering::Relaxed);
-        CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-
         // Phase 2 — pure Rust serialization: zero JS interop, zero allocator interaction
         // with the live RcRefMut. wasm-bindgen converts the returned String to a JS value
         // only after this method returns (i.e., after RcRefMut is dropped).
@@ -235,48 +221,6 @@ impl TextChunker {
         serde_json::to_string(&results)
             .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
     }
-
-    /// Get performance statistics
-    ///
-    /// # Returns
-    /// * Object with {chunksProcessed, totalTimeUs, avgTimeUs}
-    /// Returns a JSON string — caller: `JSON.parse(chunker.getStats())`.
-    #[wasm_bindgen(js_name = getStats)]
-    pub fn get_stats(&self) -> String {
-        serde_json::json!({
-            "chunksProcessed": self.chunks_processed.load(Ordering::Relaxed),
-            "totalTimeUs": 0u64,
-            "avgTimeUs": 0u64,
-            "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
-        })
-        .to_string()
-    }
-
-    /// Reset statistics
-    #[wasm_bindgen(js_name = resetStats)]
-    pub fn reset_stats(&mut self) {
-        self.chunks_processed.store(0, Ordering::Relaxed);
-        CHUNK_COUNT.store(0, Ordering::Relaxed);
-        FALLBACK_COUNT.store(0, Ordering::Relaxed);
-    }
-}
-
-/// Record fallback usage (called from JavaScript wrapper)
-#[wasm_bindgen(js_name = recordFallback)]
-pub fn record_fallback() {
-    FALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
-}
-
-/// Returns a JSON string — caller: `JSON.parse(getGlobalChunkerStats())`.
-#[wasm_bindgen(js_name = getGlobalChunkerStats)]
-pub fn get_global_chunker_stats() -> String {
-    serde_json::json!({
-        "totalChunks": CHUNK_COUNT.load(Ordering::Relaxed),
-        "totalTimeUs": 0u64,
-        "avgTimeUs": 0u64,
-        "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
-    })
-    .to_string()
 }
 
 #[cfg(test)]
