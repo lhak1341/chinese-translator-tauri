@@ -19,140 +19,20 @@ export class ChunkPostProcessor {
   }
 
   /**
-   * Reconstruct text from translated chunks and build segment positions simultaneously
-   *
-   * EXECUTION PATH:
-   *   - Used by: Full Translation mode, single-pass path
-   *   - Called from: TranslationEngine translateWithSegments/translateSinglePass, when
-   *     segments are needed inline immediately (not the progressive-batch path)
-   *   - Purpose: Build both final text AND semantic arrays for clickable word highlighting
-   *
-   * NOT USED BY:
-   *   - The progressive-batch path uses reconstructText() instead (no segments needed per
-   *     batch — segments are built once at the end via WordSegmentMatcher.matchWordSegments)
-   *
-   * PERFORMANCE:
-   *   - Slower than reconstructText() due to semantic array building
-   *   - Builds position tracking for every chunk, punctuation, and line break
-   *
-   * @param {TextChunk[]} chunks - Array of translated chunks
-   * @param {Object} semanticArrays - Optional semantic arrays for segment tracking
-   * @returns {Object} {text: string, segments: Array} - Reconstructed text and segment positions
-   */
-  reconstructTextWithSegments(chunks, semanticArrays = null) {
-    const segments = [];
-    let currentPosition = 0;
-
-    const textParts = chunks.map((chunk, index) => {
-      // CRITICAL BUG FIX: Normalize content to NFC for consistent Vietnamese diacritic handling
-      // Ensures .length calculations match normalized output text (prevents "màu" → "mà" + "u" split)
-      const rawContent = chunk.translated || chunk.translatedContent || chunk.content;
-      const content = rawContent ? rawContent.normalize('NFC') : rawContent;
-      const lineBreaks = chunk.lineBreaks || '';
-
-      const { openingPunctuation, processedPunctuation } = this._computePunctuationSpacing(
-        chunk,
-        index,
-        chunks,
-        content
-      );
-
-      const fullChunkText = openingPunctuation + content + processedPunctuation + lineBreaks;
-
-      // Add opening punctuation segment if it exists
-      if (openingPunctuation) {
-        segments.push({
-          type: 'punctuation',
-          start: currentPosition,
-          end: currentPosition + openingPunctuation.length,
-          text: openingPunctuation,
-          isClickable: false,
-          chunkIndex: index,
-        });
-        currentPosition += openingPunctuation.length;
-      }
-
-      // Add content segment
-      if (content) {
-        if (chunk.semanticIndex !== undefined && semanticArrays) {
-          // Semantic (translated) content
-          segments.push({
-            type: 'semantic',
-            unitIndex: chunk.semanticIndex,
-            start: currentPosition,
-            end: currentPosition + content.length,
-            originalText: semanticArrays.original[chunk.semanticIndex],
-            translatedText: content,
-            source: semanticArrays.metadata[chunk.semanticIndex]?.source || 'unknown',
-            metadata: semanticArrays.metadata[chunk.semanticIndex],
-            isClickable: true,
-            chunkIndex: index,
-          });
-        } else {
-          // Untranslated content (Latin/numbers)
-          segments.push({
-            type: 'untranslated',
-            start: currentPosition,
-            end: currentPosition + content.length,
-            text: content,
-            isClickable: false,
-            chunkIndex: index,
-          });
-        }
-        currentPosition += content.length;
-      }
-
-      // Add punctuation segment
-      if (processedPunctuation) {
-        segments.push({
-          type: 'punctuation',
-          start: currentPosition,
-          end: currentPosition + processedPunctuation.length,
-          text: processedPunctuation,
-          isClickable: false,
-          chunkIndex: index,
-        });
-        currentPosition += processedPunctuation.length;
-      }
-
-      // Add line breaks segment
-      if (lineBreaks) {
-        segments.push({
-          type: 'linebreak',
-          start: currentPosition,
-          end: currentPosition + lineBreaks.length,
-          text: lineBreaks,
-          isClickable: false,
-          chunkIndex: index,
-        });
-        currentPosition += lineBreaks.length;
-      }
-
-      return fullChunkText;
-    });
-
-    const text = textParts.join('');
-
-    return { text, segments };
-  }
-
-  /**
-   * Reconstruct text from translated chunks (WITHOUT building segment positions)
+   * Reconstruct text from translated chunks
    *
    * EXECUTION PATH:
    *   - Used by: Full Translation mode, progressive-batch path
    *   - Called from: TranslationEngine.processBatchWithProgressivePositioning(), once per
-   *     batch — no segments needed here, they're built once at the end via
-   *     WordSegmentMatcher.matchWordSegments against the fully-assembled, NFC-normalized text
+   *     batch, and translateWithProgressiveBatches() once over every chunk. No segments are
+   *     built here: they come from WordSegmentMatcher.matchWordSegments against the
+   *     fully-assembled, finished text.
+   *   - The only reconstruct method: reconstructTextWithSegments() (a segment-building twin
+   *     with no production caller) was deleted 2026-10-05 with translateWithChunking.
    *
-   * NOT USED BY:
-   *   - The single-pass path uses reconstructTextWithSegments() instead, when segments are
-   *     needed inline immediately
-   *
-   * PERFORMANCE:
-   *   - Faster than reconstructTextWithSegments() (no segment building)
-   *   - Does NOT NFC-normalize content (pinned by ChunkPostProcessor.test.js) — this is the
-   *     fast per-batch path; the final NFC-normalize happens once at the end of the batch loop
+   * NFC:
+   *   - Does NOT NFC-normalize content (pinned by ChunkPostProcessor.test.js). Normalising is
+   *     finishFullText's job (FormattingPasses.ts), once over the whole text.
    *
    * @param {TextChunk[]} chunks - Array of translated chunks
    * @returns {string} Reconstructed text
@@ -178,12 +58,31 @@ export class ChunkPostProcessor {
   }
 
   /**
-   * Shared opening/closing-punctuation spacing rules for reconstructTextWithSegments and
-   * reconstructText. The two historically bug-prone rules here (opening-punctuation spacing,
-   * sentence/closing-element exclusion) previously lived as two independently-edited copies —
-   * see CLAUDE.md deleted-symbols entry (architecture review, candidate #1 grilling) for the
-   * drift that caused. Callers still own content-normalization and segment-building themselves;
-   * this helper only computes spacing.
+   * Whether `chunk`'s comma is a thousands separator ("2,700"), which takes no trailing space.
+   * The tokenizer splits "2,700" into number, ",", number, so the comma ends a chunk whose content
+   * ends in a digit and sits before a chunk whose content starts with one. Keyed on the SOURCE
+   * comma: a full-width "，" is always a clause comma ("1，2" → "1, 2"). Both places that add a
+   * space after a comma — translatePunctuationNormally and the reconstruct spacing — ask this.
+   *
+   * @param {TextChunk} chunk - The chunk carrying the comma
+   * @param {TextChunk | null | undefined} nextChunk - The chunk after it in text order
+   * @returns {boolean}
+   */
+  _isThousandsSeparator(chunk, nextChunk) {
+    return (
+      chunk.punctuation === ',' &&
+      /\d$/.test(chunk.content?.trimEnd() ?? '') &&
+      /^\d/.test(nextChunk?.content?.trimStart() ?? '')
+    );
+  }
+
+  /**
+   * Opening/closing-punctuation spacing rules for reconstructText. The two historically
+   * bug-prone rules here (opening-punctuation spacing, sentence/closing-element exclusion) once
+   * lived as two independently-edited copies, in reconstructText and in a segment-building twin
+   * deleted 2026-10-05 — see docs/guides/deleted-symbols.md for the drift that caused. Kept as
+   * its own method: the rules are a documented unit, and inlining only moves them into the caller.
+   * It only computes spacing; the caller owns content.
    *
    * @param {TextChunk} chunk - Current chunk
    * @param {number} index - Chunk's index in `chunks`
@@ -208,7 +107,10 @@ export class ChunkPostProcessor {
     if (remainingPunctuation) {
       // Only add space after punctuation if there's a next chunk with content
       const hasNextChunk =
-        index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
+        index < chunks.length - 1 &&
+        !lineBreaks &&
+        !!chunks[index + 1]?.content?.trim() &&
+        !this._isThousandsSeparator(chunk, chunks[index + 1]);
       processedPunctuation = this.punctuationProcessor.processSequence(
         remainingPunctuation,
         hasNextChunk
@@ -239,12 +141,15 @@ export class ChunkPostProcessor {
 
   /**
    * Translate punctuation for all chunks using punctuation dictionary
-   * @param {TextChunk[]} chunks - Array of chunks
+   * @param {TextChunk[]} chunks - Array of chunks to translate (a progressive batch, or all of them)
    * @param {Object} punctuationDict - Punctuation translation dictionary
+   * @param {TextChunk[]} [allChunks=chunks] - Every chunk, in text order. A progressive batch holds
+   *   only the translatable chunks, so its neighbours are not the text's: a digit-only chunk
+   *   ("700" in "2,700") is missing from it, and the comma before it would look at the wrong chunk.
    */
-  translatePunctuation(chunks, punctuationDict) {
+  translatePunctuation(chunks, punctuationDict, allChunks = chunks) {
     // Translate punctuation normally
-    this.translatePunctuationNormally(chunks, punctuationDict);
+    this.translatePunctuationNormally(chunks, punctuationDict, allChunks);
 
     // Fix the specific angle quote positioning issue
     this.fixAngleQuotePositioning(chunks);
@@ -252,10 +157,11 @@ export class ChunkPostProcessor {
 
   /**
    * Normal punctuation translation (original logic)
-   * @param {TextChunk[]} chunks - Array of chunks
+   * @param {TextChunk[]} chunks - Array of chunks to translate
    * @param {Object} punctuationDict - Punctuation translation dictionary
+   * @param {TextChunk[]} [allChunks=chunks] - Every chunk in text order, for neighbour lookups
    */
-  translatePunctuationNormally(chunks, punctuationDict) {
+  translatePunctuationNormally(chunks, punctuationDict, allChunks = chunks) {
     for (const chunk of chunks) {
       if (chunk.punctuation) {
         // If translatedPunctuation already exists (with spacing), preserve the spacing
@@ -281,8 +187,8 @@ export class ChunkPostProcessor {
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
         // BUT NOT if the next chunk starts with a quote
         if (chunk.translatedPunctuation && chunk.translatedPunctuation.includes(',')) {
-          const chunkIndex = chunks.indexOf(chunk);
-          const nextChunk = chunkIndex < chunks.length - 1 ? chunks[chunkIndex + 1] : null;
+          const chunkIndex = allChunks.indexOf(chunk);
+          const nextChunk = chunkIndex >= 0 ? (allChunks[chunkIndex + 1] ?? null) : null;
           const hasNextChunk = nextChunk?.content?.trim();
 
           // Check if comma is followed by a quote (either in same chunk or next chunk)
@@ -304,6 +210,8 @@ export class ChunkPostProcessor {
           const commaFollowedByQuote =
             currentPunctEndsWithQuote || nextChunkStartsWithQuote || nextChunkHasClosingQuote;
 
+          const isThousandsSeparator = this._isThousandsSeparator(chunk, nextChunk);
+
           // Special handling for comma-bracket sequences: ensure proper spacing
           const commaPattern = /,\s*[[({（【《]/;
           if (commaPattern.test(chunk.translatedPunctuation)) {
@@ -315,7 +223,8 @@ export class ChunkPostProcessor {
           } else if (
             hasNextChunk &&
             !chunk.translatedPunctuation.endsWith(' ') &&
-            !commaFollowedByQuote
+            !commaFollowedByQuote &&
+            !isThousandsSeparator
           ) {
             chunk.translatedPunctuation += ' ';
           }

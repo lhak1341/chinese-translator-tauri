@@ -25,22 +25,14 @@ import { isPatternSource } from '../TranslationSourcePriority.js';
  *   CompositePatternResult,
  *   PatternMatchResult,
  *   PatternProcessingOptions,
- *   TwoPhasePatternProcessorConfig,
  *   PatternCategorizationResult,
  *   PhaseProcessingStats,
  *   DecisionEngineResult
  * } from '../types/PatternProcessingTypes'
  */
 class TwoPhasePatternProcessor {
-  constructor(patterns, options = {}) {
+  constructor(patterns) {
     this.analyzer = new PatternAnalyzer();
-    this.options = {
-      maxCompositeDetectionTime: 100, // ms
-      enableFallback: true,
-      debugMode: false,
-      enableWasm: true, // Enable WASM acceleration by default
-      ...options,
-    };
 
     // Analyze and categorize patterns
     this.processedPatterns = this.analyzer.analyzePatterns(patterns);
@@ -136,7 +128,7 @@ class TwoPhasePatternProcessor {
    */
   async processTokens(tokens, options) {
     // WASM-only implementation (JavaScript fallback removed after parity verification)
-    if (!this.options.enableWasm || !isWasmPatternProcessorReady()) {
+    if (!isWasmPatternProcessorReady()) {
       throw new Error(
         'WASM Pattern Processor not available. Two-phase pattern matching requires Rust WASM acceleration.'
       );
@@ -323,7 +315,6 @@ class TwoPhasePatternProcessor {
         compositeEligible: this.compositeEligiblePatterns.length,
       },
       analysis: this.analyzer.generateSummary(this.processedPatterns),
-      options: this.options,
     };
   }
 

@@ -15,7 +15,7 @@ An architecture review proposed creating a `TextProcessingPipeline` module (`src
 
 - **AdaptiveChunker's inputs include engine-owned state.** `calculateOptimalChunkSize(contentAnalysis, deviceInfo, count)` requires `deviceInfo.memoryPressure` and `deviceInfo.cpuCores` sourced from `parallelConfig.getConfig().device` — a TranslationEngine dependency. A `TextProcessingPipeline` cannot own this coordination without receiving engine-specific inputs, which moves coupling rather than removing it.
 
-- **Only one method uses both together.** `translateWithProgressiveBatches` is the single call site that combines `TextChunker` output with `AdaptiveChunker` sizing. `translateWithChunking` (the other chunked path) calls `TextChunker` but not `AdaptiveChunker` at all, confirming they are not architecturally paired.
+- **Only one method uses both together.** `translateWithProgressiveBatches` is the single call site that combines `TextChunker` output with `AdaptiveChunker` sizing. `translateWithChunking` (the other chunked path, deleted 2026-10-05) called `TextChunker` but not `AdaptiveChunker` at all, confirming they are not architecturally paired.
 
 - **Deletion test fails.** Deleting the AdaptiveChunker calls from `translateWithProgressiveBatches` removes 6 lines from one method and falls back to `baseBatchSize`. No complexity reappears across callers — the coordination was configuration, not a reusable protocol earning its keep across multiple sites.
 

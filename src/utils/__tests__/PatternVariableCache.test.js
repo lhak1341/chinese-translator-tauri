@@ -20,6 +20,46 @@ function makeManager(phrasesTrie) {
 
 const resolveType = () => 'concept';
 
+describe('buildPatternVariableCache — Stage 2 token boundaries', () => {
+  const flag = { allowAsPatternVariable: true };
+  const run = (trie, tokens) =>
+    buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) }, resolveType);
+
+  test('a phrase ending mid-token is not a match', () => {
+    // "ab" is a phrase, but the tokens are "a" + "bc": the phrase ends inside the second token.
+    const trie = makeTrie([['ab', 'x', flag]]);
+    expect(run(trie, [{ value: 'a' }, { value: 'bc' }])).toEqual({});
+  });
+
+  test('a phrase ending exactly on a multi-character token boundary is a match', () => {
+    const trie = makeTrie([['abc', 'x', flag]]);
+    expect(run(trie, [{ value: 'a' }, { value: 'bc' }])['abc']).toMatchObject({ translation: 'x' });
+  });
+
+  test('looks at most 6 tokens ahead', () => {
+    const trie = makeTrie([
+      ['aaaaaa', 'six', flag],
+      ['aaaaaaa', 'seven', flag],
+    ]);
+    const tokens = Array.from({ length: 7 }, () => ({ value: 'a' }));
+    const result = run(trie, tokens);
+    expect(result['aaaaaa']).toMatchObject({ translation: 'six' });
+    expect(result['aaaaaaa']).toBeUndefined();
+  });
+
+  test('a phrase holding an astral character matches', () => {
+    const trie = makeTrie([['𠮷野', 'x', flag]]);
+    expect(run(trie, [{ value: '𠮷' }, { value: '野' }])['𠮷野']).toMatchObject({
+      translation: 'x',
+    });
+  });
+
+  test('an entry without allowAsPatternVariable is skipped', () => {
+    const trie = makeTrie([['ab', 'x', { allowAsPatternVariable: false }]]);
+    expect(run(trie, [{ value: 'a' }, { value: 'b' }])).toEqual({});
+  });
+});
+
 describe('buildPatternVariableCache — Stage 2 trie walk', () => {
   test('single-token phrase match', () => {
     const trie = makeTrie([['部', 'bộ', { allowAsPatternVariable: true }]]);

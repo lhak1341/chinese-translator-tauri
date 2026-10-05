@@ -4,11 +4,11 @@
 
 Phase 5 post-processing over `TextChunk[]` arrays: punctuation translation and text reconstruction. Separated from `TextChunker` so that post-processing bugs have a single locality and the methods are testable with a `TextChunk[]` fixture without constructing a `TextChunker`.
 
-Owns: `translatePunctuation(chunks, dict)` (delegates to `translatePunctuationNormally` + `fixAngleQuotePositioning`), `reconstructText(chunks)` (char-only path, returns string), `reconstructTextWithSegments(chunks, semanticArrays?)` (full translation path, returns `{text, segments}`). Internally owns a `PunctuationProcessor` instance (constructed with no args; no injection needed — only one implementation exists).
+Owns: `translatePunctuation(chunks, dict)` (delegates to `translatePunctuationNormally` + `fixAngleQuotePositioning`), `reconstructText(chunks)` (Full Translation, both the per-batch and the final reconstruct; returns a string and never NFC-normalizes, which `finishFullText` does once over the whole text). It had a segment-building twin, `reconstructTextWithSegments`, deleted 2026-10-05: no production caller after `translateWithChunking` went, and its `chunk.semanticIndex` branch could not run (nothing sets that field); live segments come from `matchWordSegments`. Internally owns a `PunctuationProcessor` instance (constructed with no args; no injection needed — only one implementation exists).
 
 JS/WASM divergence: `fixAngleQuotePositioning` handles the JS chunker's empty-chunk representation of `《` only. WASM accumulates `《` into the preceding chunk's `punctuation` field; `applySmartCapitalization` in `TranslationEngine` handles that path. `「` (U+300C) is also skipped by `fixAngleQuotePositioning` — `QuoteProcessor.isOpeningQuote('「')` returns false; the fallback in `applySmartCapitalization` covers it.
 
-`TranslationEngine` holds `this.chunkPostProcessor = new ChunkPostProcessor()` alongside `this.textChunker`. All 3 `translatePunctuation` call sites and 4 `reconstruct*` call sites go through `this.chunkPostProcessor`.
+`TranslationEngine` holds `this.chunkPostProcessor = new ChunkPostProcessor()` alongside `this.textChunker`. Both `translatePunctuation` call sites and all 3 `reconstructText` call sites go through `this.chunkPostProcessor`. `_computePunctuationSpacing` is the private spacing rule set under `reconstructText`; `_isThousandsSeparator` feeds it and `translatePunctuationNormally`.
 
 Entry point: `src/utils/text/ChunkPostProcessor.js`. Not barrel-exported — callers import it directly.
 
@@ -21,6 +21,27 @@ The character-only mode's spacing decision — `needsSpaceCharOnly(currentToken,
 Pure extraction, no behavior change — `bufferEndsWithSpace` (whether the assembled output already ends in a space) is passed in as a scalar so the function stays pure despite depending on accumulated-output state for its punctuation branch.
 
 Entry point: `src/utils/text/CharOnlySpacing.ts`. Not barrel-exported — sole caller is `TranslationEngine.js`'s `translateWithCharactersOnly()`.
+
+## TextFinishing
+
+"Assembled text → final text", one named entry point per translation mode (decided 2026-10-05, architecture review candidate #1 grilling). Before, the Full Translation tail called `TranslationEngine.applyFinalCleanup` (a method that read no `this`, tested through `TranslationEngine.prototype.applyFinalCleanup.call({}, text)`) plus `.normalize('NFC')` at each call site, while character-only ended in `cleanupFormatting` plus `applyCharOnlySupplements` and ran neither the digit spacing nor the NFC. Its doc block claimed it ran for both modes and was called by `translateSinglePass`; it never was.
+
+Interface (all pure, text in and text out):
+
+- `finishFullText(text)`: `cleanFullText` then NFC. The Full Translation final text.
+- `cleanFullText(text)`: `spaceLettersAndDigits` then `normalizeLineWhitespace`, no NFC. The progressive path cleans each batch with this before the whole text is finished.
+- `finishCharOnlyText(text, translatePunct)`: `cleanupFormatting` (`useChunking: false`), `applyCharOnlySupplements`, `spaceLettersAndDigits`, NFC.
+- `spaceLettersAndDigits`, `normalizeLineWhitespace`: the two rules, exported for their tests.
+
+**The modes differ on purpose.** Character-only does not run `normalizeLineWhitespace`: a line's leading indentation (a `U+3000` paragraph indent) survives, as `translateWithCharactersOnly` has always said it preserves whitespace, and Full Translation strips it. Character-only's whole-text `trim()` inside `cleanupFormatting` still drops a trailing newline, which Full Translation keeps. Character-only gained the letter/digit spacing (`abc123` → `abc 123`; digits next to Chinese were already spaced at token level by `needsSpaceCharOnly`) and the NFC, so an NFD dictionary value no longer breaks segment boundaries there either.
+
+**Callers record click-to-highlight positions AFTER finishing**, because it changes length (see `src/utils/CLAUDE.md` §4). `translateWithCharactersOnly` finishes before its position-metadata loop.
+
+**A thousands separator is not finishing's job.** `2,700` stays `2,700` in both modes, but a post-hoc `(\d), (\d)` regex would also merge a genuine list (`1, 2`). The rule needs the source comma, so `ChunkPostProcessor._isThousandsSeparator` owns it (an ASCII `,` between a digit-ended chunk and a digit-started chunk; full-width `，` is always a clause comma), asked by both `translatePunctuationNormally` and the reconstruct spacing. `translatePunctuation` takes an `allChunks` argument because a progressive batch holds only the translatable chunks and skips a digit-only `700`, so the comma's neighbour must come from the full list.
+
+Pinned by `TextFinishing.test.ts` (the entry points, plus one engine-level parity block per mode) and `ChunkPostProcessor.test.js`.
+
+Entry point: `src/utils/text/FormattingPasses.ts`. Not barrel-exported — `TranslationEngine.js` imports it directly.
 
 ## TextPositionMapper
 
@@ -196,7 +217,7 @@ The `translationSource` string on a token: which phase wrote it, and whether the
 
 The shared initialization contract for WASM processors. Owns the invariant sequence every WASM processor must run before its instance is usable: binary fetch → SHA-256 integrity verification → `instantiateFn(binary)` → instance method verification. Wraps the sequence in exponential-backoff retry (transient errors only) and tracks initialization state (`isReady`, `hasFailed`, cooldown, failure count).
 
-Each lifecycle-holding WASM processor (Pattern, Dictionary, StringProcessor, TextChunker, TextTokenizer) holds one `WasmProcessorLifecycle` instance; TextAssembler and ConflictResolution share the binary but keep their own flags. Every `instantiateFn` calls `loadSharedWasmModule()` (`WasmSharedModule.js`) rather than the generated `init`, so the binary is verified and instantiated once (ADR-009, "Current state"). The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
+Each lifecycle-holding WASM processor (Pattern, TextChunker, TextTokenizer, TextAssembler, ConflictResolution) holds one `WasmProcessorLifecycle` instance. (There were seven: Dictionary went with ADR-073 and StringProcessor with ADR-078.) Every `instantiateFn` calls `loadSharedWasmModule()` (`WasmSharedModule.js`) rather than the generated `init`, so the binary is verified and instantiated once (ADR-009, "Current state"). The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
 
 Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
@@ -256,7 +277,11 @@ Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictio
 
 ## DictionaryTrie
 
-The per-dictionary lookup structure. A prefix trie where each node owns `children: Map<char, TrieNode>`, `isEndOfWord`, `translation`, and `metadata`. Core operations: `insert`, `get`, `getWithMetadata`, `findMatches` (all prefix matches from a position), `findLongestMatch`, `getWithPrefix` (DFS collect).
+The per-dictionary lookup structure. A prefix trie where each node owns `children: Map<char, TrieNode>`, `isEndOfWord`, `translation`, and `metadata`. Core operations: `insert`, `get`, `getWithMetadata`, and `findMatches(text, startPos)`, the one prefix walk (every word starting at `startPos`, shortest first, with `endPos` and `metadata`). `DictionaryMatchLookup` and `PatternVariableCache` stage 2 both read matches through it; nothing outside the class touches `root`, which is `@private` (only the dispose test looks, to check it is emptied).
+
+**`findMatches` walks by code point and reports UTF-16 offsets** (decided 2026-10-05, architecture review candidate #2 grilling). `insert` keys the trie by code point, so a UTF-16 walk could never match a word holding an astral character (CJK Ext-B, e.g. `𠮷`) although `get` could; the walk had been copied into `DictionaryMatchLookup.findMatchesThreadSafe` with the same flaw, while `PatternVariableCache` stage 2 hand-walked `root` by code point and so disagreed with it. The production dictionaries hold no astral keys (checked 2026-10-05 over 132 files), so nothing was wrong in the app. `endPos` stays a UTF-16 offset because callers slice JS strings with it. Pinned by `DictionaryTrie.test.ts`.
+
+`getStats`/`countNodes`/`getMaxDepth`/`getAverageDepth` stay because `DictionaryManager.loadDictionaries` calls `getStats()` for every dictionary at load, but only `getGlobalStats` (the dev-console `getEngineStats`) reads the result, and it costs four full-tree walks per dictionary at load. Left for its own review.
 
 `dispose()` is mandatory before discarding an instance — recursively nullifies all node references for GC.
 
@@ -408,7 +433,7 @@ Per-type column-layout narrative (which columns, what widths) lives as block com
 
 ## DictionaryMatchLookup
 
-The match lookup behind `DictionaryManager.findAllMatches`. Owns: `findMatchesThreadSafe` (single-dictionary trie walk, no shared-array state) and `findAllMatches` (scans the search order in order; a dictionary that throws is logged and skipped).
+The match lookup behind `DictionaryManager.findAllMatches`. Owns `findAllMatches` (scans the search order in order, asking each dictionary's `DictionaryTrie.findMatches`; a dictionary that throws is logged and skipped). It had its own `findMatchesThreadSafe` walk until 2026-10-05 (see "DictionaryTrie").
 
 One public method, `findAllMatches`: synchronous and always a sequential JS scan, which `PatternVariableCache`'s per-position hot loop requires (it cannot await). The engine's phrase pass (`processRemainingPhrases`) and its per-position phase lookup (`getCandidateMatchesAtPosition`) call it too. **There is deliberately no lookup cache between the engine and `DictionaryManager`:** a semantic cache served stale translations and broke the 5-phase priority order (a proper noun must override a character). Anything that re-adds one must key or validate on phase priority — 1 patterns, 2 proper nouns, 3 numbers, 4 phrases, 5 characters — so an entry from a higher-priority phase beats one from a lower phase. `DictionaryManager.findAllMatches` is a thin delegation to `this.matchLookup`.
 
@@ -416,7 +441,7 @@ There is no JS "parallel" path (deleted 2026-10-03: a `Promise.all` over synchro
 
 Replaces 7 previously-flat methods on `DictionaryManager` (`findMatchesThreadSafe`, `findAllMatchesSequential` — now `findAllMatches` — `findAllMatchesAsync`, plus `findBestMatch`/`findBestMatchAsync`, which had zero callers and are deleted). `DictionaryManager` keeps only the delegation to `findAllMatches`.
 
-Constructor takes injected dependencies (live `dictionaries`/`metadata` Maps, `getDefaultSearchOrder` callback, `isReady` callback) — testable standalone with a stub trie and no full `DictionaryManager` construction.
+Constructor takes injected dependencies (live `dictionaries`/`metadata` Maps, `getDefaultSearchOrder` callback, `isReady` callback) — testable standalone with a real or stub trie (anything with `findMatches(text, startPos)`) and no full `DictionaryManager` construction.
 
 Entry point: `src/utils/dictionary/DictionaryMatchLookup.js`. Constructed once in `DictionaryManager`'s constructor as `this.matchLookup`.
 
@@ -631,7 +656,7 @@ Entry point: `src/utils/TranslationEngine.js`, private method of `TranslationEng
 
 A small dedup extraction from `TranslationEngine.js` (architecture review 2026-08-15, candidate #4), scoped file-wide rather than to a single method — no call site is on the DO-NOT-EXTRACT list (`translateSinglePass`/`findAllMatchesWithSemanticCache`/`postProcess`).
 
-`emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Was hand-copied at 8 sites across 5 methods (`translateWithCharactersOnly`, `translateWithSegments`, `translateWithProgressiveBatches` ×4, `translateWithChunking`, `getBatchSemanticArrays`) before being unified. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
+`emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Was hand-copied at 8 sites across 5 methods (`translateWithCharactersOnly`, `translateWithSegments`, `translateWithProgressiveBatches` ×4, `translateWithChunking` (deleted 2026-10-05), `getBatchSemanticArrays`) before being unified. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
 
 ## _findInDictionaries
 

@@ -108,12 +108,13 @@ interface DictionaryManagerConfig {
  * Pattern processing settings
  */
 export interface PatternProcessingSettings {
-  /** Enable two-phase hierarchical pattern processing */
+  /**
+   * Enable two-phase hierarchical pattern processing. `false` sends patterns down the JS
+   * SemanticPatternProcessor path; the engine also sets it after repeated WASM pattern failures.
+   * (`maxCompositeDetectionTime` and `fallbackToSinglePhase` were removed 2026-10-05: nothing read
+   * them. The init option is merged by spread, so a stale key passed in is stored and ignored.)
+   */
   enableTwoPhasePatterns: boolean;
-  /** Maximum time for composite pattern detection in milliseconds */
-  maxCompositeDetectionTime: number;
-  /** Fallback to single-phase processing if two-phase fails */
-  fallbackToSinglePhase: boolean;
 }
 
 /**

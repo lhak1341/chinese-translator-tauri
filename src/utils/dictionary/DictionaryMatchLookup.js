@@ -1,12 +1,13 @@
 /**
- * @import { DictionaryTrieInterface, DictionarySearchOrder, DictionaryMatchResult, TrieMatch } from '../types/DictionaryManagerTypes'
+ * @import { DictionarySearchOrder, DictionaryMatchResult } from '../../types/DictionaryManagerTypes'
  */
 
 import { logger } from '../logger.js';
 import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 
 /**
- * Owns the match lookup: thread-safe trie walk and the sequential scan across a search order.
+ * Owns the match lookup: the sequential scan across a search order, over each dictionary trie's
+ * `findMatches`.
  * DictionaryManager's `findAllMatches` delegates here — this class owns everything behind it.
  */
 export class DictionaryMatchLookup {
@@ -15,39 +16,6 @@ export class DictionaryMatchLookup {
     this._metadata = metadata;
     this._getDefaultSearchOrder = getDefaultSearchOrder;
     this._isReady = isReady;
-  }
-
-  /**
-   * Thread-safe findMatches implementation that doesn't use shared arrays
-   * @param {DictionaryTrieInterface} dictionary - Dictionary trie to search
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @returns {TrieMatch[]} Matches from this dictionary
-   */
-  findMatchesThreadSafe(dictionary, text, startPos = 0) {
-    const matches = [];
-    let current = dictionary.root;
-
-    for (let i = startPos; i < text.length; i++) {
-      const char = text[i];
-
-      if (!current.children.has(char)) {
-        break;
-      }
-
-      current = current.children.get(char);
-
-      if (current.isEndOfWord) {
-        matches.push({
-          word: text.slice(startPos, i + 1),
-          translation: current.translation,
-          endPos: i + 1,
-          metadata: current.metadata,
-        });
-      }
-    }
-
-    return matches;
   }
 
   /**
@@ -68,7 +36,7 @@ export class DictionaryMatchLookup {
       if (!dictionary) continue;
 
       try {
-        const matches = this.findMatchesThreadSafe(dictionary, text, startPos);
+        const matches = dictionary.findMatches(text, startPos);
 
         matches.forEach((match) => {
           match.dictionary = dictionaryName;

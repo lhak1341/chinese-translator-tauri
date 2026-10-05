@@ -22,7 +22,6 @@
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 import { logger } from '../logger.js';
 import { getSemanticTokens } from '../TokenHelpers.js';
-import { buildPrecomputedStrings } from '../wasm/StringProcessingAdapter.js';
 import { PrecomputedTokenStrings } from './PrecomputedTokenStrings.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
 import { classifyVariableType } from './VariableTypeClassifier.js';
@@ -500,40 +499,18 @@ export class SemanticPatternProcessor {
     // Get semantic tokens (Chinese characters/words only)
     const semanticTokens = getSemanticTokens(tokens);
 
-    // Initialize pre-computed strings optimization
+    // Initialize pre-computed strings optimization. A fresh instance each call; the old one is
+    // garbage once the reference is dropped.
     if (this.enableStringOptimization && semanticTokens.length > 5) {
-      // CRITICAL FIX: Clear previous instance to prevent memory leak
-      if (this.precomputedStrings) {
-        if (this.precomputedStrings.stringLookup) {
-          this.precomputedStrings.stringLookup.clear();
-        }
-        if (this.precomputedStrings.clear) {
-          this.precomputedStrings.clear();
-        }
-        this.precomputedStrings = null;
-      }
-
       const precomputeStart = performance.now();
 
-      const { impl: strings, usingWasm } = await buildPrecomputedStrings(semanticTokens);
-      this.precomputedStrings = strings;
-      this.usingWasm = usingWasm;
+      this.precomputedStrings = new PrecomputedTokenStrings(semanticTokens);
 
       const precomputeTime = performance.now() - precomputeStart;
       this.stats.stringOptimization.enabled = true;
       this.stats.stringOptimization.precomputeTime += precomputeTime;
     } else {
-      // CRITICAL FIX: Clear existing instance when optimization disabled
-      if (this.precomputedStrings) {
-        if (this.precomputedStrings.stringLookup) {
-          this.precomputedStrings.stringLookup.clear();
-        }
-        if (this.precomputedStrings.clear) {
-          this.precomputedStrings.clear();
-        }
-      }
       this.precomputedStrings = null;
-      this.usingWasm = false;
       this.stats.stringOptimization.enabled = false;
     }
 

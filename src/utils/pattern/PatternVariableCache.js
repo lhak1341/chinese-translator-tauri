@@ -11,6 +11,9 @@
 
 import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
 
+/** Longest phrase, in tokens, that stage 2 will look for. */
+const MAX_PHRASE_TOKENS = 6;
+
 /**
  * Last stage: numeral spans for `#` patterns, when any pattern uses `#`. After the
  * dictionary stages, and never overwriting, so a dictionary entry for the same text wins.
@@ -72,29 +75,27 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
   if (!dictionaryManager) return withNumberVariables(tokens, cache, patterns);
 
   // Stage 2: Phrase lookups with allowAsPatternVariable flag.
-  // Single trie walk per start position replaces O(6) independent translate() calls.
-  // Shared prefix traversal continues across token boundaries; dead-end breaks early.
+  // One trie walk per start position, through the trie's own findMatches. A match counts only
+  // if it ends where a token ends (the pipeline works in whole tokens) within MAX_PHRASE_TOKENS.
+  const fullText = tokens.map((t) => t.value).join('');
   const phrasesTrie = dictionaryManager.getDictionary?.('phrases');
-  for (let i = 0; i < tokens.length; i++) {
-    if (!phrasesTrie) continue;
-    let node = phrasesTrie.root;
-    let combinedText = '';
-    for (let len = 1; len <= Math.min(6, tokens.length - i); len++) {
-      const tv = tokens[i + len - 1].value;
-      let dead = false;
-      for (const ch of tv) {
-        node = node.children.get(ch);
-        if (!node) {
-          dead = true;
-          break;
-        }
-      }
-      if (dead) break;
-      combinedText += tv;
-      if (node.isEndOfWord && node.metadata?.allowAsPatternVariable) {
-        const entryType = resolveType('phrases_pattern_variable', combinedText, node.metadata);
-        cache[combinedText] = {
-          translation: node.translation,
+  if (phrasesTrie) {
+    // tokenStarts[j] = UTF-16 offset of token j in fullText; tokenStarts[tokens.length] = its end.
+    const tokenStarts = [0];
+    for (const token of tokens)
+      tokenStarts.push(tokenStarts[tokenStarts.length - 1] + token.value.length);
+
+    for (let i = 0; i < tokens.length; i++) {
+      const matchByEnd = new Map(
+        phrasesTrie.findMatches(fullText, tokenStarts[i]).map((match) => [match.endPos, match])
+      );
+      if (matchByEnd.size === 0) continue;
+      for (let len = 1; len <= Math.min(MAX_PHRASE_TOKENS, tokens.length - i); len++) {
+        const match = matchByEnd.get(tokenStarts[i + len]);
+        if (!match?.metadata?.allowAsPatternVariable) continue;
+        const entryType = resolveType('phrases_pattern_variable', match.word, match.metadata);
+        cache[match.word] = {
+          translation: match.translation,
           source: 'phrases_pattern_variable',
           type: entryType,
         };
@@ -124,7 +125,6 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
   // Stage 4: Full-text scan for multi-character proper nouns.
   // Defensive: actualProperNounDictionaries excludes 'phrases', but guard if a phrase
   // entry leaks through — apply the allowAsPatternVariable gate in that case.
-  const fullText = tokens.map((t) => t.value).join('');
   for (let pos = 0; pos < fullText.length; pos++) {
     const allProperNounMatches = dictionaryManager.findAllMatches(
       fullText,

@@ -1,15 +1,15 @@
 # ADR-009: WasmProcessorLifecycle — Shared Init Contract for All WASM Processors
 
-**Status**: Accepted — `WasmDictionaryManager.js` was deleted 2026-10-04 (ADR-073), so six wrappers hold a lifecycle, not seven
+**Status**: Accepted — `WasmDictionaryManager.js` was deleted 2026-10-04 (ADR-073) and `WasmStringProcessor.js` 2026-10-05 (ADR-078), so five wrappers hold a lifecycle, not seven
 **Date**: 2026-05-17
 **Decision Makers**: Development Team
-**Affected Components**: `WasmProcessorLifecycle.js`, `WasmSharedModule.js`, and the seven wrappers that hold a lifecycle: `WasmPatternProcessor.js`, `WasmDictionaryManager.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmTextAssembler.js`, `WasmConflictResolution.js`
+**Affected Components**: `WasmProcessorLifecycle.js`, `WasmSharedModule.js`, and the five wrappers that hold a lifecycle: `WasmPatternProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmTextAssembler.js`, `WasmConflictResolution.js` (`WasmDictionaryManager.js` went with ADR-073, `WasmStringProcessor.js` with ADR-078)
 
 ## Current state (2026-10-03)
 
 This ADR was written against three processors (Pattern, Number, Dictionary). The sections below, down to "Consequences", describe that original decision and are kept as written; this section is what is true now. Where the two disagree, this one wins.
 
-**Processors.** `WasmNumberProcessor.js` was deleted (2026-06-20); Phase 3 is pure JS in `NumberProcessor.js`. Seven wrappers hold a `WasmProcessorLifecycle` (the `new WasmProcessorLifecycle(` call sites): `WasmPatternProcessor.js`, `WasmDictionaryManager.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmTextAssembler.js` and `WasmConflictResolution.js`. The last two moved on 2026-10-03: they had kept their own `initialized`/`initializationFailed` flags and made one load attempt, so a single transient fetch error sent Phase 4 assembly and conflict resolution to the JS fallback for the whole session while the other five retried. They now retry transient failures with backoff and verify the instance's expected method; failure after the retries or a panic stays permanent (`permanentlyFail()`, no `reset()`), and init stays eager at import outside tests. `WasmCascadeDiscipline.test.js` fails if a wrapper in its list stops constructing a lifecycle. That more processors converged than the ADR scoped is the "fourth WASM processor needs only `new WasmProcessorLifecycle({...})`" consequence it predicted.
+**Processors.** `WasmNumberProcessor.js` was deleted (2026-06-20); Phase 3 is pure JS in `NumberProcessor.js`. Five wrappers hold a `WasmProcessorLifecycle` (the `new WasmProcessorLifecycle(` call sites): `WasmPatternProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmTextAssembler.js` and `WasmConflictResolution.js`. (It was seven until 2026-10-05: `WasmDictionaryManager.js` was deleted with ADR-073 and `WasmStringProcessor.js` with ADR-078.) The last two moved on 2026-10-03: they had kept their own `initialized`/`initializationFailed` flags and made one load attempt, so a single transient fetch error sent Phase 4 assembly and conflict resolution to the JS fallback for the whole session while the other five retried. They now retry transient failures with backoff and verify the instance's expected method; failure after the retries or a panic stays permanent (`permanentlyFail()`, no `reset()`), and init stays eager at import outside tests. `WasmCascadeDiscipline.test.js` fails if a wrapper in its list stops constructing a lifecycle. That more processors converged than the ADR scoped is the "fourth WASM processor needs only `new WasmProcessorLifecycle({...})`" consequence it predicted.
 
 **Instantiation is no longer the processors' job.** The lifecycle verified the binary, and then each processor called the generated `init` itself, which reopened the gap this ADR set out to close. `init` does not guard concurrent first calls (three concurrent calls instantiated the module three times, measured 2026-10-03), and two wrappers called a bare `init()` with no verified binary at import, before the lifecycle wrappers had finished fetching, so verification depended on call order. Every `instantiateFn` now calls `loadSharedWasmModule()` (`src/utils/wasm/WasmSharedModule.js`) instead of `init`: fetch, verify, instantiate once, one shared in-flight promise, and retired for good by the panic cascade. The loader has no retry or cooldown of its own; each lifecycle retries its whole sequence and calls the loader each time. `WasmCascadeDiscipline.test.js` fails on a bare `init(` or `.default(` anywhere but the loader. Each lifecycle still fetches and verifies the binary before calling the loader, which is redundant but harmless. `instantiateFn` therefore no longer needs the binary it is handed, except Pattern, which still imports the module itself to run `verifyWasmModule` first.
 
@@ -162,8 +162,9 @@ verification or instance method validation. (It now calls `loadSharedWasmModule(
 - Lifecycle: `src/utils/wasm/WasmProcessorLifecycle.js`
 - Pattern processor: `src/utils/wasm/WasmPatternProcessor.js`
 - Shared loader: `src/utils/wasm/WasmSharedModule.js`
-- Dictionary manager: `src/utils/wasm/WasmDictionaryManager.js`
-- Other lifecycle holders: `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`
+- Dictionary manager: deleted 2026-10-04 (`WasmDictionaryManager.js`, ADR-073)
+- String processor: deleted 2026-10-05 (`WasmStringProcessor.js`, ADR-078)
+- Other lifecycle holders: `WasmTextChunker.js`, `WasmTextTokenizer.js`
 - Number processor: deleted 2026-06-20 (`WasmNumberProcessor.js`)
 - CONTEXT.md: `WasmProcessorLifecycle` entry
 - ADR-007: No JS fallback, no `WasmPatternBridge` (still applies to runtime call sites)

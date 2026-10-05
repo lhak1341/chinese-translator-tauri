@@ -146,6 +146,8 @@ console.log(
 // - Is speedup <1.2x? (not worth added complexity)
 ```
 
+**Benchmarking WASM against its JS twin.** Vitest cannot load the binary (`fetch failed`); in a plain `node --input-type=module` script call `initSync({ module: readFileSync('src/wasm/translation_wasm_core_bg.wasm') })` from `src/wasm/translation_wasm_core.js`, then `new` the Rust class. Use real call counts (the processor's own stats, e.g. `stringOptimization.precomputedLookups`: 3.4M per 500 characters on the JS fallback matcher) so the boundary-crossing cost is weighed at its real frequency. Numbers are Node/V8, not the app's WKWebView (JavaScriptCore); ADR-073 and ADR-078 are the worked examples.
+
 ### Common Profiling Targets
 
 - **WASM boundary crossings**: Count calls, batch operations

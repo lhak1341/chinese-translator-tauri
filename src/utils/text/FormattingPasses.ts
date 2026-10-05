@@ -346,3 +346,61 @@ export function applyCharOnlySupplements(input: string): string {
   );
   return text;
 }
+
+// ── Text finishing ───────────────────────────────────────────────────────────
+// "Assembled text → final text", one named entry point per translation mode. Callers pick the
+// mode; each function states which rules that mode runs. Pure: text in, text out.
+
+/**
+ * Adds a space between a letter and an adjacent digit (`Thứ422giới` → `Thứ 422 giới`).
+ *
+ * Matches `\p{L}` only, never "anything but these punctuation marks": punctuation of any kind
+ * (formatting like `,.-+%()/~`, sentence-ending like `!?:;"`) must stay glued to a number, so a
+ * converted `2,700!` is never spaced to `2,700 !`. (2026-02-02 and 2026-08-29: both earlier
+ * exclusion-list versions missed marks.)
+ */
+export function spaceLettersAndDigits(text: string): string {
+  return text.replace(/(\p{L})(\d)/gu, '$1 $2').replace(/(\d)(\p{L})/gu, '$1 $2');
+}
+
+/**
+ * Collapses runs of spaces/tabs to one space and strips spaces at line edges, keeping line breaks.
+ * `[^\S\r\n]` and `[ \t]`, never bare `\s`: `\s` matches `\n` and would delete paragraph breaks.
+ */
+export function normalizeLineWhitespace(text: string): string {
+  return text.replace(/[^\S\r\n]+/g, ' ').replace(/^[ \t]+|[ \t]+$/gm, '');
+}
+
+/**
+ * Full Translation's cleanup: letter/digit spacing plus whitespace normalisation, no NFC. The
+ * progressive path cleans each batch with this, before the whole text is finished.
+ */
+export function cleanFullText(text: string): string {
+  if (!text) return text;
+  return normalizeLineWhitespace(spaceLettersAndDigits(text));
+}
+
+/**
+ * Full Translation's final text. NFC so `màu` is one 3-code-point string on every path: an NFD
+ * `màu` has a different `.length`, which puts segment boundaries in the wrong place.
+ */
+export function finishFullText(text: string): string {
+  return cleanFullText(text).normalize('NFC');
+}
+
+/**
+ * Character-only's final text: `cleanupFormatting` (punctuation dictionary, spacing, capitals), the
+ * char-only supplements, letter/digit spacing and NFC.
+ *
+ * It does NOT run `normalizeLineWhitespace`: character-only keeps a line's leading indentation
+ * (a `　` paragraph indent survives), which Full Translation strips. Its whole-text `trim()`
+ * inside `cleanupFormatting` still drops a trailing newline.
+ *
+ * Callers record click-to-highlight positions AFTER this runs — it changes length.
+ */
+export function finishCharOnlyText(text: string, translatePunct: PunctuationLookup): string {
+  const formatted = applyCharOnlySupplements(
+    cleanupFormatting(text, { useChunking: false }, translatePunct)
+  );
+  return spaceLettersAndDigits(formatted).normalize('NFC');
+}

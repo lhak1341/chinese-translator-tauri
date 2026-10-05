@@ -13,13 +13,6 @@ vi.mock('../wasm/WasmPatternProcessor.js', () => ({
 vi.mock('../logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
-vi.mock('../wasm/WasmStringProcessor.js', () => ({
-  wasmStringProcessor: {
-    isAvailable: vi.fn().mockReturnValue(false),
-    concatenateTokenValues: vi.fn(),
-    splitAtPosition: vi.fn(),
-  },
-}));
 
 import { SemanticPatternProcessor } from '../pattern/SemanticPatternProcessor.js';
 
@@ -356,6 +349,31 @@ describe('SemanticPatternProcessor — setStringOptimization()', () => {
     await proc.initializePatterns(DICT);
     expect(() => proc.setStringOptimization(true)).not.toThrow();
     expect(() => proc.setStringOptimization(false)).not.toThrow();
+  });
+
+  // The string cache is built per processTokens call, for texts of more than 5 semantic tokens,
+  // and is always the JS PrecomputedTokenStrings (the WASM string tier was deleted 2026-10-05).
+  test('builds the string cache for more than 5 semantic tokens, and not for fewer', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns(DICT);
+    const chars = (text) => [...text].map((c) => makeToken('chinese_char', c));
+
+    await proc.processTokens(chars('一二三四五六七'));
+    expect(proc.precomputedStrings).not.toBeNull();
+    expect(proc.precomputedStrings.getString(1, 3)).toBe('二三四');
+    expect(proc.stats.stringOptimization.enabled).toBe(true);
+
+    await proc.processTokens(chars('一二三'));
+    expect(proc.precomputedStrings).toBeNull();
+    expect(proc.stats.stringOptimization.enabled).toBe(false);
+  });
+
+  test('does not build the string cache while the optimization is off', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns(DICT);
+    proc.setStringOptimization(false);
+    await proc.processTokens([...'一二三四五六七'].map((c) => makeToken('chinese_char', c)));
+    expect(proc.precomputedStrings).toBeNull();
   });
 
   test('sets enableStringOptimization flag', async () => {

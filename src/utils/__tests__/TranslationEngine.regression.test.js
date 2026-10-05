@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
-import { cleanupFormatting } from '../text/FormattingPasses';
+import { cleanFullText, cleanupFormatting } from '../text/FormattingPasses';
 
 // Mock TranslationEngine with minimal implementation for testing
 class MockTranslationEngine {
@@ -166,20 +166,20 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('translateWithChunking parallel branch wiring (architecture review 2026-08-18, candidate #2)', () => {
-    // A prior isolated-per-chunk-builder approach here mutated the shared
+  describe('processChunksInParallel chunkOffset wiring (architecture review 2026-08-18, candidate #2)', () => {
+    // A prior isolated-per-chunk-builder approach mutated the shared
     // this.semanticArrayBuilder field around await boundaries inside translateDirectly —
     // broken by construction (Array.prototype.map dispatches every chunk's synchronous
     // prefix, including the builder swap, before any chunk reaches real async work; see
-    // src/utils/CLAUDE.md's addUnit section for the full analysis). Deleted in favor of
-    // writing straight to the shared builder with a chunkOffset computed upfront, same as
-    // processChunksInParallel already does. This proves the replacement lands every
-    // chunk's semantic units at the correct global tokenIndex regardless of which chunk's
-    // translateDirectly call actually resolves first — translateSinglePass itself needs
-    // initialized dictionaries (see TranslationEngine.pipeline.test.js), so translateDirectly
-    // is stubbed here to isolate this orchestration logic.
+    // src/utils/CLAUDE.md's addUnit section for the full analysis). Chunks now write
+    // straight to the shared builder with a chunkOffset computed upfront. This proves
+    // that lands every chunk's semantic units at the correct global tokenIndex regardless
+    // of which chunk's translateDirectly call actually resolves first — translateSinglePass
+    // itself needs initialized dictionaries (see TranslationEngine.pipeline.test.js), so
+    // translateDirectly is stubbed here to isolate this orchestration logic. (The test
+    // used to drive translateWithChunking, deleted 2026-10-05; this is the live twin.)
     let engine;
-    const fakeChunks = [
+    const makeBatch = () => [
       { content: 'aaa', startIndex: 0 },
       { content: 'bb', startIndex: 3 },
       { content: 'cccc', startIndex: 5 },
@@ -191,22 +191,11 @@ describe('TranslationEngine Regression Tests', () => {
         enablePerformanceMonitoring: false,
       });
 
-      engine.textChunker = {
-        chunkText: () => fakeChunks,
-        analyzeChunks: () => ({}),
-        getTranslatableChunks: () => fakeChunks,
-      };
       // Token count == content length, so expected chunkOffsets are just cumulative
       // content lengths (0, 3, 5) — easy to assert against without a real tokenizer.
       vi.spyOn(engine.tokenizer, 'tokenize').mockImplementation((content) =>
         new Array(content.length).fill({})
       );
-      engine.chunkPostProcessor.translatePunctuation = vi.fn();
-      engine.chunkPostProcessor.reconstructTextWithSegments = vi.fn(() => ({
-        text: 'stub-result',
-        segments: [],
-      }));
-      engine.applyFinalCleanup = vi.fn((s) => s);
     });
 
     it('lands every chunk at the correct global tokenIndex regardless of completion order', async () => {
@@ -232,12 +221,14 @@ describe('TranslationEngine Regression Tests', () => {
           })
       );
 
-      await engine.translateWithChunking('aaa|bb|cccc', {});
+      const batch = makeBatch();
+      await engine.processChunksInParallel(batch, {}, 0);
 
       // chunkOffset is computed upfront, synchronously, in chunk order — regardless of
       // the scrambled resolution order set up above.
       const calledOffsets = engine.translateDirectly.mock.calls.map(([, opts]) => opts.chunkOffset);
       expect(calledOffsets).toEqual([0, 3, 5]);
+      expect(batch.map((chunk) => chunk.translated)).toEqual(['T-aaa', 'T-bb', 'T-cccc']);
 
       // Raw array order reflects completion order (documented, corrected downstream via
       // compareByTokenIndex) — assert by tokenIndex instead of array position.
@@ -251,12 +242,50 @@ describe('TranslationEngine Regression Tests', () => {
       // No swap-based "isolation" reintroduced — same builder instance throughout.
       expect(engine.semanticArrayBuilder).toBe(originalBuilder);
     });
+
+    it('offsets the first chunk by batchStart', async () => {
+      engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
+      await engine.processChunksInParallel(makeBatch(), {}, 10);
+      const calledOffsets = engine.translateDirectly.mock.calls.map(([, opts]) => opts.chunkOffset);
+      expect(calledOffsets).toEqual([10, 13, 15]);
+    });
   });
 
-  describe('Bug Fix: applyFinalCleanup spuriously spacing punctuation off a digit', () => {
-    // applyFinalCleanup is pure (no `this.*` reads) — call it directly off the prototype
-    // rather than constructing a full engine (WASM/dictionary init not needed here).
-    const cleanup = (text) => TranslationEngine.prototype.applyFinalCleanup.call({}, text);
+  describe('translateDirectly oversized input (translateWithChunking deleted 2026-10-05)', () => {
+    // The old fallback re-chunked the oversized chunk and re-entered the same check without end
+    // (a 13,000-character unpunctuated chunk, over the 15,000-token default limit). There is
+    // nothing smaller than a chunk to fall back to, so it now throws once, saying why.
+    it('throws "Input too large" once instead of recursing', async () => {
+      const engine = new TranslationEngine({
+        enableMemoryMonitoring: false,
+        enablePerformanceMonitoring: false,
+      });
+      vi.spyOn(engine, 'calculateMaxTokensForDevice').mockReturnValue(5);
+      const translateSinglePass = vi.spyOn(engine, 'translateSinglePass');
+
+      await expect(engine.translateDirectly('说说说说说说说说', {})).rejects.toThrow(
+        /Input too large/
+      );
+      expect(translateSinglePass).not.toHaveBeenCalled();
+    });
+
+    it('keeps the cause visible when a chunk fails inside processChunksInParallel', async () => {
+      const engine = new TranslationEngine({
+        enableMemoryMonitoring: false,
+        enablePerformanceMonitoring: false,
+      });
+      vi.spyOn(engine, 'calculateMaxTokensForDevice').mockReturnValue(5);
+      const error = await engine
+        .processChunksInParallel([{ content: '说说说说说说说说', startIndex: 0 }], {}, 0)
+        .catch((caught) => caught);
+      expect(error.message).toMatch(/Parallel chunk processing failed/);
+      expect(error.cause.message).toMatch(/Input too large/);
+    });
+  });
+
+  describe('Bug Fix: cleanFullText spuriously spacing punctuation off a digit', () => {
+    // cleanFullText is a pure FormattingPasses function — no engine to construct.
+    const cleanup = (text) => cleanFullText(text);
 
     it('does not insert a space between a converted number and following punctuation', () => {
       // 两千七！ → "2,700!" via NumberProcessor; previously became "2,700 !"

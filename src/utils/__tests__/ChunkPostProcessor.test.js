@@ -23,7 +23,6 @@ function makeChunk(overrides = {}) {
     openingPunctuation: '',
     lineBreaks: '',
     startedBy: '',
-    semanticIndex: undefined,
     ...overrides,
   };
 }
@@ -96,6 +95,44 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
     ];
     cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
     expect(chunks[0].translatedPunctuation).toBe(',');
+  });
+
+  // The tokenizer splits "2,700" into number, ",", number, so the comma reaches here as its own
+  // punctuation between two digit-edged chunks. A thousands separator takes no space ("2,700"),
+  // while a list comma does ("1, 2"), so the rule keys on the SOURCE comma: ASCII "," with a digit
+  // on both sides. The full-width "，" is always a clause comma.
+  test('ASCII comma between digits (thousands separator) → no trailing space', () => {
+    const chunks = [
+      makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
+      makeChunk({ content: '700', translated: null }),
+    ];
+    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    expect(chunks[0].translatedPunctuation).toBe(',');
+  });
+
+  test('full-width comma between digits → still gets a trailing space', () => {
+    const chunks = [
+      makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: '，' }),
+      makeChunk({ content: '700', translated: null }),
+    ];
+    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    expect(chunks[0].translatedPunctuation).toBe(', ');
+  });
+
+  test('ASCII comma with a non-digit on either side → still gets a trailing space', () => {
+    const before = [
+      makeChunk({ content: '说', translated: 'nói', punctuation: ',' }),
+      makeChunk({ content: '700', translated: null }),
+    ];
+    cpp.translatePunctuationNormally(before, PUNCT_DICT);
+    expect(before[0].translatedPunctuation).toBe(', ');
+
+    const after = [
+      makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
+      makeChunk({ content: '话', translated: 'lời' }),
+    ];
+    cpp.translatePunctuationNormally(after, PUNCT_DICT);
+    expect(after[0].translatedPunctuation).toBe(', ');
   });
 
   // Regression: 6dd1475 — «»<> must be treated as quote chars
@@ -188,6 +225,10 @@ describe('ChunkPostProcessor.reconstructText', () => {
   let cpp;
   beforeEach(() => {
     cpp = new ChunkPostProcessor();
+  });
+
+  test('no chunks → empty string', () => {
+    expect(cpp.reconstructText([])).toBe('');
   });
 
   test('single chunk — content only', () => {
@@ -300,147 +341,10 @@ describe('ChunkPostProcessor.reconstructText', () => {
   });
 
   test('reconstructText does NOT NFC-normalize — passes content through as-is', () => {
-    // Only reconstructTextWithSegments normalizes. reconstructText is the fast path.
+    // Normalising is finishFullText's job, once over the whole text, not this method's.
     const nfd = 'ma\u0300u'; // NFD: a + U+0300 combining grave = 'à'
     const chunks = [makeChunk({ content: 'x', translated: nfd })];
     expect(cpp.reconstructText(chunks)).toBe(nfd);
-  });
-});
-
-// ── reconstructText / reconstructTextWithSegments parity ──────────────────────
-// Progressive-batch path (TranslationEngine.js translateWithProgressiveBatches) calls
-// reconstructText(chunks) then .normalize('NFC') on the whole assembled string — this must
-// stay text-identical to reconstructTextWithSegments(chunks, arrays).text under the same
-// final normalize, since the latter is what the single-pass path (translateWithChunking)
-// uses and is the "reference" behavior. Guards against the two reconstruct methods drifting.
-
-describe('ChunkPostProcessor: reconstructText/reconstructTextWithSegments text parity', () => {
-  /** @type {ChunkPostProcessor} */
-  let cpp;
-  beforeEach(() => {
-    cpp = new ChunkPostProcessor();
-  });
-
-  test('plain multi-chunk text: identical after NFC-normalize', () => {
-    const chunks = [
-      makeChunk({
-        content: '说',
-        translated: 'nói',
-        punctuation: '，',
-        translatedPunctuation: ', ',
-      }),
-      makeChunk({ content: '话', translated: 'lời', semanticIndex: 0 }),
-    ];
-    const semanticArrays = {
-      original: ['话'],
-      translated: ['lời'],
-      metadata: [{ source: 'characters' }],
-    };
-    const fast = cpp.reconstructText(chunks).normalize('NFC');
-    const withSegments = cpp
-      .reconstructTextWithSegments(chunks, semanticArrays)
-      .text.normalize('NFC');
-    expect(fast).toBe(withSegments);
-  });
-
-  test('NFD-composable content across the boundary: identical after NFC-normalize', () => {
-    // reconstructTextWithSegments NFC-normalizes each chunk's content BEFORE concatenation;
-    // reconstructText does not. A trailing whole-string .normalize('NFC') must still converge
-    // both to the same result even when a chunk's own content is NFD.
-    const nfd = 'ma\u0300u'; // NFD: a + U+0300 combining grave = 'à'
-    const chunks = [makeChunk({ content: 'x', translated: nfd })];
-    const fast = cpp.reconstructText(chunks).normalize('NFC');
-    const withSegments = cpp.reconstructTextWithSegments(chunks).text.normalize('NFC');
-    expect(fast).toBe(withSegments);
-    expect(fast).toBe(nfd.normalize('NFC'));
-  });
-});
-
-// ── reconstructTextWithSegments ──────────────────────────────────────────────
-
-describe('ChunkPostProcessor.reconstructTextWithSegments', () => {
-  /** @type {ChunkPostProcessor} */
-  let cpp;
-  beforeEach(() => {
-    cpp = new ChunkPostProcessor();
-  });
-
-  test('empty chunks array → {text: "", segments: []}', () => {
-    const result = cpp.reconstructTextWithSegments([]);
-    expect(result.text).toBe('');
-    expect(result.segments).toEqual([]);
-  });
-
-  test('untranslated chunk (no semanticIndex) → type=untranslated segment', () => {
-    const chunks = [makeChunk({ content: 'ABC', translated: 'ABC' })];
-    const { text, segments } = cpp.reconstructTextWithSegments(chunks);
-    expect(text).toBe('ABC');
-    expect(segments).toHaveLength(1);
-    expect(segments[0].type).toBe('untranslated');
-    expect(segments[0].isClickable).toBe(false);
-    expect(segments[0].start).toBe(0);
-    expect(segments[0].end).toBe(3);
-  });
-
-  test('semantic chunk (has semanticIndex) → type=semantic segment with unitIndex', () => {
-    const semanticArrays = {
-      original: ['说'],
-      translated: ['nói'],
-      metadata: [{ source: 'characters' }],
-    };
-    const chunks = [makeChunk({ content: '说', translated: 'nói', semanticIndex: 0 })];
-    const { text, segments } = cpp.reconstructTextWithSegments(chunks, semanticArrays);
-    expect(text).toBe('nói');
-    expect(segments).toHaveLength(1);
-    expect(segments[0].type).toBe('semantic');
-    expect(segments[0].isClickable).toBe(true);
-    expect(segments[0].unitIndex).toBe(0);
-    expect(segments[0].originalText).toBe('说');
-    expect(segments[0].translatedText).toBe('nói');
-    expect(segments[0].start).toBe(0);
-    expect(segments[0].end).toBe(3); // 'nói' is 3 chars
-  });
-
-  test('punctuation → type=punctuation segment, isClickable=false', () => {
-    const chunks = [makeChunk({ content: '说', translated: 'nói', translatedPunctuation: '.' })];
-    const { segments } = cpp.reconstructTextWithSegments(chunks);
-    const punctSeg = segments.find((s) => s.type === 'punctuation');
-    expect(punctSeg).toBeDefined();
-    expect(punctSeg.isClickable).toBe(false);
-    expect(punctSeg.text).toBe('.');
-  });
-
-  test('positions accumulate correctly across multiple chunks', () => {
-    const chunks = [
-      makeChunk({ content: 'AB', translated: 'AB' }),
-      makeChunk({ content: 'CD', translated: 'CD' }),
-    ];
-    const { text, segments } = cpp.reconstructTextWithSegments(chunks);
-    expect(text).toBe('ABCD');
-    expect(segments[0].start).toBe(0);
-    expect(segments[0].end).toBe(2);
-    expect(segments[1].start).toBe(2);
-    expect(segments[1].end).toBe(4);
-  });
-
-  test('line break → type=linebreak segment', () => {
-    const chunks = [makeChunk({ content: '说', translated: 'nói', lineBreaks: '\n' })];
-    const { segments } = cpp.reconstructTextWithSegments(chunks);
-    const lbSeg = segments.find((s) => s.type === 'linebreak');
-    expect(lbSeg).toBeDefined();
-    expect(lbSeg.text).toBe('\n');
-  });
-
-  test('opening punctuation → type=punctuation segment before content', () => {
-    const chunks = [makeChunk({ content: '说', translated: 'nói', openingPunctuation: '«' })];
-    const { segments } = cpp.reconstructTextWithSegments(chunks);
-    // First segment should be the opening punctuation
-    expect(segments[0].type).toBe('punctuation');
-    expect(segments[0].text).toBe('«');
-    expect(segments[0].start).toBe(0);
-    // Content segment follows
-    expect(segments[1].type).toBe('untranslated');
-    expect(segments[1].start).toBe(1); // after '«'
   });
 });
 
@@ -474,5 +378,40 @@ describe('ChunkPostProcessor.translatePunctuation (integrated)', () => {
     // comma + next chunk with content → space appended (correct behavior)
     expect(chunks[0].translatedPunctuation).toBe(', ');
     expect(chunks[1].openingPunctuation).toBe('');
+  });
+});
+
+// ── Thousands separator ("2,700") ────────────────────────────────────────────
+
+describe('ChunkPostProcessor: thousands separator', () => {
+  const chunksFor2700 = () => [
+    makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
+    makeChunk({ content: '700', punctuation: '！', startedBy: ',' }),
+  ];
+
+  test('reconstructText keeps "2,700" unspaced, and a full-width comma between digits spaced', () => {
+    const cpp = new ChunkPostProcessor();
+    const ascii = chunksFor2700();
+    cpp.translatePunctuation(ascii, PUNCT_DICT);
+    expect(cpp.reconstructText(ascii)).toBe('thuyết 2,700!');
+
+    const fullWidth = chunksFor2700();
+    fullWidth[0].punctuation = '，';
+    cpp.translatePunctuation(fullWidth, PUNCT_DICT);
+    expect(cpp.reconstructText(fullWidth)).toBe('thuyết 2, 700!');
+  });
+
+  // A progressive batch holds only the translatable chunks: the digit-only "700" chunk is not in
+  // it, so the comma's neighbour must come from the full list.
+  test('a batch that skips the digit-only chunk still reads the comma’s real neighbour', () => {
+    const cpp = new ChunkPostProcessor();
+    const all = [
+      makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
+      makeChunk({ content: '700', punctuation: '！', startedBy: ',' }),
+      makeChunk({ content: '别', translated: 'biệt', startedBy: '！' }),
+    ];
+    const batch = [all[0], all[2]];
+    cpp.translatePunctuation(batch, PUNCT_DICT, all);
+    expect(all[0].translatedPunctuation).toBe(',');
   });
 });

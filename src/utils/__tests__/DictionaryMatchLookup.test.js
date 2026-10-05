@@ -23,30 +23,6 @@ function makeLookup(overrides = {}) {
 }
 
 describe('DictionaryMatchLookup', () => {
-  describe('findMatchesThreadSafe', () => {
-    test('finds all matches at increasing lengths from startPos', () => {
-      const trie = buildTrie([
-        ['你', 'you-short'],
-        ['你好', 'hello'],
-      ]);
-      const lookup = makeLookup();
-
-      const matches = lookup.findMatchesThreadSafe(trie, '你好吗', 0);
-
-      expect(matches).toEqual([
-        expect.objectContaining({ word: '你', translation: 'you-short', endPos: 1 }),
-        expect.objectContaining({ word: '你好', translation: 'hello', endPos: 2 }),
-      ]);
-    });
-
-    test('returns empty array when no match at startPos', () => {
-      const trie = buildTrie([['你好', 'hello']]);
-      const lookup = makeLookup();
-
-      expect(lookup.findMatchesThreadSafe(trie, '再见', 0)).toEqual([]);
-    });
-  });
-
   describe('findAllMatches', () => {
     test('returns an array, not a Promise', () => {
       const dictionaries = new Map([['d1', buildTrie([['你', 'you']])]]);

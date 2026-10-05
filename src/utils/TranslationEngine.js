@@ -11,7 +11,6 @@
  *
  *   TranslationEngine           Class — coordinates all 5 translation phases.
  *     .translateWithSegments()  Translates a Chinese text string → Vietnamese + highlighting.
- *     .translateWithChunking()  Long-text path with adaptive chunking.
  *     .postProcess()            Assembles semantic array after translation phases.
  *
  * =============================================================================
@@ -43,10 +42,10 @@
  *
  * 6. Main Translation Entry Points                           [COUPLED]
  *    - translateWithCharactersOnly()
- *    - Note: the non-progressive translate()/translateWithChunking()-as-dispatcher path was
- *      deleted 2026-08-17 (zero production reachability — translateWithSegments always takes
- *      the progressive branch); translateWithChunking()/translateDirectly() still exist and
- *      are still live, reached via processChunksInParallel(), not via this section
+ *    - Note: the non-progressive translate() dispatcher was deleted 2026-08-17 (zero production
+ *      reachability — translateWithSegments always takes the progressive branch), and
+ *      translateWithChunking() with it on 2026-10-05; translateDirectly() is still live,
+ *      reached via processChunksInParallel(), not via this section
  *
  * 7. Conflict Resolution & Segment Helpers                   [COUPLED]
  *    - translateWithSegments()
@@ -82,11 +81,8 @@
  * 13. Progressive Batch Translation                          [COUPLED]
  *     - translateWithProgressiveBatches()
  *
- * 14. Chunked Translation Paths                              [COUPLED]
- *     - translateWithChunking()
+ * 14. Direct Translation                                      [COUPLED]
  *     - translateDirectly()
- *     - Note: translateWithChunking's only production entry point is
- *       translateDirectly's own oversized-input recursive fallback — see section 6
  *
  * 15. Core 5-Phase Pipeline                                  [COUPLED]
  *     - translateSinglePass()
@@ -150,9 +146,11 @@ import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import {
-  applyCharOnlySupplements,
   applySmartCapitalization,
+  cleanFullText,
   cleanupFormatting,
+  finishCharOnlyText,
+  finishFullText,
 } from './text/FormattingPasses';
 import { needsSpaceCharOnly } from './text/CharOnlySpacing';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
@@ -294,8 +292,6 @@ export class TranslationEngine {
     // Hierarchical pattern processing settings
     this.settings = {
       enableTwoPhasePatterns: true, // Enable hierarchical pattern processing
-      maxCompositeDetectionTime: 100, // ms
-      fallbackToSinglePhase: true,
     };
 
     // Initialize translation profiler for performance analysis
@@ -864,11 +860,7 @@ export class TranslationEngine {
       // Shared post-assembly cleanup — same pipeline as full translation.
       // Handles: punctuation dict translation, comma-digit preservation (1,200 stays intact),
       // colon-quote spacing (道：「→ 道： 「), space-after-punct, first-letter + colon/newline caps.
-      translatedText = cleanupFormatting(translatedText, { useChunking: false }, (char) =>
-        this.lookupPunctuation(char)
-      );
-
-      translatedText = applyCharOnlySupplements(translatedText);
+      translatedText = finishCharOnlyText(translatedText, (char) => this.lookupPunctuation(char));
 
       logger.debug(
         '[char-engine]',
@@ -1105,7 +1097,6 @@ export class TranslationEngine {
    * });
    *
    * @see translateWithProgressiveBatches - Progressive batch translation implementation
-   * @see translateWithChunking - Chunked translation implementation
    * @see translateSinglePass - Core 5-phase translation pipeline
    * @see ClickableTranslationOptimized - UI component that renders segments
    *
@@ -1135,7 +1126,7 @@ export class TranslationEngine {
     this.semanticArrayBuilder.reset(estimatedUnits);
 
     // Progressive batch translation is the sole path — the non-progressive `translate()`
-    // dispatcher (translateWithChunking/translateDirectly at the top level) was deleted
+    // dispatcher (with translateWithChunking/translateDirectly at the top level) was deleted
     // 2026-08-17 (architecture review candidate #2 grilling) after tracing zero production
     // reachability: the only caller of this method (Translator.jsx) always passes
     // `progressive: true`, and progressiveBatches tolerates a missing `onProgress` via its
@@ -1360,34 +1351,17 @@ export class TranslationEngine {
         // Create or reuse TwoPhasePatternProcessor instance
         if (!this.twoPhaseProcessor) {
           this.twoPhaseProcessor = new TwoPhasePatternProcessor(
-            this.semanticPatternProcessor.patterns,
-            {
-              debugMode: process.env.NODE_ENV === 'development',
-              maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
-              enableFallback: this.settings.fallbackToSinglePhase,
-            }
+            this.semanticPatternProcessor.patterns
           );
         }
 
-        // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
-        // Check if deep copy is required for lookupIndex or segments
-        const needsDeepCopy = options.lookupIndex || options.segments;
-
-        const enhancedOptions = needsDeepCopy
-          ? {
-              ...options,
-              // Deep copy mutable collections to prevent external modifications
-              ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
-              ...(options.segments && { segments: [...options.segments] }),
-              activeProperNouns: this.activeProperNouns,
-              dictionaryManager: this.dictionaryManager,
-            }
-          : {
-              // Simple spread when no deep copy needed (reduces allocation overhead)
-              ...options,
-              activeProperNouns: this.activeProperNouns,
-              dictionaryManager: this.dictionaryManager,
-            };
+        // The processor reads exactly these two keys (to build its variable cache). Passing the
+        // translation options through, with copies of `lookupIndex` and `segments`, copied a Map
+        // and an array it never looked at.
+        const enhancedOptions = {
+          activeProperNouns: this.activeProperNouns,
+          dictionaryManager: this.dictionaryManager,
+        };
 
         const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
           tokens,
@@ -1445,24 +1419,11 @@ export class TranslationEngine {
         this.dictionaryManager
       );
 
-      // Process tokens using unified semantic approach with prioritized patterns
-      // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
-      const needsDeepCopy = options.lookupIndex || options.segments;
-
-      const jsResults = await this.semanticPatternProcessor.processTokens(
-        tokens,
-        needsDeepCopy
-          ? {
-              ...options,
-              lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-              segments: options.segments ? [...options.segments] : undefined,
-              prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-            }
-          : {
-              ...options,
-              prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-            }
-      );
+      // Process tokens using unified semantic approach with prioritized patterns. The processor
+      // reads only `prioritizedPatterns` from its options.
+      const jsResults = await this.semanticPatternProcessor.processTokens(tokens, {
+        prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
+      });
       this.applyHierarchicalResults(tokens, jsResults, options);
     } catch (error) {
       // Pattern processing failures must not crash translation — phases 2-5 continue
@@ -2230,7 +2191,7 @@ export class TranslationEngine {
 
     // chunkStartChar is the character offset of this chunk's start in the original full text.
     // For a direct (non-chunked) translation it is 0 by default.
-    // For sequential chunked translation, translateWithChunking passes chunk.startIndex here.
+    // For chunked translation, the caller passes chunk.startIndex here.
     const chunkStartChar = typeof options?.chunkStartChar === 'number' ? options.chunkStartChar : 0;
 
     // Compute cumulative character positions from token value lengths.
@@ -2764,7 +2725,7 @@ export class TranslationEngine {
    * Process chunks in parallel within a batch
    *
    * EXECUTION PATH:
-   *   - Called by: translateDirectly() when processing large texts in batches
+   *   - Called by: translateWithProgressiveBatches() for each batch
    *   - Used by: Full Translation mode (Character-only uses simpler path)
    *   - Purpose: Parallel processing of text chunks for performance
    *   - When: Only when text is chunked (multiple chunks exist)
@@ -2865,7 +2826,9 @@ export class TranslationEngine {
       // Handle parallel processing errors with performance tracking
       logger.error('Parallel chunk processing failed:', error);
 
-      throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
+      throw new Error('Parallel chunk processing failed and sequential fallback is disabled', {
+        cause: error,
+      });
     } finally {
       // Performance monitoring: check for bottlenecks regardless of success/failure
       logger.debugIfSlow('processChunksInParallel', startTime, {
@@ -3096,7 +3059,6 @@ export class TranslationEngine {
    * // Later: controller.abort() to cancel
    *
    * @see translateWithSegments - Entry point that selects progressive or chunked mode
-   * @see translateWithChunking - Alternative chunked translation (no progress updates)
    * @see TextChunker - Handles text splitting by punctuation
    *
    * @performance
@@ -3211,9 +3173,8 @@ export class TranslationEngine {
       // Yield to event loop after each batch so the UI can paint a frame.
       // processChunksInParallel runs synchronous WASM (pattern + number processing) inside
       // Promise.all — microtasks drain without ever returning to the browser event loop.
-      // This single setTimeout(0) is the same pattern used in translateWithChunking's
-      // 16ms time-slice guard, but applied unconditionally here since each batch is already
-      // a natural yield point.
+      // This single setTimeout(0) is applied unconditionally since each batch is already a
+      // natural yield point.
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       // MEDIUM FIX: Update cumulative token count for next batch
@@ -3270,7 +3231,7 @@ export class TranslationEngine {
       }
     }
 
-    // PHASE 1: Apply final processing to match original translateWithChunking method exactly
+    // PHASE 1: Apply final processing over all chunks
     // Apply punctuation translation to all chunks (needed for cross-chunk context like comma-quote spacing)
     this.chunkPostProcessor.translatePunctuation(chunks, this.punctuationDict);
 
@@ -3279,12 +3240,10 @@ export class TranslationEngine {
 
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
     const semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-    // Progressive-batch path: use the cheap reconstruct (no segments) per
-    // ChunkPostProcessor.js's own "NOT USED BY" doc block on reconstructTextWithSegments —
-    // prebuiltSegments gets rebuilt below via matchWordSegments regardless, so the segments
-    // half of reconstructTextWithSegments's return would be built and immediately discarded.
+    // reconstructText builds no segments: prebuiltSegments is built below via matchWordSegments,
+    // against the finished text.
     const finalResult = this.chunkPostProcessor.reconstructText(chunks);
-    const cleanedFinalResult = this.applyFinalCleanup(finalResult).normalize('NFC');
+    const cleanedFinalResult = finishFullText(finalResult);
 
     // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
     // Vietnamese "màu" can be NFC (3 chars: m+à+u) or NFD (4 chars: m+a+combining-grave+u)
@@ -3355,221 +3314,19 @@ export class TranslationEngine {
   }
 
   // ============================================================================
-  // SECTION 14: CHUNKED TRANSLATION PATHS
+  // SECTION 14: DIRECT TRANSLATION
   // ============================================================================
-  // Purpose: Alternative to progressive batching — chunk once, translate, reassemble
-  // Dependencies: TextChunker, ChunkPostProcessor, translateDirectly
-  // Note: Only production entry point is translateDirectly's own oversized-input
-  //   recursive fallback (see this file's SECTION 6 comment: translateWithSegments
-  //   always takes the progressive branch, not this one)
+  // Purpose: Translate one chunk (or a short text) as a single unit
+  // Dependencies: translateSinglePass, cleanupFormatting, finishFullText
+  // Note: Called per chunk by processChunksInParallel, which the progressive branch drives
   // ============================================================================
-
-  /**
-   * Translate text using chunk-based processing for better accuracy and potential parallelization
-   *
-   * Splits text by punctuation boundaries and translates each chunk independently. This approach
-   * improves translation accuracy by respecting sentence boundaries and enables parallel processing
-   * for better performance. Each chunk writes to the shared semantic array builder with a
-   * chunkOffset computed upfront, keeping global tokenIndex values correct regardless of
-   * chunk-completion order.
-   *
-   * Process flow:
-   * 1. Split text into chunks by punctuation (。！？，；：)
-   * 2. Identify translatable chunks (contain Chinese text)
-   * 3. Translate chunks in parallel or sequentially
-   * 4. Reassemble chunks preserving original punctuation and whitespace
-   * 5. Build pre-built segments for clickable highlighting
-   *
-   * Parallel processing:
-   * - Chunks write directly to the shared this.semanticArrayBuilder (no per-chunk isolation)
-   * - Deep copy options for each chunk to avoid shared state conflicts
-   * - Automatically enabled for texts with 2+ translatable chunks
-   *
-   * @param {string} text - Input Chinese text to translate
-   * @param {Object} [options={}] - Translation options
-   * @param {boolean} [options.parallel=true] - Enable parallel chunk processing
-   * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index (shared across chunks)
-   * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
-   * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   *
-   * @returns {Promise<string>} Translated text with original punctuation preserved
-   *
-   * @example
-   * // Basic chunked translation
-   * const translated = await engine.translateWithChunking(
-   *   '你好世界。这是一个测试，请验证结果。'
-   * );
-   *
-   * @example
-   * // Disable parallel processing for debugging
-   * const translated = await engine.translateWithChunking(text, {
-   *   parallel: false
-   * });
-   *
-   * @see translateWithSegments - Entry point that selects chunked or progressive mode
-   * @see translateDirectly - Translates individual chunks
-   * @see TextChunker - Handles text splitting by punctuation
-   *
-   * @performance
-   * - Parallel mode: 2-3x faster for texts with 5+ chunks
-   * - Sequential mode: More predictable for debugging
-   *
-   * @critical
-   * Parallel mode writes directly to the shared this.semanticArrayBuilder with a
-   * chunkOffset computed upfront (correct regardless of which chunk's translateDirectly
-   * call resolves first) — same strategy processChunksInParallel uses. A prior
-   * isolated-per-chunk-builder attempt here was removed 2026-08-18 (architecture review
-   * candidate #2 grilling): it was unsound, see the comment inside the parallel branch
-   * for the full analysis. Deep copies options for each chunk to prevent shared object
-   * mutations.
-   */
-  async translateWithChunking(text, options = {}) {
-    // Initialize segments collection for chunked translation
-    this.translationSegments = [];
-
-    // Reset semantic array builder for new translation
-    this.semanticArrayBuilder.reset();
-
-    // Step 1: Split text into chunks by punctuation boundaries
-    const chunks = this.textChunker.chunkText(text);
-
-    // Step 2: Get chunks that need translation (contain Chinese text)
-    const translatableChunks = this.textChunker.getTranslatableChunks(chunks);
-
-    if (translatableChunks.length === 0) {
-      // No Chinese text to translate
-      return text;
-    }
-
-    // Step 3: Translate chunks (with potential parallelization)
-    const enableParallel = options.parallel !== false && translatableChunks.length > 1;
-
-    if (enableParallel) {
-      // Chunks write directly to the shared this.semanticArrayBuilder with a correct global
-      // chunkOffset computed upfront — same strategy processChunksInParallel already uses in
-      // production (see its identical chunkTokenCounts/chunkTokenOffsets computation below).
-      //
-      // A prior isolated-per-chunk-builder attempt here was deleted 2026-08-18 (architecture
-      // review candidate #2 grilling) — it was NOT safe. It worked by swapping
-      // this.semanticArrayBuilder (a single shared instance field every addUnit call site reads
-      // live) in and out around await boundaries inside translateDirectly. Async functions run
-      // synchronously up to their first await, so Array.prototype.map dispatches every chunk's
-      // synchronous prefix — including the builder swap — before any chunk reaches real async
-      // work. That guarantees every chunk past the first captures the wrong "original" builder to
-      // restore, and writes its semantic units into whichever builder happens to be live at that
-      // instant (a moving target other chunks are also swapping), not its own. Deterministic
-      // corruption, not a timing fluke — see git history for the full analysis.
-      const chunkTokenCounts = translatableChunks.map(
-        (chunk) => this.tokenizer.tokenize(chunk.content).length
-      );
-      let cumulativeTokenCount = 0;
-      const chunkTokenOffsets = translatableChunks.map((_, index) => {
-        const offset = cumulativeTokenCount;
-        cumulativeTokenCount += chunkTokenCounts[index];
-        return offset;
-      });
-
-      // Translate chunks in parallel
-      // CRITICAL FIX: Deep copy options for parallel processing
-      // Each chunk runs in parallel - shared nested objects would cause race conditions
-      const translationPromises = translatableChunks.map((chunk, idx) =>
-        this.translateDirectly(chunk.content, {
-          ...options,
-          // Deep copy complex nested objects to prevent race conditions
-          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-          segments: options.segments ? [...options.segments] : undefined,
-          useChunking: false,
-          chunkOffset: chunkTokenOffsets[idx],
-          chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
-          isParallelChunk: true,
-        })
-      );
-
-      // CODE REVIEW FIX (2026-02-01): Check abort signal before parallel processing
-      if (options.abortSignal?.aborted) {
-        logger.warn('🛑 Translation cancelled by user (abort signal)');
-        throw new Error('Translation cancelled by user');
-      }
-
-      const translatedContents = await Promise.all(translationPromises);
-
-      // Apply translated results back to chunks
-      translatableChunks.forEach((chunk, index) => {
-        chunk.translated = translatedContents[index];
-      });
-    } else {
-      // CRITICAL: Chunks must be processed sequentially to maintain semantic array position order
-      // Each chunk uses chunkOffset to calculate globalTokenIndex for semantic array tracking.
-      // Parallel processing would corrupt position order, breaking clickable highlighting.
-      // Time-slicing prevents UI blocking while maintaining sequential position tracking.
-
-      // MEDIUM FIX: Track cumulative token count for accurate chunkOffset
-      // chunkOffset should be token index, not character position (chunk.startIndex is character position)
-      let cumulativeTokenCount = 0;
-
-      let lastYieldTime = performance.now();
-      for (let i = 0; i < translatableChunks.length; i++) {
-        const chunk = translatableChunks[i];
-
-        // CRITICAL FIX: Deep copy options for each chunk
-        // Even in sequential processing, chunks may mutate options (lookupIndex assignment)
-        chunk.translated = await this.translateDirectly(chunk.content, {
-          ...options,
-          // Deep copy complex nested objects to prevent mutation leakage
-          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-          segments: options.segments ? [...options.segments] : undefined,
-          useChunking: false,
-          // MEDIUM FIX: Use token count offset, not character position
-          chunkOffset: cumulativeTokenCount,
-          chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
-          isParallelChunk: true,
-        });
-
-        // MEDIUM FIX: Update cumulative token count for next chunk.
-        // chunk.content is a string — must tokenize first; getSemanticTokens() expects TextToken[].
-        cumulativeTokenCount += this.tokenizer.tokenize(chunk.content).length;
-
-        // Time-slice: Yield control when processing time exceeds 16ms (60fps threshold)
-        const currentTime = performance.now();
-        if (currentTime - lastYieldTime > 16 && i < translatableChunks.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 0));
-          lastYieldTime = performance.now();
-        }
-      }
-    }
-
-    // Step 4: Apply punctuation translation
-    this.chunkPostProcessor.translatePunctuation(chunks, this.punctuationDict);
-
-    // Step 5: Apply smart capitalization based on punctuation context
-    applySmartCapitalization(chunks, this.properNounTranslations);
-
-    // Step 6: Reconstruct the final text with segment positions built simultaneously
-    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const semanticArraysForReconstruction =
-      this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-    const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
-      chunks,
-      semanticArraysForReconstruction
-    );
-    let result = reconstructed.text;
-
-    // Step 7: Apply final cleanup (spacing, etc.) and normalize to NFC
-    // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
-    result = this.applyFinalCleanup(result).normalize('NFC');
-
-    // Step 8: Store prebuilt segments for instant clickable highlighting
-    this.prebuiltSegments = reconstructed.segments;
-
-    return result;
-  }
 
   /**
    * Direct translation method (original single-text approach)
    *
    * Translates text as a single unit without chunking or progressive processing. This is the
-   * core translation method that implements the full 5-phase pipeline. Used internally by
-   * translateWithChunking for individual chunks and by translateWithSegments for small texts.
+   * core translation method that implements the full 5-phase pipeline. Called per chunk by
+   * processChunksInParallel. Throws when the input is over the device token limit.
    *
    * Key features:
    * - Full 5-phase translation pipeline
@@ -3600,7 +3357,7 @@ export class TranslationEngine {
    * const translated = await engine.translateDirectly('你好世界');
    *
    * @see translateWithSegments - High-level entry point for translation
-   * @see translateWithChunking - Calls this method for each chunk
+   * @see processChunksInParallel - Calls this method for each chunk
    * @see translateSinglePass - Core 5-phase translation pipeline
    *
    * @performance
@@ -3622,7 +3379,7 @@ export class TranslationEngine {
       // CRITICAL FIX: Only reset segments if this is a standalone translation
       // DO NOT reset if this is part of multi-chunk translation (would lose semantic arrays from previous chunks)
       //
-      // Context: When translateWithChunking() calls translateDirectly() for each chunk:
+      // Context: When processChunksInParallel() calls translateDirectly() for each chunk:
       // - Sets useChunking: false (to prevent nested chunking)
       // - Sets isParallelChunk: true (to prevent reset)
       // - This allows semantic arrays to accumulate across chunks
@@ -3653,30 +3410,12 @@ export class TranslationEngine {
       const maxTokensAllowed = this.calculateMaxTokensForDevice();
 
       if (tokens.length > maxTokensAllowed || estimatedTokenCount > maxTokensAllowed) {
-        // Graceful degradation: split into manageable chunks
-        logger.warn(
-          `⚠️ Large input detected: ${tokens.length} tokens (limit: ${maxTokensAllowed}). Applying chunking strategy.`
+        // A chunk is already the smallest unit the chunker produces (it splits on punctuation), so
+        // there is nothing smaller to fall back to. A recursive re-chunking fallback lived here
+        // until 2026-10-05: it re-split the same chunk and re-entered this check without end.
+        throw new Error(
+          `Input too large: ${tokens.length} tokens (limit ${maxTokensAllowed}). Please split your text into smaller sections.`
         );
-
-        // Force chunking for oversized inputs
-        if (!options.useChunking) {
-          // CRITICAL FIX: Deep copy options for recursive call
-          return this.translateWithChunking(text, {
-            ...options,
-            // Deep copy complex nested objects to prevent mutation leakage
-            lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-            segments: options.segments ? [...options.segments] : undefined,
-            useChunking: true,
-            forceChunking: true,
-          });
-        }
-
-        // If already chunking and still too large, split into smaller chunks
-        if (tokens.length > maxTokensAllowed * 2) {
-          throw new Error(
-            `Input too large: ${tokens.length} tokens exceeds maximum safe processing limit. Please split your text into smaller sections.`
-          );
-        }
       }
 
       // Use optimized single-pass processing
@@ -4343,62 +4082,16 @@ export class TranslationEngine {
   }
 
   /**
-   * Apply final cleanup: spacing and other formatting
-   *
-   * EXECUTION PATH:
-   *   - Called by: translateSinglePass() AFTER reconstructTextWithSegments()
-   *   - Called for: ALL translated text (both Full Translation and Character-only)
-   *   - Purpose: Fix spacing between Vietnamese text and numbers
-   *
-   * WHAT IT DOES:
-   *   - Adds space between Vietnamese text and Arabic numerals (Thứ422 → Thứ 422)
-   *   - Matches only letters (\p{L}) next to digits, so punctuation of any kind
-   *     (formatting or sentence-ending) is never spaced away from a number
-   *   - Cleans up multiple spaces
-   *   - Removes spaces at line boundaries
-   *
-   * BUG FIX HISTORY:
-   *   - 2026-02-02: Added ()/ to exclusion list to fix "(23/30)" → ":( 23 / 30 )" bug
-   *   - 2026-08-29: Exclusion-list regex missed !?:; and closing quotes, so a converted
-   *     number followed by punctuation got a spurious space ("2,700!" → "2,700 !").
-   *     Replaced the exclusion-list approach with a \p{L}-letter match — punctuation is
-   *     never a match target at all, so no punctuation mark can trigger this rule.
-   *
-   * @param {string} text - Text to clean up
-   * @returns {string} Cleaned up text
-   */
-  applyFinalCleanup(text) {
-    if (!text) return text;
-
-    // Clean up spacing but preserve line breaks
-    let cleanedText = text;
-
-    // Add space between Vietnamese text and Arabic numerals (like "Thứ422giới" -> "Thứ 422 giới").
-    // Matches only against letters (\p{L}), not "any non-excluded punctuation" — punctuation
-    // (formatting chars like ,.-+%()/~ AND sentence punctuation like !?:;") never gets a forced
-    // space next to a digit, e.g. converted-number output "2,700!" must stay "2,700!" not "2,700 !".
-    cleanedText = cleanedText.replace(/(\p{L})(\d)/gu, '$1 $2');
-    cleanedText = cleanedText.replace(/(\d)(\p{L})/gu, '$1 $2');
-
-    // Clean up multiple spaces (but not across line breaks)
-    cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');
-
-    // Remove spaces at the beginning and end of lines
-    cleanedText = cleanedText.replace(/^[ \t]+|[ \t]+$/gm, '');
-
-    return cleanedText;
-  }
-
-  /**
    * PHASE 1: Progressive batch processing - eliminates O(n²) redundancy
    * Process only current batch chunks instead of all chunks every time
    * @param {TextChunk[]} currentBatch - Current batch of chunks to process
    * @param {TextChunk[]} allChunks - All chunks (for context like capitalization)
    * @param {number} batchStartIndex - Starting index of current batch
    */
-  processBatchChunksProgressive(currentBatch, _allChunks, _batchStartIndex) {
-    // Apply punctuation translation to only the current batch chunks
-    this.chunkPostProcessor.translatePunctuation(currentBatch, this.punctuationDict);
+  processBatchChunksProgressive(currentBatch, allChunks, _batchStartIndex) {
+    // Apply punctuation translation to only the current batch chunks. The batch holds only the
+    // translatable chunks, so neighbour lookups (comma spacing) read the full list instead.
+    this.chunkPostProcessor.translatePunctuation(currentBatch, this.punctuationDict, allChunks);
 
     // Capitalization is handled at the final level (not per-batch)
   }
@@ -4413,7 +4106,7 @@ export class TranslationEngine {
     try {
       // Step 1: Reconstruct just the current batch text
       const batchText = this.chunkPostProcessor.reconstructText(currentBatch);
-      const cleanedBatchText = this.applyFinalCleanup(batchText);
+      const cleanedBatchText = cleanFullText(batchText);
 
       // Step 2: Update progressive tracker
       this.progressivePositionTracker.finalText += cleanedBatchText;
@@ -4433,7 +4126,7 @@ export class TranslationEngine {
 
       // Fallback: Return basic batch info
       const fallbackText = this.chunkPostProcessor.reconstructText(currentBatch);
-      const cleanedFallbackText = this.applyFinalCleanup(fallbackText);
+      const cleanedFallbackText = cleanFullText(fallbackText);
 
       // Still update position tracker to maintain text continuity
       this.progressivePositionTracker.finalText += cleanedFallbackText;

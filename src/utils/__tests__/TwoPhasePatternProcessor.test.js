@@ -54,11 +54,6 @@ describe('TwoPhasePatternProcessor — constructor', () => {
     const proc = new TwoPhasePatternProcessor([]);
     expect(proc.processedPatterns).toHaveLength(0);
   });
-
-  test('respects enableWasm option', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN], { enableWasm: false });
-    expect(proc.options.enableWasm).toBe(false);
-  });
 });
 
 describe('TwoPhasePatternProcessor — categorizePatterns()', () => {
@@ -90,17 +85,9 @@ describe('TwoPhasePatternProcessor — categorizePatterns()', () => {
 });
 
 describe('TwoPhasePatternProcessor — processTokens() WASM gate', () => {
-  test('throws when WASM not ready and enableWasm: true (default)', async () => {
+  test('throws when WASM is not ready', async () => {
     vi.mocked(isWasmPatternProcessorReady).mockReturnValue(false);
     const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN]);
-    await expect(proc.processTokens([], {})).rejects.toThrow(
-      'WASM Pattern Processor not available'
-    );
-  });
-
-  test('throws when enableWasm: false (WASM explicitly disabled)', async () => {
-    vi.mocked(isWasmPatternProcessorReady).mockReturnValue(true);
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN], { enableWasm: false });
     await expect(proc.processTokens([], {})).rejects.toThrow(
       'WASM Pattern Processor not available'
     );
@@ -152,13 +139,13 @@ describe('TwoPhasePatternProcessor — validateSetup()', () => {
 });
 
 describe('TwoPhasePatternProcessor — getStatistics()', () => {
-  test('returns patterns counts and options', () => {
+  test('returns patterns counts', () => {
     const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
     const stats = proc.getStatistics();
     expect(stats.patterns.total).toBe(2);
     expect(typeof stats.patterns.variablePatterns).toBe('number');
     expect(typeof stats.patterns.compositeEligible).toBe('number');
-    expect(stats.options).toBeDefined();
+    expect(stats).not.toHaveProperty('options');
   });
 
   test('includes analysis summary', () => {

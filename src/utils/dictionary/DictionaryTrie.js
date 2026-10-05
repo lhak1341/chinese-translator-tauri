@@ -1,10 +1,7 @@
 /**
  * Dictionary Trie data structure.
  *
- * @import {
- *   TrieMatch,
- *   TrieStats,
- * } from '../../types/DictionaryManagerTypes'
+ * @import { TrieMatch } from '../../types/DictionaryManagerTypes'
  */
 
 export class TrieNode {
@@ -18,11 +15,9 @@ export class TrieNode {
 
 export class DictionaryTrie {
   constructor() {
+    /** @private Read matches through `findMatches`/`get`; only the dispose test looks at this. */
     this.root = new TrieNode();
     this.size = 0;
-    // CODE REVIEW FIX (MEDIUM-1): Removed sharedMatchesArray for thread-safety
-    // Modern JS engines optimize short-lived allocations, <5% performance difference
-    // Benefits: Thread-safe, no race conditions in async operations
   }
 
   /**
@@ -77,62 +72,40 @@ export class DictionaryTrie {
   }
 
   /**
-   * Find all words with a given prefix
-   * @param {string} prefix - Prefix to search for
-   * @returns {Array<*>} Array of {word, translation, metadata}
-   */
-  getWithPrefix(prefix) {
-    const prefixNode = this.findNode(prefix);
-    if (!prefixNode) return [];
-
-    const results = [];
-    this.dfsCollect(prefixNode, prefix, results);
-    return results;
-  }
-
-  /**
-   * Find all possible translations for text starting at a position
-   * CODE REVIEW FIX (MEDIUM-1): Use local array for thread-safety
+   * Every dictionary word that starts at `startPos`, shortest first. The one prefix walk:
+   * DictionaryMatchLookup and PatternVariableCache both read matches through it.
+   *
+   * Walks by code point, because `insert` keys the trie by code point: a UTF-16 walk could never
+   * match a word holding an astral character (CJK Ext-B, e.g. 𠮷). `startPos` and `endPos` are
+   * UTF-16 offsets into `text`, so callers can slice the string with them.
+   *
    * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @returns {Array<*>} Array of {word, translation, endPos, metadata}
+   * @param {number} startPos - Starting position (UTF-16 offset)
+   * @returns {TrieMatch[]} Matches with {word, translation, endPos, metadata}
    */
   findMatches(text, startPos = 0) {
-    // Use thread-local array instead of shared array
     const matches = [];
     let current = this.root;
 
-    for (let i = startPos; i < text.length; i++) {
-      const char = text[i];
-
-      if (!current.children.has(char)) {
-        break;
-      }
+    for (let i = startPos; i < text.length;) {
+      const codePoint = text.codePointAt(i);
+      const char = codePoint > 0xffff ? String.fromCodePoint(codePoint) : text[i];
+      i += char.length;
 
       current = current.children.get(char);
+      if (!current) break;
 
       if (current.isEndOfWord) {
         matches.push({
-          word: text.slice(startPos, i + 1),
+          word: text.slice(startPos, i),
           translation: current.translation,
-          endPos: i + 1,
+          endPos: i,
           metadata: current.metadata,
         });
       }
     }
 
-    return matches; // No need to slice() - already a fresh array
-  }
-
-  /**
-   * Find the longest matching word from a position
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @returns {Object|null} Longest match or null
-   */
-  findLongestMatch(text, startPos = 0) {
-    const matches = this.findMatches(text, startPos);
-    return matches.length > 0 ? matches[matches.length - 1] : null;
+    return matches;
   }
 
   /**
@@ -151,26 +124,6 @@ export class DictionaryTrie {
     }
 
     return current;
-  }
-
-  /**
-   * DFS helper to collect all words with a prefix
-   * @param {TrieNode} node - Current node
-   * @param {string} prefix - Current prefix
-   * @param {Array<*>} results - Results array
-   */
-  dfsCollect(node, prefix, results) {
-    if (node.isEndOfWord) {
-      results.push({
-        word: prefix,
-        translation: node.translation,
-        metadata: node.metadata,
-      });
-    }
-
-    for (const [char, childNode] of node.children) {
-      this.dfsCollect(childNode, prefix + char, results);
-    }
   }
 
   /**

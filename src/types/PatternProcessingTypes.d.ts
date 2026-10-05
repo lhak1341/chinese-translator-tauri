@@ -177,22 +177,12 @@ export interface PhaseAResult extends PatternMatchResult {
  * Pattern processing options
  */
 export interface PatternProcessingOptions {
-  /** Prioritized patterns to apply first */
+  /** Prioritized patterns to apply first (read by SemanticPatternProcessor) */
   prioritizedPatterns?: PatternMatchResult[];
-  /** Active proper noun dictionaries */
+  /** Active proper noun dictionaries (read by TwoPhasePatternProcessor) */
   activeProperNouns?: string[];
-  /** Dictionary manager instance (DictionaryManager type) */
+  /** Dictionary manager instance, DictionaryManager type (read by TwoPhasePatternProcessor) */
   dictionaryManager?: unknown;
-  /** Enable enhanced variable resolution (Phase B) */
-  enableEnhancedVariableResolution?: boolean;
-  /** Phase A results for enhanced resolution */
-  phaseAResults?: PhaseAResult[];
-  /** Enable string optimization */
-  enableStringOptimization?: boolean;
-  /** Maximum composite detection time */
-  maxCompositeDetectionTime?: number;
-  /** Enable composite detection */
-  enableCompositeDetection?: boolean;
 }
 
 /**

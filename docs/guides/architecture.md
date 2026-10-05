@@ -8,14 +8,14 @@ What the source can't tell you quickly: which code path runs, and the contracts 
 
 Know which path runs before adding a debug log.
 
-| Aspect                  | Full Translation                | Character-only                         |
-| ----------------------- | ------------------------------- | -------------------------------------- |
-| **TextChunker**         | WASM (Rust)                     | JavaScript                             |
-| **Text Reconstruction** | `reconstructTextWithSegments()` | `reconstructText()`                    |
-| **Semantic Arrays**     | Built during reconstruction     | Built separately by SegmentPrecomputer |
-| **Parallel Processing** | `processChunksInParallel()`     | Simpler sequential path                |
+| Aspect                  | Full Translation                                                                    | Character-only                         |
+| ----------------------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
+| **TextChunker**         | WASM (Rust)                                                                         | JavaScript                             |
+| **Text Reconstruction** | `reconstructText()`                                                                 | char-only assembles tokens directly    |
+| **Semantic Arrays**     | Built during translation (`SemanticArrayBuilder`); segments via `matchWordSegments` | Built separately by SegmentPrecomputer |
+| **Parallel Processing** | `processChunksInParallel()`                                                         | Simpler sequential path                |
 
-**Log where every content type arrives.** `postProcess()` runs only for content a phase translated. A number already in Arabic digits (`23/30`), Latin text and punctuation skip it, so a log there never fires for them. `applyFinalCleanup()` runs on all translated text in both modes, so put it there (a `(23/30)` spacing bug was chased through `postProcess()` for exactly this reason).
+**Log where every content type arrives.** `postProcess()` runs only for content a phase translated. A number already in Arabic digits (`23/30`), Latin text and punctuation skip it, so a log there never fires for them. `finishFullText()` and `finishCharOnlyText()` (`FormattingPasses.ts`) run on all translated text, one per mode, so put it there (a `(23/30)` spacing bug was chased through `postProcess()` for exactly this reason).
 
 **A `/` stays inside a fraction.** The chunker config excludes it from chunk separators (`excludedCharacters` in `TranslationEngine.js`; regression test `TranslationEngine.regression.test.js`, `cleanup('(23/30)')`).
 

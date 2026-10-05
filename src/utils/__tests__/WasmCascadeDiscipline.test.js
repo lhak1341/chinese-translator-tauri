@@ -30,7 +30,6 @@ const wasmDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../w
 const SHARED_BINARY_WRAPPERS = [
   'WasmConflictResolution.js',
   'WasmPatternProcessor.js',
-  'WasmStringProcessor.js',
   'WasmTextAssembler.js',
   'WasmTextChunker.js',
   'WasmTextTokenizer.js',

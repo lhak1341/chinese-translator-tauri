@@ -11,8 +11,7 @@ import type { SemanticArrays, Segment } from './SegmentPrecomputer';
  *
  * Caller: ClickableTranslationSemantic (char-only path).
  * The full-translation path builds segments differently — see
- * ChunkPostProcessor.reconstructTextWithSegments (single-pass) and
- * WordSegmentMatcher.matchWordSegments (progressive batches).
+ * WordSegmentMatcher.matchWordSegments, run over the finished text.
  */
 export function segmentFromPositionMetadata(
   text: string,

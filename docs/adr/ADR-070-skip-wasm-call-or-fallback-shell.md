@@ -18,13 +18,13 @@ Delete the stats scaffolding the sweep found unread, in JS and in `wasm-core`:
 
 - `wasm-core`: `TextChunker.get_stats` / `reset_stats`, `record_fallback`, `get_global_chunker_stats`, the `CHUNK_COUNT` / `FALLBACK_COUNT` statics, the `chunks_processed` field (`TextChunker` is now field-less; `chunk_text` takes `&self` by signature), and `get_tokenizer_stats` with its `lib.rs` re-export.
 
-`WasmStringProcessor.getStats` stays: `OptimizationBenchmarks.js` reads it.
+~~`WasmStringProcessor.getStats` stays: `OptimizationBenchmarks.js` reads it.~~ Moot: the whole wrapper was deleted 2026-10-05 (ADR-078).
 
 ## Reasoning
 
 **The sites share two lines.** The catch blocks share a `logger.error|warn(...)` call and `fireCascadeRetire()`. They differ in log level, in the return value (`null`, `false`, an inline JS fallback, `{ success: true, results: [] }` plus a cooldown toast) and in the WASM call inside the `try`. A shell would take those as callbacks, so complexity would move into the callbacks rather than concentrate.
 
-**The fallback shapes differ because each fallback sits with its own JS implementation.** `WasmTextAssembler` keeps `jsAssembleWithSpacing` beside it, `TextChunker.js` owns the chunking fallback, `StringProcessingAdapter` picks an implementation, and `WasmConflictResolution` takes a `jsFallback` argument. Unifying the shape would pull the JS implementations toward the wrapper, which is the backward coupling ADR-007 and ADR-009 removed.
+**The fallback shapes differ because each fallback sits with its own JS implementation.** `WasmTextAssembler` keeps `jsAssembleWithSpacing` beside it, `TextChunker.js` owns the chunking fallback, `StringProcessingAdapter` picked an implementation (deleted 2026-10-05, ADR-078), and `WasmConflictResolution` takes a `jsFallback` argument. Unifying the shape would pull the JS implementations toward the wrapper, which is the backward coupling ADR-007 and ADR-009 removed.
 
 **Near-repeat of ADR-007.** `WasmPatternBridge` was rejected as wrapping one call with depth near 0. A shell around try/log/retire has the same depth.
 
