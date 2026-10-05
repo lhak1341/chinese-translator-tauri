@@ -90,10 +90,16 @@ export async function buildLookupIndexOrFallback(
     const dictionaries = toRustDictionaries(dictionaryManager, dictionaryOrder);
 
     // Rust applies its own defaults for the minimum text length, indexing and parallelism.
+    const startedAt = performance.now();
     const indexResult = await window.electronAPI.buildLookupIndex(
       text,
       dictionaries,
       dictionaryOrder
+    );
+    // The whole round trip — argument serialization, IPC both ways, Rust — not only Rust's
+    // own `buildTimeMs`, which leaves out the payload of every dictionary's entries (~4 MB).
+    logger.log(
+      `🦀 Lookup index: ${(performance.now() - startedAt).toFixed(1)}ms round trip (Rust ${indexResult.buildTimeMs ?? '?'}ms, ${text.length} chars, ${dictionaries.reduce((n, d) => n + d.entries.length, 0)} entries shipped)`
     );
 
     if (!indexResult.success || !indexResult.index) {

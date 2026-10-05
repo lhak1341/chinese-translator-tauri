@@ -141,13 +141,14 @@ class Logger {
   }
 
   /**
-   * Warn if an operation exceeded a duration threshold.
+   * Debug-log an operation that exceeded a duration threshold (dev console only — a slow
+   * dev build, with its unoptimised WASM, trips the default routinely).
    * @param operation - Operation name/description
    * @param startTime - `performance.now()` value captured at the operation's start
    * @param context - Additional context data for the log line
-   * @param thresholdMs - Duration threshold in ms above which this warns (default 200)
+   * @param thresholdMs - Duration threshold in ms above which this logs (default 200)
    */
-  warnIfSlow(
+  debugIfSlow(
     operation: string,
     startTime: number,
     context: Record<string, unknown> = {},
@@ -155,7 +156,7 @@ class Logger {
   ): void {
     const duration = performance.now() - startTime;
     if (duration > thresholdMs) {
-      this.warn(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(1)}ms`, {
+      this.debug(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(1)}ms`, {
         duration,
         context,
         threshold: thresholdMs,

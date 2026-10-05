@@ -230,8 +230,6 @@ export class SemanticArrayBuilder {
 
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
     this.isCorrupted = false;
-
-    logger.debug('[semantic-builder]', `Reset with capacity ${this.estimatedCapacity}`);
   }
 
   /**
@@ -347,16 +345,10 @@ export class SemanticArrayBuilder {
     }
 
     // Prioritize unmapped candidates (prevents wrong unit from getting position)
+    // No unmapped candidate is known harmless and deliberately unlogged: parallel chunks share
+    // this builder and call setPositionByMatch redundantly. The first call sets the correct
+    // position; later calls overwrite candidates[0], which is already correctly mapped.
     const unmapped = candidates.find((c) => !c.isMapped);
-    if (!unmapped) {
-      // Known harmless: parallel chunks share this builder and call setPositionByMatch
-      // redundantly. The first call sets the correct position; subsequent calls hit this
-      // branch and overwrite candidates[0], which is already correctly mapped.
-      logger.debug(
-        'setPositionByMatch: all candidates already mapped (expected in parallel chunk processing)',
-        { tokenIndex, translatedText, candidateCount: candidates.length }
-      );
-    }
     const target = unmapped ?? candidates[0];
 
     if (!validatePosition(startPos, endPos, this.lastPositionSet, tokenIndex, translatedText)) {

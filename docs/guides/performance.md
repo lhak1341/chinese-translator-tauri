@@ -107,9 +107,10 @@ console.timeEnd('pattern-matching');
 // - Which operation takes >50% of the time?
 ```
 
-**A measurement here is invalid unless you prove the thing you meant to measure actually ran.** Five confirmed ways it silently does not:
+**A measurement here is invalid unless you prove the thing you meant to measure actually ran.** Six confirmed ways it silently does not:
 
-- **WASM does not run under vitest or Node.** `src/test/setup.ts` mocks `translation_wasm_core.js`, and Node `fetch` cannot load `file://` ("not implemented... yet"). A vitest profile shows the pattern phase as near-zero or as fail-fast overhead. Use vitest for the pure-JS phases — it measures those accurately and without tab throttling — and a browser for anything WASM.
+- **WASM does not run under vitest by default.** `src/test/setup.ts` mocks `translation_wasm_core.js` and Node `fetch` cannot load `file://`, so a profile shows the pattern phase as near-zero. The three `vi.mock`s at the top of `TranslationEngine.phase1.test.js` (the real module, `wasmBinaryCache`, `WasmSharedModule` reading `src/wasm/translation_wasm_core_bg.wasm`) load the real binary; with them, Pattern Matching was 251 of 268 ms (debug build, 2026-10-05).
+- **`window.electronAPI` is absent in vitest**, so `buildLookupIndex` throws, `LookupIndexBuilder` records a failure and, after three, stops trying: a headless profile never exercises the Rust index. Stub `buildLookupIndex` with a counting fake to see how often it fires.
 - **Dev builds are debug WASM.** See `wasm-core/CLAUDE.md`'s Build Profile: `bun run dev` / `bun run tauri:dev` overwrite a release binary with a debug one.
 - **`phaseProfiler` wraps async functions, so its numbers are wall-clock-with-awaits, not CPU share.** Measured on one run: it reported `Pattern Matching (WASM)` = 463 ms where the actual synchronous WASM work was 69 ms. Treat `getProfilingReport()` percentages as a ranking hint, never as a CPU breakdown.
 - **A background tab throttles timers**, and the engine yields between batches, so wall-clock inflates without bound (a 304-char input measured 12 s hidden vs ~35 ms unthrottled) and looks exactly like an algorithmic cliff. Check `document.hidden` before believing any wall-clock number. The throttle-immune measure is the sum of _synchronous_ `WasmPatternProcessor.processTokens` durations.

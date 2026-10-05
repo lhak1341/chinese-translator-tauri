@@ -262,9 +262,7 @@ The per-dictionary lookup structure. A prefix trie where each node owns `childre
 
 Formerly also owned a structural self-healing subsystem (`validateIntegrity()`/`repair()`/`getHealthScore()`) — deleted 2026-08-06 (architecture review candidate #3). Confirmed dead by `ADR-034`: `repair()`/`getHealthScore()` had zero callers anywhere, ever; `validateIntegrity()`'s only 2 callers were the other two methods, so the whole subsystem was a closed, unreachable island. Unlike `TranslationProfiler`/Pattern Profiling (ADR-021, kept as gated dev tools with a real enable/disable toggle), this had no wiring or dev-console hook — just orphaned code. The supporting `.d.ts` types (`TrieValidationResult`, `TrieRepairResult`, `TrieHealthScore`, and 5 more feeding them) were deleted alongside from `DictionaryManagerTypes.d.ts`.
 
-`TrieNode` is exported from the same file so `DictionaryTrieLoader` can reconstruct cached tries without passing constructor references at the call site.
-
-Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary) and `DictionaryTrieLoader` (cache hit/miss reconstruction).
+Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary, built by `DictionaryTrieBuilder`).
 
 ## DictionaryEntryFlattener
 
@@ -502,9 +500,9 @@ Entry point: `src/hooks/useDictionaryEntryForm.ts`. Called from `src/components/
 
 ## DictionaryTrieBuilder
 
-The pure trie-construction fallback `DictionaryManager.loadDictionaries` calls when the precomputed-cache path (`DictionaryTrieLoader.loadDictionaryWithCache`) misses or is disabled. No `this`, no I/O, no logging — `DictionaryManager` still owns disposal, cache lookup, Map storage, and logging invalid entries; this module owns only the entry-by-entry trie insert and the priority-assignment rule.
+The one trie-construction path: `DictionaryManager.loadDictionaries` builds every trie here (the persisted trie cache was deleted, ADR-075). No `this`, no I/O, no logging — `DictionaryManager` still owns disposal, Map storage, and logging invalid entries; this module owns only the entry-by-entry trie insert and the priority-assignment rule.
 
-Two exports: `resolveDictionaryPriority(dictionaryName, priorities)` — fiction (`properNouns-f_*` → 1) and generic (`properNouns-_*` → 2) prefixes always win over the caller-supplied `priorities` map; falls back to `priorities[dictionaryName] ?? (properNouns-prefixed ? 3 : 10)`. `buildTrieFromDictionary(dictionary, priority)` — builds a `DictionaryTrie` from raw dictionary JSON, returns `{trie, entryCount, invalidSources}`; invalid entries (no string value, no `.translation` field) are collected rather than logged internally, so the caller decides how to surface them.
+Two exports: `resolveDictionaryPriority(dictionaryName, priorities)` — fiction (`properNouns-f_*` → 1) and generic (`properNouns-_*` → 2) prefixes always win over the caller-supplied `priorities` map; falls back to `priorities[dictionaryName] ?? (properNouns-prefixed ? 3 : 10)`. `buildTrieFromDictionary(dictionary, priority)` — builds a `DictionaryTrie` from raw dictionary JSON, returns `{trie, entryCount, invalidSources}` with node metadata `{allowAsPatternVariable, semanticType}`; invalid entries (no string value, no `.translation` field) are collected rather than logged internally, so the caller decides how to surface them.
 
 Extracted 2026-07-17d from `loadDictionaries`' 204-line body: the priority-assignment rule was previously duplicated verbatim twice per dictionary (once inside the per-entry trie-insert loop as `priority`, again after the loop as `metadataPriority` for the dictionary-level metadata Map entry) despite depending only on `dictionaryName` — the first copy was being wastefully recomputed on every single entry. `resolveDictionaryPriority` is now called once per dictionary and the same value feeds both the trie-node metadata and the dictionary metadata.
 
@@ -629,13 +627,11 @@ Entry point: `src/utils/highlighting/PositionBasedSegmentBuilder.ts`, barrel-exp
 
 Entry point: `src/utils/TranslationEngine.js`, private method of `TranslationEngine`. Tests: `AdaptiveBatchSizer.test.ts` (pure-function boundary behavior), `TranslationEngine.regression.test.js`'s `_clampInitialBatchSize wiring` block (real call-site invariant).
 
-## emptySemanticArrays / _logUnpositionedSegments
+## emptySemanticArrays
 
-Two small dedup extractions from `TranslationEngine.js` (architecture review 2026-08-15, candidate #4), both scoped file-wide rather than to a single method — neither call site is on the DO-NOT-EXTRACT list (`translateSinglePass`/`findAllMatchesWithSemanticCache`/`postProcess`).
+A small dedup extraction from `TranslationEngine.js` (architecture review 2026-08-15, candidate #4), scoped file-wide rather than to a single method — no call site is on the DO-NOT-EXTRACT list (`translateSinglePass`/`findAllMatchesWithSemanticCache`/`postProcess`).
 
 `emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Was hand-copied at 8 sites across 5 methods (`translateWithCharactersOnly`, `translateWithSegments`, `translateWithProgressiveBatches` ×4, `translateWithChunking`, `getBatchSemanticArrays`) before being unified. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
-
-`_logUnpositionedSegments(contextSuffix)` — the `translationSegments.filter(s => s.translatedStart === -1)` + warn-if-any-found diagnostic. Was hand-copied at 3 sites across 2 methods (`translateWithSegments`, `translateWithProgressiveBatches` ×2 — "in batch processing" / "in final processing"), not the 3-sites-in-one-method the initial report card claimed (re-verified directly against the file during grilling). Needs `this.translationSegments`/`this.log` — stays a private TranslationEngine method, unlike `emptySemanticArrays`. Do NOT confuse with the single-line `if (translationSegment.translatedStart === -1)` guard elsewhere in the file (~line 4239, inside the position-assignment loop) — structurally different (a set-once guard, not a filter+warn diagnostic) and correctly left untouched.
 
 ## _findInDictionaries
 
@@ -767,7 +763,7 @@ Tests are inline `#[cfg(test)]`, and the corpus is the fixture: the real library
 
 **One `BookReader` instance per open book.** `ReaderTab` keys it by fingerprint, so a switch from the palette remounts it exactly as Back and a shelf click do, and nothing one book left behind — measured row heights, the scroll offset, a cache keyed by line range — reaches the next. The hooks under it treat `fingerprint` as fixed and have no book-change branch; state that must outlive a book lives in `ReaderTab` (ADR-050).
 
-**`useBookLines(fingerprint, lineCount)`** (`src/hooks/useBookLines.ts`) is the windowed line cache: 500-line pages fetched around the viewport, dropped once more than `PAGE_KEEP_RADIUS` pages away, so memory tracks the window rather than the distance read. `getLine` returns `undefined` for a line whose page is still in flight — distinct from `''`, which is a real blank line. Line numbers are the file's own, blanks included, because reading position is a raw file line number (see "Book Records" below).
+**`BookLinesStore`** (`src/utils/reader/BookLinesStore.ts`; `useBookLines(fingerprint, lineCount)` is its `useSyncExternalStore` adapter, made once per book) is the windowed line cache: 500-line pages fetched around the viewport, dropped once more than `PAGE_KEEP_RADIUS` pages away, so memory tracks the window rather than the distance read — a page that lands after the reader has left its reach is dropped too, without a notification, and every result after `close()` is dropped. Its `error` is the oldest failed page still inside the window: another page landing does not clear it, only that page landing on a retry or the reader scrolling out of its reach (decided 2026-10-05, architecture review candidate #2 grilling). Eviction does not bump `linesVersion`. `getLine` returns `undefined` for a line whose page is still in flight — distinct from `''`, which is a real blank line. Line numbers are the file's own, blanks included, because reading position is a raw file line number (see "Book Records" below).
 
 Virtualization is `@tanstack/react-virtual` (ADR-042), not the in-repo `useVirtualScrollRange` — see that ADR for why the existing hook could not be extended.
 

@@ -118,7 +118,7 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 ## Testing Gotchas
 
-**A lone failure in the full suite, in a file you didn't touch, is load flake** — a 5000 ms timeout or an "Unable to find an element" alike; seen in `DictionaryManager.composition` (2026-09-25, 2026-09-29) and `ReaderTab.openBook`'s palette-switch test (2026-09-29), each passing alone and on the next full run. Re-run that file with `bunx vitest --run <path>` before debugging; a real failure reproduces there.
+**A lone failure in the full suite, in a file you didn't touch, is load flake** — a 5000 ms timeout or an "Unable to find an element" alike; seen in `DictionaryManager.composition` (2026-09-25, 2026-09-29) and `ReaderTab.openBook`'s palette-switch test (2026-09-29; its `['fp-1','fp-2']` mount-order test 2026-10-05), and `DictionaryScalability`'s "scale linearly" (2026-10-05 — it asserts wall-clock ratios, so it is flaky by construction), each passing alone and on the next full run. Re-run that file with `bunx vitest --run <path>` before debugging; a real failure reproduces there.
 
 **`src/test/setup.ts` MUST NOT be deleted**: It is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). The duplicate test files in `src/test/` were removed (stale copies of `src/utils/__tests__/`), but `setup.ts` was not.
 

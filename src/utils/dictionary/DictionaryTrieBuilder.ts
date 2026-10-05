@@ -1,8 +1,7 @@
 /**
- * Trie-construction fallback used by DictionaryManager.loadDictionaries when the
- * precomputed-cache path (DictionaryTrieLoader.loadDictionaryWithCache) misses or is
- * disabled, plus the single priority-assignment rule shared by both places
- * DictionaryManager needs a dictionary's priority: the load (loadDictionaries) and the
+ * The one trie-construction path (DictionaryManager.loadDictionaries builds every trie here —
+ * there is no persisted trie cache), plus the single priority-assignment rule shared by both
+ * places DictionaryManager needs a dictionary's priority: the load (loadDictionaries) and the
  * not-yet-loaded fallback in getPriorityForDictionary.
  *
  * No `this`, no I/O, no logging — DictionaryManager owns disposal, cache lookup, Map
@@ -36,15 +35,13 @@ export function resolveDictionaryPriority(
 /**
  * Build a DictionaryTrie from a raw dictionary JSON object.
  *
+ * Node metadata carries only the fields trie readers use: `allowAsPatternVariable`
+ * (PatternVariableCache) and `semanticType` (VariableTypeClassifier). Per-dictionary priority
+ * lives in DictionaryManager.metadata, not on nodes.
+ *
  * @param dictionary - Raw `{source: target}` map from dictionary JSON
- * @param priority - Pre-resolved via resolveDictionaryPriority (same value for every entry) —
- *   the only derived per-entry metadata field with a real reader
- *   (SemanticPatternProcessor's pattern-priority tie-break)
  */
-export function buildTrieFromDictionary(
-  dictionary: Record<string, unknown>,
-  priority: number
-): TrieBuildResult {
+export function buildTrieFromDictionary(dictionary: Record<string, unknown>): TrieBuildResult {
   const trie = new DictionaryTrie();
   let entryCount = 0;
   const invalidSources: string[] = [];
@@ -55,7 +52,6 @@ export function buildTrieFromDictionary(
     let translation: string;
     let allowAsPatternVariable: boolean | undefined;
     let semanticType: string | undefined;
-    let allowedVariableTypes: string[] | undefined;
 
     if (typeof target === 'string') {
       // Pure lookup-table dicts (characters, conversion, punctuation) use string values.
@@ -70,17 +66,14 @@ export function buildTrieFromDictionary(
           ? (targetObj.allowAsPatternVariable as boolean)
           : undefined;
       semanticType = (targetObj.semanticType as string) || undefined;
-      allowedVariableTypes = (targetObj.allowedVariableTypes as string[]) || undefined;
     } else {
       invalidSources.push(source);
       continue;
     }
 
     const metadata = {
-      priority,
       allowAsPatternVariable,
       ...(semanticType && { semanticType }),
-      ...(allowedVariableTypes && { allowedVariableTypes }),
     };
 
     trie.insert(source, translation, metadata);

@@ -1,17 +1,22 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { logger } from '../logger';
 
-describe('logger.warnIfSlow', () => {
+describe('logger.debugIfSlow', () => {
   let nowSpy: ReturnType<typeof vi.spyOn>;
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let debugSpy: ReturnType<typeof vi.spyOn>;
+  let originalEnv: string | undefined;
 
   beforeEach(() => {
-    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // logger.debug prints in development only
+    originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
     nowSpy?.mockRestore();
-    warnSpy.mockRestore();
+    debugSpy.mockRestore();
   });
 
   const mockElapsed = (elapsedMs: number) => {
@@ -19,39 +24,39 @@ describe('logger.warnIfSlow', () => {
     nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => (call++ === 0 ? 0 : elapsedMs));
   };
 
-  test('below the default 200ms threshold: does not warn', () => {
+  test('below the default 200ms threshold: does not log', () => {
     mockElapsed(199);
-    logger.warnIfSlow('op', performance.now());
-    expect(warnSpy).not.toHaveBeenCalled();
+    logger.debugIfSlow('op', performance.now());
+    expect(debugSpy).not.toHaveBeenCalled();
   });
 
-  test('above the default 200ms threshold: warns with operation and duration', () => {
+  test('above the default 200ms threshold: logs with operation and duration', () => {
     mockElapsed(201);
-    logger.warnIfSlow('slowOp', performance.now());
+    logger.debugIfSlow('slowOp', performance.now());
 
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    const [message, details] = warnSpy.mock.calls[0].slice(-2);
+    expect(debugSpy).toHaveBeenCalledTimes(1);
+    const [message, details] = debugSpy.mock.calls[0].slice(-2);
     expect(message).toContain('slowOp');
     expect(details).toMatchObject({ duration: 201, threshold: 200 });
   });
 
-  test('exactly at threshold: does not warn (strictly greater-than)', () => {
+  test('exactly at threshold: does not log (strictly greater-than)', () => {
     mockElapsed(200);
-    logger.warnIfSlow('op', performance.now());
-    expect(warnSpy).not.toHaveBeenCalled();
+    logger.debugIfSlow('op', performance.now());
+    expect(debugSpy).not.toHaveBeenCalled();
   });
 
   test('custom thresholdMs overrides the 200ms default', () => {
     mockElapsed(60);
-    logger.warnIfSlow('op', performance.now(), {}, 50);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+    logger.debugIfSlow('op', performance.now(), {}, 50);
+    expect(debugSpy).toHaveBeenCalledTimes(1);
   });
 
-  test('context is passed through to the warn call', () => {
+  test('context is passed through to the debug call', () => {
     mockElapsed(300);
-    logger.warnIfSlow('op', performance.now(), { batchSize: 7 });
+    logger.debugIfSlow('op', performance.now(), { batchSize: 7 });
 
-    const [, details] = warnSpy.mock.calls[0].slice(-2);
+    const [, details] = debugSpy.mock.calls[0].slice(-2);
     expect(details).toMatchObject({ context: { batchSize: 7 } });
   });
 });

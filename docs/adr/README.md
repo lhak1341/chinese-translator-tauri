@@ -138,6 +138,9 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-072](./ADR-072-skip-dictionaryprovider-policy-extraction.md)                   | Keep DictionaryProvider policy in place                      | Decided                           | Startup-load and invalidation policy is wiring; provider is the test seam.                                                                           |
 | [ADR-073](./ADR-073-delete-the-wasm-dictionary-lookup-tier.md)                      | Delete the WASM dictionary lookup tier                       | Decided                           | Measured 2.5x–22x slower than JS; deleted.                                                                                                           |
 | [ADR-074](./ADR-074-skip-outline-title-fill-extraction.md)                          | Keep the outline-title fill inside its hook                  | Decided                           | Eight hook tests pin the stale/abandoned split; extracting moves the loop, not complexity.                                                           |
+| [ADR-075](./ADR-075-delete-the-persisted-trie-cache.md)                             | Delete the persisted trie cache                              | Decided                           | Building every trie from the loaded JSON takes 19–92 ms; the cache path took 136–463 ms.                                                             |
+| [ADR-076](./ADR-076-skip-quick-add-open-resolver.md)                                | Keep the quick-add remembered pick in its hook               | Decided                           | Cmd-5/6 already share one rule; the pick is six lines with three tests.                                                                              |
+| [ADR-077](./ADR-077-skip-per-call-dictionary-shipping-change.md)                    | Keep shipping dictionaries with each lookup-index call       | Decided                           | Fires once per gloss window at about 16 ms plus IPC; a once-per-version copy needs invalidation.                                                     |
 
 ## ADR Format
 
@@ -192,4 +195,5 @@ Write an ADR when making decisions about:
 - **2026-10-02**: ADR-058; ADR-059; ADR-060; ADR-061; ADR-062; ADR-063; ADR-064; ADR-065
 - **2026-10-03**: ADR-066; ADR-067; ADR-068; ADR-069
 - **2026-10-04**: ADR-070; ADR-071; ADR-072; ADR-073; ADR-074
+- **2026-10-05**: ADR-075; ADR-076; ADR-077
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

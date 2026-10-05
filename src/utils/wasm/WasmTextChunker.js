@@ -90,10 +90,6 @@ export class WasmTextChunker {
       });
     }
 
-    logger.log(
-      `[WASM TextChunker] chunkText (ready: ${lifecycle.isReady}, chunker: ${!!_chunker}, textLength: ${text.length})`
-    );
-
     if (!lifecycle.isReady || !_chunker) {
       logger.log('[WASM TextChunker] Not ready, using JS fallback');
       return null;
@@ -122,7 +118,6 @@ export class WasmTextChunker {
         });
         return null;
       }
-      logger.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
       return chunks;
     } catch (/** @type {any} */ error) {
       // A WASM trap (Rust panic → `unreachable` instruction) leaves the WASM linear memory

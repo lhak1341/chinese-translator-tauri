@@ -443,11 +443,6 @@ const tauriAPI = {
         dictionaryOrder,
         // `options` is left out: Rust's own defaults (50 chars, indexing and parallelism on) apply.
       });
-      if (result.success && result.buildTimeMs && process.env.NODE_ENV === 'development') {
-        logger.log(
-          `🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`
-        );
-      }
       return result;
     } catch (error) {
       logger.error('Error in buildLookupIndex:', error);

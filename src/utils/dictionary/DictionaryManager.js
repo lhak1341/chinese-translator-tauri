@@ -25,7 +25,6 @@
 
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
-import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
 import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 import { resolveDictionaryPriority, buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
@@ -43,10 +42,6 @@ export class DictionaryManager {
       lookupCacheSize: options.lookupCacheSize || 800,
       enabled: options.cacheEnabled !== false, // Default to enabled
     });
-
-    // Precomputed trie caching (optional, enabled by default for 5-7x faster loading)
-    this.enablePrecomputedCache = options.enablePrecomputedCache !== false;
-    this.tauriAPI = options.tauriAPI || null; // Required for cache file operations
 
     this.matchLookup = new DictionaryMatchLookup({
       dictionaries: this.dictionaries,
@@ -100,38 +95,12 @@ export class DictionaryManager {
         continue;
       }
 
-      let trie;
-      let entryCount = 0;
-
-      // Try loading from precomputed cache if enabled
-      if (this.enablePrecomputedCache && this.tauriAPI) {
-        try {
-          const cacheResult = await loadDictionaryWithCache(
-            dictionaryName,
-            dictionary,
-            this.tauriAPI
-          );
-
-          if (cacheResult) {
-            trie = cacheResult.trie;
-            entryCount = trie.size;
-          }
-        } catch {
-          // Cache unreadable: fall through to building the trie from the dictionary
-        }
-      }
-
-      // Fallback: build trie from dictionary if cache didn't work
       const priority = resolveDictionaryPriority(dictionaryName, priorities);
-      if (!trie) {
-        const built = buildTrieFromDictionary(dictionary, priority);
-        trie = built.trie;
-        entryCount = built.entryCount;
-        for (const invalidSource of built.invalidSources) {
-          logger.error(
-            `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
-          );
-        }
+      const { trie, entryCount, invalidSources } = buildTrieFromDictionary(dictionary);
+      for (const invalidSource of invalidSources) {
+        logger.error(
+          `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
+        );
       }
 
       this.dictionaries.set(dictionaryName, trie);

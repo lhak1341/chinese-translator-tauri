@@ -31,65 +31,50 @@ describe('resolveDictionaryPriority', () => {
 });
 
 describe('buildTrieFromDictionary', () => {
-  test('inserts string-value entries with computed metadata', () => {
-    const result = buildTrieFromDictionary({ 好: 'tốt' }, 4);
+  test('inserts string-value entries with an empty-field metadata object', () => {
+    const result = buildTrieFromDictionary({ 好: 'tốt' });
 
     expect(result.entryCount).toBe(1);
     expect(result.invalidSources).toEqual([]);
     const entry = result.trie.getWithMetadata('好');
     expect(entry.translation).toBe('tốt');
-    expect(entry.metadata).toMatchObject({
-      priority: 4,
-    });
+    expect(entry.metadata).toEqual({ allowAsPatternVariable: undefined });
   });
 
-  test('inserts object-value entries, preserving allowAsPatternVariable/semanticType/allowedVariableTypes', () => {
-    const result = buildTrieFromDictionary(
-      {
-        你好: {
-          translation: 'xin chào',
-          allowAsPatternVariable: true,
-          semanticType: 'greeting',
-          allowedVariableTypes: ['concept'],
-        },
+  test('inserts object-value entries, keeping only allowAsPatternVariable/semanticType', () => {
+    const result = buildTrieFromDictionary({
+      你好: {
+        translation: 'xin chào',
+        allowAsPatternVariable: true,
+        semanticType: 'greeting',
+        allowedVariableTypes: ['concept'],
       },
-      3
-    );
+    });
 
     const entry = result.trie.getWithMetadata('你好');
     expect(entry.translation).toBe('xin chào');
-    expect(entry.metadata).toMatchObject({
+    expect(entry.metadata).toEqual({
       allowAsPatternVariable: true,
       semanticType: 'greeting',
-      allowedVariableTypes: ['concept'],
     });
   });
 
   test('preserves explicit allowAsPatternVariable: false rather than defaulting it away', () => {
-    const result = buildTrieFromDictionary(
-      { 大: { translation: 'to', allowAsPatternVariable: false } },
-      4
-    );
+    const result = buildTrieFromDictionary({
+      大: { translation: 'to', allowAsPatternVariable: false },
+    });
 
     expect(result.trie.getWithMetadata('大').metadata.allowAsPatternVariable).toBe(false);
   });
 
   test('collects invalid entries (no translation field) without inserting them', () => {
-    const result = buildTrieFromDictionary(
-      { good: 'tốt', bad: { note: 'missing translation field' } },
-      4
-    );
+    const result = buildTrieFromDictionary({
+      good: 'tốt',
+      bad: { note: 'missing translation field' },
+    });
 
     expect(result.entryCount).toBe(1);
     expect(result.invalidSources).toEqual(['bad']);
     expect(result.trie.getWithMetadata('bad')).toBeNull();
-  });
-
-  test('same priority value is used for every entry in the dictionary', () => {
-    const result = buildTrieFromDictionary({ 一: '1', 二: '2', 三: '3' }, 4);
-
-    expect(result.trie.getWithMetadata('一').metadata.priority).toBe(4);
-    expect(result.trie.getWithMetadata('二').metadata.priority).toBe(4);
-    expect(result.trie.getWithMetadata('三').metadata.priority).toBe(4);
   });
 });

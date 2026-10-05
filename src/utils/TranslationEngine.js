@@ -253,10 +253,6 @@ export class TranslationEngine {
       // Enable caching with optimized cache sizes
       cacheEnabled: true,
       lookupCacheSize: 800,
-
-      // Dictionary Precomputation: 5-7x faster loading with cached tries
-      enablePrecomputedCache: true,
-      tauriAPI: window.electronAPI,
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
     this.textChunker = new TextChunker();
@@ -1159,7 +1155,7 @@ export class TranslationEngine {
     };
 
     // Performance monitoring: check for bottlenecks
-    logger.warnIfSlow('translateWithSegments', perfStartTime, {
+    logger.debugIfSlow('translateWithSegments', perfStartTime, {
       textLength: text.length,
       resultLength: result.translatedText.length,
       semanticArrays: result.semanticArrays?.length ?? 0,
@@ -2865,20 +2861,6 @@ export class TranslationEngine {
         chunkCount: batch.length,
         timestamp: Date.now(),
       });
-
-      // Warn if significant performance degradation detected
-      if (this.batchPerformanceHistory.length > 1) {
-        const firstBatch = this.batchPerformanceHistory[0];
-        const currentBatch = this.batchPerformanceHistory[this.batchPerformanceHistory.length - 1];
-        const degradationRatio = currentBatch.avgTimePerChunk / firstBatch.avgTimePerChunk;
-
-        if (degradationRatio > 2.0) {
-          // >2x slower than first batch
-          logger.warn(
-            `⚠️ Performance degradation detected: Batch ${currentBatch.batchNumber} is ${degradationRatio.toFixed(1)}x slower than batch 1 (${currentBatch.avgTimePerChunk.toFixed(1)}ms vs ${firstBatch.avgTimePerChunk.toFixed(1)}ms per chunk)`
-          );
-        }
-      }
     } catch (error) {
       // Handle parallel processing errors with performance tracking
       logger.error('Parallel chunk processing failed:', error);
@@ -2886,7 +2868,7 @@ export class TranslationEngine {
       throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {
       // Performance monitoring: check for bottlenecks regardless of success/failure
-      logger.warnIfSlow('processChunksInParallel', startTime, {
+      logger.debugIfSlow('processChunksInParallel', startTime, {
         batchSize: batch.length,
       });
     }
@@ -3128,22 +3110,6 @@ export class TranslationEngine {
    * Each batch processes sequentially to maintain position tracking accuracy.
    */
 
-  /**
-   * Verifies translationSegments position tracking and warns on any segment still
-   * missing a position. Shared by translateWithSegments and translateWithProgressiveBatches
-   * (3 call sites hand-copied the same filter+warn check before being unified here,
-   * architecture review 2026-08-15, candidate #4).
-   * @param {string} [contextSuffix] - e.g. ' in batch processing', appended to the log message
-   */
-  _logUnpositionedSegments(contextSuffix = '') {
-    const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
-    if (unpositionedSegments.length > 0) {
-      logger.warn(
-        `⚠️ ${unpositionedSegments.length} segments missing positions${contextSuffix} - position tracking bug detected`
-      );
-    }
-  }
-
   // ============================================================================
   // SECTION 13: PROGRESSIVE BATCH TRANSLATION
   // ============================================================================
@@ -3193,8 +3159,6 @@ export class TranslationEngine {
     // sizer's severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes —
     // and let calculateNextBatchSize grow it toward MAX_BATCH_SIZE while batches stay fast.
     let currentBatchSize = MIN_BATCH_SIZE;
-
-    logger.info('[batch-sizing]', `📊 Initial batch size: ${currentBatchSize}`);
 
     let _totalBatches = Math.ceil(translatableChunks.length / currentBatchSize);
 
@@ -3273,8 +3237,6 @@ export class TranslationEngine {
       // Use the already-processed text from batch processing (eliminates redundant reconstruction)
       const cleanedResult = batchResult.cleanedBatchText;
 
-      // Verify position tracking worked correctly
-      this._logUnpositionedSegments(' in batch processing');
       this.semanticArrayBuilder.updateWithCapitalizedText(cleanedResult);
 
       // Update progress tracking
@@ -3344,8 +3306,6 @@ export class TranslationEngine {
 
     // Debug logging for semantic array building
 
-    // Verify position tracking worked correctly
-    this._logUnpositionedSegments(' in final processing');
     this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
 
     // OPTIMIZED FIX: Use naturally accumulated semantic arrays and update with final text
