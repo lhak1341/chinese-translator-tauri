@@ -219,6 +219,61 @@ describe('the Configuration tab after the open book rewrote config', () => {
   });
 });
 
+describe('the default Cmd-5 dictionary while a book bound to fiction is open', () => {
+  // `quickAddViewForBinding` points every Add at the open book's dictionary, so a default written
+  // here would change nothing now and be overwritten by the next book's bind. The tab shows what
+  // Cmd-5 does, and does not offer the write (architecture review 2026-10-06, candidate #3).
+  const BOUND_ID = 'properNouns-f_TapDo';
+
+  test('shows the bound dictionary as the default, whatever config says', async () => {
+    const { result } = await renderTab(true);
+    await act(async () => {
+      await saveAppConfig({ ui: { defaultQuickAddDictionary: 'properNouns-_AiCap' } });
+    });
+
+    await waitFor(() => expect(result.current.tab.defaultQuickAddDictionary).toBe(BOUND_ID));
+    expect(result.current.tab.isDefaultLockedByBook).toBe(true);
+  });
+
+  test('refuses to write a default', async () => {
+    const { result } = await renderTab(true);
+    h.disk.saveConfiguration.mockClear();
+
+    await act(async () => {
+      await result.current.tab.handleSetDefaultQuickAdd('properNouns-_AiCap');
+    });
+
+    expect(h.disk.saveConfiguration).not.toHaveBeenCalled();
+  });
+
+  test('disables every bookmark button and says why', async () => {
+    render(
+      <h.Wrapper>
+        <OpenBook />
+        <ConfigurationManager />
+      </h.Wrapper>
+    );
+    await waitFor(() => expect(rowLabel('f_TapDo')).toBeInTheDocument());
+    await applied();
+
+    const bookmarks = await screen.findAllByTitle(/Cmd-5 follows the open book/);
+    expect(bookmarks.length).toBeGreaterThan(0);
+    for (const button of bookmarks) expect(button).toBeDisabled();
+  });
+
+  test('leaves the default editable once the book is closed', async () => {
+    const { result } = await renderTab(true);
+    act(() => result.current.binding.announceClosedBook());
+    await waitFor(() => expect(result.current.tab.isDefaultLockedByBook).toBe(false));
+
+    await act(async () => {
+      await result.current.tab.handleSetDefaultQuickAdd('properNouns-_AiCap');
+    });
+
+    expect(h.disk.disk.raw.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+  });
+});
+
 describe('a tier move from the Configuration tab', () => {
   // Rust renames the files and rewrites config, then the binding context may save again. The
   // tab ends up showing the Dictionary Store's list and what the config file now says.

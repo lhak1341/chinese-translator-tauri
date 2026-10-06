@@ -98,8 +98,8 @@ vi.mock('../DictionaryContext', () => ({
   }),
 }));
 
-vi.mock('../../ToastContext', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+vi.mock('../../../utils/toast', () => ({
+  default: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 vi.mock('../DictionaryEntry', () => ({

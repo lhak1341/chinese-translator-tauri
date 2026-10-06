@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import { parseDuplicateKey, createDuplicateKey } from '../utils/dictionary';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
-import { toast } from '../components/ToastContext';
+import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 
 export interface SelectionState {
@@ -181,18 +181,18 @@ export function useEntrySelection({
         if (successCount > 0) {
           toast.warning(
             `Deleted ${successCount} of ${entries.size} entries. ${errors.length} failed.`,
-            6000
+            { duration: 6000 }
           );
         } else {
           toast.error(
             `Failed to delete ${entries.size} ${entries.size === 1 ? 'entry' : 'entries'}.`,
-            6000
+            { duration: 6000 }
           );
         }
       } else {
         toast.success(
           `Deleted ${successCount} ${successCount === 1 ? 'entry' : 'entries'} successfully`,
-          3000
+          { duration: 3000 }
         );
       }
 
@@ -201,7 +201,9 @@ export function useEntrySelection({
         setShowBulkDeleteConfirm(false);
       }
     } catch (error) {
-      toast.error(`Critical error during deletion: ${(error as Error).message}`, 6000);
+      toast.error(`Critical error during deletion: ${(error as Error).message}`, {
+        duration: 6000,
+      });
       logger.error('Bulk delete error:', error);
     } finally {
       setIsDeleting(false);

@@ -130,6 +130,7 @@ const ConfigurationManager: React.FC = () => {
     renameValue,
     updateRenameValue,
     defaultQuickAddDictionary,
+    isDefaultLockedByBook,
     categorizedDictionaries,
     handleToggleDictionary,
     handleCreateDictionary,
@@ -229,11 +230,14 @@ const ConfigurationManager: React.FC = () => {
             {isChecked && isNonRootProperNoun && (
               <button
                 onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
+                disabled={isDefaultLockedByBook}
                 className={`${styles.bookmarkButton} ${isDefaultQuickAdd ? styles.bookmarkButtonDefault : styles.bookmarkButtonInactive}`}
                 title={
-                  isDefaultQuickAdd
-                    ? 'Default Cmd-5 dictionary (click to unset)'
-                    : 'Set as default Cmd-5 dictionary'
+                  isDefaultLockedByBook
+                    ? `Cmd-5 follows the open book${openBookTitle ? `: ${openBookTitle}` : ''}`
+                    : isDefaultQuickAdd
+                      ? 'Default Cmd-5 dictionary (click to unset)'
+                      : 'Set as default Cmd-5 dictionary'
                 }
               >
                 <Bookmark size={14} fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'} />

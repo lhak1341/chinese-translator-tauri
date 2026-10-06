@@ -144,6 +144,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-078](./ADR-078-delete-the-wasm-string-tier.md)                                 | Delete the WASM string tier                                  | Decided                           | Serves only the JS fallback matcher; lookups 3.5x–6x slower than the JS `Map`, build 2x faster, total worse.                                         |
 | [ADR-079](./ADR-079-delete-the-wasm-assembler-and-chunker-tiers.md)                 | Delete the WASM assembler, chunker and tokenizer tiers       | Decided                           | Assembler 15x–25x and tokenizer 8x slower, chunker a tie; the JS tokenizer now classifies as Rust did.                                               |
 | [ADR-080](./ADR-080-delete-the-wasm-integrity-manifest.md)                          | Delete the WASM integrity manifest                           | Decided                           | Hash and manifest ship in the same bundle, so it caught corruption but not tampering; a stale manifest disabled WASM.                                |
+| [ADR-081](./ADR-081-skip-reader-ipc-wire-shape-parity.md)                           | Skip wire-shape parity for the Reader IPC payloads           | Decided                           | Drift is loud on the first Reader run; a TS check needs a third copy, a real fix needs codegen.                                                      |
 
 ## ADR Format
 
@@ -200,4 +201,5 @@ Write an ADR when making decisions about:
 - **2026-10-04**: ADR-070; ADR-071; ADR-072; ADR-073; ADR-074
 - **2026-10-05**: ADR-075; ADR-076; ADR-077; ADR-078
 - **2026-10-06**: ADR-079; ADR-080
+- **2026-10-07**: ADR-081
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

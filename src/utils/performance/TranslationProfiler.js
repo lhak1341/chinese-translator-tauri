@@ -1,8 +1,8 @@
 /**
  * Translation Profiler
  *
- * Performance profiling for translation phases to identify bottlenecks.
- * Used to determine which phases should be migrated to Rust WASM.
+ * Wall-clock time per translation phase, from the dev console. Reports a table and gives no
+ * advice: the numbers include awaits (docs/guides/performance.md), so read them as a hint.
  *
  * Usage:
  *   window.translationEngine.enableProfiling()
@@ -22,7 +22,7 @@ export class TranslationProfiler {
     this.phases = {
       patterns: { time: 0, calls: 0, name: 'Pattern Matching (WASM)' },
       properNouns: { time: 0, calls: 0, name: 'Proper Noun Dictionary' },
-      numbers: { time: 0, calls: 0, name: 'Number Conversion (WASM)' },
+      numbers: { time: 0, calls: 0, name: 'Number Conversion' },
       phrases: { time: 0, calls: 0, name: 'Phrase Dictionary' },
       characters: { time: 0, calls: 0, name: 'Character Dictionary' },
       postProcess: { time: 0, calls: 0, name: 'Post-Processing' },
@@ -155,60 +155,7 @@ export class TranslationProfiler {
       totalTimeMs: totalTime.toFixed(2),
       totalCalls: this.phases.total.calls,
       phases: report,
-      recommendations: this.getRecommendations(report, totalTime),
     };
-  }
-
-  /**
-   * Get optimization recommendations based on profiling data
-   * @param {Array} phaseReport - Phase profiling data
-   * @param {number} totalTime - Total time in ms
-   * @returns {Array} Array of recommendation strings
-   */
-  getRecommendations(phaseReport, totalTime) {
-    const recommendations = [];
-
-    // Calculate dictionary phases total
-    const dictionaryPhases = phaseReport.filter(
-      (p) => p.phase.includes('Dictionary') && !p.phase.includes('WASM')
-    );
-    const dictionaryTime = dictionaryPhases.reduce((sum, p) => sum + parseFloat(p.timeMs), 0);
-    const dictionaryPercentage = (dictionaryTime / totalTime) * 100;
-
-    if (dictionaryPercentage > 40) {
-      recommendations.push(
-        `⚠️  Dictionary phases consume ${dictionaryPercentage.toFixed(1)}% of translation time (${dictionaryTime.toFixed(2)}ms)`
-      );
-      recommendations.push(
-        `✅ RECOMMENDED: Migrate dictionary phases to Rust WASM (estimated 5-15x speedup)`
-      );
-      recommendations.push(`📋 See: DICTIONARY_PHASE_BATCHING_RUST_PLAN.md for migration plan`);
-    } else if (dictionaryPercentage > 25) {
-      recommendations.push(
-        `💡 Dictionary phases consume ${dictionaryPercentage.toFixed(1)}% of translation time (${dictionaryTime.toFixed(2)}ms)`
-      );
-      recommendations.push(
-        `⏳ CONSIDER: Dictionary batching could provide moderate speedup (5-10x)`
-      );
-    } else {
-      recommendations.push(
-        `✓ Dictionary phases only ${dictionaryPercentage.toFixed(1)}% of time (${dictionaryTime.toFixed(2)}ms) - not the bottleneck`
-      );
-      recommendations.push(`🔍 Focus optimization efforts on higher-percentage phases instead`);
-    }
-
-    // Check if any single phase is >30%
-    const dominantPhases = phaseReport.filter(
-      (p) => parseFloat(p.percentage) > 30 && p.phase !== 'Total Translation'
-    );
-
-    if (dominantPhases.length > 0) {
-      dominantPhases.forEach((p) => {
-        recommendations.push(`🎯 ${p.phase} is a bottleneck (${p.percentage} of total time)`);
-      });
-    }
-
-    return recommendations;
   }
 
   /**
@@ -231,17 +178,9 @@ export class TranslationProfiler {
     logger.log('-'.repeat(80));
     logger.table(report.phases);
 
-    if (report.recommendations.length > 0) {
-      logger.log('\n' + '='.repeat(80));
-      logger.log('💡 RECOMMENDATIONS:');
-      logger.log('='.repeat(80));
-      report.recommendations.forEach((rec) => logger.log(rec));
-    }
-
     logger.log('\n' + '='.repeat(80));
     logger.log('Next Steps:');
     logger.log('- Review phase breakdown above');
-    logger.log('- Follow recommendations if dictionary phases >40%');
     logger.log('- Reset profiling: window.translationEngine.resetProfiling()');
     logger.log('='.repeat(80) + '\n');
   }

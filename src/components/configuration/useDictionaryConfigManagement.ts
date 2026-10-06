@@ -18,6 +18,7 @@ import { useBookBinding } from '../BookBindingContext';
 import {
   activeProperNounsAfterToggle,
   activeProperNounsForBinding,
+  quickAddViewForBinding,
 } from '../../utils/reader/BindingActivation';
 
 /**
@@ -39,7 +40,7 @@ export function useDictionaryConfigManagement() {
   } = useBookBinding();
   const { config, isLoading: configLoading } = useAppConfig();
   const activeDictionaries = config.engine.activeProperNouns;
-  const defaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
+  const savedDefaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
   const [isMigrating, setIsMigrating] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewDictionaryModal, setShowNewDictionaryModal] = useState<boolean>(false);
@@ -76,6 +77,26 @@ export function useDictionaryConfigManagement() {
         ? activeProperNounsForBinding(activeDictionaries, boundFictionDictionary)
         : activeDictionaries,
     [activeDictionaries, boundFictionDictionary, isBookOpen]
+  );
+
+  /**
+   * A book bound to a fiction dictionary points every Add at it (`quickAddViewForBinding`), so
+   * a default written here would change nothing now and be overwritten by the next fiction
+   * bind. A book with no binding leaves a generic default in force, so that stays editable.
+   */
+  const isDefaultLockedByBook =
+    isBookOpen && boundFictionDictionary !== null && isFictionProperNounsId(boundFictionDictionary);
+
+  /** What Cmd-5 does now: the binding's answer while a book is open, the saved default otherwise. */
+  const defaultQuickAddDictionary = useMemo(
+    () =>
+      isBookOpen
+        ? quickAddViewForBinding(
+            { defaultQuickAddDictionary: savedDefaultQuickAddDictionary, activeProperNouns: [] },
+            boundFictionDictionary
+          ).defaultQuickAddDictionary
+        : savedDefaultQuickAddDictionary,
+    [isBookOpen, boundFictionDictionary, savedDefaultQuickAddDictionary]
   );
 
   // Once the Dictionary Store has listed everything, give pre-existing dictionaries their
@@ -231,6 +252,7 @@ export function useDictionaryConfigManagement() {
   };
 
   const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
+    if (isDefaultLockedByBook) return;
     try {
       // Clicking the current default unsets it (toggle off). Decided against the saved
       // config, not this hook's mirror of it, which a book opening may have moved. The
@@ -265,6 +287,9 @@ export function useDictionaryConfigManagement() {
     renameValue,
     updateRenameValue,
     defaultQuickAddDictionary,
+    /** True while a book bound to fiction is open: Cmd-5 follows the book, so the default
+     * shown is the book's and cannot be changed here. */
+    isDefaultLockedByBook,
     categorizedDictionaries,
     handleToggleDictionary,
     handleCreateDictionary,

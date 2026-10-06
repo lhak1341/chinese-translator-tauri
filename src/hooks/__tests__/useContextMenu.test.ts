@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useContextMenu } from '../useContextMenu';
 
-vi.mock('../../components/ToastContext', () => ({
-  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+vi.mock('../../utils/toast', () => ({
+  default: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
 const entry = { source: '龙', translation: 'rồng', dictionaryId: 'phrases' };
@@ -109,14 +109,16 @@ describe('useContextMenu — action handlers', () => {
   });
 
   it('handleContextMenuDelete closes and shows toast when onDelete throws', async () => {
-    const { toast } = await import('../../components/ToastContext');
+    const { default: toast } = await import('../../utils/toast');
     const actions = makeActions({ onDelete: vi.fn().mockRejectedValue(new Error('save failed')) });
     const { result } = renderHook(() => useContextMenu(actions));
     act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     await act(async () => result.current.handleContextMenuDelete());
     await act(async () => result.current.handleContextMenuDelete());
     expect(result.current.contextMenu.visible).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('save failed'), 6000);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('save failed'), {
+      duration: 6000,
+    });
   });
 });
 

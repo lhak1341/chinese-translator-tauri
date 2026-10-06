@@ -535,62 +535,6 @@ fn create_structural_patterns_dictionary_impl(
     Ok(DictionaryResponse::ok())
 }
 
-#[tauri::command]
-pub async fn rename_structural_patterns_dictionary(
-    app_handle: tauri::AppHandle,
-    cache: State<'_, DictionaryCache>,
-    old_dictionary_id: String,
-    new_dictionary_id: String,
-) -> Result<DictionaryResponse, String> {
-    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-    rename_structural_patterns_dictionary_impl(
-        &dictionary_path,
-        &cache,
-        &old_dictionary_id,
-        &new_dictionary_id,
-    )
-}
-
-/// Renames a `patterns-*` structural patterns dictionary file. Pure filesystem function —
-/// no `AppHandle` — directly unit-testable against a temp directory.
-fn rename_structural_patterns_dictionary_impl(
-    dictionary_path: &PathBuf,
-    cache: &DictionaryCache,
-    old_dictionary_id: &str,
-    new_dictionary_id: &str,
-) -> Result<DictionaryResponse, String> {
-    validate_dictionary_id(old_dictionary_id)?;
-    validate_dictionary_id(new_dictionary_id)?;
-
-    if !old_dictionary_id.starts_with("patterns-") || !new_dictionary_id.starts_with("patterns-") {
-        return Ok(DictionaryResponse::err("Both dictionary IDs must start with 'patterns-'"));
-    }
-
-    let old_file_path = dictionary_path.join(format!("{}.json", old_dictionary_id));
-    let new_file_path = dictionary_path.join(format!("{}.json", new_dictionary_id));
-
-    if !old_file_path.exists() {
-        return Ok(DictionaryResponse::ok_with_message(format!(
-            "Patterns dictionary '{}' not found — skipped (will be created on next app launch)",
-            old_dictionary_id
-        )));
-    }
-
-    if let Some(msg) = collision_message(&new_file_path, new_dictionary_id, "Patterns") {
-        return Ok(DictionaryResponse::err(msg));
-    }
-
-    fs::rename(&old_file_path, &new_file_path)
-        .map_err(|e| sanitize_io_error(e, "patterns dictionary file"))?;
-
-    cache.invalidate(Some(old_dictionary_id));
-
-    Ok(DictionaryResponse::ok_with_message(format!(
-        "Renamed '{}' to '{}'",
-        old_dictionary_id, new_dictionary_id
-    )))
-}
-
 /// Creates an empty properNouns dictionary file at `dictionary_path/{dictionary_id}.json`.
 /// File-creation failure (already exists, write error) is returned as `Err`.
 ///
@@ -1317,86 +1261,6 @@ fn import_dictionaries_impl(
         message: Some(message),
         quarantined: None,
     })
-}
-
-#[tauri::command]
-pub async fn reset_dictionaries(
-    app_handle: tauri::AppHandle,
-    cache: State<'_, DictionaryCache>,
-    options: Option<serde_json::Value>,
-) -> Result<DictionaryResponse, String> {
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-
-    // Get backup option (default: true)
-    let create_backup = options
-        .as_ref()
-        .and_then(|o| o.get("backup"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    reset_dictionaries_impl(&dictionary_path, create_backup, &cache)
-}
-
-/// Backs up (optionally) and then wipes+recreates `dictionary_path`. Pure filesystem
-/// function — no `AppHandle` — directly unit-testable against a temp directory.
-fn reset_dictionaries_impl(
-    dictionary_path: &PathBuf,
-    create_backup: bool,
-    cache: &DictionaryCache,
-) -> Result<DictionaryResponse, String> {
-    // Create backup if requested
-    if create_backup {
-        let backup_dir = dictionary_path.parent()
-            .ok_or("Could not get parent directory")?
-            .join("dictionaries_backup");
-
-        fs::create_dir_all(&backup_dir).map_err(|e| sanitize_io_error(e, "backup directory"))?;
-
-        // Copy all files to backup
-        if dictionary_path.exists() {
-            let entries = fs::read_dir(&dictionary_path)
-                .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
-
-            for entry in entries {
-                let entry = entry.map_err(|e| sanitize_io_error(e, "directory entry"))?;
-                let path = entry.path();
-
-                if path.is_file() {
-                    let file_name = path.file_name()
-                        .ok_or("Invalid filename")?;
-                    let backup_path = backup_dir.join(file_name);
-                    fs::copy(&path, &backup_path)
-                        .map_err(|e| sanitize_io_error(e, "backup file"))?;
-                }
-            }
-        }
-    }
-
-    // Remove all existing dictionary files
-    if dictionary_path.exists() {
-        fs::remove_dir_all(&dictionary_path)
-            .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
-    }
-
-    // Recreate dictionary directory
-    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
-
-    // Clear cache
-    cache.invalidate(None);
-
-    // CODE REVIEW FIX (CRITICAL-2): Dictionaries directory is now empty — warn the user
-    // explicitly.  There are no bundled source templates to restore automatically; the user
-    // must import dictionaries (or restore from the backup) before translation will work.
-    let message = if create_backup {
-        "Dictionaries reset successfully. Backup saved to dictionaries_backup/. \
-        The dictionaries directory is now empty — import your dictionaries or restore from \
-        the backup to resume translation."
-    } else {
-        "Dictionaries reset successfully. No backup created. \
-        The dictionaries directory is now empty — import your dictionaries to resume translation."
-    };
-
-    Ok(DictionaryResponse::ok_with_message(message))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -2139,19 +2003,6 @@ mod tests {
         dir
     }
 
-    /// Like `temp_test_dir`, but returns a dictionary directory nested one level inside a
-    /// per-test sandbox, so `dictionary_path.parent()` is unique to the test.
-    ///
-    /// `reset_dictionaries_impl` writes its backup to `dictionary_path.parent()/dictionaries_backup`.
-    /// With a flat `temp_test_dir`, that parent is the shared system temp dir, so every reset test
-    /// raced over one global `dictionaries_backup` path. Nesting mirrors production layout, where
-    /// the dictionary dir sits inside the app data dir.
-    fn temp_test_dict_dir(name: &str) -> PathBuf {
-        let dir = temp_test_dir(name).join("dictionaries");
-        fs::create_dir_all(&dir).expect("failed to create temp dictionary dir");
-        dir
-    }
-
     #[test]
     fn test_blob_kind_filenames_are_distinct() {
         let filenames = [
@@ -2328,7 +2179,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    // ── create_structural_patterns_dictionary_impl / rename_structural_patterns_dictionary_impl ──
+    // ── create_structural_patterns_dictionary_impl ──
     // Pure filesystem functions (no AppHandle) backing the two structural-patterns commands —
     // architecture review 2026-07-18, candidate 3.
 
@@ -2391,117 +2242,6 @@ mod tests {
 
         assert!(!response.success);
         assert_eq!(response.error.as_deref(), Some("Dictionary already exists"));
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rename_structural_patterns_renames_file_and_invalidates_old_cache() {
-        let dir = temp_test_dir("rename_patterns_happy_path");
-        let cache = make_cache();
-        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
-        cache.set("patterns-f_Old".to_string(), serde_json::json!({"stale": true}));
-
-        let response = rename_structural_patterns_dictionary_impl(
-            &dir,
-            &cache,
-            "patterns-f_Old",
-            "patterns-f_New",
-        )
-        .unwrap();
-
-        assert!(response.success);
-        assert!(!dir.join("patterns-f_Old.json").exists());
-        assert!(dir.join("patterns-f_New.json").exists());
-        assert!(cache.get("patterns-f_Old").is_none());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rename_structural_patterns_rejects_wrong_prefix_on_either_id() {
-        let dir = temp_test_dir("rename_patterns_wrong_prefix");
-        let cache = make_cache();
-        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
-
-        let response = rename_structural_patterns_dictionary_impl(
-            &dir,
-            &cache,
-            "patterns-f_Old",
-            "properNouns-f_New",
-        )
-        .unwrap();
-
-        assert!(!response.success);
-        assert_eq!(
-            response.error.as_deref(),
-            Some("Both dictionary IDs must start with 'patterns-'")
-        );
-        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rename_structural_patterns_skips_when_old_file_missing() {
-        let dir = temp_test_dir("rename_patterns_old_missing");
-        let cache = make_cache();
-
-        let response = rename_structural_patterns_dictionary_impl(
-            &dir,
-            &cache,
-            "patterns-f_Old",
-            "patterns-f_New",
-        )
-        .unwrap();
-
-        assert!(response.success, "missing old file is a skip, not an error");
-        assert!(response.message.as_deref().unwrap().contains("not found"));
-        assert!(!dir.join("patterns-f_New.json").exists());
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rename_structural_patterns_rejects_when_new_file_already_exists() {
-        let dir = temp_test_dir("rename_patterns_new_exists");
-        let cache = make_cache();
-        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
-        fs::write(dir.join("patterns-f_New.json"), "{}").unwrap();
-
-        let response = rename_structural_patterns_dictionary_impl(
-            &dir,
-            &cache,
-            "patterns-f_Old",
-            "patterns-f_New",
-        )
-        .unwrap();
-
-        assert!(!response.success);
-        assert!(response.error.as_deref().unwrap().contains("already exists"));
-        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_rename_structural_patterns_rejects_invalid_new_id() {
-        let dir = temp_test_dir("rename_patterns_invalid_new_id");
-        let cache = make_cache();
-        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
-
-        let result = rename_structural_patterns_dictionary_impl(
-            &dir,
-            &cache,
-            "patterns-f_Old",
-            "patterns-../evil",
-        );
-
-        match result {
-            Err(e) => assert_eq!(e, "Invalid dictionary ID: path separators not allowed"),
-            Ok(_) => panic!("expected Err for a path-traversal dictionary ID"),
-        }
-        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -2702,70 +2442,6 @@ mod tests {
             v = serde_json::json!({ "n": v });
         }
         v
-    }
-
-    // ── reset_dictionaries_impl ───────────────────────────────────────────────
-    // Previously untested command body (architecture review 2026-07-17, candidate 5) —
-    // extracted from reset_dictionaries so it's testable without a real AppHandle.
-
-    #[test]
-    fn test_reset_with_backup_copies_files_then_wipes_and_recreates() {
-        let dir = temp_test_dict_dir("reset_with_backup");
-        fs::write(dir.join("phrases.json"), "{}").unwrap();
-        let cache = make_cache();
-        cache.set("phrases".to_string(), serde_json::json!({"stale": true}));
-
-        let result = reset_dictionaries_impl(&dir, true, &cache);
-
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert!(response.success);
-        assert!(response.message.as_ref().unwrap().contains("Backup saved"));
-
-        let backup_dir = dir.parent().unwrap().join("dictionaries_backup");
-        assert!(
-            backup_dir.join("phrases.json").exists(),
-            "backup should contain the original file"
-        );
-        assert!(!dir.join("phrases.json").exists(), "dictionary dir should be wiped");
-        assert!(dir.exists(), "dictionary dir should be recreated (empty)");
-        assert!(cache.get("phrases").is_none(), "cache should be cleared");
-
-        let _ = fs::remove_dir_all(dir.parent().unwrap());
-    }
-
-    #[test]
-    fn test_reset_without_backup_skips_backup_dir() {
-        let dir = temp_test_dict_dir("reset_without_backup");
-        fs::write(dir.join("phrases.json"), "{}").unwrap();
-        let cache = make_cache();
-
-        let result = reset_dictionaries_impl(&dir, false, &cache);
-
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert!(response.message.as_ref().unwrap().contains("No backup created"));
-
-        let backup_dir = dir.parent().unwrap().join("dictionaries_backup");
-        assert!(!backup_dir.exists(), "backup dir should not be created when create_backup=false");
-        assert!(dir.exists());
-        assert!(!dir.join("phrases.json").exists());
-
-        let _ = fs::remove_dir_all(dir.parent().unwrap());
-    }
-
-    #[test]
-    fn test_reset_recreates_dir_when_it_did_not_exist_yet() {
-        let dir = temp_test_dict_dir("reset_missing_dir");
-        fs::remove_dir_all(&dir).unwrap(); // simulate a dictionary dir that was never created
-        let cache = make_cache();
-
-        let result = reset_dictionaries_impl(&dir, true, &cache);
-
-        assert!(result.is_ok(), "should succeed even when the dictionary dir did not exist");
-        assert!(dir.exists());
-
-        let _ = fs::remove_dir_all(dir.parent().unwrap());
     }
 
     // ── load_dictionaries_parallel_impl ───────────────────────────────────────

@@ -222,9 +222,9 @@ Entry point: `src/utils/performance/PerformanceMonitor.js`.
 
 ## TranslationProfiler
 
-Per-phase profiler for the 5-phase translation pipeline. Tracks wall-clock time per phase (pattern, properNouns, numbers, phrases, characters) plus total. Interface: `enable()`, `disable()`, `profile(phase, fn)` (async), `profileSync(phase, fn)`, `recordTime(phase, timeMs)`, `getReport()`, `getRecommendations()`, `printReport()`, `reset()`. Dev/debug tool — used to identify which phases to migrate to WASM.
+Per-phase profiler for the 5-phase translation pipeline. Tracks wall-clock time per phase (pattern, properNouns, numbers, phrases, characters) plus total. Interface: `enable()`, `disable()`, `profile(phase, fn)` (async), `profileSync(phase, fn)`, `recordTime(phase, timeMs)`, `getReport()`, `printReport()`, `reset()`. Dev/debug tool: it reports a table and gives no advice (the old `getRecommendations()` told readers to migrate dictionary phases to WASM, which ADR-073/078/079 measured as slower and deleted; 2026-10-07). Its numbers include awaits, so they are wall-clock, not CPU share.
 
-Single caller: `TranslationEngine` (`this.profiler = new TranslationProfiler()`). Accessed via engine methods `enableProfiling()`, `disableProfiling()`, `getProfilingReport()`. Not a production monitoring path — disabled by default (`enabled = false`).
+Single caller: `TranslationEngine` (`this.phaseProfiler = new TranslationProfiler()`). Accessed via engine methods `enableProfiling()`, `disableProfiling()`, `getProfilingReport()`. Not a production monitoring path — disabled by default (`enabled = false`).
 
 Entry point: `src/utils/performance/TranslationProfiler.js`.
 
@@ -889,6 +889,8 @@ Which fiction dictionary a book uses, kept on the book's record and keyed by fin
 _Avoid_: bound dictionary (for what is applied — say the dictionary in use; "bound" is the recorded answer, which can name a dictionary that no longer exists).
 
 **While a book is open, the Configuration tab's fiction checkboxes are a read-only reflection of the binding; generic and theme dictionaries stay fully editable there.** `useDictionaryConfigManagement` derives what it renders through `activeProperNounsForBinding` rather than from its own mount-time config read, and a generic toggle is computed from that same derived list — a toggle computed from the stale raw list would write the previous book's fiction dictionary back to disk, which the engine's next reinitialization would then load.
+
+**The default Cmd-5 dictionary is the book's while a book bound to fiction is open, and cannot be set then.** `quickAddViewForBinding` points every Add at the bound dictionary, so `useDictionaryConfigManagement` shows that as `defaultQuickAddDictionary` (through `quickAddViewForBinding`, not the saved key), disables the bookmark buttons (`isDefaultLockedByBook`) and refuses `handleSetDefaultQuickAdd`. A write would change nothing now and the next fiction bind overwrites it. A book with no binding leaves a generic default in force, so it stays editable; so does everything once the book closes (2026-10-07, architecture review round 15, candidate #3).
 
 **Closing a book gives up its authority, and nothing else.** `ReaderTab` calls `announceClosedBook()` whenever it stops showing a book — Back to the shelf, or a newly picked book waiting on an encoding choice — and `isBookOpen` goes false: the Configuration tab's fiction rows unlock, and every Add's view is config as loaded again. Closing writes no config and rebuilds nothing, so the last book's fiction dictionary stays active until the Configuration tab or another book changes it. Resetting the fiction slice to none on close was considered and rejected: it would rebuild the engine on every Back, and leftover config does no harm once no book claims it. Reopening a book calls `announceOpenBook` again, whose apply is a no-op when the list already matches.
 

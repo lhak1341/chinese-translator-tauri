@@ -24,7 +24,7 @@ import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
 import { findConflictingEntries, getMoveFamily, type DuplicateRow } from '../../utils/dictionary';
 import { quickAddChoices, type QuickAddView } from '../../utils/dictionary/QuickAddTarget';
-import { toast } from '../ToastContext';
+import toast from '../../utils/toast';
 import { useBookBinding } from '../BookBindingContext';
 
 /**

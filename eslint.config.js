@@ -86,6 +86,33 @@ export default tseslint.config(
     },
   },
   {
+    // One toast signature: `toast.error(msg, { duration, id })` from src/utils/toast. The
+    // positional singleton in ToastContext is that module's implementation, and a second
+    // import path made vi.mock('utils/toast') miss the callers that took it (architecture
+    // review 2026-10-06, candidate #5). Provider, hook and wiring exports stay importable.
+    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    ignores: [
+      'src/utils/toast.ts',
+      '**/*.test.{ts,tsx,js,jsx}',
+      '**/*.spec.{ts,tsx,js,jsx}',
+      '**/*.d.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/ToastContext'],
+              importNames: ['toast'],
+              message: "Import toast from 'utils/toast' (options object), not ToastContext.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Type-aware rules — needs the TS project service, so scoped to files the
     // root tsconfig.json actually includes (excludes *.test.* — see tsconfig.json).
     files: ['src/**/*.{ts,tsx,js,jsx}'],

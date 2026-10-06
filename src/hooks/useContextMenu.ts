@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { toast } from '../components/ToastContext';
+import toast from '../utils/toast';
 
 /** The entry a context menu acts on. `dictionaryId` travels with it because the duplicate
  * view mixes rows from many dictionaries — the table's selected dictionary is not the owner. */
@@ -72,7 +72,7 @@ export function useContextMenu({ onEdit, onMove, onDelete }: UseContextMenuActio
       await onDelete(contextMenu.entry);
       closeContextMenu();
     } catch (error) {
-      toast.error(`Failed to delete entry: ${(error as Error).message}`, 6000);
+      toast.error(`Failed to delete entry: ${(error as Error).message}`, { duration: 6000 });
       closeContextMenu();
     }
   }, [contextMenu.entry, confirmingDelete, onDelete, closeContextMenu]);

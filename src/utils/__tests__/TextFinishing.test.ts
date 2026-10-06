@@ -155,3 +155,43 @@ describe('engine parity: Full Translation vs character-only', () => {
     expect(translatedText.toLowerCase()).toBe('màu');
   });
 });
+
+// The character-only pass builds its own semantic arrays and returns them, so it must leave the
+// engine's shared builder and segment list alone. A leak lands inside a Full Translation that
+// starts while the pass awaits its lookup index (architecture review 2026-10-06, candidate #2).
+describe('character-only pass leaves the engine state of Full Translation alone', () => {
+  const dictionaries = {
+    characters: { 说: 'thuyết', 别: 'biệt', 单: 'đan' },
+    phrases: { 说别: 'từ biệt' },
+    patterns: {},
+    properNouns: {},
+    conversion: {},
+    punctuation: {},
+  };
+
+  async function engine() {
+    const e = createTranslationEngine();
+    await e.initialize(dictionaries, { activeProperNouns: ['properNouns'] });
+    return e;
+  }
+
+  it('adds nothing to the shared builder or segment list, from a fresh engine', async () => {
+    const e = await engine();
+    await e.translateWithCharactersOnly('说别单', {});
+    expect(e.semanticArrayBuilder.getArrays().translated).toEqual([]);
+    expect(e.translationSegments).toEqual([]);
+  });
+
+  it('leaves the arrays and segments a Full Translation just produced as they were', async () => {
+    const e = await engine();
+    await e.translateWithSegments('说别单', {});
+    const arraysBefore = e.semanticArrayBuilder.getArrays();
+    const segmentsBefore = [...e.translationSegments];
+
+    const result = await e.translateWithCharactersOnly('说别单', {});
+
+    expect(e.semanticArrayBuilder.getArrays()).toEqual(arraysBefore);
+    expect(e.translationSegments).toEqual(segmentsBefore);
+    expect(result.semanticArrays.translated.length).toBeGreaterThan(0);
+  });
+});

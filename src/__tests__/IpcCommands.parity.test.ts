@@ -15,7 +15,7 @@
  * it does not know, so a renamed `Option` parameter turned the wrapper's key into a silent
  * `None`. Response shapes (`LibraryScan`, `OpenBookResult`, ...) are NOT checked: they are
  * written by hand on both sides, and checking them wants codegen (`ts-rs`, `specta`), which
- * this repo does not use.
+ * this repo does not use. ADR-081 records why, and what would reopen it.
  */
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';

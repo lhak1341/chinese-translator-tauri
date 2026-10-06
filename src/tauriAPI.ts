@@ -49,7 +49,6 @@ export const CMD = {
   CREATE_STRUCTURAL_PATTERNS_DICTIONARY: 'create_structural_patterns_dictionary',
   CREATE_FICTION_DICTIONARY_PAIR: 'create_fiction_dictionary_pair',
   RENAME_PROPER_NOUNS_DICTIONARY: 'rename_proper_nouns_dictionary',
-  RENAME_STRUCTURAL_PATTERNS_DICTIONARY: 'rename_structural_patterns_dictionary',
   LOAD_CONFIGURATION: 'load_configuration',
   SAVE_CONFIGURATION: 'save_configuration',
   LOAD_APPEARANCE_SETTINGS: 'load_appearance_settings',
@@ -58,7 +57,6 @@ export const CMD = {
   SAVE_TRANSFORM_RULES: 'save_transform_rules',
   EXPORT_DICTIONARIES: 'export_dictionaries',
   IMPORT_DICTIONARIES: 'import_dictionaries',
-  RESET_DICTIONARIES: 'reset_dictionaries',
   BUILD_LOOKUP_INDEX: 'build_lookup_index',
   SCAN_LIBRARY: 'scan_library',
   OPEN_BOOK: 'open_book',
@@ -71,10 +69,6 @@ export const CMD = {
 } as const;
 
 // ── Tauri-specific types ──────────────────────────────────────────────────────
-
-export interface ResetDictionariesOptions {
-  backup?: boolean;
-}
 
 export interface LookupIndexEntry {
   chinese: string;
@@ -359,19 +353,6 @@ const tauriAPI = {
     );
   },
 
-  renameStructuralPatternsDictionary: async (
-    oldDictionaryId: string,
-    newDictionaryId: string
-  ): Promise<DictionaryOperationResult> => {
-    const invalid = requireValidDictionaryIds({ oldDictionaryId, newDictionaryId });
-    if (invalid) return invalid;
-    return callTauriCommand<DictionaryOperationResult>(
-      CMD.RENAME_STRUCTURAL_PATTERNS_DICTIONARY,
-      { oldDictionaryId, newDictionaryId },
-      'renameStructuralPatternsDictionary'
-    );
-  },
-
   loadConfiguration: async (): Promise<ConfigurationResult> =>
     callTauriCommand<ConfigurationResult>(CMD.LOAD_CONFIGURATION, undefined, 'loadConfiguration'),
 
@@ -420,15 +401,6 @@ const tauriAPI = {
       CMD.IMPORT_DICTIONARIES,
       undefined,
       'importDictionaries'
-    ),
-
-  resetDictionaries: async (
-    options: ResetDictionariesOptions = {}
-  ): Promise<DictionaryOperationResult> =>
-    callTauriCommand<DictionaryOperationResult>(
-      CMD.RESET_DICTIONARIES,
-      { options },
-      'resetDictionaries'
     ),
 
   buildLookupIndex: async (

@@ -3,8 +3,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useEntrySelection } from '../useEntrySelection';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
 
-vi.mock('../components/ToastContext', () => ({
-  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
+vi.mock('../../utils/toast', () => ({
+  default: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../../utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn() },

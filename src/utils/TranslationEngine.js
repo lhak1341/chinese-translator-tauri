@@ -809,7 +809,7 @@ export class TranslationEngine {
       // Character-only mode should only apply Phase 5 (character-level translation)
 
       // Only apply Phase 5: Character-level translation to all tokens
-      await this.processCharacterOnlyTokens(tokens, options, characterOnlySemanticBuilder);
+      await this.processCharacterOnlyTokens(tokens, options);
 
       // Build result text and semantic arrays from tokens
       for (let i = 0; i < tokens.length; i++) {
@@ -851,7 +851,7 @@ export class TranslationEngine {
           translatedText += ' ';
         }
 
-        // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)
+        // Debug what we're adding (the units were added to the private builder above, not by processCharacterOnlyTokens)
         if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
           logger.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
         }
@@ -947,12 +947,13 @@ export class TranslationEngine {
   /**
    * Process tokens using only character-level translation (Phase 5)
    * Also includes punctuation and whitespace for readability
+   *
+   * Stamps tokens only: it passes `recordMatches: false` to applyMatchToTokens, so it adds
+   * nothing to `this.semanticArrayBuilder` or `this.translationSegments`. The caller
+   * (translateWithCharactersOnly) builds its own arrays from the stamped tokens.
    */
-  async processCharacterOnlyTokens(
-    tokens,
-    options = {},
-    _semanticBuilder = this.semanticArrayBuilder
-  ) {
+  async processCharacterOnlyTokens(tokens, options = {}) {
+    const stampOptions = { ...options, recordMatches: false };
     const characterDictionary = this.dictionaryManager.getDictionary('characters');
     const punctuationDictionary = this.dictionaryManager.getDictionary('punctuation');
 
@@ -996,7 +997,7 @@ export class TranslationEngine {
             ...match,
             dictionary: 'characters',
           };
-          this.applyMatchToTokens(tokens, i, matchWithDictName, options);
+          this.applyMatchToTokens(tokens, i, matchWithDictName, stampOptions);
         } else {
           // No dictionary match, preserve as-is
           token.translated = token.value;
@@ -1016,7 +1017,7 @@ export class TranslationEngine {
             ...match,
             dictionary: 'punctuation',
           };
-          this.applyMatchToTokens(tokens, i, matchWithDictName, options);
+          this.applyMatchToTokens(tokens, i, matchWithDictName, stampOptions);
         } else {
           // No full match — preserve as-is; cleanupFormatting translates char-by-char later.
           token.translated = token.value;
@@ -2228,7 +2229,9 @@ export class TranslationEngine {
    * @param {Token[]} tokens - Array of tokens
    * @param {number} startIndex - Starting token index
    * @param {Object} match - Dictionary match object
-   * @param {Object} options - Translation options (may include chunkOffset)
+   * @param {Object} options - Translation options (may include chunkOffset). `recordMatches: false`
+   *   stamps the tokens without touching the engine's shared segment list or semantic builder
+   *   (the character-only pass, which builds its own arrays).
    */
   applyMatchToTokens(tokens, startIndex, match, options = {}) {
     // CRITICAL BUG FIX: Verify that the starting token is actually Chinese before applying the match
@@ -2261,8 +2264,12 @@ export class TranslationEngine {
 
       tokens[startIndex].translationSource = match.dictionary;
 
+      const recordMatches = options.recordMatches !== false;
+
       // Track segment for interactive highlighting (legacy position-based system)
-      this.trackTranslationSegment(tokens, startIndex, tokenSpan, match, options);
+      if (recordMatches) {
+        this.trackTranslationSegment(tokens, startIndex, tokenSpan, match, options);
+      }
 
       // NEW: Capture semantic relationship for array-based highlighting
       // Calculate global position accounting for chunk offset
@@ -2283,14 +2290,16 @@ export class TranslationEngine {
       // source so getSourcePriority() resolves them at priority 2, not phrase priority 4.
       const isProperNounMatch = isActiveProperNounSource(match.dictionary, this.activeProperNouns);
       const semanticSource = isProperNounMatch ? match.dictionary : 'phrases';
-      this.semanticArrayBuilder.addUnit(
-        match.word, // original text
-        match.translation, // translated text
-        semanticSource, // source — proper noun dict name or 'phrases'
-        globalTokenIndex, // global token index for proper ordering
-        isProperNounMatch ? 'properNoun' : 'phrases',
-        match.dictionary
-      );
+      if (recordMatches) {
+        this.semanticArrayBuilder.addUnit(
+          match.word, // original text
+          match.translation, // translated text
+          semanticSource, // source — proper noun dict name or 'phrases'
+          globalTokenIndex, // global token index for proper ordering
+          isProperNounMatch ? 'properNoun' : 'phrases',
+          match.dictionary
+        );
+      }
 
       // Create semantic group for multi-token matches
       if (tokenSpan > 1) {
