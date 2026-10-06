@@ -59,23 +59,7 @@ export class DictionaryManager {
   async loadDictionaries(dictionaryData, options = {}) {
     const startTime = performance.now();
 
-    // CODE REVIEW FIX (CRITICAL-1): Dispose existing tries before clearing to prevent memory leaks
-    // Each dictionary trie contains nested Map structures that need recursive cleanup
-    // Without disposal, 2-10MB per dictionary can leak on reload
-    for (const [name, trie] of this.dictionaries.entries()) {
-      if (trie && typeof trie.dispose === 'function') {
-        try {
-          trie.dispose(); // Recursively clean up trie nodes and their children Maps
-        } catch (error) {
-          logger.error(`Error disposing dictionary ${name}:`, error);
-        }
-      }
-    }
-
-    // Clear existing dictionaries
-    this.dictionaries.clear();
-    this.flatEntries.clear();
-    this.metadata.clear();
+    this._releaseDictionaries();
 
     const priorities = options.priorities || {
       patterns: 2,
@@ -232,15 +216,26 @@ export class DictionaryManager {
   }
 
   /**
-   * Clear all dictionaries
+   * Dispose every trie, then empty the dictionary Maps in place.
+   * CODE REVIEW FIX (CRITICAL-1): without disposal, 2-10MB per dictionary leaks on reload —
+   * each trie holds nested Map structures that need recursive cleanup.
+   *
+   * In place, never reassigned: `DictionaryMatchLookup` was constructed with these same Map
+   * instances. Every path that drops dictionaries goes through here, so none can skip the tries.
    */
-  clear() {
+  _releaseDictionaries() {
+    for (const [name, trie] of this.dictionaries.entries()) {
+      if (trie && typeof trie.dispose === 'function') {
+        try {
+          trie.dispose(); // Let trie clean up its internal structures
+        } catch (error) {
+          logger.error(`Error disposing dictionary ${name}:`, error);
+        }
+      }
+    }
     this.dictionaries.clear();
     this.flatEntries.clear();
     this.metadata.clear();
-    this.ready = false;
-    this.loadTime = 0;
-    this.cache.clear(); // Clear translation cache
   }
 
   /**
@@ -260,25 +255,11 @@ export class DictionaryManager {
     // Clear all caches first
     this.clearCache();
 
-    // Dispose each dictionary trie properly
-    for (const [name, trie] of this.dictionaries.entries()) {
-      if (trie && typeof trie.dispose === 'function') {
-        try {
-          trie.dispose(); // Let trie clean up its internal structures
-        } catch (error) {
-          logger.error(`Error disposing dictionary ${name}:`, error);
-        }
-      }
-    }
+    this._releaseDictionaries();
 
-    // Clear and nullify all references for GC
-    this.dictionaries.clear();
+    // Nullify all references for GC
     this.dictionaries = null;
-
-    this.flatEntries.clear();
     this.flatEntries = null;
-
-    this.metadata.clear();
     this.metadata = null;
 
     // Dispose cache

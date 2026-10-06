@@ -17,6 +17,7 @@ Deleted symbols live separately, in [deleted-symbols.md](deleted-symbols.md) —
 - **Replaces long matched identifiers** (and import paths containing them) with `n`, which breaks caller-tracing.
 - **Returns stale content** for recently-written files.
 - **Filters `cargo test` failures** — assertion details (panicked at, left/right) only in `~/Library/Application Support/rtk/tee/<latest>_cargo_test.log`.
+- **`bun run test --run` reported `1 failed` twice with no test name** through `| tail`/`| grep` (2026-10-06); `bunx vitest --run --reporter=verbose > file`, then grep the file, passed all 247 files. Cause not isolated — don't trust a piped summary for the name of a failure.
 - **False negatives on existence checks** — confirmed on git-tracked files being actively Read the same session.
 - **Rejects `find` compound predicates** (`-not`, `-exec`) outright: `rtk find does not support compound predicates or actions`. Use `/usr/bin/find` directly.
 
@@ -289,7 +290,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 ### Before asserting
 
-**Prove a new guard test by breaking the line it guards once** (delete the key, the `resetKey`, the in-commit read) and watching it fail; a second mechanism can make it pass anyway. The Dictionary table's switch test passed without the view's `key` until its two dictionaries shared their sources, because `useEntrySelection` prunes selected keys whose entry is gone.
+**Prove a new guard test by breaking the line it guards once** (delete the key, the `resetKey`, the in-commit read) and watching it fail; a second mechanism can make it pass anyway. The Dictionary table's switch test passed without the view's `key` until its two dictionaries shared their sources, because `useEntrySelection` prunes selected keys whose entry is gone. Mutate the exact call-site text with a uniqueness assert: a first-occurrence replace hit a doc comment and the guard test "passed" (2026-10-06).
 
 **Before rewriting a refactored module's tests, run the old suite unchanged against the new code** — a pass is the behaviour-preserved proof, and moving cases first throws it away (the `useWindowedTranslation` suite passed against the `WindowFiller` adapter before its cases moved, 2026-09-30).
 

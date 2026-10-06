@@ -17,9 +17,17 @@ vi.mock('../toast', () => ({
   default: mockToast,
 }));
 
-vi.mock('../wasm/wasmInstanceCheck', () => ({
-  verifyWasmInstance: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
-}));
+/**
+ * A mock WasmPatternProcessor instance with the wrapper's real method set — the lifecycle's
+ * instance check requires every expected method — each test overriding what it exercises.
+ */
+const patternInstance = (overrides = {}) => ({
+  initialize: vi.fn(() => true),
+  processTokens: vi.fn(() => []),
+  getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+  free: vi.fn(),
+  ...overrides,
+});
 
 // CODE REVIEW FIX: Mock fetch for WASM binary loading
 global.fetch = vi.fn(async () => ({
@@ -72,10 +80,10 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => false), // Initialization fails
             isInitialized: vi.fn(() => false),
-          };
+          });
         }),
       }));
 
@@ -86,18 +94,11 @@ describe('WasmPatternProcessor Error Handling', () => {
       expect(result).toBe(false);
     });
 
-    it('should call __destroy_into_raw on instance when verifyWasmInstance fails after instantiation', async () => {
+    it('should call __destroy_into_raw on instance when instance verification fails after instantiation', async () => {
       const mockDestroyIntoRaw = vi.fn();
 
-      // Obtain the fresh (post-resetModules) verifyWasmInstance mock and make it fail
-      // once — simulates the lifecycle calling verifyWasmInstance AFTER instantiateFn
-      // already set wasmPatternProcessor = instance.
-      const integrityMod = await import('../wasm/wasmInstanceCheck');
-      vi.mocked(integrityMod.verifyWasmInstance).mockReturnValueOnce({
-        valid: false,
-        errors: ['Missing method: free'],
-      });
-
+      // The instance lacks `free`, one of the wrapper's expected methods — so the lifecycle's
+      // instance check fails AFTER instantiateFn already set wasmPatternProcessor = instance.
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
@@ -105,7 +106,6 @@ describe('WasmPatternProcessor Error Handling', () => {
             initialize: vi.fn(() => true),
             processTokens: vi.fn(() => []),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
-            free: vi.fn(),
             __destroy_into_raw: mockDestroyIntoRaw,
           };
         }),
@@ -130,11 +130,11 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: mockInit,
             getStatistics: mockGetStats,
             isInitialized: mockIsInitialized,
-          };
+          });
         }),
       }));
 
@@ -169,7 +169,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => true),
             processTokens: vi.fn(() => {
               throw new Error('Processing failed');
@@ -177,7 +177,7 @@ describe('WasmPatternProcessor Error Handling', () => {
             isInitialized: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
             __destroy_into_raw: vi.fn(),
-          };
+          });
         }),
       }));
 
@@ -200,13 +200,13 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => true),
             processTokens: vi.fn(() => []),
             isInitialized: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
             __destroy_into_raw: vi.fn(),
-          };
+          });
         }),
       }));
 
@@ -231,10 +231,10 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 10 })),
-          };
+          });
         }),
       }));
 
@@ -273,12 +273,12 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: mockInit,
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
             isInitialized: vi.fn(() => true),
             __destroy_into_raw: vi.fn(),
-          };
+          });
         }),
       }));
 
@@ -309,11 +309,11 @@ describe('WasmPatternProcessor Error Handling', () => {
           return Promise.resolve();
         }),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: mockInit,
             isInitialized: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
-          };
+          });
         }),
       }));
 
@@ -362,11 +362,11 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => true),
             getStatistics: mockGetStats,
             isInitialized: vi.fn(() => true),
-          };
+          });
         }),
       }));
 
@@ -386,13 +386,13 @@ describe('WasmPatternProcessor Error Handling', () => {
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
-          return {
+          return patternInstance({
             initialize: vi.fn(() => true),
             getStatistics: vi.fn(() => {
               throw new Error('Stats failed');
             }),
             isInitialized: vi.fn(() => true),
-          };
+          });
         }),
       }));
 

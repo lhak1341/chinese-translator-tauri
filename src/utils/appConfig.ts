@@ -95,6 +95,16 @@ export async function loadAppConfig(): Promise<AppConfig> {
   return (await configFile.read()).value;
 }
 
+/** What the app runs on while `config.json` is unread or unreadable. */
+export const DEFAULT_APP_CONFIG: AppConfig = fromRaw({});
+
+/** The cached config, or `null` before the first successful load and between an invalidate and
+ * the next load. Replaced, never mutated. A render-time reader subscribes with
+ * `subscribeAppConfig` (`useAppConfig`); a handler reads with `loadAppConfig`. */
+export function getAppConfigSnapshot(): AppConfig | null {
+  return configFile.snapshot();
+}
+
 /**
  * The one write: once every write queued ahead of it has settled, `fn` gets the freshest
  * config and returns the next one plus a result for the caller. Returning `current`
@@ -126,8 +136,8 @@ export function saveAppConfig(patch: {
   }));
 }
 
-/** Called after every change to the cached config: a load, a save, an invalidate. A reader
- * that mirrors the config re-reads with `loadAppConfig` on each call. */
+/** Called after every change to the cached config: a load, a save, an invalidate. A component
+ * that renders from the config reads it with `useAppConfig`, which subscribes through this. */
 export function subscribeAppConfig(listener: () => void): () => void {
   return configFile.subscribe(listener);
 }

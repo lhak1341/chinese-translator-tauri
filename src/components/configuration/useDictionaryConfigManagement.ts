@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
-import { logger } from '../../utils/logger';
-import { loadAppConfig, subscribeAppConfig, transformAppConfig } from '../../utils/appConfig';
+import { transformAppConfig } from '../../utils/appConfig';
 import {
   toProperNounsDictionaryId,
   isFictionProperNounsId,
@@ -13,6 +12,7 @@ import {
   sortDictionaries,
   categorizeDictionaries,
 } from '../../utils/dictionary/DictionaryListOrganizer';
+import { useAppConfig } from '../../hooks/useAppConfig';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useBookBinding } from '../BookBindingContext';
 import {
@@ -37,16 +37,16 @@ export function useDictionaryConfigManagement() {
     renameDictionary,
     moveDictionaryTier,
   } = useBookBinding();
-  const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { config, isLoading: configLoading } = useAppConfig();
+  const activeDictionaries = config.engine.activeProperNouns;
+  const defaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
+  const [isMigrating, setIsMigrating] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewDictionaryModal, setShowNewDictionaryModal] = useState<boolean>(false);
   const [newDictionaryName, setNewDictionaryName] = useState<string>('');
 
   const [renamingDictionaryId, setRenamingDictionaryId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
-
-  const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
 
   /**
    * The rows this screen shows: every proper-nouns dictionary the Dictionary Store lists. The
@@ -68,7 +68,7 @@ export function useDictionaryConfigManagement() {
    *
    * With a book open this is the binding, not the last thing saved to config — the two
    * agree on disk, but deriving it means a binding change made in the Reader is reflected
-   * here immediately instead of waiting for the config mirror (`mirrorConfig`) to catch up.
+   * here immediately instead of waiting for the config subscription to catch up.
    */
   const effectiveActiveDictionaries = useMemo(
     () =>
@@ -78,30 +78,9 @@ export function useDictionaryConfigManagement() {
     [activeDictionaries, boundFictionDictionary, isBookOpen]
   );
 
-  // Cleared on unmount, so a read that resolves late sets nothing.
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  /** Mirror the saved config into the two states the rows render from. Both effects below
-   * call it, and neither can do without the other: the subscription sees every change, but
-   * a read of an already-cached config notifies nobody, and `DictionaryContext` has cached it
-   * by the time this tab's mount effect runs — so without the mount effect's own call
-   * nothing would fill the states until the next write. */
-  const mirrorConfig = useCallback(async (): Promise<void> => {
-    const config = await loadAppConfig();
-    if (!mountedRef.current) return;
-    setActiveDictionaries(config.engine.activeProperNouns);
-    setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
-  }, []);
-
-  // Once the Dictionary Store has listed everything: mirror the saved config, and give
-  // pre-existing dictionaries their missing patterns half. Runs once — the migration loads
-  // dictionaries, which changes the list this effect reads.
+  // Once the Dictionary Store has listed everything, give pre-existing dictionaries their
+  // missing patterns half. Runs once — the migration loads dictionaries, which changes the
+  // list this effect reads.
   const startedRef = useRef(false);
   useEffect(() => {
     if (dictionariesLoading || startedRef.current) return;
@@ -109,33 +88,18 @@ export function useDictionaryConfigManagement() {
 
     const loadConfiguration = async (): Promise<void> => {
       try {
-        await mirrorConfig();
-
         // Migration: pre-existing fiction and generic dictionaries get their missing patterns
         // half (ADR-027, ADR-048). Non-fatal — see `createMissingPatternHalves`.
         await createMissingPatternHalves(allDictionaries, { loadDictionary });
       } catch (err) {
         setError(formatErrorMessage('Dictionary loading', err));
       } finally {
-        setIsLoading(false);
+        setIsMigrating(false);
       }
     };
 
     loadConfiguration();
-  }, [dictionariesLoading, allDictionaries, loadDictionary, mirrorConfig]);
-
-  // Every tab stays mounted, so the mount-time read above goes stale the moment anything else
-  // writes config — a book opening rewrites the default quick-add target, a rename rewrites
-  // both. Mirror whatever the file now says.
-  useEffect(
-    () =>
-      subscribeAppConfig(() => {
-        mirrorConfig().catch((err) =>
-          logger.warn('Could not refresh the Configuration tab from config:', err)
-        );
-      }),
-    [mirrorConfig]
-  );
+  }, [dictionariesLoading, allDictionaries, loadDictionary]);
 
   const openCreateModal = (): void => {
     setShowNewDictionaryModal(true);
@@ -163,7 +127,7 @@ export function useDictionaryConfigManagement() {
       // Decided against the config as it is when this write's turn comes, not against the
       // React state at click time: a second click before the first save resolved would
       // otherwise start from the list the first had not yet changed and overwrite it. The
-      // `subscribeAppConfig` mirror above carries the result back into `activeDictionaries`.
+      // `useAppConfig` carries the result back into `activeDictionaries`.
       await transformAppConfig((config) => {
         const activeProperNouns = activeProperNounsAfterToggle(
           config.engine.activeProperNouns,
@@ -191,7 +155,7 @@ export function useDictionaryConfigManagement() {
 
       // The binding context creates every kind: it queues the create behind any book apply,
       // and the Dictionary Store re-lists it, so the row appears without this hook. It also
-      // activates the new dictionary (in config, not Rust); the config subscription above
+      // activates the new dictionary (in config, not Rust); the config subscription (`useAppConfig`)
       // carries that into `activeDictionaries`. A `warning` means it exists but is not active.
       const result = await createDictionary(dictionaryId);
 
@@ -290,7 +254,7 @@ export function useDictionaryConfigManagement() {
      * be toggled here. */
     isFictionLockedByBook: isBookOpen,
     openBookTitle: openBook?.title ?? null,
-    isLoading,
+    isLoading: isMigrating || configLoading,
     error,
     showNewDictionaryModal,
     openCreateModal,

@@ -122,11 +122,6 @@ describe('DictionaryManager API Contract', () => {
       expect(entries).toHaveLength(3);
     });
 
-    test('clear() empties flatEntries alongside dictionaries', () => {
-      manager.clear();
-      expect(manager.flatEntries.size).toBe(0);
-    });
-
     test('dispose() nullifies flatEntries alongside dictionaries', () => {
       manager.dispose();
       expect(manager.flatEntries).toBeNull();

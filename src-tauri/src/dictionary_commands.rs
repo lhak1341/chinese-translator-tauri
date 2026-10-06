@@ -1611,19 +1611,23 @@ fn rename_proper_nouns_dictionary_impl(
     // so the file name and config stay in sync. Previously the file was renamed
     // before the config was even read, so any failure between left the on-disk
     // config referencing a non-existent old_dictionary_id.
-    let prepared_config: Option<serde_json::Value> = if config_path.exists() {
-        match fs::read_to_string(config_path) {
-            Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
-                Ok(mut config) => {
-                    substitute_dictionary_reference(&mut config, old_dictionary_id, new_dictionary_id);
-                    Some(config)
-                }
-                Err(_) => None,
-            },
-            Err(_) => None,
-        }
-    } else {
-        None
+    //
+    // A config that exists but cannot be read or parsed refuses the rename before anything
+    // moves — skipping the swap would rename the file and leave config naming the old id,
+    // with nothing to say so. A missing config proceeds: nothing references the dictionary.
+    let config_unreadable = || {
+        DictionaryResponse::err("Rename refused: config.json could not be read. Fix or remove it, then retry.")
+    };
+    let prepared_config: Option<serde_json::Value> = match fs::read_to_string(config_path) {
+        Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
+            Ok(mut config) => {
+                substitute_dictionary_reference(&mut config, old_dictionary_id, new_dictionary_id);
+                Some(config)
+            }
+            Err(_) => return Ok(config_unreadable()),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(_) => return Ok(config_unreadable()),
     };
 
     // Rename the file
@@ -1660,17 +1664,25 @@ fn rename_proper_nouns_dictionary_impl(
                 let _ = fs::rename(&new_file_path, &old_file_path);
                 cache.invalidate(Some(old_dictionary_id));
                 // Reverse the config substitution: swap new_dictionary_id back to old
-                if config_path.exists() {
-                    if let Ok(contents) = fs::read_to_string(config_path) {
-                        if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&contents) {
+                let config_restored = match fs::read_to_string(config_path) {
+                    Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
+                        Ok(mut cfg) => {
                             substitute_dictionary_reference(&mut cfg, new_dictionary_id, old_dictionary_id);
-                            let _ = save_json_file(config_path, &cfg);
+                            save_json_file(config_path, &cfg).is_ok()
                         }
-                    }
-                }
-                let message = collision.unwrap_or_else(|| {
+                        Err(_) => false,
+                    },
+                    Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+                };
+                let mut message = collision.unwrap_or_else(|| {
                     "Rename failed: could not rename paired patterns dictionary. Both files restored.".to_string()
                 });
+                if !config_restored {
+                    message.push_str(&format!(
+                        " config.json could not be restored and still names '{}'.",
+                        new_dictionary_id
+                    ));
+                }
                 return Ok(DictionaryResponse::err(message));
             }
             cache.invalidate(Some(&old_patterns_id));
@@ -3355,6 +3367,55 @@ mod tests {
             "file rename must be rolled back when config save fails"
         );
         assert!(!dir.join("properNouns-New.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_refuses_and_moves_nothing_when_config_is_unreadable() {
+        let dir = temp_test_dir("rename_unreadable_config");
+        fs::write(dir.join("properNouns-Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, "{ not json").unwrap();
+        let cache = make_cache();
+
+        let response = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        )
+        .unwrap();
+
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("config.json could not be read"));
+        assert!(dir.join("properNouns-Old.json").exists());
+        assert!(!dir.join("properNouns-New.json").exists());
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), "{ not json");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_proceeds_when_config_is_missing() {
+        let dir = temp_test_dir("rename_missing_config");
+        fs::write(dir.join("properNouns-Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        let cache = make_cache();
+
+        let response = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        )
+        .unwrap();
+
+        assert!(response.success);
+        assert!(dir.join("properNouns-New.json").exists());
+        assert!(!config_path.exists(), "a missing config must not be created by a rename");
 
         let _ = fs::remove_dir_all(&dir);
     }

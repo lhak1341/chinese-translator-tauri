@@ -107,16 +107,16 @@ A SHA-256 check of the WASM binary against `src/wasm/integrity-manifest.json`, a
 
 ### 4. ✅ Instance Method Verification
 
-**What**: After creating WASM instances, we verify they have expected methods before use.
+**What**: After creating WASM instances, we verify they have every expected method before use. A missing method fails init; the check is strict (ADR-080 addendum).
 
 **Implementation**: `src/utils/wasm/wasmInstanceCheck.js`, called by `WasmProcessorLifecycle`
 
 ```javascript
 // the lifecycle runs this after instantiateFn() returns
 const instanceVerification = verifyWasmInstance(
-  wasmNumberProcessor,
-  ['processNumbers', 'free'],
-  'NumberProcessor'
+  instance,
+  ['initialize', 'processTokens', 'getStatistics', 'free'],
+  'PatternProcessor'
 );
 if (!instanceVerification.valid) {
   throw new Error(`WASM instance verification failed: ${instanceVerification.errors.join(', ')}`);

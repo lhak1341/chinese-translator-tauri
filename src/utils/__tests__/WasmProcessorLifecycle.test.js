@@ -1,14 +1,10 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../wasm/wasmInstanceCheck', () => ({
-  verifyWasmInstance: vi.fn().mockReturnValue({ valid: true, errors: [] }),
-}));
 vi.mock('../logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 
 import { WasmProcessorLifecycle } from '../wasm/WasmProcessorLifecycle';
-import { verifyWasmInstance } from '../wasm/wasmInstanceCheck';
 
 const makeConfig = (overrides = {}) => ({
   name: 'TestProcessor',
@@ -21,7 +17,6 @@ const makeInstantiateFn = (instance = { processTokens: vi.fn(), initialize: vi.f
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(verifyWasmInstance).mockReturnValue({ valid: true, errors: [] });
 });
 
 describe('WasmProcessorLifecycle — initial state', () => {
@@ -65,13 +60,6 @@ describe('WasmProcessorLifecycle — initialize() success path', () => {
     const instantiateFn = makeInstantiateFn();
     await lc.initialize(instantiateFn);
     expect(instantiateFn).toHaveBeenCalledTimes(1);
-  });
-
-  test('calls verifyWasmInstance with the returned instance', async () => {
-    const instance = { processTokens: vi.fn(), initialize: vi.fn() };
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    await lc.initialize(makeInstantiateFn(instance));
-    expect(verifyWasmInstance).toHaveBeenCalledWith(instance, expect.any(Array), 'TestProcessor');
   });
 });
 
@@ -145,13 +133,17 @@ describe('WasmProcessorLifecycle — reset()', () => {
 });
 
 describe('WasmProcessorLifecycle — instance verification failure', () => {
-  test('returns false when instance verification fails', async () => {
-    vi.mocked(verifyWasmInstance).mockReturnValue({
-      valid: false,
-      errors: ['Missing method: processTokens'],
-    });
+  test('returns false when the instance lacks an expected method', async () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
-    const result = await lc.initialize(makeInstantiateFn());
+    const result = await lc.initialize(makeInstantiateFn({ initialize: vi.fn() }));
+    expect(result).toBe(false);
+    expect(lc.hasFailed).toBe(true);
+    expect(lc.isReady).toBe(false);
+  });
+
+  test('returns false when instantiateFn hands back no instance', async () => {
+    const lc = new WasmProcessorLifecycle(makeConfig());
+    const result = await lc.initialize(vi.fn().mockResolvedValue(undefined));
     expect(result).toBe(false);
     expect(lc.hasFailed).toBe(true);
   });
