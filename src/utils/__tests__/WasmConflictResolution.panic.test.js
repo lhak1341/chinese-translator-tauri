@@ -15,21 +15,12 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
   resolveGlobalConflicts: (...args) => mockResolve(...args),
 }));
 
-// The shared loader fetches and verifies the real binary; these tests drive the mocked `default`
+// The shared loader fetches the real binary; these tests drive the mocked `default`
 // (init) directly, so route the loader through it.
 vi.mock('../wasm/WasmSharedModule', async () => {
   const core = await import('../../wasm/translation_wasm_core.js');
   return { loadSharedWasmModule: () => core.default() };
 });
-
-// The lifecycle fetches and verifies the binary too; give it something valid to read.
-vi.mock('../wasm/wasmBinaryCache', () => ({
-  fetchWasmBinary: vi.fn(async () => new ArrayBuffer(8)),
-}));
-vi.mock('../wasm/wasmIntegrityVerifier', async (importOriginal) => ({
-  ...(await importOriginal()),
-  verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
-}));
 
 vi.mock('../logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

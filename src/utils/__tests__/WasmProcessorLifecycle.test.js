@@ -1,10 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../wasm/wasmBinaryCache', () => ({
-  fetchWasmBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-}));
-vi.mock('../wasm/wasmIntegrityVerifier', () => ({
-  verifyWasmBinaryIntegrity: vi.fn().mockResolvedValue({ valid: true, errors: [], warnings: [] }),
+vi.mock('../wasm/wasmInstanceCheck', () => ({
   verifyWasmInstance: vi.fn().mockReturnValue({ valid: true, errors: [] }),
 }));
 vi.mock('../logger', () => ({
@@ -12,13 +8,10 @@ vi.mock('../logger', () => ({
 }));
 
 import { WasmProcessorLifecycle } from '../wasm/WasmProcessorLifecycle';
-import { fetchWasmBinary } from '../wasm/wasmBinaryCache';
-import { verifyWasmBinaryIntegrity, verifyWasmInstance } from '../wasm/wasmIntegrityVerifier';
+import { verifyWasmInstance } from '../wasm/wasmInstanceCheck';
 
 const makeConfig = (overrides = {}) => ({
   name: 'TestProcessor',
-  wasmFileName: 'test.wasm',
-  wasmBinaryUrl: new URL('http://localhost/test.wasm'),
   expectedMethods: ['processTokens', 'initialize'],
   ...overrides,
 });
@@ -28,8 +21,6 @@ const makeInstantiateFn = (instance = { processTokens: vi.fn(), initialize: vi.f
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(fetchWasmBinary).mockResolvedValue(new ArrayBuffer(8));
-  vi.mocked(verifyWasmBinaryIntegrity).mockResolvedValue({ valid: true, errors: [], warnings: [] });
   vi.mocked(verifyWasmInstance).mockReturnValue({ valid: true, errors: [] });
 });
 
@@ -69,25 +60,11 @@ describe('WasmProcessorLifecycle — initialize() success path', () => {
     expect(lc.hasFailed).toBe(false);
   });
 
-  test('calls fetchWasmBinary with configured URL', async () => {
+  test('calls instantiateFn once', async () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
-    await lc.initialize(makeInstantiateFn());
-    expect(fetchWasmBinary).toHaveBeenCalledWith(expect.any(URL));
-  });
-
-  test('calls verifyWasmBinaryIntegrity with binary', async () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    await lc.initialize(makeInstantiateFn());
-    expect(verifyWasmBinaryIntegrity).toHaveBeenCalled();
-  });
-
-  test('calls instantiateFn with fetched binary', async () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    const binary = new ArrayBuffer(16);
-    vi.mocked(fetchWasmBinary).mockResolvedValueOnce(binary);
     const instantiateFn = makeInstantiateFn();
     await lc.initialize(instantiateFn);
-    expect(instantiateFn).toHaveBeenCalledWith(binary);
+    expect(instantiateFn).toHaveBeenCalledTimes(1);
   });
 
   test('calls verifyWasmInstance with the returned instance', async () => {
@@ -103,10 +80,10 @@ describe('WasmProcessorLifecycle — idempotency', () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
     await lc.initialize(makeInstantiateFn());
 
-    vi.clearAllMocks(); // reset call counts
-    const result = await lc.initialize(makeInstantiateFn());
+    const again = makeInstantiateFn();
+    const result = await lc.initialize(again);
     expect(result).toBe(true);
-    expect(fetchWasmBinary).not.toHaveBeenCalled(); // no re-init
+    expect(again).not.toHaveBeenCalled(); // no re-init
   });
 
   test('concurrent initialize() calls share one promise', async () => {
@@ -123,9 +100,10 @@ describe('WasmProcessorLifecycle — hasFailed guard', () => {
   test('returns false immediately if hasFailed', async () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
     lc.permanentlyFail();
-    const result = await lc.initialize(makeInstantiateFn());
+    const instantiateFn = makeInstantiateFn();
+    const result = await lc.initialize(instantiateFn);
     expect(result).toBe(false);
-    expect(fetchWasmBinary).not.toHaveBeenCalled();
+    expect(instantiateFn).not.toHaveBeenCalled();
   });
 });
 
@@ -141,10 +119,10 @@ describe('WasmProcessorLifecycle — permanentlyFail()', () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
     await lc.initialize(makeInstantiateFn());
     lc.permanentlyFail();
-    vi.clearAllMocks();
-    const result = await lc.initialize(makeInstantiateFn());
+    const instantiateFn = makeInstantiateFn();
+    const result = await lc.initialize(instantiateFn);
     expect(result).toBe(false);
-    expect(fetchWasmBinary).not.toHaveBeenCalled();
+    expect(instantiateFn).not.toHaveBeenCalled();
   });
 });
 
@@ -166,19 +144,7 @@ describe('WasmProcessorLifecycle — reset()', () => {
   });
 });
 
-describe('WasmProcessorLifecycle — integrity check failure', () => {
-  test('returns false when binary integrity check fails', async () => {
-    vi.mocked(verifyWasmBinaryIntegrity).mockResolvedValue({
-      valid: false,
-      errors: ['Hash mismatch'],
-      warnings: [],
-    });
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    const result = await lc.initialize(makeInstantiateFn());
-    expect(result).toBe(false);
-    expect(lc.hasFailed).toBe(true);
-  });
-
+describe('WasmProcessorLifecycle — instance verification failure', () => {
   test('returns false when instance verification fails', async () => {
     vi.mocked(verifyWasmInstance).mockReturnValue({
       valid: false,

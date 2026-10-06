@@ -1,21 +1,12 @@
 /**
- * Cross-language chunker parity against the shared fixture (architecture review
- * 2026-10-03, candidate #3 grilling). test-fixtures/chunker-parity.json is the single
- * source of truth for what BOTH this JS chunker and Rust's TextChunker are expected to
- * produce for a given input, including the documented divergences. The mirror check
- * lives in wasm-core/src/text_chunker.rs's `mod tests::parity`.
- *
- * This forces the JS path (WasmTextChunker mocked out): the fixture's "js" expectations
- * characterize TextChunker.js specifically, not whatever the real WASM binary produces
- * in this test environment.
+ * Chunker fixture check (architecture review 2026-10-03, candidate #3 grilling).
+ * test-fixtures/chunker-parity.json is the source of truth for what TextChunker.js produces for
+ * a given input. The Rust twin was deleted 2026-10-06 (ADR-079), so the fixture now feeds this
+ * file alone.
  */
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { TextChunker } from '../text/TextChunker.js';
 import fixture from '../../../test-fixtures/chunker-parity.json';
-
-vi.mock('../wasm/WasmTextChunker.js', () => ({
-  wasmTextChunker: { chunkText: () => null }, // null: use the JS implementation
-}));
 
 // startIndex of a chunk with empty content is unspecified (see the fixture's _contract):
 // the fixture holds null for it, so only a chunk with content is compared on it.
@@ -28,20 +19,14 @@ const toPlain = (chunks) =>
     startedBy,
   }));
 
-describe('TextChunker — shared fixture parity', () => {
+describe('TextChunker — fixture', () => {
   test('fixture is non-empty', () => {
     expect(fixture.cases.length).toBeGreaterThan(0);
   });
 
-  test.each(fixture.cases)('$name', ({ input, js }) => {
+  test.each(fixture.cases)('$name', ({ input, expected }) => {
     const chunker = new TextChunker();
 
-    expect(toPlain(chunker.chunkText(input))).toEqual(js);
-  });
-
-  test('a case marked expectAgreement has identical rust and js expectations', () => {
-    for (const c of fixture.cases) {
-      expect(c.expectAgreement, c.name).toBe(JSON.stringify(c.rust) === JSON.stringify(c.js));
-    }
+    expect(toPlain(chunker.chunkText(input))).toEqual(expected);
   });
 });

@@ -4,14 +4,12 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{Emitter, Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
 use std::time::{Instant, SystemTime};
-use governor::{Quota, RateLimiter, clock::DefaultClock, state::{InMemoryState, NotKeyed}};
 
 // Import lookup index engine
 use crate::lru_cache::LruCache;
@@ -362,52 +360,6 @@ impl TrieCache {
     /// Inserts `value` under `key`, evicting the least recently used entry if the cache is full.
     pub fn set(&self, key: u64, value: Arc<TrieNode>) {
         self.lru.set(key, value);
-    }
-}
-
-// ============================================================================
-// SECURITY: Rate Limiters
-// ============================================================================
-
-/// Rate limiters for expensive operations to prevent DoS attacks
-pub struct RateLimiters {
-    build_index: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
-    load_parallel: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
-    export_import: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
-}
-
-impl RateLimiters {
-    pub fn new() -> Self {
-        Self {
-            // 10 build_index calls per minute (expensive operation)
-            // CODE REVIEW FIX (2026-02-01): Use expect() instead of unwrap() for better error messages
-            build_index: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(10).expect("Rate limit quota must be non-zero"))
-            ),
-            // 30 load_parallel calls per minute
-            load_parallel: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(30).expect("Rate limit quota must be non-zero"))
-            ),
-            // 5 export/import operations per minute (very expensive)
-            export_import: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(5).expect("Rate limit quota must be non-zero"))
-            ),
-        }
-    }
-
-    pub fn check_build_index(&self) -> Result<(), String> {
-        self.build_index.check()
-            .map_err(|_| "Rate limit exceeded for index building. Please wait before retrying.".to_string())
-    }
-
-    pub fn check_load_parallel(&self) -> Result<(), String> {
-        self.load_parallel.check()
-            .map_err(|_| "Rate limit exceeded for parallel loading. Please wait before retrying.".to_string())
-    }
-
-    pub fn check_export_import(&self) -> Result<(), String> {
-        self.export_import.check()
-            .map_err(|_| "Rate limit exceeded for export/import. Please wait before retrying.".to_string())
     }
 }
 
@@ -1131,11 +1083,7 @@ pub async fn save_book_records(
 #[tauri::command]
 pub async fn export_dictionaries(
     app_handle: tauri::AppHandle,
-    limiters: State<'_, RateLimiters>,
 ) -> Result<DictionaryResponse, String> {
-    // SECURITY: Rate limit to prevent abuse
-    limiters.check_export_import()?;
-
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     // Use dialog to get save location
@@ -1221,11 +1169,7 @@ fn export_dictionaries_impl(
 pub async fn import_dictionaries(
     app_handle: tauri::AppHandle,
     cache: State<'_, DictionaryCache>,
-    limiters: State<'_, RateLimiters>,
 ) -> Result<DictionaryResponse, String> {
-    // SECURITY: Rate limit to prevent abuse
-    limiters.check_export_import()?;
-
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     // Use dialog to get file to import
@@ -1485,12 +1429,8 @@ pub struct BatchDictionaryResponse {
 pub async fn load_dictionaries_parallel(
     app_handle: tauri::AppHandle,
     cache: State<'_, DictionaryCache>,
-    limiters: State<'_, RateLimiters>,
     dictionary_ids: Vec<String>,
 ) -> Result<BatchDictionaryResponse, String> {
-    // SECURITY: Rate limit to prevent abuse
-    limiters.check_load_parallel()?;
-
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     Ok(load_dictionaries_parallel_impl(&dictionary_path, &cache, &dictionary_ids))
@@ -1797,16 +1737,12 @@ fn build_trie_from_entries(entries: &[DictionaryEntry]) -> TrieNode {
 /// Expected speedup: 6-50x (200-800ms vs 5-10 seconds for 10KB text)
 #[tauri::command]
 pub async fn build_lookup_index(
-    limiters: State<'_, RateLimiters>,
     trie_cache: State<'_, TrieCache>,
     text: String,
     dictionaries: Vec<DictionaryData>,
     dictionary_order: Vec<String>,
     options: Option<LookupIndexOptions>,
 ) -> Result<LookupIndexResponse, String> {
-    // SECURITY: Rate limit to prevent abuse
-    limiters.check_build_index()?;
-
     // SECURITY: Validate text size to prevent DoS
     if text.len() > MAX_TEXT_SIZE_BYTES {
         return Err(format!(
@@ -1820,8 +1756,8 @@ pub async fn build_lookup_index(
 }
 
 /// Builds the lookup index from already-security-checked inputs. Pure computation —
-/// no `AppHandle`, no `State`, can't fail — the command wrapper owns the rate-limit
-/// and DoS-size checks, so this is directly unit-testable with no Tauri context needed
+/// no `AppHandle`, no `State`, can't fail — the command wrapper owns the
+/// DoS-size check, so this is directly unit-testable with no Tauri context needed
 /// (a bare `TrieCache::new()` stands in for the managed state).
 fn build_lookup_index_impl(
     trie_cache: &TrieCache,

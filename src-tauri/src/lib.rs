@@ -9,7 +9,7 @@ pub mod lookup_index_engine;
 mod webview_diagnostics;
 
 use book_commands::BookCache;
-use dictionary_commands::{DictionaryCache, RateLimiters, TrieCache};
+use dictionary_commands::{DictionaryCache, TrieCache};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Clipboard command - read text from clipboard
@@ -33,8 +33,6 @@ pub fn run() {
         .manage(DictionaryCache::new())
         // PERFORMANCE: Manage trie cache for build_lookup_index (see dictionary_commands.rs)
         .manage(TrieCache::new())
-        // SECURITY: Manage rate limiters for DoS prevention
-        .manage(RateLimiters::new())
         // Reader: one decoded book at a time (see book_commands.rs)
         .manage(BookCache::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission

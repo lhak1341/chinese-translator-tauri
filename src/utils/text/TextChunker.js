@@ -5,8 +5,6 @@
  */
 
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
-import { logger } from '../logger.js';
-import { wasmTextChunker } from '../wasm/WasmTextChunker.js';
 
 class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
@@ -27,7 +25,6 @@ class TextChunk {
 
 /**
  * A '/' between two ASCII digits (23/30, 3/4) is part of the number, not a separator.
- * Rust's chunker applies the same rule (wasm-core/src/text_chunker.rs).
  * @param {string[]} chars
  * @param {number} i
  */
@@ -53,20 +50,13 @@ export class TextChunker {
   /**
    * Split text into chunks by punctuation boundaries, preserving line breaks and tracking what starts each chunk
    *
-   * EXECUTION PATH (WASM vs JavaScript):
-   *   - Primary: WASM TextChunker (Rust implementation, 2-3x faster)
-   *   - Fallback: JavaScript implementation (when WASM not loaded yet)
-   *   - Used by: Full Translation mode for chunking large texts
-   *
-   * WASM ACCELERATION:
-   *   - Lazy initialization: WASM loads on first use
-   *   - Graceful degradation: Falls back to JS if WASM fails
-   *   - Performance: 2-3x speedup for large texts (>1000 chars)
+   * Pure JavaScript. A WASM twin (`WasmTextChunker` / `text_chunker.rs`) was deleted 2026-10-06
+   * (ADR-079): it measured no faster (0.94-0.98x of this code's time on real chapters).
+   * Used by: Full Translation mode for chunking large texts.
    *
    * CHUNKING BEHAVIOR:
    *   - startIndex of a chunk with empty content (punctuation or line break only) is
-   *     unspecified and differs from WASM's; nothing reads it (see CONTEXT.md, TextChunker).
-   *   - Result: WASM may produce more chunks than JavaScript
+   *     unspecified; nothing reads it (see CONTEXT.md, TextChunker).
    *
    * @param {string} text - Input text to chunk
    * @returns {TextChunk[]} Array of text chunks with startedBy context
@@ -76,31 +66,6 @@ export class TextChunker {
       return [];
     }
 
-    // OPTIMIZATION: Try WASM chunker first for 2-3x speedup
-    // LAZY INITIALIZATION: WASM loads on first use, falls back to JS if not ready
-    try {
-      const wasmChunks = wasmTextChunker.chunkText(text);
-
-      if (wasmChunks && Array.isArray(wasmChunks)) {
-        // Convert WASM chunk results to TextChunk objects
-        return wasmChunks.map(
-          (chunk) =>
-            new TextChunk(
-              chunk.content,
-              chunk.punctuation,
-              chunk.startIndex,
-              chunk.lineBreaks,
-              chunk.startedBy
-            )
-        );
-      }
-      // If wasmChunks is null, fall through to JavaScript implementation
-    } catch (wasmError) {
-      // Graceful fallback to JavaScript implementation
-      logger.debug('WASM TextChunker failed, using JavaScript fallback:', wasmError);
-    }
-
-    // JavaScript implementation (fallback)
     const chunks = [];
     const chars = Array.from(text);
     let currentContent = '';

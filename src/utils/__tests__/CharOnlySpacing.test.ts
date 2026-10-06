@@ -3,12 +3,11 @@
  * mode spacing decision, extracted verbatim (no behavior change) from
  * `TranslationEngine.js`'s `translateWithCharactersOnly()` inline block.
  *
- * NOT a parity test against `needsSpace()` (WasmTextAssembler.js /
- * text_assembly.rs) — that function decides from already-translated segment
+ * NOT a parity test against `needsSpace()` (TextAssembly.js) — that function decides from already-translated segment
  * text, this one decides from the original (untranslated) token stream. See
  * `needsSpaceCharOnly()`'s own doc comment and
- * `test-fixtures/text-assembly-parity.json` (run by `TextAssembly.parity.test.js` and
- * `text_assembly.rs`'s `mod tests::parity`) for the separate two-way spacing-rule contract.
+ * `test-fixtures/text-assembly-parity.json` (run by `TextAssembly.parity.test.js`) for the separate
+ * two-way spacing-rule contract.
  */
 
 import { needsSpaceCharOnly } from '../text/CharOnlySpacing';

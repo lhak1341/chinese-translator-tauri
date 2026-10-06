@@ -2,11 +2,9 @@
  * Text Tokenizer for efficient translation processing
  * Segments text into meaningful units for optimized translation
  *
- * WASM Acceleration: Uses Rust-based direct character classification for 3-8x speedup
- * Fallback: JavaScript regex-based tokenization if WASM unavailable
+ * Pure JavaScript. A Rust twin (`WasmTextTokenizer` / `text_tokenizer.rs`) was deleted
+ * 2026-10-06 (ADR-079): it measured about 8x slower than this code.
  */
-
-import { wasmTextTokenizer } from '../wasm/WasmTextTokenizer.js';
 
 /**
  * Token type enum for classification
@@ -153,17 +151,20 @@ export class TextTokenizer {
   private tokenRegex: RegExp;
 
   constructor() {
-    // Compiled regex for efficient matching - capture individual Chinese characters
+    // One token per CJK ideograph (Unified, Extension A, Compatibility), per run of ASCII
+    // letters, per run of ASCII digits, per run of whitespace, and per ANY OTHER code point:
+    // punctuation is never grouped, so "：“" is two tokens and the punctuation dictionary's
+    // single-character keys match each one. `u` makes `[\s\S]` take a whole code point.
     this.tokenRegex = new RegExp(
-      `([\u4e00-\u9fff])|([A-Za-z]+)|(\\d+)|([^\\w\\s\u4e00-\u9fff]+)|(\\s+)`,
-      'g'
+      `([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff])|([A-Za-z]+)|([0-9]+)|(\\p{White_Space}+)|([\\s\\S])`,
+      'gu'
     );
   }
 
   /**
    * Tokenize text into meaningful segments
    *
-   * WASM Acceleration: Tries WASM tokenizer first (3-8x faster), falls back to JavaScript
+   * Text is NFC-normalized first, so `start`/`end` index the normalized text (UTF-16 units).
    *
    * @param text - Input text to tokenize
    * @returns Array of tokens
@@ -176,67 +177,29 @@ export class TextTokenizer {
   tokenize(text: string): Token[] {
     if (!text) return [];
 
-    // Try WASM tokenizer first — returns null if not ready or on failure
-    const wasmTokens = wasmTextTokenizer.tokenize(text);
-    if (wasmTokens !== null) {
-      // Convert WASM tokens to Token instances
-      return wasmTokens.map((t: any) => new Token(t.type, t.value, t.start, t.end));
-    }
-
-    // Fallback to JavaScript regex tokenization
-    return this.tokenizeJS(text);
-  }
-
-  /**
-   * JavaScript regex-based tokenization (fallback)
-   *
-   * @param text - Input text to tokenize
-   * @returns Array of tokens
-   */
-  private tokenizeJS(text: string): Token[] {
+    const normalized = text.normalize('NFC');
     const tokens: Token[] = [];
     let match: RegExpExecArray | null;
-    let lastIndex = 0;
 
-    // Reset regex
     this.tokenRegex.lastIndex = 0;
-
-    while ((match = this.tokenRegex.exec(text)) !== null) {
-      const [fullMatch, chinese, latin, number, punct, whitespace] = match;
+    while ((match = this.tokenRegex.exec(normalized)) !== null) {
+      const [value, chinese, latin, number, whitespace] = match;
       const start = match.index;
-      const end = start + fullMatch.length;
 
-      // Handle gap between matches (shouldn't happen with our regex, but safety check)
-      if (start > lastIndex) {
-        const unknownText = text.slice(lastIndex, start);
-        tokens.push(new Token(TokenType.UNKNOWN, unknownText, lastIndex, start));
-      }
-
-      // Determine token type and create token
       let tokenType: string;
       if (chinese) {
-        // Always treat as individual characters for better dictionary matching
         tokenType = TokenType.CHINESE_CHAR;
       } else if (latin) {
         tokenType = TokenType.LATIN_WORD;
       } else if (number) {
         tokenType = TokenType.NUMBER;
-      } else if (punct) {
-        tokenType = TokenType.PUNCTUATION;
       } else if (whitespace) {
         tokenType = TokenType.WHITESPACE;
       } else {
-        tokenType = TokenType.UNKNOWN;
+        tokenType = TokenType.PUNCTUATION;
       }
 
-      tokens.push(new Token(tokenType, fullMatch, start, end));
-      lastIndex = end;
-    }
-
-    // Handle any remaining text
-    if (lastIndex < text.length) {
-      const remainingText = text.slice(lastIndex);
-      tokens.push(new Token(TokenType.UNKNOWN, remainingText, lastIndex, text.length));
+      tokens.push(new Token(tokenType, value, start, start + value.length));
     }
 
     return tokens;

@@ -50,9 +50,7 @@
 
 import toast from '../toast';
 import { logger } from '../logger';
-import { verifyWasmModule } from './wasmIntegrityVerifier';
 import { fetchWasmBinary } from './wasmBinaryCache';
-import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 import { loadSharedWasmModule } from './WasmSharedModule';
@@ -62,8 +60,6 @@ const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', imp
 
 const lifecycle = new WasmProcessorLifecycle({
   name: 'PatternProcessor',
-  wasmFileName: 'translation_wasm_core_bg.wasm',
-  wasmBinaryUrl: _WASM_BINARY_URL,
   expectedMethods: ['initialize', 'processTokens', 'getStatistics', 'free'],
 });
 
@@ -87,17 +83,9 @@ registerCascadeHandler(retireWasmPatternProcessorOnSharedPanic);
  */
 export async function initializeWasmPatternProcessor(patternsDict) {
   const success = await lifecycle.initialize(async () => {
-    // Dynamic import required here — Pattern needs verifyWasmModule before init
     wasmModule = await import('../../wasm/translation_wasm_core.js');
 
-    const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
-    if (!moduleVerification.valid) {
-      throw new Error(
-        `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
-      );
-    }
-
-    logger.debug('Initializing WASM module with verified binary...');
+    logger.debug('Initializing the shared WASM module...');
     await loadSharedWasmModule();
 
     const instance = new wasmModule.WasmPatternProcessor();
@@ -195,25 +183,13 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   }
 
   try {
-    // Call WASM Pattern Processor with timeout protection.
-    // NOTE: processTokens() is synchronous WASM — JavaScript cannot pre-empt a running
-    // synchronous WASM call, so the timeout fires only after WASM returns. This wrapper
-    // does NOT protect against truly hung (infinite-loop) WASM, but it does:
-    //   1. Document the intended time budget for pattern processing
-    //   2. Provide a graceful fallback if a future async refactor makes the call interruptible
-    //   3. Protect against edge cases where processTokens returns a rejected Promise
+    // Synchronous WASM, so no timeout is possible (docs/guides/gotchas.md).
     // processTokens takes/returns JSON strings — zero JS interop inside WASM Rc borrow window
-    const results = await callWasmWithTimeout(
-      () =>
-        JSON.parse(
-          wasmPatternProcessor.processTokens(
-            JSON.stringify(semanticTokens),
-            JSON.stringify(variableCache)
-          )
-        ),
-      DEFAULT_WASM_TIMEOUTS.PATTERN_MATCHING,
-      'pattern-processing',
-      { throwOnTimeout: false, fallbackValue: [] }
+    const results = JSON.parse(
+      wasmPatternProcessor.processTokens(
+        JSON.stringify(semanticTokens),
+        JSON.stringify(variableCache)
+      )
     );
     return {
       success: true,

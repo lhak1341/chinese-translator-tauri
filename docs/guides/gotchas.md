@@ -38,6 +38,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Prefer `cargo sweep` over `cargo clean` when asked to reclaim disk space** in `src-tauri/target` or `wasm-core/target` — full clean wipes the incremental compile cache, forcing a full rebuild on the next `bun run tauri:dev`/`tauri:build` (costly under this repo's active weekly deploy cadence). Syntax differs from every other cargo subcommand in this repo: `cargo sweep --time <days> <crate-dir>` takes a **positional path**, not `--manifest-path`. `bun run tauri:deploy` already runs this automatically via `sweep-targets` (7-day threshold); only reach for it manually outside that flow.
 
+**Repo-wide search: use `git grep` (add `-- ':!graphify-out' ':!docs/archive'`), never `grep -r` from the root** — it descends into `wasm-core/target` and `src-tauri/target` (gigabytes) and ran past the 120 s timeout; `git grep` also skips the gitignored `src/wasm/` output, so name that path explicitly when you need it.
+
 **Bun does not hold back very-recently-published versions by default.** This repo never configured a cooldown under pnpm either — `minimumReleaseAge` was unset, and the `lucide-react@1.33.0` entry in the old `pnpm-workspace.yaml` was the residue of one explicit version pin, not a policy. To introduce one, set `minimumReleaseAge` in `bunfig.toml`; it takes **seconds**, where pnpm's took minutes, and per-package exemptions go in `minimumReleaseAgeExcludes` — note the plural, pnpm spelled it `minimumReleaseAgeExclude`. There is no `bun peers check`: `bun install` reports peer-range breaks inline as `warn: incorrect peer dependency "<pkg>@<version>"`, which is easy to scroll past — read the install output after any bulk dependency update rather than trusting its exit code. `bun pm scan` audits the lockfile for known vulnerabilities.
 
 **`temp/` (repo root, gitignored) is this project's scratch/report-output directory** — prefer it over OS `$TMPDIR` when a skill or task generates a report/artifact file for this project (e.g. `/improve-codebase-architecture`'s saved HTML report), rather than defaulting to the skill's own OS-temp instructions unasked.
@@ -52,7 +54,7 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 ## JavaScript / TypeScript
 
-**Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker.
+**Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `Promise.race([operation(), timeoutPromise])` with a synchronous WASM `operation()` blocks the JS thread for the whole call, and the value settles first, so the timeout never fires. True interruption requires a Web Worker. A `wasmOperationTimeout.js` wrapper around `processTokens` was deleted 2026-10-06 for this reason; do not re-add one.
 
 **Idle-callback index loop — always snapshot queue length before loop** (2026-02-14): When using an index-based while loop over a queue inside a `requestIdleCallback` handler, capture `const initialQueueLength = this.cleanupQueue.length` _before_ the loop. If the catch block pushes retry tasks, `cleanupQueue.length` grows and the loop re-executes the retry task in the same callback — defeating deferred-retry intent. `BackgroundCleanupManager.processQueue` (`MemoryManagementRefinements.ts`) is the canonical fix.
 
@@ -159,7 +161,7 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.
 
-**Cross-language (wasm-core Rust ↔ src/ TS) shared test fixtures live in `test-fixtures/` at repo root** — read via `include_str!` + `serde_json` on the Rust side, a static JSON import on the TS side (`resolveJsonModule` pulls it in even though it's outside `tsconfig.json`'s `include` globs). Established 2026-07-29 for tokenizer parity (`test-fixtures/tokenizer-parity.json`) — reuse this location for any future cross-language fixture need instead of picking a new one.
+**Cross-language (wasm-core Rust ↔ src/ TS) shared test fixtures live in `test-fixtures/` at repo root** — read via `include_str!` + `serde_json` on the Rust side, a static JSON import on the TS side (`resolveJsonModule` pulls it in even though it's outside `tsconfig.json`'s `include` globs). Established 2026-07-29 for tokenizer parity (`test-fixtures/tokenizer-parity.json`, now read by JS alone) — reuse this location for any future cross-language fixture need instead of picking a new one.
 
 **A green `bun run type-check` only proves the call sites inside its scope agree, and this repo keeps two classes of call site outside it.** _Test files_: `tsconfig.json`'s `exclude` lists `**/*.test.ts`/`.test.tsx`/`.test.js`, and `eslint.config.js` ignores them too (`bunx eslint <test-file>.test.ts` prints "File ignored...", not a bug) — so a signature change adding a required prop/param never surfaces at a stale test file's loose object-literal call site; only running that test file catches it. _Intentionally-JS files_: `checkJs: false`, so `Translator.jsx`/`TranslationEngine.js`/`SemanticPatternProcessor.js` call sites are unchecked — copying a prop pattern out of one into a `.tsx` component can fail type-check for something the original does freely (`<HotkeyHandler activeTab={null}>` against `activeTab?: TabId`). A symbol deleted or renamed there is caught only by eslint `no-undef` and the tests, and `translateWithProgressiveBatches`'s batch loop has no test at all, so after editing it run one real translation of a long text.
 
@@ -220,7 +222,7 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 ### WASM wrapper tests
 
-**`WasmProcessorLifecycle` must be mocked as an entire class** — `initialize` calls `fetchWasmBinary` internally and throws in jsdom:
+**`WasmProcessorLifecycle` must be mocked as an entire class** — a processor's `instantiateFn` calls `loadSharedWasmModule()`, which fetches the binary and throws in jsdom:
 
 ```js
 vi.mock('../wasm/WasmProcessorLifecycle', () => ({
@@ -237,9 +239,9 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 }));
 ```
 
-**That mock's implementation must be a plain `function`, not an arrow** — `new (vi.fn().mockImplementation(() => ({...})))()` throws `is not a constructor`. Hit while writing `WasmTextTokenizer.test.js` (2026-08-12) despite the correct pattern being documented directly above it.
+**That mock's implementation must be a plain `function`, not an arrow** — `new (vi.fn().mockImplementation(() => ({...})))()` throws `is not a constructor`. Hit while writing a text-tokenizer wrapper test (2026-08-12; the wrapper was deleted 2026-10-06) despite the correct pattern being documented directly above it.
 
-**Any mocked WASM class instance whose wrapper calls `__destroy_into_raw()` on retire must include `__destroy_into_raw: vi.fn()`** — the retire path calls `instance?.__destroy_into_raw()` and throws "not a function" without it. Check this on every new WASM wrapper mock; it was found again on `WasmTextChunker.test.js` (2026-08-12) after already being documented for `WasmPatternProcessor`.
+**Any mocked WASM class instance whose wrapper calls `__destroy_into_raw()` on retire must include `__destroy_into_raw: vi.fn()`** — the retire path calls `instance?.__destroy_into_raw()` and throws "not a function" without it. Check this on every new WASM wrapper mock; it was found again on a text-chunker wrapper test (2026-08-12; the wrapper was deleted 2026-10-06) after already being documented for `WasmPatternProcessor`.
 
 **`WasmCascadeRegistry.fireCascadeRetire()` swallows exceptions from every registered retire callback** via a per-handler `catch (_) {}`, including a broken mock's. If a cascade-retire test does not retire the wrapper as expected, look for a swallowed exception in the retire path (a missing `__destroy_into_raw`, typically) before suspecting cascade registration.
 

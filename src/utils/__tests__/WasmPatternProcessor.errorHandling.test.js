@@ -17,10 +17,7 @@ vi.mock('../toast', () => ({
   default: mockToast,
 }));
 
-// CODE REVIEW FIX: Mock hash verification for WASM binary integrity checks
-vi.mock('../wasm/wasmIntegrityVerifier', () => ({
-  verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
-  verifyWasmModule: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+vi.mock('../wasm/wasmInstanceCheck', () => ({
   verifyWasmInstance: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
 }));
 
@@ -95,7 +92,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       // Obtain the fresh (post-resetModules) verifyWasmInstance mock and make it fail
       // once — simulates the lifecycle calling verifyWasmInstance AFTER instantiateFn
       // already set wasmPatternProcessor = instance.
-      const integrityMod = await import('../wasm/wasmIntegrityVerifier');
+      const integrityMod = await import('../wasm/wasmInstanceCheck');
       vi.mocked(integrityMod.verifyWasmInstance).mockReturnValueOnce({
         valid: false,
         errors: ['Missing method: free'],

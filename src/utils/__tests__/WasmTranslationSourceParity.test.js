@@ -17,7 +17,7 @@ import path from 'node:path';
 import { getSourcePriority } from '../TranslationSourcePriority.js';
 
 const CRATE_ROOT = path.resolve(__dirname, '../../../wasm-core/src');
-const RUST_SOURCES = ['number_processor.rs', 'text_assembly.rs', 'pattern_processor/two_phase.rs'];
+const RUST_SOURCES = ['number_processor.rs', 'pattern_processor/two_phase.rs'];
 const UNRECOGNISED = 999;
 
 /** Removes every `#[cfg(test)] mod tests { ... }` block by brace matching. */

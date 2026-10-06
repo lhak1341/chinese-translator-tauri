@@ -1,19 +1,8 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { TextTokenizer, Token, TokenType } from '../text/TextTokenizer';
 
-const mockTokenize = vi.fn(() => null);
-
-vi.mock('../wasm/WasmTextTokenizer.js', () => ({
-  wasmTextTokenizer: { tokenize: (...args: unknown[]) => mockTokenize(...args) },
-}));
-
 describe('TextTokenizer', () => {
-  beforeEach(() => {
-    mockTokenize.mockReset();
-    mockTokenize.mockReturnValue(null);
-  });
-
-  describe('tokenize() — JS fallback path (WASM unavailable)', () => {
+  describe('tokenize()', () => {
     test('classifies Chinese characters individually', () => {
       const tokenizer = new TextTokenizer();
 
@@ -23,52 +12,51 @@ describe('TextTokenizer', () => {
       expect(tokens.map((t) => t.type)).toEqual([TokenType.CHINESE_CHAR, TokenType.CHINESE_CHAR]);
     });
 
-    test('groups a run of punctuation into one token', () => {
+    test('emits one token per punctuation character, never a run', () => {
       const tokenizer = new TextTokenizer();
 
-      const tokens = tokenizer.tokenize('他说……好');
+      const tokens = tokenizer.tokenize('他说……好：“');
 
-      expect(tokens.map((t) => t.value)).toEqual(['他', '说', '……', '好']);
+      expect(tokens.map((t) => t.value)).toEqual(['他', '说', '…', '…', '好', '：', '“']);
       expect(tokens[2].type).toBe(TokenType.PUNCTUATION);
     });
 
-    test('underscore run falls into the gap-fill UNKNOWN token', () => {
-      // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests):
-      // \w excludes '_' from every capture group here (chinese/latin/digit/whitespace
-      // all reject it, and the punct catch-all [^\w\s...] rejects it too since \w
-      // matches '_') — so it falls into the gap-fill path and is typed UNKNOWN.
-      // Rust's catch-all has no \w-shaped exclusion, so '_' becomes 'punctuation'
-      // there instead. Left unreconciled — out of scope for the 2026-07-17c fix.
-      const tokenizer = new TextTokenizer();
+    test('underscore is punctuation', () => {
+      const tokens = new TextTokenizer().tokenize('他__好');
 
-      const tokens = tokenizer.tokenize('他__好');
-
-      expect(tokens.map((t) => t.value)).toEqual(['他', '__', '好']);
-      expect(tokens[1].type).toBe(TokenType.UNKNOWN);
+      expect(tokens.map((t) => t.value)).toEqual(['他', '_', '_', '好']);
+      expect(tokens[1].type).toBe(TokenType.PUNCTUATION);
     });
 
-    test('CJK Extension A / Compatibility Ideographs classify as punctuation, not chinese_char', () => {
-      // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests):
-      // this regex's chinese group only checks 一-鿿 (CJK Unified). Rust's
-      // is_chinese_char additionally covers CJK Ext A (U+3400-4DBF) and
-      // Compatibility Ideographs (U+F900-FAFF), so it types these chinese_char.
-      // Here they match none of chinese/latin/digit/whitespace, so they fall into
-      // the punct catch-all group instead. Mirror-image of the fixed punctuation gap,
-      // on rare chars — not unified.
+    test('CJK Extension A and Compatibility Ideographs classify as chinese_char', () => {
       const tokenizer = new TextTokenizer();
 
-      expect(tokenizer.tokenize('\u{3400}')[0].type).toBe(TokenType.PUNCTUATION);
-      expect(tokenizer.tokenize('\u{F900}')[0].type).toBe(TokenType.PUNCTUATION);
+      expect(tokenizer.tokenize('\u{3400}')[0].type).toBe(TokenType.CHINESE_CHAR);
+      // U+F900 NFC-normalizes to U+8C48, so assert the type, not the value
+      expect(tokenizer.tokenize('\u{F900}')[0].type).toBe(TokenType.CHINESE_CHAR);
     });
 
-    test('BOM (U+FEFF) classifies as whitespace, not punctuation', () => {
-      // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests): ECMAScript's
-      // \s regex class matches ZERO WIDTH NO-BREAK SPACE (U+FEFF, the UTF-8 BOM) per
-      // spec. Rust's char::is_whitespace() does not (U+FEFF isn't in Unicode's
-      // White_Space property) — Rust's catch-all types it punctuation instead.
-      const tokenizer = new TextTokenizer();
+    test('BOM (U+FEFF) is punctuation, not whitespace', () => {
+      // Unicode White_Space does not include U+FEFF (ECMAScript's \s does), and the
+      // tokenizer follows White_Space.
+      expect(new TextTokenizer().tokenize('\u{FEFF}')[0].type).toBe(TokenType.PUNCTUATION);
+    });
 
-      expect(tokenizer.tokenize('\u{FEFF}')[0].type).toBe(TokenType.WHITESPACE);
+    test('an astral character is one token, indexed in UTF-16 units', () => {
+      const tokens = new TextTokenizer().tokenize('a\u{20000}b');
+
+      expect(tokens.map((t) => t.value)).toEqual(['a', '\u{20000}', 'b']);
+      expect(tokens.map((t) => [t.start, t.end])).toEqual([
+        [0, 1],
+        [1, 3],
+        [3, 4],
+      ]);
+    });
+
+    test('text is NFC-normalized before tokenizing', () => {
+      const tokens = new TextTokenizer().tokenize('e\u0301');
+
+      expect(tokens.map((t) => t.value)).toEqual(['\u00e9']);
     });
 
     test('consumes entire Latin word and number as single tokens', () => {
@@ -95,33 +83,6 @@ describe('TextTokenizer', () => {
       const tokenizer = new TextTokenizer();
 
       expect(tokenizer.tokenize('')).toEqual([]);
-    });
-  });
-
-  describe('tokenize() — WASM path', () => {
-    test('converts WASM raw token objects into Token instances', () => {
-      mockTokenize.mockReturnValue([
-        { type: 'chinese_char', value: '你', start: 0, end: 1 },
-        { type: 'chinese_char', value: '好', start: 1, end: 2 },
-      ]);
-
-      const tokenizer = new TextTokenizer();
-
-      const tokens = tokenizer.tokenize('你好');
-
-      expect(tokens[0]).toBeInstanceOf(Token);
-      expect(tokens.map((t) => t.value)).toEqual(['你', '好']);
-      expect(mockTokenize).toHaveBeenCalledWith('你好');
-    });
-
-    test('per-call null from WASM falls back to the JS tokenizer for that call', () => {
-      mockTokenize.mockReturnValue(null);
-
-      const tokenizer = new TextTokenizer();
-
-      const tokens = tokenizer.tokenize('你好');
-
-      expect(tokens.map((t) => t.value)).toEqual(['你', '好']);
     });
   });
 

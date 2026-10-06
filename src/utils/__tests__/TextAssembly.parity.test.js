@@ -1,18 +1,14 @@
 /**
- * Cross-language parity check for spacing-aware text assembly (postProcess Step 2) against the
- * shared fixture. test-fixtures/text-assembly-parity.json is the single source of truth for what
- * BOTH the JS implementation (this file) and Rust's needs_space / assemble_with_spacing are
- * expected to produce. The mirror check lives in wasm-core/src/text_assembly.rs's
- * `mod tests::parity`.
- *
- * WASM is never initialized under vitest (WasmTextAssembler skips its background init when
- * MODE === 'test'), so wasmTextAssembler.assembleWithSpacing takes the real JS fallback.
+ * Fixture check for spacing-aware text assembly (postProcess Step 2).
+ * test-fixtures/text-assembly-parity.json is the source of truth for what `needsSpace` and
+ * `assembleWithSpacing` produce. The Rust twin was deleted 2026-10-06 (ADR-079), so the fixture
+ * now feeds this file alone.
  */
 import { describe, test, expect } from 'vitest';
-import { needsSpace, wasmTextAssembler } from '../wasm/WasmTextAssembler.js';
+import { needsSpace, assembleWithSpacing } from '../text/TextAssembly.js';
 import fixture from '../../../test-fixtures/text-assembly-parity.json';
 
-describe('needsSpace — shared fixture parity', () => {
+describe('needsSpace — fixture', () => {
   test('fixture is non-empty', () => {
     expect(fixture.rules.length).toBeGreaterThan(0);
   });
@@ -22,12 +18,12 @@ describe('needsSpace — shared fixture parity', () => {
   });
 });
 
-describe('assembleWithSpacing (JS fallback) — shared fixture parity', () => {
+describe('assembleWithSpacing — fixture', () => {
   test('fixture is non-empty', () => {
     expect(fixture.assemblies.length).toBeGreaterThan(0);
   });
 
   test.each(fixture.assemblies)('$name', ({ segments, translatedText, positions }) => {
-    expect(wasmTextAssembler.assembleWithSpacing(segments)).toEqual({ translatedText, positions });
+    expect(assembleWithSpacing(segments)).toEqual({ translatedText, positions });
   });
 });

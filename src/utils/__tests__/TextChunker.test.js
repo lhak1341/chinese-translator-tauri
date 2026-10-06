@@ -1,15 +1,8 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest';
-
-// Force the JS fallback path deterministically — chunkText() tries WASM first, and whether
-// WASM actually initializes in the test runner is environment-dependent. Mocking it out lets
-// this file characterize the JS implementation's own contract regardless.
-vi.mock('../wasm/WasmTextChunker.js', () => ({
-  wasmTextChunker: { chunkText: vi.fn(() => null) },
-}));
+import { describe, test, expect, beforeEach } from 'vitest';
 
 import { TextChunker } from '../text/TextChunker.js';
 
-describe('TextChunker (JS fallback path)', () => {
+describe('TextChunker', () => {
   let chunker;
 
   beforeEach(() => {

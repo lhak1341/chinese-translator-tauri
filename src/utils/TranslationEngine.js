@@ -176,7 +176,7 @@ import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgres
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
-import { wasmTextAssembler } from './wasm/WasmTextAssembler.js';
+import { assembleWithSpacing } from './text/TextAssembly.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
@@ -2185,9 +2185,7 @@ export class TranslationEngine {
     }
 
     // Step 2: Join segments with appropriate spacing AND track positions for semantic array
-    // WASM-accelerated path (30-50% faster); falls back to JS if WASM not ready.
-    const { translatedText: result, positions: assembledPositions } =
-      wasmTextAssembler.assembleWithSpacing(segments);
+    const { translatedText: result, positions: assembledPositions } = assembleWithSpacing(segments);
 
     // chunkStartChar is the character offset of this chunk's start in the original full text.
     // For a direct (non-chunked) translation it is 0 by default.

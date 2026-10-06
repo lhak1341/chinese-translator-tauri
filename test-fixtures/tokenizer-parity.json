@@ -1,93 +1,104 @@
 {
-  "_contract": "Shared cross-language tokenizer fixture (architecture review 2026-07-29, candidate #6). Both wasm-core/src/text_tokenizer.rs (mod tests::parity) and src/utils/__tests__/TextTokenizer.parity.test.ts read this file directly and assert their own real tokenizer's output against it. This file IS the contract — not a copy of one side's behavior, the single source of truth for what each side is expected to produce, for both the cases where they agree and the cases where they're documented to diverge. See CONTEXT.md's TextTokenizer entry for the fuller narrative.",
+  "_contract": "Tokenizer fixture (architecture review 2026-07-29, candidate #6; the Rust twin was deleted 2026-10-06, ADR-079). src/utils/__tests__/TextTokenizer.parity.test.ts asserts TextTokenizer.tokenize against `expected`. Do not edit an expectation to make a test pass: change the tokenizer, or record the behaviour on purpose.",
   "cases": [
     {
-      "name": "chinese_chars_agree",
-      "description": "Both sides classify Chinese characters individually, one token per char.",
+      "name": "chinese_chars",
+      "description": "One token per Chinese character.",
       "input": "你好",
-      "expectAgreement": true,
-      "rust": { "values": ["你", "好"], "types": ["chinese_char", "chinese_char"] },
-      "js": { "values": ["你", "好"], "types": ["chinese_char", "chinese_char"] }
+      "expected": {
+        "values": ["你", "好"],
+        "types": ["chinese_char", "chinese_char"]
+      }
     },
     {
-      "name": "latin_word_agrees",
-      "description": "Both sides consume an entire Latin word as one token.",
+      "name": "latin_word",
+      "description": "An entire run of ASCII letters is one token.",
       "input": "hello",
-      "expectAgreement": true,
-      "rust": { "values": ["hello"], "types": ["latin_word"] },
-      "js": { "values": ["hello"], "types": ["latin_word"] }
+      "expected": {
+        "values": ["hello"],
+        "types": ["latin_word"]
+      }
     },
     {
-      "name": "number_agrees",
-      "description": "Both sides consume an entire run of digits as one token.",
+      "name": "number",
+      "description": "An entire run of ASCII digits is one token.",
       "input": "12345",
-      "expectAgreement": true,
-      "rust": { "values": ["12345"], "types": ["number"] },
-      "js": { "values": ["12345"], "types": ["number"] }
+      "expected": {
+        "values": ["12345"],
+        "types": ["number"]
+      }
     },
     {
-      "name": "whitespace_run_agrees",
-      "description": "Both sides consume a run of whitespace as one token, distinct from surrounding words.",
+      "name": "whitespace_run",
+      "description": "A run of whitespace is one token, distinct from the words around it.",
       "input": "a   b",
-      "expectAgreement": true,
-      "rust": { "values": ["a", "   ", "b"], "types": ["latin_word", "whitespace", "latin_word"] },
-      "js": { "values": ["a", "   ", "b"], "types": ["latin_word", "whitespace", "latin_word"] }
+      "expected": {
+        "values": ["a", "   ", "b"],
+        "types": ["latin_word", "whitespace", "latin_word"]
+      }
     },
     {
-      "name": "ascii_punctuation_agrees",
-      "description": "Both sides classify a single ASCII punctuation char the same way.",
+      "name": "ascii_punctuation",
+      "description": "A single ASCII punctuation character is a punctuation token.",
       "input": "!",
-      "expectAgreement": true,
-      "rust": { "values": ["!"], "types": ["punctuation"] },
-      "js": { "values": ["!"], "types": ["punctuation"] }
+      "expected": {
+        "values": ["!"],
+        "types": ["punctuation"]
+      }
     },
     {
-      "name": "decimal_point_splits_number_agrees",
-      "description": "Neither side's number-matching spans a decimal point — both split into number/punctuation/number.",
+      "name": "decimal_point_splits_number",
+      "description": "A decimal point splits a number: number, punctuation, number.",
       "input": "100.99",
-      "expectAgreement": true,
-      "rust": { "values": ["100", ".", "99"], "types": ["number", "punctuation", "number"] },
-      "js": { "values": ["100", ".", "99"], "types": ["number", "punctuation", "number"] }
+      "expected": {
+        "values": ["100", ".", "99"],
+        "types": ["number", "punctuation", "number"]
+      }
     },
     {
-      "name": "punctuation_run_grouping_diverges",
-      "description": "KNOWN DIVERGENCE: JS's regex catch-all groups a run of consecutive punctuation into one token. Rust's char-by-char classifier emits one token per char — dictionary lookups are single-char keyed, so per-char is safer against truncation. Deliberately unfixed.",
+      "name": "punctuation_is_one_token_per_character",
+      "description": "Punctuation is never grouped: a run of two ellipsis characters is two tokens, so the punctuation dictionary's single-character keys match each one.",
       "input": "……",
-      "expectAgreement": false,
-      "rust": { "values": ["…", "…"], "types": ["punctuation", "punctuation"] },
-      "js": { "values": ["……"], "types": ["punctuation"] }
+      "expected": {
+        "values": ["…", "…"],
+        "types": ["punctuation", "punctuation"]
+      }
     },
     {
-      "name": "cjk_extension_a_diverges",
-      "description": "KNOWN DIVERGENCE: Rust's is_chinese_char covers CJK Extension A (U+3400-4DBF); JS's regex chinese group only checks U+4E00-U+9FFF (一-鿿). JS's catch-all types it punctuation instead.",
+      "name": "cjk_extension_a_is_chinese_char",
+      "description": "CJK Extension A (U+3400-4DBF) is chinese_char.",
       "input": "㐀",
-      "expectAgreement": false,
-      "rust": { "values": ["㐀"], "types": ["chinese_char"] },
-      "js": { "values": ["㐀"], "types": ["punctuation"] }
+      "expected": {
+        "values": ["㐀"],
+        "types": ["chinese_char"]
+      }
     },
     {
-      "name": "compatibility_ideographs_diverges",
-      "description": "KNOWN DIVERGENCE: Rust's is_chinese_char covers Compatibility Ideographs (U+F900-FAFF); JS's regex chinese group does not. Mirror-image of cjk_extension_a_diverges.",
+      "name": "compatibility_ideographs_are_chinese_char",
+      "description": "CJK Compatibility Ideographs (U+F900-FAFF) are chinese_char; NFC maps U+F900 to U+8C48 before tokenizing.",
       "input": "豈",
-      "expectAgreement": false,
-      "rust": { "values": ["豈"], "types": ["chinese_char"] },
-      "js": { "values": ["豈"], "types": ["punctuation"] }
+      "expected": {
+        "values": ["豈"],
+        "types": ["chinese_char"]
+      }
     },
     {
-      "name": "underscore_diverges",
-      "description": "KNOWN DIVERGENCE: JS's \\w excludes '_' from every regex capture group (chinese/latin/digit/whitespace all reject it, and the punctuation catch-all [^\\w\\s...] also rejects it since \\w matches '_'), so it falls into the gap-fill path and is typed 'unknown'. Rust's catch-all has no \\w-shaped exclusion, so '_' becomes 'punctuation'.",
+      "name": "underscore_is_punctuation",
+      "description": "An underscore is punctuation, one token per underscore.",
       "input": "_",
-      "expectAgreement": false,
-      "rust": { "values": ["_"], "types": ["punctuation"] },
-      "js": { "values": ["_"], "types": ["unknown"] }
+      "expected": {
+        "values": ["_"],
+        "types": ["punctuation"]
+      }
     },
     {
-      "name": "bom_diverges",
-      "description": "KNOWN DIVERGENCE: ECMAScript's \\s regex class matches ZERO WIDTH NO-BREAK SPACE (U+FEFF, the UTF-8 BOM) per spec. Rust's char::is_whitespace() does not (U+FEFF isn't in Unicode's White_Space property) — Rust's catch-all types it punctuation instead.",
+      "name": "bom_is_punctuation",
+      "description": "U+FEFF is punctuation: Unicode White_Space does not include it.",
       "input": "﻿",
-      "expectAgreement": false,
-      "rust": { "values": ["﻿"], "types": ["punctuation"] },
-      "js": { "values": ["﻿"], "types": ["whitespace"] }
+      "expected": {
+        "values": ["﻿"],
+        "types": ["punctuation"]
+      }
     }
   ]
 }

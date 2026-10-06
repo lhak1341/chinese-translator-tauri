@@ -99,89 +99,9 @@ wasmModule = await import('../wasm/translation_wasm_core.js');
 
 ---
 
-### 2. ✅ Binary Integrity Verification (SHA-256 Hashing)
+### 2. Binary hashing and module-structure checks: removed (2026-10-06, ADR-080)
 
-**CODE REVIEW FIX (CRITICAL-1)**: Implemented Subresource Integrity for WASM binaries.
-
-**What**: WASM binary files are cryptographically verified using SHA-256 hashes before loading.
-
-**Implementation**:
-
-```bash
-# Build-time hash generation (automatic with WASM builds)
-npm run build-wasm  # Compiles Rust → WASM → generates hashes
-```
-
-**Hash Manifest**: `src/wasm/integrity-manifest.json`
-
-```json
-{
-  "generated": "2026-02-01T05:14:35.031Z",
-  "algorithm": "sha256",
-  "files": {
-    "translation_wasm_core_bg.wasm": {
-      "sha256": "169658094597e797ee685e5c525f92c06c7a9fb23e4db45bef590fc5a47e7093",
-      "size": 1575582
-    }
-  }
-}
-```
-
-**Runtime Verification** (`src/utils/wasmIntegrityVerifier.js`):
-
-```javascript
-// src/utils/WasmNumberProcessor.js:90-116
-const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
-
-// Verify hash before loading
-const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
-if (!integrityCheck.valid) {
-  throw new Error(`WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`);
-}
-
-// Initialize only with verified binary
-await init(wasmBinary);
-```
-
-**Checks Performed**:
-
-- File size verification (fast check)
-- SHA-256 hash computation using `crypto.subtle.digest()`
-- Hash comparison against manifest
-- Failure if mismatch detected
-
-**Why This Matters**:
-
-- Detects corrupted WASM files (filesystem corruption, incomplete builds)
-- Prevents loading tampered binaries (though Tauri code signing already protects this)
-- Catches build system failures that produce invalid WASM
-- Provides cryptographic guarantee of file integrity
-
-**Result**: Only cryptographically verified WASM binaries are loaded; hash mismatches trigger initialization failure and JavaScript fallback.
-
----
-
-### 3. ✅ Module Structure Verification
-
-**What**: Every WASM module is verified before use to ensure it has expected exports.
-
-**Implementation**: `src/utils/wasmIntegrityVerifier.js`
-
-```javascript
-// src/utils/WasmNumberProcessor.js:59-64
-const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
-if (!moduleVerification.valid) {
-  throw new Error(`WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`);
-}
-```
-
-**Checks Performed**:
-
-- Verifies expected exports exist (`NumberProcessor`, `WasmPatternProcessor`, etc.)
-- Ensures initialization function is present
-- Detects corrupted or tampered modules
-
-**Result**: Tampered WASM modules fail to initialize; application falls back to JavaScript
+A SHA-256 check of the WASM binary against `src/wasm/integrity-manifest.json`, and a module-export check (`verifyWasmModule`), used to sit here as "CODE REVIEW FIX (CRITICAL-1)". Both are deleted. The binary and the manifest shipped in the same bundle, so the hash caught corruption but not tampering: an attacker who can rewrite the bundled `.wasm` can rewrite the manifest beside it. The control for a tampered bundle is Tauri code signing (and macOS notarization), which covers the embedded frontend assets. A corrupt `.wasm` already fails `WebAssembly.instantiate`, and a binary whose exports do not match the JS glue fails the instance check (#4 below). The check also added a failure of its own: a stale or missing manifest in a production build disabled pattern processing and conflict resolution. Do not re-add a hash step without a way to hold the expected hash outside the bundle. See ADR-080.
 
 ---
 
@@ -189,10 +109,10 @@ if (!moduleVerification.valid) {
 
 **What**: After creating WASM instances, we verify they have expected methods before use.
 
-**Implementation**: `src/utils/wasmIntegrityVerifier.js`
+**Implementation**: `src/utils/wasm/wasmInstanceCheck.js`, called by `WasmProcessorLifecycle`
 
 ```javascript
-// src/utils/WasmNumberProcessor.js:73-82
+// the lifecycle runs this after instantiateFn() returns
 const instanceVerification = verifyWasmInstance(
   wasmNumberProcessor,
   ['processNumbers', 'free'],
@@ -368,53 +288,9 @@ Future CSP standards may provide:
 - Hash-based WASM module whitelisting
 - Stricter `'wasm-unsafe-eval'` alternatives
 
-**4. ~~Consider Subresource Integrity (SRI)~~ ✅ IMPLEMENTED (2026-02-01)**
+**4. ~~Consider Subresource Integrity (SRI)~~ — implemented 2026-02-01, removed 2026-10-06**
 
-SHA-256 hash verification now implemented:
-
-- Build-time hash generation: `scripts/generate-wasm-hashes.js`
-- Hash manifest: `src/wasm/integrity-manifest.json`
-- Runtime verification: `src/utils/wasmIntegrityVerifier.js`
-- Automatic integration with WASM builds
-
-See mitigation #2 above for full implementation details.
-
----
-
-## Testing CSP Configuration
-
-### Verify CSP is Active
-
-**Development**:
-
-```bash
-npm run tauri:dev
-# Check browser console for CSP warnings
-```
-
-**Production**:
-
-```bash
-npm run tauri:build
-open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
-# Check browser console (Cmd+Opt+I on macOS)
-```
-
-### Expected Behavior
-
-✅ **Correct**:
-
-- No CSP violations in console
-- WASM modules load successfully
-- Translation features work normally
-
-❌ **CSP Error (if misconfigured)**:
-
-```
-Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allowed source
-```
-
----
+The SHA-256 manifest check was deleted; see mitigation #2 above and ADR-080.
 
 ## References
 
@@ -422,7 +298,7 @@ Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allow
 
 - **WASM Number Processor**: `src/utils/WasmNumberProcessor.js` (lines 15-35)
 - **WASM Pattern Processor**: `src/utils/WasmPatternProcessor.js` (lines 18-40)
-- **Integrity Verification**: `src/utils/wasmIntegrityVerifier.js`
+- **Instance verification**: `src/utils/wasm/wasmInstanceCheck.js`
 - **Tauri Configuration**: `src-tauri/tauri.conf.json:23`
 
 ### External Resources

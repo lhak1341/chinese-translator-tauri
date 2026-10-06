@@ -56,9 +56,6 @@ export class OptimizationBenchmarks {
       // Medium #7: String Assembly
       await this.benchmarkStringAssembly();
 
-      // Task #7: WASM Text Assembly
-      await this.benchmarkWasmTextAssembly();
-
       // Task #8: V8 Hidden Class Optimization
       await this.benchmarkV8Optimization();
 
@@ -499,84 +496,6 @@ export class OptimizationBenchmarks {
       value,
       timestamp: Date.now(),
     });
-  }
-
-  /**
-   * Benchmark #11: WASM Text Assembly (Task #7)
-   * Compares the real production paths — `jsAssembleWithSpacing` (JS fallback) vs
-   * `assembleWithSpacing` (WASM) — both applying the same 10 spacing rules, instead
-   * of a hand-rolled no-spacing-rules JS loop against a since-deleted WASM method.
-   */
-  async benchmarkWasmTextAssembly() {
-    logger.log('\n📊 Benchmark #11: WASM Text Assembly (Task #7)');
-    logger.log('  Testing: jsAssembleWithSpacing (JS) vs assembleWithSpacing (WASM)');
-
-    const { createWasmTextAssembler } = await import('../wasm/WasmTextAssembler.js');
-
-    // Create test segments (simulate translation output)
-    const segmentCounts = [10, 50, 100, 200];
-    const results = {
-      javascript: {},
-      wasm: {},
-      speedup: {},
-    };
-
-    const tokenTypes = ['chinese_word', 'chinese_word', 'latin_word', 'number', 'punctuation'];
-
-    for (const count of segmentCounts) {
-      logger.log(`  Testing with ${count} segments...`);
-
-      // Generate test segments matching assembleWithSpacing's real input shape
-      const segments = Array.from({ length: count }, (_, i) => ({
-        text: i % 5 === 3 ? String(i) : i % 5 === 4 ? '.' : 'văn bản',
-        tokenType: tokenTypes[i % tokenTypes.length],
-        tokenIndex: i,
-      }));
-
-      const iterations = 1000;
-      const wasmAssembler = await createWasmTextAssembler();
-
-      // JavaScript assembly (jsAssembleWithSpacing — real production fallback)
-      let jsStart = performance.now();
-      for (let iter = 0; iter < iterations; iter++) {
-        wasmAssembler.jsAssembleWithSpacing(segments);
-      }
-      results.javascript[count] = (performance.now() - jsStart) / iterations;
-
-      // WASM assembly (assembleWithSpacing — real production path)
-      let wasmStart = performance.now();
-      for (let iter = 0; iter < iterations; iter++) {
-        wasmAssembler.assembleWithSpacing(segments);
-      }
-      results.wasm[count] = (performance.now() - wasmStart) / iterations;
-
-      // Calculate speedup
-      results.speedup[count] = results.javascript[count] / results.wasm[count];
-    }
-
-    // Calculate average speedup
-    const avgSpeedup =
-      Object.values(results.speedup).reduce((sum, val) => sum + val, 0) / segmentCounts.length;
-
-    // Calculate improvement percentage
-    const avgImprovement = (avgSpeedup - 1) * 100;
-
-    this.results.set('wasm_text_assembly', results);
-    this.recordBaseline('wasm_text_assembly_speedup', avgSpeedup);
-
-    logger.log(`\n  Results by segment count:`);
-    for (const count of segmentCounts) {
-      logger.log(
-        `    ${count} segments: ${results.speedup[count].toFixed(2)}x speedup (JS: ${results.javascript[count].toFixed(3)}ms, WASM: ${results.wasm[count].toFixed(3)}ms)`
-      );
-    }
-
-    logger.log(
-      `\n  Average speedup: ${avgSpeedup.toFixed(2)}x (${avgImprovement.toFixed(1)}% improvement) ${avgImprovement >= 30 ? '✅' : '⚠️'}`
-    );
-    logger.log(
-      `  Target: 30-50% improvement | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 30 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
-    );
   }
 
   /**

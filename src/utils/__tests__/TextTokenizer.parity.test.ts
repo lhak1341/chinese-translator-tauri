@@ -1,41 +1,21 @@
 /**
- * Cross-language parity check against the shared fixture (architecture review
- * 2026-07-29, candidate #6). test-fixtures/tokenizer-parity.json is the single
- * source of truth for what BOTH tokenizeJS (this file) and Rust's
- * tokenize_text_core are expected to produce for a given input — including the
- * documented divergences. The mirror check lives in wasm-core/src/text_tokenizer.rs's
- * `mod tests::parity`.
- *
- * This forces the JS fallback path (WasmTextTokenizer mocked out) — the fixture's
- * "js" expectations characterize tokenizeJS specifically, not whatever the real
- * WASM binary happens to produce in this test environment.
+ * Fixture check for TextTokenizer.tokenize (architecture review 2026-07-29, candidate #6).
+ * test-fixtures/tokenizer-parity.json is the source of truth for what the tokenizer produces.
+ * The Rust twin was deleted 2026-10-06 (ADR-079), so the fixture now feeds this file alone.
  */
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { TextTokenizer } from '../text/TextTokenizer';
 import fixture from '../../../test-fixtures/tokenizer-parity.json';
 
-const mockTokenize = vi.fn(() => null); // force JS fallback path
-
-vi.mock('../wasm/WasmTextTokenizer.js', () => ({
-  wasmTextTokenizer: { tokenize: (...args: unknown[]) => mockTokenize(...args) },
-}));
-
-describe('TextTokenizer — shared fixture parity', () => {
-  beforeEach(() => {
-    mockTokenize.mockReset();
-    mockTokenize.mockReturnValue(null);
-  });
-
+describe('TextTokenizer — fixture', () => {
   test('fixture is non-empty', () => {
     expect(fixture.cases.length).toBeGreaterThan(0);
   });
 
   test.each(fixture.cases)('$name', (fixtureCase) => {
-    const tokenizer = new TextTokenizer();
+    const tokens = new TextTokenizer().tokenize(fixtureCase.input);
 
-    const tokens = tokenizer.tokenize(fixtureCase.input);
-
-    expect(tokens.map((t) => t.value)).toEqual(fixtureCase.js.values);
-    expect(tokens.map((t) => t.type)).toEqual(fixtureCase.js.types);
+    expect(tokens.map((t) => t.value)).toEqual(fixtureCase.expected.values);
+    expect(tokens.map((t) => t.type)).toEqual(fixtureCase.expected.types);
   });
 });

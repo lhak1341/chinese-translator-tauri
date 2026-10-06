@@ -7,9 +7,8 @@
   "scripts": {
     "dev": "bun run build-wasm-dev && vite",
     "build": "bun run build-wasm && tsc && vite build",
-    "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm && bun run generate-wasm-hashes",
-    "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm && bun run generate-wasm-hashes",
-    "generate-wasm-hashes": "node scripts/generate-wasm-hashes.js",
+    "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm",
+    "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm",
     "test": "node scripts/ensure-wasm-fresh.mjs && vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "node scripts/ensure-wasm-fresh.mjs && vitest --coverage",

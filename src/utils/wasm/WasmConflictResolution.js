@@ -21,13 +21,8 @@ import { loadSharedWasmModule } from './WasmSharedModule';
  * the Rust algorithm; both are run against it.
  */
 
-// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
-const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
-
 const lifecycle = new WasmProcessorLifecycle({
   name: 'ConflictResolution',
-  wasmFileName: 'translation_wasm_core_bg.wasm',
-  wasmBinaryUrl: _WASM_BINARY_URL,
   expectedMethods: ['resolveGlobalConflicts'],
 });
 

@@ -20,16 +20,10 @@
 
 pub mod number_processor;
 pub mod pattern_processor;
-pub mod text_tokenizer;
-pub mod text_assembly;
-pub mod text_chunker;
 pub mod conflict_resolution;
 
 // Re-export WASM wrappers for JavaScript
 pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
-pub use text_tokenizer::tokenize_text;
-pub use text_assembly::TextAssembler;
-pub use text_chunker::TextChunker;
 
 // Enable better error messages in debug mode
 pub use console_error_panic_hook::set_once as set_panic_hook;

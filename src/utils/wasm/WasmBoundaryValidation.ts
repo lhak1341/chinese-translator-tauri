@@ -18,14 +18,12 @@
  *
  * See ADR-037 for why the token/pattern/lookup validators that used to live here were
  * deleted as dead code (`validateWasmDictionaryMatch` went with the WASM dictionary tier,
- * 2026-10-04), and the live WASM wrappers (WasmPatternProcessor.js, WasmTextChunker.js)
- * did no structural validation of their own until
- * `isPatternMatchInBounds`/`areChunksInBounds` closed that gap (2026-09-09,
- * architecture review candidate #2 grilling). Both Rust result structs
- * (`PatternProcessingResult`, `TextChunkResult`) guarantee field presence/type
- * via serde — the one thing serde can't guarantee is a semantically-wrong-but
- * -correctly-typed index from a Rust-side arithmetic bug, so these two check
- * index bounds only, not general field shape.
+ * 2026-10-04), and the live WASM wrapper (WasmPatternProcessor.js) did no structural validation
+ * of its own until `isPatternMatchInBounds` closed that gap (2026-09-09, architecture review
+ * candidate #2 grilling; `areChunksInBounds` went with the chunker tier, 2026-10-06). The Rust
+ * result struct (`PatternProcessingResult`) guarantees field presence/type via serde — the one
+ * thing serde can't guarantee is a semantically-wrong-but-correctly-typed index from a
+ * Rust-side arithmetic bug, so this checks index bounds only, not general field shape.
  */
 
 /**
@@ -52,23 +50,4 @@ export function isPatternMatchInBounds(result: unknown, tokensLength: number): b
     start < tokensLength &&
     end >= start
   );
-}
-
-/**
- * Bounds-check a WASM chunk array before it's converted to TextChunk objects.
- *
- * Rejects the whole array on any violation — chunks partition the whole text, so a
- * single bad chunk can't be dropped in isolation without losing content, unlike a
- * pattern match (see `isPatternMatchInBounds`).
- */
-export function areChunksInBounds(chunks: unknown): boolean {
-  if (!Array.isArray(chunks)) return false;
-  let lastStart = -1;
-  for (const chunk of chunks) {
-    if (!chunk || typeof chunk !== 'object') return false;
-    const start = (chunk as Record<string, unknown>).startIndex;
-    if (typeof start !== 'number' || start < 0 || start < lastStart) return false;
-    lastStart = start;
-  }
-  return true;
 }

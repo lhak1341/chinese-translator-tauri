@@ -11,8 +11,7 @@ interface SpacingToken {
 
 /**
  * Character-only mode's spacing decision — a third, independently-verified
- * copy of the spacing rules alongside `needsSpace()` (WasmTextAssembler.js)
- * and `needs_space()` (wasm-core/src/text_assembly.rs). Deliberately NOT the
+ * copy of the spacing rules alongside `needsSpace()` (TextAssembly.js). Deliberately NOT the
  * same function as those two: `needsSpace()` decides from already-translated
  * segment text, while character-only mode appends one token's translation at
  * a time and hasn't translated `nextToken` yet when this decision is made —

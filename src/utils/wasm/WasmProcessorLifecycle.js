@@ -3,22 +3,22 @@
  * Shared initialization lifecycle for WASM processors.
  *
  * Owns the invariant sequence every WASM processor must run before its instance is
- * usable: binary fetch → SHA-256 integrity verification → instantiateFn(binary) →
- * instance method verification. Wraps the sequence in exponential-backoff retry
- * (transient errors only) and tracks init state.
+ * usable: instantiateFn() → instance method verification. Wraps the sequence in
+ * exponential-backoff retry (transient errors only) and tracks init state. Loading the binary
+ * is not its job: instantiateFn calls `loadSharedWasmModule()` (WasmSharedModule.js), which
+ * fetches and instantiates it once for every wrapper.
  *
  * Each WASM processor holds one WasmProcessorLifecycle instance. The processor
- * provides an instantiateFn that receives the verified binary and returns the
- * configured WASM instance. Domain-specific setup (e.g., loading pattern
- * dictionaries into the instance) happens inside instantiateFn before it returns.
- * Runtime error handling (toasts, fallback mode) stays in the processor module.
+ * provides an instantiateFn that returns the configured WASM instance. Domain-specific
+ * setup (e.g., loading pattern dictionaries into the instance) happens inside instantiateFn
+ * before it returns. Runtime error handling (toasts, fallback mode) stays in the processor
+ * module.
  *
  * See: docs/adr/ADR-009-wasm-processor-lifecycle.md
  */
 
 import { logger } from '../logger';
-import { fetchWasmBinary } from './wasmBinaryCache';
-import { verifyWasmBinaryIntegrity, verifyWasmInstance } from './wasmIntegrityVerifier';
+import { verifyWasmInstance } from './wasmInstanceCheck';
 
 const RETRY_COOLDOWN_MS = 5000;
 const MAX_RETRIES = 3;
@@ -27,19 +27,10 @@ const MAX_DELAY_MS = 8000;
 
 export class WasmProcessorLifecycle {
   /**
-   * @param {{
-   *   name: string,
-   *   wasmFileName: string,
-   *   wasmBinaryUrl: URL,
-   *   expectedMethods: string[]
-   * }} config
-   * wasmBinaryUrl MUST be created with a static string literal so Vite can
-   * transform the asset URL for production builds.
+   * @param {{ name: string, expectedMethods: string[] }} config
    */
-  constructor({ name, wasmFileName, wasmBinaryUrl, expectedMethods }) {
+  constructor({ name, expectedMethods }) {
     this.name = name;
-    this._wasmFileName = wasmFileName;
-    this._wasmBinaryUrl = wasmBinaryUrl;
     this._expectedMethods = expectedMethods;
     this._isReady = false;
     this._hasFailed = false;
@@ -63,15 +54,13 @@ export class WasmProcessorLifecycle {
   }
 
   /**
-   * Run the init sequence: fetch binary → verify integrity → instantiateFn(binary)
-   * → verify instance methods. Retries on transient failures with exponential backoff.
-   * Idempotent: returns true immediately if already ready.
+   * Run the init sequence: instantiateFn() → verify instance methods. Retries on transient
+   * failures with exponential backoff. Idempotent: returns true immediately if already ready.
    *
-   * instantiateFn receives the verified ArrayBuffer and must return the initialized
-   * WASM instance. It owns: module loading, module-level structural verification,
-   * instance construction, and any domain-specific post-init (e.g. pattern loading).
+   * instantiateFn must return the initialized WASM instance. It owns: loading the shared
+   * module, instance construction, and any domain-specific post-init (e.g. pattern loading).
    *
-   * @param {function(ArrayBuffer): Promise<Object>} instantiateFn
+   * @param {function(): Promise<Object>} instantiateFn
    * @returns {Promise<boolean>}
    */
   async initialize(instantiateFn) {
@@ -89,24 +78,7 @@ export class WasmProcessorLifecycle {
     return (this._initializationPromise = (async () => {
       try {
         await this._retryWithBackoff(async () => {
-          logger.debug(`Fetching WASM binary for ${this.name} integrity verification...`);
-          const wasmBinary = await fetchWasmBinary(this._wasmBinaryUrl);
-          logger.debug(`${this.name} WASM binary ready (${wasmBinary.byteLength} bytes)`);
-
-          const integrityCheck =
-            /** @type {{ valid: boolean, errors: string[], warnings: string[] }} */ (
-              await verifyWasmBinaryIntegrity(this._wasmFileName, wasmBinary)
-            );
-          if (!integrityCheck.valid) {
-            throw new Error(
-              `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
-            );
-          }
-          if (integrityCheck.warnings.length > 0) {
-            logger.warn(`${this.name} WASM integrity warnings:`, integrityCheck.warnings);
-          }
-
-          const instance = await instantiateFn(wasmBinary);
+          const instance = await instantiateFn();
 
           const instanceVerification = /** @type {{ valid: boolean, errors: string[] }} */ (
             verifyWasmInstance(instance, this._expectedMethods, this.name)
