@@ -15,7 +15,7 @@ use std::time::{Instant, SystemTime};
 use crate::lru_cache::LruCache;
 use crate::lookup_index_engine::{
     build_comprehensive_lookup_index, Dictionary, DictionaryType, IndexBuildOptions, TrieNode,
-    CategorizedMatches,
+    CategorizedMatches, DEFAULT_MIN_TEXT_LENGTH,
 };
 
 // ============================================================================
@@ -1646,18 +1646,20 @@ fn build_lookup_index_impl(
 
     // Parse options with defaults
     let opts = options.unwrap_or(LookupIndexOptions {
-        min_text_length: Some(50),
-        enable_indexing: Some(true),
-        use_parallel: Some(true),
+        min_text_length: None,
+        enable_indexing: None,
+        use_parallel: None,
     });
 
     let build_options = IndexBuildOptions {
-        min_text_length: opts.min_text_length.unwrap_or(50),
+        min_text_length: opts.min_text_length.unwrap_or(DEFAULT_MIN_TEXT_LENGTH),
         enable_indexing: opts.enable_indexing.unwrap_or(true),
         use_parallel: opts.use_parallel.unwrap_or(true),
     };
 
-    // Check if indexing should be skipped (use character count, not byte length)
+    // Check if indexing should be skipped (use character count, not byte length). The JS side
+    // sends the same threshold and counts the same unit before it calls, so it never gets this
+    // `success: false` for a short text; it would count as a failure there.
     let text_char_count = text.chars().count();
     if text_char_count < build_options.min_text_length || !build_options.enable_indexing {
         return LookupIndexResponse {
@@ -2293,6 +2295,104 @@ mod tests {
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_New"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-f_New"));
         assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-f_New"));
+    }
+
+    // ── Parity with the JS trie (ADR-082) ───────────────────────────────────
+    // `src/utils/__tests__/MatchSource.parity.test.ts` reads the same fixture. The index lists
+    // matches in dictionary order, so this side compares each lookup as a set; the TS side
+    // checks the winner-first order.
+    #[test]
+    fn test_lookup_index_matches_the_shared_parity_fixture() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../src/test/fixtures/lookup_index_parity.json"))
+                .expect("lookup_index_parity.json is valid JSON");
+        let order: Vec<String> = fixture["dictionaryOrder"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| name.as_str().unwrap().to_string())
+            .collect();
+        let dictionaries: Vec<DictionaryData> = order
+            .iter()
+            .map(|name| {
+                let dict = &fixture["dictionaries"][name.as_str()];
+                DictionaryData {
+                    name: name.clone(),
+                    priority: Some(dict["priority"].as_u64().unwrap() as u32),
+                    entries: dict["entries"]
+                        .as_object()
+                        .unwrap()
+                        .iter()
+                        .map(|(chinese, vietnamese)| DictionaryEntry {
+                            chinese: chinese.clone(),
+                            vietnamese: vietnamese.as_str().unwrap().to_string(),
+                            metadata: None,
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+
+        for case in fixture["cases"].as_array().unwrap() {
+            let case_name = case["name"].as_str().unwrap();
+            // The fixture's texts are short; the gate is not what this test is about.
+            let options = Some(LookupIndexOptions {
+                min_text_length: Some(1),
+                enable_indexing: Some(true),
+                use_parallel: Some(false),
+            });
+            let response = build_lookup_index_impl(
+                &TrieCache::new(),
+                case["text"].as_str().unwrap(),
+                &dictionaries,
+                &order,
+                options,
+            );
+            assert!(response.success, "{case_name}: the index must build");
+
+            for lookup in case["lookups"].as_array().unwrap() {
+                let char_position = lookup["charPosition"].as_u64().unwrap() as u32;
+                let category = lookup["category"].as_str().unwrap();
+                let set: Vec<&str> = lookup["dictionarySet"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|name| name.as_str().unwrap())
+                    .collect();
+
+                let at_position: &[_] = match (response.index.get(&char_position), category) {
+                    (None, _) => &[],
+                    (Some(matches), "properNouns") => &matches.proper_nouns,
+                    (Some(matches), "phrases") => &matches.phrases,
+                    (Some(matches), "characters") => &matches.characters,
+                    (Some(_), other) => panic!("{case_name}: the fixture has no `{other}` lookups"),
+                };
+                let mut got: Vec<(String, String)> = at_position
+                    .iter()
+                    .filter(|m| set.contains(&m.dictionary.as_str()))
+                    .map(|m| (m.word.clone(), m.dictionary.clone()))
+                    .collect();
+                got.sort();
+
+                let mut want: Vec<(String, String)> = lookup["expected"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|m| {
+                        (
+                            m["word"].as_str().unwrap().to_string(),
+                            m["dictionary"].as_str().unwrap().to_string(),
+                        )
+                    })
+                    .collect();
+                want.sort();
+
+                assert_eq!(
+                    got, want,
+                    "{case_name}: {category} at char position {char_position} over {set:?}"
+                );
+            }
+        }
     }
 
     // ── Parity with the TS half (ADR-060) ───────────────────────────────────

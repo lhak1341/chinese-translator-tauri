@@ -31,7 +31,7 @@ import { logger } from '../logger.js';
  * CRITICAL - LENGTH-FIRST Selection (Code Review 2026-01-27):
  * ═══════════════════════════════════════════════════════════════════
  * Both Rust (matcher.rs:find_best_pattern_match) and JavaScript
- * (TranslationEngine.js:resolveGlobalConflicts) use LENGTH-FIRST selection:
+ * (ConflictResolution.ts:resolveGlobalConflicts) use LENGTH-FIRST selection:
  *
  * Selection Algorithm:
  * 1. FIRST: Prefer longer matches (better context coverage)

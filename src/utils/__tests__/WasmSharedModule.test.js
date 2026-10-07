@@ -1,13 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const BINARY = new Uint8Array([0, 97, 115, 109]);
+const BINARY = new Uint8Array([0, 97, 115, 109]).buffer;
 
 const initMock = vi.fn();
 const fetchMock = vi.fn();
 const handlers = [];
 
 vi.mock('../../wasm/translation_wasm_core.js', () => ({ default: (...a) => initMock(...a) }));
-vi.mock('../wasm/wasmBinaryCache', () => ({ fetchWasmBinary: (...a) => fetchMock(...a) }));
 vi.mock('../wasm/WasmCascadeRegistry', () => ({
   registerCascadeHandler: (fn) => handlers.push(fn),
 }));
@@ -20,10 +19,20 @@ async function freshLoader() {
 
 beforeEach(() => {
   initMock.mockReset().mockResolvedValue(undefined);
-  fetchMock.mockReset().mockResolvedValue(BINARY);
+  fetchMock.mockReset().mockResolvedValue({ ok: true, arrayBuffer: async () => BINARY });
+  vi.stubGlobal('fetch', fetchMock);
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe('loadSharedWasmModule', () => {
+  it('rejects with the status text, and does not instantiate, when the fetch is not ok', async () => {
+    fetchMock.mockResolvedValue({ ok: false, statusText: 'Not Found' });
+    const { loadSharedWasmModule } = await freshLoader();
+    await expect(loadSharedWasmModule()).rejects.toThrow(/Failed to fetch WASM binary.*Not Found/);
+    expect(initMock).not.toHaveBeenCalled();
+  });
+
   it('instantiates once, from the fetched binary, however many callers race', async () => {
     const { loadSharedWasmModule } = await freshLoader();
     await Promise.all(Array.from({ length: 7 }, () => loadSharedWasmModule()));

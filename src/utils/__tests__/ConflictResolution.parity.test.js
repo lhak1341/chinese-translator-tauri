@@ -1,26 +1,13 @@
 /**
- * Cross-language parity check for Phase 4 conflict resolution against the shared fixture.
- * test-fixtures/conflict-resolution-parity.json is the single source of truth for what BOTH
- * the JS fallback (this file) and Rust's run_conflict_resolution are expected to select. The
- * mirror check lives in wasm-core/src/conflict_resolution.rs's `mod tests::parity`.
- *
- * WASM is never initialized here (the init mock rejects), so every call takes the JS fallback
- * in resolveGlobalConflictsWasm — the production code, not a local reference copy.
+ * Phase 4 conflict resolution against the shared fixture.
+ * test-fixtures/conflict-resolution-parity.json is the spec for what resolveGlobalConflicts
+ * selects. Its Rust twin was deleted 2026-10-07 (ADR-083), so this file is the only reader.
  */
-import { describe, test, expect, vi } from 'vitest';
-
-vi.mock('../../wasm/translation_wasm_core.js', () => ({
-  default: vi.fn().mockRejectedValue(new Error('WASM unavailable in tests')),
-  resolveGlobalConflicts: vi.fn(),
-}));
-vi.mock('../logger', () => ({
-  logger: { warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
-}));
-
-import { resolveGlobalConflictsWasm } from '../wasm/WasmConflictResolution';
+import { describe, test, expect } from 'vitest';
+import { resolveGlobalConflicts } from '../ConflictResolution';
 import fixture from '../../../test-fixtures/conflict-resolution-parity.json';
 
-describe('resolveGlobalConflictsWasm — shared fixture parity (JS fallback)', () => {
+describe('resolveGlobalConflicts — fixture', () => {
   test('fixture is non-empty', () => {
     expect(fixture.cases.length).toBeGreaterThan(0);
   });
@@ -32,9 +19,14 @@ describe('resolveGlobalConflictsWasm — shared fixture parity (JS fallback)', (
     }));
     const snapshot = matches.map((m) => ({ ...m }));
 
-    const result = resolveGlobalConflictsWasm(matches);
+    const result = resolveGlobalConflicts(matches);
 
     expect(result.map((m) => matches.indexOf(m))).toEqual(fixtureCase.selected);
     expect(matches).toEqual(snapshot);
+  });
+
+  test("returns the caller's own match objects, not copies", () => {
+    const m = { startIndex: 0, endIndex: 2, length: 3, type: 'phrase' };
+    expect(resolveGlobalConflicts([m])[0]).toBe(m);
   });
 });

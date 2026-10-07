@@ -27,7 +27,7 @@ const wasmDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../w
  * a wrapper dropping out of the cascade fails here instead of silently shrinking the scan
  * set — a self-deriving list would call that a pass.
  */
-const SHARED_BINARY_WRAPPERS = ['WasmConflictResolution.js', 'WasmPatternProcessor.js'];
+const SHARED_BINARY_WRAPPERS = ['WasmPatternProcessor.js'];
 
 /**
  * Comments are stripped before scanning: several wrappers open with a usage-example block

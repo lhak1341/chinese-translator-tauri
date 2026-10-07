@@ -41,11 +41,8 @@ export const NUMBER_PROCESSING = {
  * Dictionary Lookup Configuration
  */
 export const DICTIONARY_LOOKUP = {
-  // Minimum text length to justify building lookup index
-  // Indexing overhead not worth it for short texts
-  MIN_TEXT_FOR_INDEXING: 50,
-
-  // Minimum text length for character-only Rust lookup index
+  // Minimum text length (characters) for the Rust lookup index. MatchSource checks it before the
+  // IPC call and sends it to Rust, so the two sides gate on one number.
   MIN_TEXT_FOR_RUST_INDEX: 50,
 };
 

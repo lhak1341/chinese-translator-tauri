@@ -20,7 +20,6 @@
 
 pub mod number_processor;
 pub mod pattern_processor;
-pub mod conflict_resolution;
 
 // Re-export WASM wrappers for JavaScript
 pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;

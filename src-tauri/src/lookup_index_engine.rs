@@ -151,7 +151,7 @@ impl DictionaryType {
         } else {
             // Unknown ids (and the string-only tables `conversion`/`punctuation`) land in
             // Phrases. Harmless only because every JS phase filters indexed matches by its own
-            // `dictionarySet` (TranslationEngine.getCandidateMatchesAtPosition) — do not drop
+            // dictionary set (the index adapter in `src/utils/dictionary/MatchSource.ts`) — do not drop
             // that filter. The JS-side classifier (DictionaryIdClassifier.kindOf) calls the
             // same ids `lookupTable` instead; the two answer different questions.
             DictionaryType::Phrases
@@ -167,10 +167,15 @@ pub struct IndexBuildOptions {
     pub use_parallel: bool,
 }
 
+/// The shortest text (in code points) the index is built for when the caller sends no
+/// `minTextLength`. The app always sends one (`DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX`, which
+/// also gates the IPC call), so this is only the default for callers that do not.
+pub const DEFAULT_MIN_TEXT_LENGTH: usize = 50;
+
 impl Default for IndexBuildOptions {
     fn default() -> Self {
         Self {
-            min_text_length: 50,
+            min_text_length: DEFAULT_MIN_TEXT_LENGTH,
             enable_indexing: true,
             use_parallel: true,
         }

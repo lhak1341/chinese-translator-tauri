@@ -2,7 +2,7 @@
  * Flattens a raw dictionary JSON object directly into the shape the Rust lookup-index
  * builder expects: `{chinese, vietnamese, metadata}[]`.
  *
- * Exists so DictionaryManager can hand LookupIndexBuilder entries computed once at
+ * Exists so DictionaryManager can hand MatchSource entries computed once at
  * dictionary-load time, instead of the index build walking the already-built
  * DictionaryTrie back into a flat array via DFS on every translate call. Reads the same
  * raw JSON that trie construction reads — never touches a DictionaryTrie — so there is

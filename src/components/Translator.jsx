@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
-import { TranslationInputValidator } from '../utils/TranslationInputValidator';
+import { validateTranslationInput } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { createTranslationRunner, translationTimeoutMs } from '../utils/TranslationRunner';
 import { TOAST_DURATIONS } from '../constants/toastConfig';
@@ -556,7 +556,7 @@ const Translator = ({ isActive }) => {
   const translateText = useCallback(
     async (text) => {
       // CRITICAL FIX: Validate input text to prevent memory exhaustion and security issues
-      const validationResult = TranslationInputValidator.validateInput(text);
+      const validationResult = validateTranslationInput(text);
       if (!validationResult.valid) {
         toast.error(validationResult.error, { duration: UI_TIMEOUTS.TOAST_DURATION_ERROR });
         logger.warn(`Translation rejected: ${validationResult.error}`);

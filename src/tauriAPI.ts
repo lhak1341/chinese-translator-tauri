@@ -406,14 +406,17 @@ const tauriAPI = {
   buildLookupIndex: async (
     text: string,
     dictionaries: LookupIndexDictionary[],
-    dictionaryOrder: string[]
+    dictionaryOrder: string[],
+    minTextLength: number
   ): Promise<LookupIndexResult> => {
     try {
       const result = await invoke<LookupIndexResult>(CMD.BUILD_LOOKUP_INDEX, {
         text,
         dictionaries,
         dictionaryOrder,
-        // `options` is left out: Rust's own defaults (50 chars, indexing and parallelism on) apply.
+        // Indexing and parallelism stay on (Rust's defaults); only the length gate is sent, so
+        // MatchSource's check and Rust's use one number.
+        options: { minTextLength },
       });
       return result;
     } catch (error) {

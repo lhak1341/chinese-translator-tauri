@@ -217,20 +217,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
 
       expect(disposeSpy).toHaveBeenCalled();
     });
-
-    it('should handle cache without dispose() method (backward compatibility)', () => {
-      const manager = new DictionaryManager();
-
-      // Mock old cache without dispose method
-      const oldCache = {
-        clear: vi.fn(),
-      };
-      manager.cache = oldCache;
-
-      // Should fall back to clear()
-      expect(() => manager.dispose()).not.toThrow();
-      expect(oldCache.clear).toHaveBeenCalled();
-    });
   });
 
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {

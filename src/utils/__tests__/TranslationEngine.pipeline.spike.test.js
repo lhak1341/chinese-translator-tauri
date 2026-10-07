@@ -6,6 +6,7 @@
  */
 import { describe, test, expect, beforeAll } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
+import { runSinglePass } from '../../test/runSinglePass';
 
 const MOCK_DICTS = {
   characters: { 在: 'ở', 里: 'bên trong', 不: 'không', 知: 'biết', 道: 'đường', 你: 'bạn' },
@@ -40,14 +41,14 @@ describe('TranslationEngine.translateSinglePass — jsdom spike', () => {
 
   test('phase 5 — single character falls back to characters dict', async () => {
     const tokens = [makeToken('在', 0)];
-    await engine.translateSinglePass(tokens, {});
+    await runSinglePass(engine, tokens, {});
     expect(tokens[0].translationSource).toBe('characters');
     expect(tokens[0].translated).toBe('ở');
   });
 
   test('phase 4 — 3-char phrase consumed correctly', async () => {
     const tokens = [makeToken('不', 0), makeToken('知', 1), makeToken('道', 2)];
-    await engine.translateSinglePass(tokens, {});
+    await runSinglePass(engine, tokens, {});
     expect(tokens[0].translationSource).toBe('phrases');
     expect(tokens[0].translated).toBe('không biết');
     expect(tokens[1].translationSource).toBe('phrases_consumed');
@@ -59,7 +60,7 @@ describe('TranslationEngine.translateSinglePass — jsdom spike', () => {
   test('phase 4 beats phase 5 — phrase wins over per-char fallback', async () => {
     // '不知道' should be 'không biết' (phrase), not 'không'+'biết'+'đường' (chars)
     const tokens = [makeToken('不', 0), makeToken('知', 1), makeToken('道', 2)];
-    await engine.translateSinglePass(tokens, {});
+    await runSinglePass(engine, tokens, {});
     expect(tokens[0].translated).toBe('không biết');
     expect(tokens[0].translationSource).toBe('phrases');
   });

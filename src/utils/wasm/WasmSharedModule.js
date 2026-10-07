@@ -2,10 +2,12 @@
 /**
  * The one place the shared WASM binary is loaded.
  *
- * Both wrappers import the same `translation_wasm_core.js`, whose generated `init` does not
+ * The wrappers import the same `translation_wasm_core.js`, whose generated `init` does not
  * guard against concurrent first calls: every caller that arrives before the first one finishes
  * instantiates the module again, and the last to finish overwrites the module's `wasm` binding.
- * Every wrapper goes through `loadSharedWasmModule()`: fetch, then instantiate once.
+ * Every wrapper goes through `loadSharedWasmModule()`: fetch, then instantiate once. That is also
+ * why nothing caches the fetched binary: one load succeeds per session, and a failed one has
+ * nothing to cache.
  *
  * It owns no retry or cooldown. Each wrapper's `WasmProcessorLifecycle` already retries its whole
  * init sequence, calling this each time, so a failed load is simply tried again. A panic retires
@@ -14,7 +16,6 @@
  * See: docs/adr/ADR-009-wasm-processor-lifecycle.md, src/utils/wasm/CLAUDE.md
  */
 
-import { fetchWasmBinary } from './wasmBinaryCache';
 import { registerCascadeHandler } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
@@ -32,7 +33,11 @@ registerCascadeHandler(() => {
 });
 
 async function load() {
-  const wasmBinary = await fetchWasmBinary(_WASM_BINARY_URL);
+  const response = await fetch(_WASM_BINARY_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch WASM binary ${_WASM_BINARY_URL.href}: ${response.statusText}`);
+  }
+  const wasmBinary = await response.arrayBuffer();
 
   const wasmModule = await import('../../wasm/translation_wasm_core.js');
   await wasmModule.default(wasmBinary);

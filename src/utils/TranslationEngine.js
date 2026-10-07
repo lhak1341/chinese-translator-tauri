@@ -49,8 +49,8 @@
  *
  * 7. Conflict Resolution & Segment Helpers                   [COUPLED]
  *    - translateWithSegments()
- *    - createOptimalPhraseGroups() — Phase 4, physically here
- *    - resolveGlobalConflicts() — Phase 4 conflict resolution
+ *    - createOptimalPhraseGroups() — Phase 4, physically here (its conflict resolution is
+ *      the pure resolveGlobalConflicts() in ConflictResolution.ts)
  *
  * 8. Phase 1 - Pattern Processing                            [COUPLED]
  *    - applyPatterns()
@@ -137,7 +137,6 @@ import {
 } from './dictionary/FictionDictionaryFilter';
 import {
   getTokenSpanForText,
-  reconstructTextFromIndex,
   getTextFromTokens,
   getTextPositionForTokenIndex,
 } from './TokenHelpers.js';
@@ -159,11 +158,10 @@ import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
-import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
-import { buildLookupIndexOrFallback } from './dictionary/LookupIndexBuilder';
+import { openMatchSource } from './dictionary/MatchSource';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
-// WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
-import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
+// Phase 4 conflict resolution — pure JS (the WASM twin was slower, ADR-083)
+import { resolveGlobalConflicts } from './ConflictResolution';
 
 import {
   getSourcePriority as getSourcePriorityFn,
@@ -649,12 +647,8 @@ export class TranslationEngine {
       }
 
       // Load dictionaries into trie structures
-      // CRITICAL FIX: Deep copy options to prevent mutation leakage
       await this.dictionaryManager.loadDictionaries(dictionaries, {
         ...options,
-        // Deep copy complex nested objects to prevent reference sharing
-        lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-        segments: options.segments ? [...options.segments] : undefined,
         activeProperNouns: this.activeProperNouns,
       });
 
@@ -707,19 +701,17 @@ export class TranslationEngine {
    * Performs character-by-character translation without applying patterns, proper nouns,
    * numbers, or phrases. This mode is useful for understanding raw character meanings and
    * is significantly faster than full 5-phase translation. Automatically uses Rust lookup
-   * index for texts over 500 characters (6-50x speedup).
+   * index for texts of 50 or more characters (6-50x speedup).
    *
    * Translation process:
    * 1. Tokenize input text into individual characters
-   * 2. Build Rust-powered lookup index for large texts (>500 chars, optional)
+   * 2. Build Rust-powered lookup index for texts of 50+ chars (the JS trie answers shorter ones)
    * 3. Lookup each character in character dictionary
    * 4. Generate semantic arrays for clickable highlighting
    * 5. Assemble final translated text with position tracking
    *
    * @param {string} text - Input Chinese text to translate
    * @param {Object} [options={}] - Translation options
-   * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index (for reuse across calls)
-   * @param {boolean} [options.useSharedLookupIndex=true] - Enable Rust lookup index for texts >500 chars
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    *
    * @returns {Promise<Object>} Translation result
@@ -738,10 +730,8 @@ export class TranslationEngine {
    * console.log(result.translatedText); // "bạn tốt thế giới"
    *
    * @example
-   * // With Rust lookup index for large texts
-   * const result = await engine.translateWithCharactersOnly(longText, {
-   *   useSharedLookupIndex: true // Auto-enabled for texts >500 chars
-   * });
+   * // Texts of 50+ chars use the Rust lookup index automatically
+   * const result = await engine.translateWithCharactersOnly(longText);
    *
    * @example
    * // With abort signal
@@ -753,11 +743,11 @@ export class TranslationEngine {
    *
    * @see translateWithSegments - Full 5-phase translation (patterns, proper nouns, numbers, phrases, characters)
    * @see translateSinglePass - Core 5-phase translation pipeline
-   * @see buildLookupIndexOrFallback - Rust-powered whole-text lookup index (LookupIndexBuilder.ts)
+   * @see openMatchSource - Rust-powered whole-text lookup index or the JS trie (MatchSource.ts)
    *
    * @performance
    * - Small texts (<500 chars): ~10ms for 100 characters
-   * - Large texts (>500 chars with Rust index): 6-50x faster than sequential lookup
+   * - Large texts (50+ chars with Rust index): 6-50x faster than sequential lookup
    * - 27,000+ dictionary entries loaded in <100ms
    */
   async translateWithCharactersOnly(text, options = {}) {
@@ -783,9 +773,9 @@ export class TranslationEngine {
 
     logger.debug('[char-engine]', `Starting character-only translation: ${text.length} chars`);
 
-    // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
+    // OPTIMIZATION: Rust-powered lookup index for character-only translations (HUGE speedup)
     // Character-only mode benefits even more from pre-computed lookups!
-    await buildLookupIndexOrFallback(text, options, {
+    const matchSource = await openMatchSource(text, {
       dictionaryManager: this.dictionaryManager,
       logWarn: (msg) => logger.warn(msg),
     });
@@ -809,7 +799,7 @@ export class TranslationEngine {
       // Character-only mode should only apply Phase 5 (character-level translation)
 
       // Only apply Phase 5: Character-level translation to all tokens
-      await this.processCharacterOnlyTokens(tokens, options);
+      await this.processCharacterOnlyTokens(tokens, options, matchSource);
 
       // Build result text and semantic arrays from tokens
       for (let i = 0; i < tokens.length; i++) {
@@ -951,13 +941,17 @@ export class TranslationEngine {
    * Stamps tokens only: it passes `recordMatches: false` to applyMatchToTokens, so it adds
    * nothing to `this.semanticArrayBuilder` or `this.translationSegments`. The caller
    * (translateWithCharactersOnly) builds its own arrays from the stamped tokens.
+   *
+   * @param {Array} tokens
+   * @param {Object} options
+   * @param {import('./dictionary/MatchSource').MatchSource} matchSource - Answers the character lookups
    */
-  async processCharacterOnlyTokens(tokens, options = {}) {
+  async processCharacterOnlyTokens(tokens, options, matchSource) {
     const stampOptions = { ...options, recordMatches: false };
-    const characterDictionary = this.dictionaryManager.getDictionary('characters');
+    const characterMatchesAt = matchSource.forPhase(['characters']);
     const punctuationDictionary = this.dictionaryManager.getDictionary('punctuation');
 
-    if (!characterDictionary) {
+    if (!this.dictionaryManager.getDictionary('characters')) {
       // MEDIUM-8 FIX: Standardize error logging with logger.error
       logger.error('🚨 Character-only processing - No character dictionary found');
       return;
@@ -977,20 +971,8 @@ export class TranslationEngine {
 
       // Handle different token types - ensure ALL tokens get processed
       if (token.type === 'chinese_char') {
-        // OPTIMIZATION: Use shared lookup index for character dictionary when available
-        let match = null;
-        if (options.useSharedLookupIndex && options.lookupIndex) {
-          const textPosition = getTextPositionForTokenIndex(tokens, i);
-          const indexedMatches = getIndexedMatches(options.lookupIndex, textPosition, 'characters');
-
-          // Take the first (longest) match for characters
-          if (indexedMatches.length > 0) {
-            match = indexedMatches[0];
-          }
-        } else {
-          // Fallback: Traditional character dictionary lookup
-          match = this.findLongestMatchAtPosition(tokens, i, characterDictionary);
-        }
+        // The first match is the longest one
+        const match = characterMatchesAt(tokens, i, 'characters')[0];
 
         if (match) {
           const matchWithDictName = {
@@ -1037,7 +1019,7 @@ export class TranslationEngine {
   // ============================================================================
   // Purpose: translateWithSegments entry point, dictionary match conflict resolution
   // Dependencies: TextChunker, progressive/chunked translation paths
-  // Extraction Potential: NONE - resolveGlobalConflicts is Phase 4's; see src/utils/CLAUDE.md
+  // Extraction Potential: NONE - Phase 4's conflict resolution is already the pure ConflictResolution.ts; see src/utils/CLAUDE.md
   // Critical: translateWithSegments resets translationSegments per call
   // ============================================================================
 
@@ -1104,7 +1086,7 @@ export class TranslationEngine {
    * @performance
    * - Progressive mode: Better for long texts (>5000 chars), enables streaming UI updates
    * - Chunked mode: Better for accuracy and potential parallelization
-   * - Automatically builds Rust lookup index for texts >500 chars (6-50x speedup)
+   * - Automatically builds Rust lookup index for texts of 50+ chars (6-50x speedup)
    *
    * @critical
    * This method resets translationSegments for each new translation.
@@ -1242,33 +1224,6 @@ export class TranslationEngine {
     }
   }
 
-  /**
-   * Global conflict resolution using longest-match-first with smart prioritization (Phase 4 — phrase pass).
-   *
-   * Phrases (type priority 1) beat patterns (type priority 2) at equal length because by Phase 4
-   * all Phase 1 structural-pattern tokens are already consumed; any remaining 'pattern' entry is residual
-   * and should yield to a phrase of equal length. (A Phase 2 twin with the inverse order,
-   * resolveMatchConflicts, was reachable only from dead code and was deleted 2026-09-26.)
-   *
-   * NOTE: find_best_pattern_match() in matcher.rs is NOT a Rust counterpart of this function —
-   * that selects the best pattern at a single position (Phase 1). This function runs greedy
-   * interval scheduling across ALL positions at once (Phase 4).
-   * Parity: test-fixtures/conflict-resolution-parity.json, run by wasm-core/src/conflict_resolution.rs
-   * (mod tests::parity) and src/utils/__tests__/ConflictResolution.parity.test.js
-   * Match length indicates better context coverage and prevents substring collisions
-   *
-   * @param {Array} allMatches - All potential matches from all positions
-   * @param {Token[]} tokens - Array of tokens
-   * @returns {Array} Non-overlapping optimal matches
-   */
-  resolveGlobalConflicts(allMatches, _tokens) {
-    // Delegate sort + greedy selection to WASM (flat Uint32Array boundary).
-    // Falls back to JS automatically when WASM is not yet initialized.
-    const selectedMatches = resolveGlobalConflictsWasm(allMatches);
-
-    return selectedMatches;
-  }
-
   // ============================================================================
   // SECTION 8: PHASE 1 - PATTERN PROCESSING
   // ============================================================================
@@ -1357,8 +1312,7 @@ export class TranslationEngine {
         }
 
         // The processor reads exactly these two keys (to build its variable cache). Passing the
-        // translation options through, with copies of `lookupIndex` and `segments`, copied a Map
-        // and an array it never looked at.
+        // translation options through copied options it never looked at.
         const enhancedOptions = {
           activeProperNouns: this.activeProperNouns,
           dictionaryManager: this.dictionaryManager,
@@ -1658,7 +1612,7 @@ export class TranslationEngine {
     }
 
     // Resolve conflicts and apply remaining phrases
-    const resolvedMatches = this.resolveGlobalConflicts(allPotentialMatches, tokens);
+    const resolvedMatches = resolveGlobalConflicts(allPotentialMatches);
 
     for (const resolvedMatch of resolvedMatches) {
       if (resolvedMatch.type === 'phrase') {
@@ -1738,6 +1692,7 @@ export class TranslationEngine {
    * @param {Object} [options={}] - Translation options
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries to search
    * @param {string[]} [options.dictionaryOrder] - Dictionary search order (fallback)
+   * @param {import('./dictionary/MatchSource').MatchSource} matchSource - Answers the match lookups
    *
    * @returns {Promise<void>} Modifies tokens in-place
    *
@@ -1745,7 +1700,7 @@ export class TranslationEngine {
    * // Called internally by translateSinglePass (Phase 2)
    * await this.applyDictionaryTranslation(tokens, {
    *   activeProperNouns: ['properNouns-Novel1.json']
-   * });
+   * }, matchSource);
    * // Tokens with proper noun matches now have:
    * // - translated: "Tiêu Viêm" (character name)
    * // - translationSource: "properNoun"
@@ -1768,61 +1723,17 @@ export class TranslationEngine {
    * Cannot be extracted because proper-noun-consumed tokens affect Phase 4 and 5.
    * Token state coordination requires synchronous phase execution.
    */
-  /**
-   * Resolve candidate dictionary matches at a single token position, hiding the
-   * shared-lookup-index-vs-fallback branch.
-   * Shared by applyDictionaryTranslation's main scan and its lookahead-defer scan —
-   * both need identical candidate resolution, just at a different position.
-   * @param {Array} tokens
-   * @param {number} pos
-   * @param {string} category
-   * @param {Set<string>} dictionarySet
-   * @param {Array<string>} dictionaryOrder
-   * @param {boolean} useSharedLookupIndex
-   * @param {Object} options
-   * @returns {Array}
-   */
-  getCandidateMatchesAtPosition(
-    tokens,
-    pos,
-    category,
-    dictionarySet,
-    dictionaryOrder,
-    useSharedLookupIndex,
-    options
-  ) {
-    let matches;
-    if (useSharedLookupIndex) {
-      const textPosition = getTextPositionForTokenIndex(tokens, pos);
-      matches = getIndexedMatches(options.lookupIndex, textPosition, category);
-      matches = matches.filter((match) => dictionarySet.has(match.dictionary));
-    } else {
-      // MEDIUM FIX: Validate token index before reconstruction
-      if (pos >= tokens.length) {
-        logger.error(`⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`);
-        matches = [];
-      } else {
-        const remainingText = reconstructTextFromIndex(tokens, pos);
-        matches = this.dictionaryManager.findAllMatches(remainingText, 0, dictionaryOrder);
-      }
-    }
-
-    return matches;
-  }
-
-  async applyDictionaryTranslation(tokens, options) {
+  async applyDictionaryTranslation(tokens, options, matchSource) {
     const dictionaryOrder =
-      options.dictionaryOrder !== undefined
-        ? options.dictionaryOrder
-        : this.dictionaryManager.getDefaultSearchOrder();
+      options.dictionaryOrder ?? this.dictionaryManager.getDefaultSearchOrder();
     const phase = options.phase || 'general';
-    const useSharedLookupIndex = options.useSharedLookupIndex && options.lookupIndex;
 
     // Hot path optimization: Only log if debug level is sufficient
 
     try {
-      // OPTIMIZATION: Create dictionary Set once outside loop (hot path optimization)
-      const dictionarySet = new Set(dictionaryOrder);
+      // The match lookup for this phase's dictionaries, shared by the main scan and the
+      // lookahead-defer scan below. It answers from the Rust index or the JS trie.
+      const matchesAt = matchSource.forPhase(dictionaryOrder);
 
       // CRITICAL FIX: Track processed text ranges for O(n) conflict detection
       // Instead of checking all tokens (O(n²)), we maintain ranges of processed positions
@@ -1882,15 +1793,7 @@ export class TranslationEngine {
             characters: 'characters',
             general: 'phrases',
           }[phase] || 'phrases';
-        const filteredMatches = this.getCandidateMatchesAtPosition(
-          tokens,
-          i,
-          category,
-          dictionarySet,
-          dictionaryOrder,
-          useSharedLookupIndex,
-          options
-        );
+        const filteredMatches = matchesAt(tokens, i, category);
 
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
@@ -1926,15 +1829,7 @@ export class TranslationEngine {
                 (tokens[j].translationSource && !tokens[j].isPatternPartialReset)
               )
                 continue;
-              const jMatches = this.getCandidateMatchesAtPosition(
-                tokens,
-                j,
-                category,
-                dictionarySet,
-                dictionaryOrder,
-                useSharedLookupIndex,
-                options
-              );
+              const jMatches = matchesAt(tokens, j, category);
               if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
               }
@@ -2778,9 +2673,6 @@ export class TranslationEngine {
           // Each chunk runs in parallel - shared nested objects would cause race conditions
           const chunkOptions = {
             ...options,
-            // Deep copy complex nested objects to prevent race conditions
-            lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-            segments: options.segments ? [...options.segments] : undefined,
             useChunking: false,
             // Apply global token offset so addUnit entries land at correct positions in the
             // shared semantic builder. Chunks run in parallel on the shared builder — this
@@ -3037,7 +2929,6 @@ export class TranslationEngine {
    * @param {string} options.onProgress.callback.translatedText - Cumulative translated text
    * @param {number} options.onProgress.callback.batch - Current batch number
    * @param {number} options.onProgress.callback.totalBatches - Total number of batches
-   * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    *
    * @returns {Promise<Object>} Translation result
@@ -3337,7 +3228,7 @@ export class TranslationEngine {
    *
    * Key features:
    * - Full 5-phase translation pipeline
-   * - Automatic Rust lookup index for texts >500 chars (6-50x speedup)
+   * - Automatic Rust lookup index for texts of 50+ chars (6-50x speedup)
    * - Token consumption tracking to prevent double-processing
    * - Semantic array generation for clickable highlighting
    *
@@ -3352,8 +3243,6 @@ export class TranslationEngine {
    * @param {Object} [options={}] - Translation options
    * @param {boolean} [options.useChunking=true] - Enable chunk-based processing (for standalone calls)
    * @param {boolean} [options.isParallelChunk=false] - Internal flag for parallel chunk processing
-   * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index
-   * @param {boolean} [options.useSharedLookupIndex=true] - Enable Rust lookup index for texts >500 chars
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
    *
@@ -3369,7 +3258,7 @@ export class TranslationEngine {
    *
    * @performance
    * - Small texts (<500 chars): ~50-100ms
-   * - Large texts (>500 chars with Rust index): 6-50x faster
+   * - Large texts (50+ chars with Rust index): 6-50x faster
    * - Automatic optimization selection based on text length
    *
    * @critical
@@ -3402,9 +3291,9 @@ export class TranslationEngine {
         this.semanticArrayBuilder.reset();
       }
 
-      // OPTIMIZATION: Build Rust-powered lookup index for large texts (6-50x faster)
-      // Only build if not already provided and text is large enough
-      await buildLookupIndexOrFallback(text, options, {
+      // OPTIMIZATION: Rust-powered lookup index for large texts (6-50x faster); the match source
+      // falls back to the JS trie for short text or when Rust is unavailable
+      const matchSource = await openMatchSource(text, {
         dictionaryManager: this.dictionaryManager,
         logWarn: (msg) => logger.warn(msg),
       });
@@ -3426,7 +3315,7 @@ export class TranslationEngine {
       }
 
       // Use optimized single-pass processing
-      await this.translateSinglePass(tokens, options);
+      await this.translateSinglePass(tokens, options, matchSource);
 
       // Phase 7: Post-processing and cleanup (simplified for direct mode)
       const result = this.postProcess(tokens, options);
@@ -3499,7 +3388,6 @@ export class TranslationEngine {
    * @param {string|null} tokens[].translated - Translated text (null = not yet translated)
    * @param {string|null} tokens[].translationSource - Source of translation or consumption
    * @param {Object} [options={}] - Translation options
-   * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index for Phase 5
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries for Phase 2
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    *
@@ -3518,7 +3406,7 @@ export class TranslationEngine {
    *   translated: null,
    *   translationSource: null
    * }));
-   * const translated = await engine.translateSinglePass(tokens, options);
+   * const translated = await engine.translateSinglePass(tokens, options, matchSource);
    *
    * @see translateDirectly - Calls this method after tokenization
    * @see applyPatterns - Phase 1 implementation
@@ -3555,7 +3443,7 @@ export class TranslationEngine {
    * Each phase must run to completion before next phase starts.
    * Token state is shared - concurrent execution would corrupt results.
    */
-  async translateSinglePass(tokens, options = {}) {
+  async translateSinglePass(tokens, options, matchSource) {
     // CODE REVIEW FIX 2026-02-01 (IMPORTANT-2): Early document size validation
     // Validate token count before processing to prevent integer overflow in position calculations
     // Position mappings multiply segment indices by character positions, which can exceed
@@ -3751,11 +3639,15 @@ export class TranslationEngine {
         validatePhaseOrder('properNouns');
         await withTimeout(
           this.phaseProfiler.profile('properNouns', async () => {
-            await this.applyDictionaryTranslation(tokens, {
-              ...options,
-              dictionaryOrder: [...this.activeProperNouns],
-              phase: 'properNouns',
-            });
+            await this.applyDictionaryTranslation(
+              tokens,
+              {
+                ...options,
+                dictionaryOrder: [...this.activeProperNouns],
+                phase: 'properNouns',
+              },
+              matchSource
+            );
           }),
           PHASE_TIMEOUTS.properNouns,
           'properNouns'

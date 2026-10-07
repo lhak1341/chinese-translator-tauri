@@ -50,13 +50,9 @@
 
 import toast from '../toast';
 import { logger } from '../logger';
-import { fetchWasmBinary } from './wasmBinaryCache';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 import { loadSharedWasmModule } from './WasmSharedModule';
-
-// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
-const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
 
 const lifecycle = new WasmProcessorLifecycle({
   name: 'PatternProcessor',
@@ -276,19 +272,13 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
   return initializeWasmPatternProcessor(patternsDict);
 }
 
-// Pre-warm WASM module and binary cache at import time so the first
-// initializeWasmPatternProcessor call (which requires patternsDict) doesn't
-// block on network I/O during the critical translation path.
-// Does NOT call wasmModule.default() or create WasmPatternProcessor instances —
-// those steps require patternsDict and happen in initializeWasmPatternProcessor.
+// Start loading the shared WASM module at import time, so the first
+// initializeWasmPatternProcessor call (which has to wait for patternsDict) doesn't
+// block on network I/O during the critical translation path. loadSharedWasmModule() is safe to
+// call concurrently and a failed load is simply tried again by the lifecycle's own init;
+// creating the WasmPatternProcessor instance still waits for patternsDict.
 if (import.meta.env.MODE !== 'test') {
-  (async () => {
-    try {
-      await import('../../wasm/translation_wasm_core.js'); // warms ES module cache
-      await fetchWasmBinary(_WASM_BINARY_URL); // warms binary cache
-      logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
-    } catch (err) {
-      logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);
-    }
-  })();
+  loadSharedWasmModule()
+    .then(() => logger.debug('🔥 WASM PatternProcessor module pre-warmed'))
+    .catch((err) => logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err));
 }

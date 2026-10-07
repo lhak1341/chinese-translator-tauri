@@ -1,6 +1,6 @@
 # ADR-079: Delete the WASM Assembler, Chunker and Tokenizer Tiers
 
-**Status:** Decided
+**Status:** Decided (amended by ADR-083: conflict resolution was deleted too)
 **Date:** 2026-10-06
 
 ## Context

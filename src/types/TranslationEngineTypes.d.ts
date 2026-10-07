@@ -202,12 +202,6 @@ export interface TranslationOptions {
   /** Disable translation result caching */
   disableCache?: boolean;
 
-  /** Use shared lookup index for optimization */
-  useSharedLookupIndex?: boolean;
-
-  /** Pre-computed lookup index for character dictionary */
-  lookupIndex?: any;
-
   /** Custom dictionary priorities override */
   customPriorities?: Partial<DictionaryPriorities>;
 

@@ -26,8 +26,8 @@ describe('engine pattern settings', () => {
 
 describe('applyPatterns hands each processor only the options it reads', () => {
   const tokens = [{ type: 'chinese_char', value: '说', translated: null }];
-  // The translation options carry a Map and an array no pattern processor reads.
-  const translationOptions = () => ({ lookupIndex: new Map([['k', 1]]), segments: [1, 2] });
+  // The translation options carry an array and a callback no pattern processor reads.
+  const translationOptions = () => ({ segments: [1, 2], onProgress: () => {} });
 
   test('WASM path: the processor is built from the patterns alone and gets two option keys', async () => {
     const engine = bareEngine();

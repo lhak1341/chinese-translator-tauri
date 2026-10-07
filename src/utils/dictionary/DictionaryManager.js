@@ -225,12 +225,10 @@ export class DictionaryManager {
    */
   _releaseDictionaries() {
     for (const [name, trie] of this.dictionaries.entries()) {
-      if (trie && typeof trie.dispose === 'function') {
-        try {
-          trie.dispose(); // Let trie clean up its internal structures
-        } catch (error) {
-          logger.error(`Error disposing dictionary ${name}:`, error);
-        }
+      try {
+        trie.dispose(); // Let trie clean up its internal structures
+      } catch (error) {
+        logger.error(`Error disposing dictionary ${name}:`, error);
       }
     }
     this.dictionaries.clear();
@@ -264,12 +262,7 @@ export class DictionaryManager {
 
     // Dispose cache
     if (this.cache) {
-      // CODE REVIEW FIX (MEDIUM-1): Use dispose() method for proper cleanup
-      if (typeof this.cache.dispose === 'function') {
-        this.cache.dispose();
-      } else {
-        this.cache.clear(); // Fallback for older implementations
-      }
+      this.cache.dispose();
       this.cache = null;
     }
 

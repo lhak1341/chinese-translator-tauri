@@ -1,10 +1,11 @@
 // @ts-check
 /**
- * Shared cascade-retire registry for the 7 WASM wrappers that share one binary.
+ * Shared cascade-retire registry for everything that holds the one WASM binary: the
+ * wrapper(s) and the shared loader (`WasmSharedModule.js`).
  *
- * Any WASM panic permanently corrupts the shared dlmalloc allocator. Each wrapper
+ * Any WASM panic permanently corrupts the shared dlmalloc allocator. Each holder
  * registers a retire callback here at module load time; when any wrapper's catch
- * block fires, it calls fireCascadeRetire() to retire all wrappers atomically.
+ * block fires, it calls fireCascadeRetire() to retire all of them atomically.
  *
  * This file has NO imports from any wrapper so it can be imported by all wrappers
  * without creating circular dependencies.
@@ -15,7 +16,7 @@ const _handlers = [];
 
 /**
  * Register a callback that retires this wrapper when any sibling WASM panic fires.
- * Called once at module load time by each of the 7 shared-binary wrappers.
+ * Called once at module load time by each holder of the shared binary.
  * @param {() => void} fn
  */
 export function registerCascadeHandler(fn) {

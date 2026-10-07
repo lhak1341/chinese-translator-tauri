@@ -12,20 +12,10 @@
  */
 import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
+import { runSinglePass } from '../../test/runSinglePass';
 import { isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 
 vi.mock('../../wasm/translation_wasm_core.js', async (importOriginal) => await importOriginal());
-vi.mock('../wasm/wasmBinaryCache', async () => {
-  const fs = await import('fs');
-  return {
-    fetchWasmBinary: async () => {
-      const bytes = fs.readFileSync('src/wasm/translation_wasm_core_bg.wasm');
-      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    },
-    clearWasmBinaryCache() {},
-    getWasmBinaryCacheStats: () => ({}),
-  };
-});
 vi.mock('../wasm/WasmSharedModule', async () => {
   const core = await import('../../wasm/translation_wasm_core.js');
   const fs = await import('fs');
@@ -81,7 +71,7 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
       start: i,
       end: i + 1,
     }));
-    await engine.translateSinglePass(tokens, {});
+    await runSinglePass(engine, tokens, {});
 
     const [leader, ...followers] = tokens;
     expect(leader.translated).toBe('những bạn bè này');
