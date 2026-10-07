@@ -230,9 +230,6 @@ import {
 
 // PatternProcessorResult and PatternProcessorAdapter — canonical types in src/types/PatternProcessingTypes.d.ts
 
-// WASM Number Processing Thresholds moved to TranslationConstants.js
-// Import via: import { WASM_NUMBER_THRESHOLDS } from '../constants/TranslationConstants.js';
-
 // ============================================================================
 // SECTION 2: CORE ENGINE CLASS - CONSTRUCTOR & INITIALIZATION
 // ============================================================================

@@ -2,8 +2,7 @@
  * Translation Engine Type Definitions
  *
  * Comprehensive type definitions for TranslationEngine.js and Translator.jsx
- * covering engine configuration, translation options, progress tracking, and
- * performance monitoring.
+ * covering engine configuration, translation options and progress tracking.
  *
  * Part of Phase 6: JSDoc Integration & Extended Type Definitions
  *
@@ -307,170 +306,16 @@ export interface CharacterOnlyResult {
 }
 
 // ============================================================================
-// Performance Monitoring
-// ============================================================================
-
-/**
- * Engine performance statistics
- */
-export interface EngineStats {
-  /** Total translations performed */
-  totalTranslations: number;
-  /** Average translation time in milliseconds */
-  averageTime: number;
-  /** Fastest translation time */
-  minTime: number;
-  /** Slowest translation time */
-  maxTime: number;
-  /** Cache statistics */
-  cacheStats?: {
-    hits: number;
-    misses: number;
-    hitRate: number;
-    size: number;
-  };
-  /** Dictionary statistics */
-  dictionaryStats?: {
-    [dictionaryName: string]: {
-      entries: number;
-      lookups: number;
-      hitRate: number;
-    };
-  };
-  /** Memory statistics */
-  memoryStats?: {
-    currentUsage: number;
-    peakUsage: number;
-    averageUsage: number;
-  };
-}
-
-/**
- * Performance statistics for UI display
- */
-export interface PerformanceStats {
-  /** Translation throughput in tokens/second */
-  tokensPerSecond: number;
-  /** Average translation time in milliseconds */
-  averageTranslationTime: number;
-  /** Cache hit rate percentage (0-100) */
-  cacheHitRate: number;
-  /** Memory usage in MB */
-  memoryUsage: number;
-  /** WASM acceleration enabled */
-  wasmEnabled: boolean;
-  /** Worker parallelization enabled */
-  workersEnabled: boolean;
-}
-
-// ============================================================================
-// UI and Interaction Types
-// ============================================================================
-
-/**
- * Text size categories for virtualization thresholds
- */
-export type TextSizeCategory = 'small' | 'medium' | 'large' | 'huge';
-
-/**
- * Virtualization threshold configuration
- */
-export interface VirtualizationThresholds {
-  /** Threshold for huge text (number of segments) */
-  huge: number;
-  /** Threshold for large text (number of segments) */
-  large: number;
-  /** Threshold for medium text (number of segments) */
-  medium: number;
-}
-
-/**
- * Highlighting state for interactive text
- */
-export interface HighlightingState {
-  /** Highlighted unit index in original text */
-  unitIndex: number;
-  /** Highlighted unit index in translation text */
-  translationUnitIndex: number;
-  /** Highlighted unit index in character-only text */
-  characterOnlyUnitIndex: number;
-  /** Whether the click originated from character-only view */
-  isCharacterOnlyClick: boolean;
-}
-
-/**
- * Highlighting reducer actions
- */
-export type HighlightingAction =
-  | { type: 'HIGHLIGHT_ORIGINAL'; unitIndex: number }
-  | { type: 'HIGHLIGHT_TRANSLATION'; unitIndex: number }
-  | { type: 'HIGHLIGHT_FROM_CHARACTER_ONLY'; unitIndex: number }
-  | { type: 'HIGHLIGHT_BOTH'; unitIndex: number }
-  | { type: 'SET_CHARACTER_ONLY_INDEX'; unitIndex: number | number[] }
-  | { type: 'CLEAR_ALL' };
-
-/**
- * Scroll position for preserving viewport during reloads
- */
-export interface ScrollPosition {
-  scrollTop: number;
-  scrollLeft: number;
-}
-
-/**
- * Saved scroll positions for all text panels
- */
-export interface SavedScrollPositions {
-  original: ScrollPosition;
-  translation: ScrollPosition;
-  characterOnly: ScrollPosition;
-}
-
-// ============================================================================
-// Streaming Translation State
-// ============================================================================
-
-/**
- * Streaming translation state
- */
-export interface StreamingTranslationState {
-  /** Current streaming translation text */
-  text: string;
-  /** Is currently streaming */
-  isStreaming: boolean;
-  /** Stream start timestamp */
-  startTime?: number;
-  /** Stream progress percentage */
-  progress?: number;
-}
-
-/**
- * Progress info for streaming display
- */
-export interface ProgressInfo {
-  /** Current progress percentage (0-100) */
-  percentage: number;
-  /** Chunks processed */
-  processedChunks: number;
-  /** Total chunks */
-  totalChunks: number;
-  /** Current batch being processed */
-  currentBatch?: number;
-  /** Estimated time remaining in seconds */
-  estimatedTimeRemaining?: number;
-}
-
-// ============================================================================
 // Translation Engine Instance Interface
 // ============================================================================
 
 /**
- * Translation Engine instance interface
- * Main interface for TranslationEngine.js
+ * What callers outside `TranslationEngine.js` use of it — nothing more. The class stays
+ * JavaScript, so this is hand-written; `engineConformance.ts` makes `tsc` check it against
+ * the class.
  */
 export interface TranslationEngine {
   // Initialization
-  isInitialized: boolean;
   initialize(
     dictionaries: Record<string, any>,
     options?: TranslationEngineInitOptions
@@ -487,29 +332,4 @@ export interface TranslationEngine {
     text: string,
     options?: TranslationOptions
   ): Promise<CharacterOnlyResult>;
-  translateWithProgressiveBatches(
-    text: string,
-    options: TranslationOptions
-  ): Promise<TranslationResult>;
-
-  // Dictionary Management
-  syncDictionaries(): Promise<void>;
-
-  // Memory Management
-  performEmergencyCleanup(): void;
-  performHighPriorityCleanup(): void;
-  startMemoryProfiling(operationName: string, operationId?: string): string | null;
-  completeMemoryProfiling(profileId: string, metadata?: Record<string, any>): any;
-  getSmartMemoryStats(): any;
-
-  // Statistics and Monitoring
-  getEngineStats(): EngineStats;
-
-  // Configuration
-  settings: PatternProcessingSettings;
-  activeProperNouns: string[];
-
-  // Internal State
-  translationSegments: TranslationSegment[];
-  semanticArrayBuilder: any;
 }

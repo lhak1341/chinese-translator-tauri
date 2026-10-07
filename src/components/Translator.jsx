@@ -55,24 +55,6 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 // ============================================================================
 
 /**
- * @import {
- *   TranslationOptions,
- *   TranslationResult,
- *   CharacterOnlyResult,
- *   HighlightingState,
- *   HighlightingAction,
- *   VirtualizationThresholds,
- *   TextSizeCategory,
- *   ScrollPosition,
- *   SavedScrollPositions,
- *   StreamingTranslationState,
- *   ProgressInfo,
- *   PerformanceStats,
- *   AdvancedPerformanceStats
- * } from '../types/TranslationEngineTypes'
- */
-
-/**
  * @import { SegmentClickPayload } from '../types/ClickableTypes'
  */
 

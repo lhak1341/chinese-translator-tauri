@@ -185,8 +185,8 @@
     "semantic_hash": ""
   },
   "src/types/TranslationEngineTypes.d.ts": {
-    "mtime": 1791335800.9273813,
-    "ast_hash": "ea7c9ecff3921e83db494731025f5b1e",
+    "mtime": 1791380065.5578063,
+    "ast_hash": "0ec99f22028f8ddc4287c281b9c15099",
     "semantic_hash": ""
   },
   "src/types/DictionaryManagerTypes.d.ts": {
@@ -210,8 +210,8 @@
     "semantic_hash": "e851f7f053994a67370eb47cc8bd0a27"
   },
   "src/constants/TranslationConstants.js": {
-    "mtime": 1791336164.462945,
-    "ast_hash": "3e40d5527d7683e081bea2499ce9827c",
+    "mtime": 1791379547.2333324,
+    "ast_hash": "f373ac1688525c1dcd17fbd43a883b57",
     "semantic_hash": ""
   },
   "src/constants/toastConfig.ts": {
@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791337458.2240949,
-    "ast_hash": "e564a18b62e6f43b98bd8c9d68e56067",
+    "mtime": 1791379549.7287362,
+    "ast_hash": "a0301b99297d313fe2861b1b36c6feb0",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -399,16 +399,6 @@
     "ast_hash": "0f69c9ea0f3e1f6b7e5c41653fc9fd3e",
     "semantic_hash": ""
   },
-  "src/utils/__benchmarks__/V8OptimizationUtils.js": {
-    "mtime": 1772666306.7320046,
-    "ast_hash": "539c328eba293f1c0e419922a02b6a97",
-    "semantic_hash": "539c328eba293f1c0e419922a02b6a97"
-  },
-  "src/utils/__benchmarks__/OptimizationBenchmarks.js": {
-    "mtime": 1791294206.1027384,
-    "ast_hash": "148309e9766b22ff8ec51c21ef8a7262",
-    "semantic_hash": ""
-  },
   "src/utils/dictionary/DuplicateAnalyzer.ts": {
     "mtime": 1791007538.556429,
     "ast_hash": "039c5ee2327e619cca4fbc202e287a54",
@@ -455,8 +445,8 @@
     "semantic_hash": ""
   },
   "src/utils/__devtools__/DevConsole.js": {
-    "mtime": 1791117946.930344,
-    "ast_hash": "d198bb67ce2c55e3a36d192b593325af",
+    "mtime": 1791379310.0715456,
+    "ast_hash": "132dc318c8dd5b41d00a5bc70f6bfe0a",
     "semantic_hash": ""
   },
   "src/utils/text/PatternTextFormatter.tsx": {
@@ -600,8 +590,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1791375542.529427,
-    "ast_hash": "e4b6960c1ce7378f28d07f316b9229cd",
+    "mtime": 1791380008.949868,
+    "ast_hash": "eeca0d896a89fd2772651687ba2d2897",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -850,18 +840,13 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791214678.0692024,
-    "ast_hash": "ae519c7b958c6d98f693745197b162f6",
+    "mtime": 1791378759.205444,
+    "ast_hash": "d6c9f7ec98e5b0e5f45a939a6daf2f8d",
     "semantic_hash": ""
   },
-  "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
-    "mtime": 1769818738.1407192,
-    "ast_hash": "50a29eeadd84997e72cdea20bb565cad",
-    "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
-  },
   "CLAUDE.md": {
-    "mtime": 1791214678.0692024,
-    "ast_hash": "ae519c7b958c6d98f693745197b162f6",
+    "mtime": 1791378759.205444,
+    "ast_hash": "d6c9f7ec98e5b0e5f45a939a6daf2f8d",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1100,8 +1085,8 @@
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
-    "mtime": 1791341159.4605982,
-    "ast_hash": "32224cc797272a8f471909c8e962a0c2",
+    "mtime": 1791379312.5176835,
+    "ast_hash": "47453abc941f0a74f1246e22faebfcee",
     "semantic_hash": ""
   },
   "docs/guides/development.md": {
@@ -1135,8 +1120,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791303252.6527336,
-    "ast_hash": "cd8a2488f594b01a18f4a7e49db9424c",
+    "mtime": 1791380066.2939084,
+    "ast_hash": "9f1790a11f9d24a07c08a03a770f4be7",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1520,8 +1505,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1791376439.6020322,
-    "ast_hash": "50bf29f6bfa65340e5f1017e683039dd",
+    "mtime": 1791379324.4134703,
+    "ast_hash": "f91a02c8c173637a6d4e20c6c1711ce5",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1530,8 +1515,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1791296141.150509,
-    "ast_hash": "d5bd7953ed0207b0c016a5fa37107592",
+    "mtime": 1791379577.0291684,
+    "ast_hash": "8659430df24fb9e46472ccab161d2664",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1550,8 +1535,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791376439.6024084,
-    "ast_hash": "a2c899098fe108783a524ff1cc7ad921",
+    "mtime": 1791380083.3064418,
+    "ast_hash": "d85b5407b6c1de4b12f4b60f89a42fef",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -2362,6 +2347,11 @@
   "test-fixtures/number-parity.json": {
     "mtime": 1791377502.014056,
     "ast_hash": "bf27575a79d64135e06a97d36e0684bd",
+    "semantic_hash": ""
+  },
+  "src/types/engineConformance.ts": {
+    "mtime": 1791380045.7911916,
+    "ast_hash": "b7c9aa850cf2394f0e57d810030bfbbd",
     "semantic_hash": ""
   }
 }
