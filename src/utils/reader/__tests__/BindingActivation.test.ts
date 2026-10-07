@@ -4,6 +4,7 @@ import {
   activeProperNounsForBinding,
   activeListChange,
   bindingConfigChange,
+  configurationBindingView,
   dictionaryInUse,
   quickAddTargetForBinding,
 } from '../BindingActivation';
@@ -237,5 +238,64 @@ describe('activeListChange', () => {
     const result = activeListChange(current, {});
     expect(result).toEqual({ activeProperNouns: current, changed: false });
     expect(result.activeProperNouns).not.toBe(current);
+  });
+});
+
+describe('configurationBindingView', () => {
+  const saved = {
+    activeProperNouns: ['properNouns', 'properNouns-f_TruTien'],
+    defaultQuickAddDictionary: 'properNouns-_AiCap',
+  };
+
+  test('with no book open the saved config is the view and nothing is locked', () => {
+    const view = configurationBindingView(saved, null);
+
+    expect(view.activeProperNouns).toEqual(saved.activeProperNouns);
+    expect(view.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+    expect(view.isDefaultLocked).toBe(false);
+    expect(view.isRowLocked('properNouns-f_TruTien')).toBe(false);
+  });
+
+  test('a book bound to fiction replaces the fiction slice, points the default at it and locks both', () => {
+    const view = configurationBindingView(saved, { bound: 'properNouns-f_TapDo' });
+
+    expect(view.activeProperNouns).toEqual(['properNouns', 'properNouns-f_TapDo']);
+    expect(view.defaultQuickAddDictionary).toBe('properNouns-f_TapDo');
+    expect(view.isDefaultLocked).toBe(true);
+    expect(view.isRowLocked('properNouns-f_TapDo')).toBe(true);
+  });
+
+  test('locks fiction rows only; generic and theme rows stay editable', () => {
+    const view = configurationBindingView(saved, { bound: 'properNouns-f_TapDo' });
+
+    expect(view.isRowLocked('properNouns-f_Other')).toBe(true);
+    expect(view.isRowLocked('properNouns')).toBe(false);
+    expect(view.isRowLocked('properNouns-_AiCap')).toBe(false);
+  });
+
+  test('a book with no fiction dictionary clears the slice and still locks fiction rows, but not the default', () => {
+    const view = configurationBindingView(saved, { bound: null });
+
+    expect(view.activeProperNouns).toEqual(['properNouns']);
+    expect(view.isRowLocked('properNouns-f_TruTien')).toBe(true);
+    // The generic default stays in force and editable; only a fiction default is cleared.
+    expect(view.defaultQuickAddDictionary).toBe('properNouns-_AiCap');
+    expect(view.isDefaultLocked).toBe(false);
+  });
+
+  test('an unbound book clears a default that pointed at a fiction dictionary', () => {
+    const view = configurationBindingView(
+      { ...saved, defaultQuickAddDictionary: 'properNouns-f_TruTien' },
+      { bound: null }
+    );
+
+    expect(view.defaultQuickAddDictionary).toBeNull();
+  });
+
+  test('a bound value that does not name a fiction dictionary reads as none', () => {
+    const view = configurationBindingView(saved, { bound: 'properNouns-_AiCap' });
+
+    expect(view.activeProperNouns).toEqual(['properNouns']);
+    expect(view.isDefaultLocked).toBe(false);
   });
 });

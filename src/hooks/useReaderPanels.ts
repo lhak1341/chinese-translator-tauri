@@ -3,7 +3,7 @@ import type React from 'react';
 import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
 import { useReaderPanel } from './useReaderPanel';
 import { usePanelSync } from './usePanelSync';
-import { isBlankLine } from '../utils/reader/PanelRows';
+import { isBlankLine } from '../utils/reader/TranslationWindow';
 
 /**
  * How wide one source Chinese character renders in each panel, in em.

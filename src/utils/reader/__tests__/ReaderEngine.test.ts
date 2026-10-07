@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createReaderEngine } from '../ReaderEngine';
+import { createEngineAccess } from '../../EngineAccess';
 import type { TranslationEngine } from '../../../types/TranslationEngineTypes';
 
 /** A promise the test resolves or rejects by hand, to hold a call in flight. */
@@ -32,17 +33,22 @@ function fakeEngine(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+/** The Reader's calls over a real `EngineAccess` with the Reader on screen. */
+function readerOn(getEngine: () => TranslationEngine | null) {
+  return createReaderEngine(createEngineAccess({ getEngine, getVisibleTab: () => 'reader' }));
+}
+
 /** Let every already-settled promise continuation run. */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe('createReaderEngine — serialization', () => {
+describe('createReaderEngine — serialization (over EngineAccess)', () => {
   it('starts a second call only after the first has settled', async () => {
     // `translateWithSegments` resets engine-wide segment state on entry, so a second call
     // starting while the first awaits its result would corrupt it.
     const first = deferred<unknown>();
     const engine = fakeEngine();
     engine.translateWithSegments.mockImplementationOnce(() => first.promise);
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     const chunk = calls.translateChunk('a');
     const gloss = calls.translateGloss('b');
@@ -62,7 +68,7 @@ describe('createReaderEngine — serialization', () => {
     const first = deferred<unknown>();
     const engine = fakeEngine();
     engine.translateWithSegments.mockImplementationOnce(() => first.promise);
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     void calls.translateChunk('a');
     const titles = calls.translateOutlineBatch('第一章');
@@ -77,7 +83,7 @@ describe('createReaderEngine — serialization', () => {
   it('does not let a rejected call poison the calls queued behind it', async () => {
     const engine = fakeEngine();
     engine.translateWithSegments.mockRejectedValueOnce(new Error('engine blew up'));
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     const failed = calls.translateChunk('a');
     const next = calls.translateChunk('b');
@@ -89,12 +95,12 @@ describe('createReaderEngine — serialization', () => {
 
 describe('createReaderEngine — readiness', () => {
   it('rejects, rather than throwing, when there is no engine', async () => {
-    const calls = createReaderEngine(() => null);
+    const calls = readerOn(() => null);
     await expect(calls.translateChunk('a')).rejects.toThrow('Translation engine is not ready');
   });
 
   it('rejects when the engine is not ready', async () => {
-    const calls = createReaderEngine(() => fakeEngine({ isReady: () => false }));
+    const calls = readerOn(() => fakeEngine({ isReady: () => false }));
     await expect(calls.translateGloss('a')).rejects.toThrow('Translation engine is not ready');
   });
 
@@ -106,7 +112,7 @@ describe('createReaderEngine — readiness', () => {
     oldEngine.translateWithSegments.mockImplementationOnce(() => first.promise);
     const newEngine = fakeEngine();
     let current: TranslationEngine | null = oldEngine;
-    const calls = createReaderEngine(() => current);
+    const calls = readerOn(() => current);
 
     void calls.translateChunk('a');
     const queued = calls.translateChunk('b');
@@ -130,7 +136,7 @@ describe('createReaderEngine — result mapping', () => {
       prebuiltSegments: segments,
       somethingElse: 'dropped',
     });
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     const result = await calls.translateChunk('你好');
 
@@ -145,7 +151,7 @@ describe('createReaderEngine — result mapping', () => {
   it('fills in an empty chunk result rather than passing undefined on', async () => {
     const engine = fakeEngine();
     engine.translateWithSegments.mockResolvedValueOnce(undefined);
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     expect(await calls.translateChunk('a')).toEqual({
       translatedText: '',
@@ -161,7 +167,7 @@ describe('createReaderEngine — result mapping', () => {
       translatedText: 'nhĩ',
       semanticArrays: arrays,
     });
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
 
     expect(await calls.translateGloss('你')).toEqual({
       translatedText: 'nhĩ',
@@ -170,14 +176,14 @@ describe('createReaderEngine — result mapping', () => {
   });
 
   it('gives the outline batch only the translated text', async () => {
-    const calls = createReaderEngine(() => fakeEngine());
+    const calls = readerOn(() => fakeEngine());
     expect(await calls.translateOutlineBatch('第一章\n第二章')).toBe('T(第一章\n第二章)');
   });
 
   it('gives the outline batch an empty string for an empty result', async () => {
     const engine = fakeEngine();
     engine.translateWithSegments.mockResolvedValueOnce(undefined);
-    const calls = createReaderEngine(() => engine);
+    const calls = readerOn(() => engine);
     expect(await calls.translateOutlineBatch('第一章')).toBe('');
   });
 });

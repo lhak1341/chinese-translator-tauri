@@ -132,7 +132,7 @@ export function useOutlineTranslations({
 
   // Stop a running loop when the reader goes away — on Back, and on every book switch,
   // since each book is its own instance. Without this the old book's remaining batches
-  // keep going onto the Reader's shared engine queue, ahead of the new book's text.
+  // keep going onto the shared `EngineAccess` queue, ahead of the new book's text.
   useEffect(() => {
     return () => {
       generationRef.current += 1;

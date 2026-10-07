@@ -1,14 +1,13 @@
 import { describe, test, expect } from 'vitest';
 import {
   EMPTY_PANEL_ROWS,
-  isBlankLine,
   projectPanelRows,
   rowAt,
   type Panel,
   type ProjectedChunk,
 } from '../PanelRows';
 import type { PositionedSegment } from '../LineSegments';
-import type { ChunkPlan } from '../TranslationWindow';
+import { isBlankLine, type ChunkPlan } from '../TranslationWindow';
 
 /** A chunk over `[startLine:startChar, endLine:endChar)`, as `planChunks` would key it. */
 function plan(startLine: number, startChar: number, endLine: number, endChar: number): ChunkPlan {
@@ -214,23 +213,8 @@ describe('rowAt — after chunks land', () => {
   });
 });
 
-describe('isBlankLine', () => {
-  test.each([
-    ['', true],
-    ['   ', true],
-    ['\u3000', true],
-    ['\t\n', true],
-    ['你好', false],
-    [' a ', false],
-  ])('%j → %s', (line, expected) => {
-    expect(isBlankLine(line)).toBe(expected);
-  });
-
-  test('a line whose page has not landed is not blank', () => {
-    expect(isBlankLine(undefined)).toBe(false);
-  });
-
-  test('a row is blank in every panel exactly when isBlankLine says so', () => {
+describe('a row is blank in every panel', () => {
+  test('exactly when isBlankLine says so', () => {
     for (const line of ['', '  ', '你好', undefined]) {
       for (const panel of PANELS) {
         expect(rowAt(EMPTY_PANEL_ROWS, panel, 0, line).isBlank).toBe(isBlankLine(line));

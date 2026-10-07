@@ -6,6 +6,7 @@ import {
   chunkText,
   computeBands,
   countVisibleLines,
+  isBlankLine,
   nextViewportLines,
   orderChunksByDistance,
   planChunks,
@@ -95,6 +96,28 @@ describe('computeBands', () => {
 
     expect(bands.render).toEqual({ start: 0, end: 0 });
     expect(bands.keep).toEqual({ start: 0, end: 0 });
+  });
+});
+
+describe('isBlankLine', () => {
+  it.each([
+    ['', true],
+    [' ', true],
+    ['   ', true],
+    ['\t', true],
+    ['\t\n', true],
+    ['\u00a0', true],
+    ['\u3000', true],
+    ['\u3000\u3000', true],
+    ['你好', false],
+    [' a ', false],
+    ['\u3000你好', false],
+  ])('%j → %s', (line, expected) => {
+    expect(isBlankLine(line)).toBe(expected);
+  });
+
+  it('is not true for a line whose page has not landed: its row keeps its estimated height', () => {
+    expect(isBlankLine(undefined)).toBe(false);
   });
 });
 

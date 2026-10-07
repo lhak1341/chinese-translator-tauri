@@ -1,4 +1,5 @@
 import type { TranslationEngine } from '../../types/TranslationEngineTypes';
+import type { EngineAccess } from '../EngineAccess';
 import type { WordSegment } from '../highlighting';
 import type { ChunkTranslationResult, GlossResult } from './WindowedTranslationFill';
 
@@ -9,7 +10,7 @@ import type { ChunkTranslationResult, GlossResult } from './WindowedTranslationF
 declare const ENGINE_CALL_BRAND: unique symbol;
 
 /**
- * A `(text: string) => Promise<T>` proven to route through the Reader's engine queue —
+ * A `(text: string) => Promise<T>` proven to route through `EngineAccess` —
  * constructible only by `createReaderEngine`.
  *
  * `useWindowedTranslation`/`useOutlineTranslations` type their engine-call options as this
@@ -35,38 +36,21 @@ export interface ReaderEngineCalls {
 }
 
 /**
- * The Reader's engine calls, serialized onto one queue.
+ * The Reader's engine calls, as the Reader owner of the shared `EngineAccess`.
  *
  * `translateWithSegments` resets engine-wide segment state on entry, so two calls in flight
  * at once — the viewport fill and the outline's title translation, say, two loops that
- * don't know about each other — would race: the second call's reset can land while the
- * first is still awaiting its own result, corrupting it. Every call here waits for the one
- * before it to settle, success or failure, so a rejection never blocks the calls behind it.
- *
- * The queue is the Reader's alone. Across tabs, the Translator's calls are kept apart by
- * the tab gate instead — see `src/utils/reader/CLAUDE.md` for the one gap that leaves.
- *
- * `getEngine` is read when a call runs, not when it is queued: a call waiting behind a
- * reload runs on the engine live by then, or rejects as not ready. A stale result is the
- * caller's to discard (the fill's generation check does).
+ * don't know about each other, or a Reader chunk and a Translator run — would race: the
+ * second call's reset can land while the first is still awaiting its own result,
+ * corrupting it. `EngineAccess` (`src/utils/EngineAccess.ts`) is the one queue for both
+ * tabs, so none of that is this module's to enforce; it only maps each Reader need to an
+ * engine method and shapes the result. A Reader call is never preemptible: it is one
+ * chunk long, so the Translator waits for it.
  */
-export function createReaderEngine(getEngine: () => TranslationEngine | null): ReaderEngineCalls {
-  let queue: Promise<unknown> = Promise.resolve();
-
+export function createReaderEngine(access: EngineAccess): ReaderEngineCalls {
   const enqueue = <T>(work: (engine: TranslationEngine, text: string) => Promise<T>) =>
-    ((text: string): Promise<T> => {
-      const run = (): Promise<T> => {
-        const engine = getEngine();
-        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
-        return work(engine, text);
-      };
-      const settled = queue.then(run, run);
-      queue = settled.then(
-        () => undefined,
-        () => undefined
-      );
-      return settled;
-    }) as EngineCall<T>;
+    ((text: string): Promise<T> =>
+      access.run('reader', (engine) => work(engine, text))) as EngineCall<T>;
 
   return {
     translateChunk: enqueue(async (engine, text) => {

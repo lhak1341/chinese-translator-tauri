@@ -139,6 +139,7 @@ const ConfigurationManager: React.FC = () => {
     handleConfirmRename,
     handleSetDefaultQuickAdd,
     isFictionLockedByBook,
+    isRowLocked,
     openBookTitle,
     availableDictionaries,
     handleMoveTier,
@@ -159,7 +160,7 @@ const ConfigurationManager: React.FC = () => {
     // A fiction row reflects the open book's binding while one is open; it stays visible
     // and readable, it just isn't the place to change it. Generic and theme rows are
     // untouched by this.
-    const isLocked = isFictionLockedByBook && isFictionProperNounsId(dictionaryId);
+    const isLocked = isRowLocked(dictionaryId);
 
     return (
       <div

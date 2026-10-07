@@ -4,12 +4,42 @@ import { useVirtualScrollRange } from '../useVirtualScrollRange';
 
 const ITEM_H = 40;
 
-function makeOptions(overrides: Partial<Parameters<typeof useVirtualScrollRange>[1]> = {}) {
+type Options = Parameters<typeof useVirtualScrollRange>[1];
+
+function makeOptions(overrides: Partial<Options> = {}): Options {
   return { itemHeight: ITEM_H, ...overrides };
 }
 
+/** A scroll event reading `scrollTop`, as `handleScroll` takes it. */
+function scrollEvent(scrollTop: number): React.UIEvent<HTMLDivElement> {
+  return { currentTarget: { scrollTop } } as React.UIEvent<HTMLDivElement>;
+}
+
+/** A `ResizeObserver` the test can fire by hand; `scrollRefCallback` builds one per node. */
+function stubResizeObserver() {
+  const instances: { disconnect: ReturnType<typeof vi.fn>; fire: (height: number) => void }[] = [];
+  class FakeResizeObserver {
+    observe = vi.fn();
+    disconnect = vi.fn();
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+      instances.push({
+        disconnect: this.disconnect,
+        fire: (height) =>
+          this.callback([{ contentRect: { height } } as ResizeObserverEntry], {} as ResizeObserver),
+      });
+    }
+  }
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  return instances;
+}
+
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 // ─── visibleRange ────────────────────────────────────────────────────────────
 
@@ -31,11 +61,7 @@ describe('visibleRange', () => {
 
   it('keeps a fixed 10-row overscan above and below once scrolled', () => {
     const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
-    act(() => {
-      result.current.handleScroll({
-        currentTarget: { scrollTop: 40 * 50 },
-      } as React.UIEvent<HTMLDivElement>);
-    });
+    act(() => result.current.handleScroll(scrollEvent(40 * 50)));
     const { firstVisibleIndex, startIndex, endIndex } = result.current.visibleRange;
     expect(firstVisibleIndex).toBe(50);
     expect(startIndex).toBe(40);
@@ -47,141 +73,135 @@ describe('visibleRange', () => {
 // ─── handleScroll ─────────────────────────────────────────────────────────────
 
 describe('handleScroll', () => {
-  it('updates scrollTop and isScrolling on scroll event', () => {
+  it('moves the range to the row at the top of the viewport', () => {
     const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
-    const fakeEvent = { currentTarget: { scrollTop: 400 } } as React.UIEvent<HTMLDivElement>;
-
-    act(() => {
-      result.current.handleScroll(fakeEvent);
-    });
-
-    // visibleRange startIndex = floor(400/40) - 10 = 10-10 = 0
-    expect(result.current.visibleRange.startIndex).toBe(0);
-    expect(result.current.isScrolling).toBe(true);
+    act(() => result.current.handleScroll(scrollEvent(800)));
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(20);
+    expect(result.current.visibleRange.startIndex).toBe(10);
   });
 
-  it('clears isScrolling after 150ms timeout', () => {
+  it('snaps to the row boundary, so a sub-row scroll does not move the range', () => {
     const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
-    const fakeEvent = { currentTarget: { scrollTop: 200 } } as React.UIEvent<HTMLDivElement>;
+    act(() => result.current.handleScroll(scrollEvent(800)));
+    const before = result.current.visibleRange;
 
-    act(() => {
-      result.current.handleScroll(fakeEvent);
-    });
-    expect(result.current.isScrolling).toBe(true);
+    act(() => result.current.handleScroll(scrollEvent(800 + ITEM_H - 1)));
 
-    act(() => {
-      vi.advanceTimersByTime(150);
-    });
-    expect(result.current.isScrolling).toBe(false);
-    expect(result.current.scrollVelocity).toBe(0);
+    // Same state value, so the memoised range is the very same object: no re-render of the table.
+    expect(result.current.visibleRange).toBe(before);
   });
 });
 
-// ─── resetScroll ─────────────────────────────────────────────────────────────
+// ─── resetKey ────────────────────────────────────────────────────────────────
 
-describe('resetScroll', () => {
-  it('resets scrollTop, isScrolling and scrollVelocity to zero', () => {
-    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
-    const fakeEvent = { currentTarget: { scrollTop: 800 } } as React.UIEvent<HTMLDivElement>;
+describe('resetKey', () => {
+  function mountScrolled(initialKey: string) {
+    const instances = stubResizeObserver();
+    const hook = renderHook(
+      ({ resetKey }: { resetKey: string }) => useVirtualScrollRange(200, makeOptions({ resetKey })),
+      { initialProps: { resetKey: initialKey } }
+    );
+    const node = { scrollTop: 0 } as HTMLDivElement;
+    act(() => hook.result.current.scrollRefCallback(node));
+    act(() => hook.result.current.handleScroll(scrollEvent(800)));
+    node.scrollTop = 800;
+    return { ...hook, node, instances };
+  }
 
-    act(() => {
-      result.current.handleScroll(fakeEvent);
-    });
-    expect(result.current.visibleRange.startIndex).toBeGreaterThan(0);
+  it('returns a new list to the top: the container and the range both reset', () => {
+    const { result, rerender, node } = mountScrolled('dictionary-a');
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(20);
 
-    act(() => {
-      result.current.resetScroll();
-    });
+    rerender({ resetKey: 'dictionary-b' });
 
-    expect(result.current.visibleRange.startIndex).toBe(0);
-    expect(result.current.isScrolling).toBe(false);
-    expect(result.current.scrollVelocity).toBe(0);
+    expect(node.scrollTop).toBe(0);
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(0);
+  });
+
+  it('leaves the position alone while the key is unchanged', () => {
+    const { result, rerender, node } = mountScrolled('dictionary-a');
+
+    rerender({ resetKey: 'dictionary-a' });
+
+    expect(node.scrollTop).toBe(800);
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(20);
+  });
+
+  it('does nothing on the first render: a fresh list is already at the top', () => {
+    const { result } = renderHook(() =>
+      useVirtualScrollRange(200, makeOptions({ resetKey: 'dictionary-a' }))
+    );
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(0);
   });
 });
 
-// ─── scrollRefCallback + containerHeight ──────────────────────────────────────
+// ─── scrollToTop / scrollToBottom ───────────────────────────────────────────────
+
+describe('scrollToTop and scrollToBottom', () => {
+  it('jump the mounted container to the first and last row', () => {
+    stubResizeObserver();
+    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
+    const node = { scrollTop: 300 } as HTMLDivElement;
+    act(() => result.current.scrollRefCallback(node));
+
+    act(() => result.current.scrollToBottom());
+    expect(node.scrollTop).toBe(200 * ITEM_H);
+
+    act(() => result.current.scrollToTop());
+    expect(node.scrollTop).toBe(0);
+  });
+
+  it('do nothing before a container is mounted', () => {
+    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
+    expect(() => {
+      result.current.scrollToTop();
+      result.current.scrollToBottom();
+    }).not.toThrow();
+  });
+});
+
+// ─── scrollRefCallback + container height ─────────────────────────────────────
 
 describe('scrollRefCallback', () => {
   it('disconnects previous ResizeObserver when called with null', () => {
-    const disconnect = vi.fn();
-    const observe = vi.fn();
-    class MockRO {
-      observe = observe;
-      disconnect = disconnect;
-    }
-    const RealRO = global.ResizeObserver;
-    global.ResizeObserver = MockRO as unknown as typeof ResizeObserver;
-
+    const instances = stubResizeObserver();
     const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
-    const fakeNode = document.createElement('div');
 
-    act(() => result.current.scrollRefCallback(fakeNode));
+    act(() => result.current.scrollRefCallback(document.createElement('div')));
     act(() => result.current.scrollRefCallback(null));
 
-    expect(disconnect).toHaveBeenCalledOnce();
-    global.ResizeObserver = RealRO;
+    expect(instances).toHaveLength(1);
+    expect(instances[0].disconnect).toHaveBeenCalledOnce();
   });
 
-  it('updates containerHeight when ResizeObserver fires', () => {
-    let observerCallback: ResizeObserverCallback = () => {};
-    class MockRO {
-      observe = vi.fn();
-      disconnect = vi.fn();
-      constructor(cb: ResizeObserverCallback) {
-        observerCallback = cb;
-      }
-    }
-    const RealRO = global.ResizeObserver;
-    global.ResizeObserver = MockRO as unknown as typeof ResizeObserver;
-
+  it('updates the visible count when the ResizeObserver fires', () => {
+    const instances = stubResizeObserver();
     const { result } = renderHook(() => useVirtualScrollRange(100, makeOptions()));
-    const fakeNode = document.createElement('div');
 
-    act(() => result.current.scrollRefCallback(fakeNode));
-    act(() => {
-      // entry.contentRect.height is what the hook reads
-      const entry = { contentRect: { height: 300 } } as ResizeObserverEntry;
-      observerCallback([entry], {} as ResizeObserver);
-    });
+    act(() => result.current.scrollRefCallback(document.createElement('div')));
+    act(() => instances[0].fire(300));
 
     // visibleCount = ceil(300/40) = 8
     expect(result.current.visibleRange.visibleCount).toBe(8);
-    global.ResizeObserver = RealRO;
-  });
-});
-
-// ─── scrollRestore RAF effect ─────────────────────────────────────────────────
-
-describe('scrollRestore', () => {
-  it('starts the RAF retry loop when scrollRestore is provided', () => {
-    // Full completion requires a mounted DOM node (scrollRef.current must be set).
-    // This test verifies the RAF loop is initiated; completion is covered by integration.
-    const rafCalls: number[] = [];
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      const id = rafCalls.length + 1;
-      rafCalls.push(id);
-      return id;
-    });
-
-    const onScrollSave = vi.fn();
-    renderHook(() => useVirtualScrollRange(100, makeOptions({ scrollRestore: 400, onScrollSave })));
-
-    expect(rafCalls.length).toBeGreaterThan(0);
-    vi.unstubAllGlobals();
-  });
-
-  it('does not call onScrollSave when scrollRestore is null', () => {
-    const onScrollSave = vi.fn();
-    renderHook(() =>
-      useVirtualScrollRange(100, makeOptions({ scrollRestore: null, onScrollSave }))
-    );
-    expect(onScrollSave).not.toHaveBeenCalled();
   });
 });
 
 // ─── withScrollPreservation ──────────────────────────────────────────────────
 
 describe('withScrollPreservation', () => {
+  function mountAt(scrollTop: number) {
+    stubResizeObserver();
+    const rafCalls: FrameRequestCallback[] = [];
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCalls.push(cb);
+      return 0;
+    });
+    const hook = renderHook(() => useVirtualScrollRange(200, makeOptions()));
+    const node = { scrollTop } as HTMLDivElement;
+    act(() => hook.result.current.scrollRefCallback(node));
+    return { ...hook, node, runFrames: () => act(() => rafCalls.forEach((cb) => cb(0))) };
+  }
+
   afterEach(() => vi.restoreAllMocks());
 
   it('calls asyncFn', async () => {
@@ -193,71 +213,31 @@ describe('withScrollPreservation', () => {
     expect(fn).toHaveBeenCalledOnce();
   });
 
-  it('restores scrollTop via RAF when DOM scrollTop drifted after async op', async () => {
-    const rafCalls: FrameRequestCallback[] = [];
-    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
-      rafCalls.push(cb);
-      return 0;
-    });
-
-    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
-
-    // Simulate scrollRef pointing at a node with scrollTop=300
-    const fakeNode = { scrollTop: 300 } as HTMLDivElement;
-    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
-
-    const fn = vi.fn().mockImplementation(async () => {
-      // Simulate React re-render jumping scroll to 0
-      fakeNode.scrollTop = 0;
-    });
+  it('restores scrollTop, and the range, when the DOM scrollTop drifted during the async op', async () => {
+    const { result, node, runFrames } = mountAt(320);
 
     await act(async () => {
-      await result.current.withScrollPreservation(fn);
+      await result.current.withScrollPreservation(async () => {
+        // A re-render jumping scroll to the top.
+        node.scrollTop = 0;
+      });
     });
+    runFrames();
 
-    // RAF fires — scroll drifted (300→0), so restore
-    act(() => rafCalls.forEach((cb) => cb(0)));
-    expect(fakeNode.scrollTop).toBe(300);
+    expect(node.scrollTop).toBe(320);
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(8);
   });
 
-  it('does not write scrollTop when DOM did not drift', async () => {
-    const rafCalls: FrameRequestCallback[] = [];
-    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
-      rafCalls.push(cb);
-      return 0;
-    });
-
-    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
-
-    const fakeNode = { scrollTop: 300 } as HTMLDivElement;
-    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
-
-    const fn = vi.fn().mockResolvedValue(undefined); // scrollTop stays at 300
+  it('writes nothing when the DOM did not drift', async () => {
+    const { result, node, runFrames } = mountAt(320);
 
     await act(async () => {
-      await result.current.withScrollPreservation(fn);
+      await result.current.withScrollPreservation(async () => {});
     });
+    runFrames();
 
-    // Track whether setScrollTop was called by checking state update
-    const setScrollTopSpy = vi.spyOn(result.current, 'setScrollTop' as any);
-    act(() => rafCalls.forEach((cb) => cb(0)));
-    // No drift → setScrollTop not called
-    expect(setScrollTopSpy).not.toHaveBeenCalled();
-  });
-});
-
-// ─── getScrollTop ─────────────────────────────────────────────────────────────
-
-describe('getScrollTop', () => {
-  it('returns 0 when scrollRef is not mounted', () => {
-    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
-    expect(result.current.getScrollTop()).toBe(0);
-  });
-
-  it('returns current DOM scrollTop when scrollRef is mounted', () => {
-    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
-    const fakeNode = { scrollTop: 450 } as HTMLDivElement;
-    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
-    expect(result.current.getScrollTop()).toBe(450);
+    expect(node.scrollTop).toBe(320);
+    // The range follows `handleScroll`, not this path, so it stays where it was.
+    expect(result.current.visibleRange.firstVisibleIndex).toBe(0);
   });
 });

@@ -148,6 +148,8 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-082](./ADR-082-match-source-one-seam-for-candidate-matches.md)                 | MatchSource: one seam for dictionary matches at a token      | Decided                           | Rust index and JS trie held to one fixture; a surrogate pair skips the index (UTF-16 vs code points).                                                |
 | [ADR-083](./ADR-083-delete-the-wasm-conflict-resolution-tier.md)                    | Delete the WASM conflict resolution tier                     | Decided                           | On real Phase 4 inputs (3 candidates per call, max 17) WASM is 17x slower; JS wins every call.                                                       |
 | [ADR-084](./ADR-084-skip-merging-the-reload-context-assembler.md)                   | Skip merging the reload context assembler                    | Decided                           | The assembler is the typed contract at a JS call site; the merge grows the invariant-carrying hook.                                                  |
+| [ADR-085](./ADR-085-engine-access-one-queue-ownership-follows-the-visible-tab.md)   | EngineAccess: one queue, the visible tab owns it             | Decided                           | One FIFO for both tabs; a hidden tab is refused, a visible tab cancels the other's document run.                                                     |
+| [ADR-086](./ADR-086-keep-scroll-position-recovery-separate-from-its-hook.md)        | Keep ScrollPositionRecovery separate from its hook           | Decided                           | The class is the retry algorithm, tested with no DOM; the hook is the DOM. A merge only relocates the loop.                                          |
 
 ## ADR Format
 
@@ -204,5 +206,5 @@ Write an ADR when making decisions about:
 - **2026-10-04**: ADR-070; ADR-071; ADR-072; ADR-073; ADR-074
 - **2026-10-05**: ADR-075; ADR-076; ADR-077; ADR-078
 - **2026-10-06**: ADR-079; ADR-080
-- **2026-10-07**: ADR-081; ADR-082; ADR-083; ADR-084
+- **2026-10-07**: ADR-081; ADR-082; ADR-083; ADR-084; ADR-085; ADR-086
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

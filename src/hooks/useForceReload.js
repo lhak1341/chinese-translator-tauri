@@ -44,11 +44,10 @@ export function useForceReload(
       // every tab stays mounted, so the Translator is holding whatever was last pasted into
       // it, and re-translating a whole hidden document is work nobody is waiting to see.
       //
-      // It is also not merely slow. `translateWithSegments` resets engine-wide segment state
-      // on entry, and the Reader's engine queue (`src/utils/reader/ReaderEngine.ts`) is
-      // local to the Reader, built on the documented assumption that the Translator tab's
-      // own calls are user-driven from its own view, so the two never contend. A Reader-triggered retranslate breaks that assumption and can land its
-      // reset in the middle of a Reader chunk that is still awaiting its own result.
+      // It is also a document-length call from a tab nobody is looking at. `EngineAccess`
+      // (`src/utils/EngineAccess.ts`) now keeps it from corrupting a Reader chunk, but
+      // that Translator call would be refused as a hidden tab's, or queued behind the
+      // Reader's own work.
       //
       // The caller that skips it owns telling the Translator its output is now stale — see
       // `useDeferredRetranslate`.

@@ -136,6 +136,8 @@ describe('source convention scan', () => {
 const TESTS_WITHOUT_PRODUCTION_IMPORT = new Set([
   // Scans source files as text; the production code is its input, not its subject.
   'utils/__tests__/SourceConventionScan.test.js',
+  // Scans source files as text for a translate call outside `EngineAccess`.
+  '__tests__/EngineAccess.guard.test.js',
 ]);
 
 const IMPORT_RE = /(?:import[^'"]*from\s*|import\(\s*)['"]([^'"]+)['"]/g;

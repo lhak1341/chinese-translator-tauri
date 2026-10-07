@@ -191,3 +191,40 @@ export function quickAddViewForBinding(
     activeProperNouns: activeProperNounsForBinding(config?.activeProperNouns ?? [], fiction),
   };
 }
+
+/**
+ * What the Configuration screen shows and locks, given the saved config and whether a book
+ * is open (`openBook`, in the shape `activeProperNounsAfterToggle` takes; `null` when none).
+ *
+ * With no book open the saved config is the view and nothing is locked. With one open the
+ * binding is the authority for the fiction slice, and `bound` is read as `quickAddViewForBinding`
+ * reads it: a value that does not name a fiction dictionary means none. Two locks follow, and
+ * they differ on purpose:
+ *
+ * - **A fiction row is locked while any book is open**, bound or not. An unbound book's answer
+ *   is "no fiction dictionary", so its rows are not the place to add one.
+ * - **The default is locked only for a book bound to fiction**, because Cmd-5 then follows the
+ *   book, so a default written here would change nothing and be overwritten by the next bind.
+ *   An unbound book leaves a generic default in force, which stays editable.
+ *
+ * `isRowLocked` is for the checkbox's disabled state and the toggle's refusal alike, so the
+ * two cannot disagree.
+ */
+export interface ConfigurationBindingView extends QuickAddView {
+  isDefaultLocked: boolean;
+  isRowLocked: (dictionaryId: string) => boolean;
+}
+
+export function configurationBindingView(
+  config: QuickAddView,
+  openBook: { bound: string | null } | null
+): ConfigurationBindingView {
+  if (!openBook) {
+    return { ...config, isDefaultLocked: false, isRowLocked: () => false };
+  }
+  return {
+    ...quickAddViewForBinding(config, openBook.bound),
+    isDefaultLocked: isBoundToFiction(openBook.bound),
+    isRowLocked: isFictionProperNounsId,
+  };
+}

@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { TranslationEngine } from '../types/TranslationEngineTypes';
+import type { EngineAccess } from '../utils/EngineAccess';
 
 /**
  * Types for `EngineContext.jsx`, which stays JavaScript.
@@ -13,7 +14,13 @@ export type EngineInitOutcome = { ok: true } | { ok: false; error: string };
 
 export interface EngineContextValue {
   enginePhase: 'loading' | 'ready' | 'error';
+  /**
+   * For everything but translating (readiness, reload, init). A translate call goes through
+   * `engineAccess`, never straight at this ref; `EngineAccess.guard.test.js` scans for it.
+   */
   engineRef: React.MutableRefObject<TranslationEngine | null>;
+  /** The one queue for both translating tabs; see `src/utils/EngineAccess.ts`. */
+  engineAccess: EngineAccess;
   /** Increments once per constructed engine — the cache-invalidation signal. */
   engineVersion: number;
   initError: string | null;

@@ -182,8 +182,8 @@ export function matchHotkey(
         // The unqualified Add: a name, the commonest Add on both tabs.
         return onQuickAddTab ? { type: 'quickAddProperNoun' } : null;
       // Translator-only: the text lands in the Translator's input, and a translation it
-      // starts while hidden would run beside the Reader's engine queue, which only the
-      // tab gate keeps apart from the Translator's calls.
+      // starts while hidden would be refused by `EngineAccess`, which lets only the visible
+      // tab call the engine.
       case 'v':
         return visibleTab === 'translator' ? { type: 'translateFromClipboard' } : null;
       // Undo and redo act on the dictionary edit history, whose errors and state only

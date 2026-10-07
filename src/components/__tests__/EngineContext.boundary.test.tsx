@@ -2,6 +2,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { EngineProvider } from '../EngineContext';
+import { VisibleTabProvider } from '../VisibleTabContext';
 
 /**
  * `EngineProvider`'s error boundary sits above every tab, so its fallback means "a tab
@@ -34,9 +35,11 @@ describe('EngineProvider error boundary', () => {
 
   test('a tab that fails to render reads as every tab down, not as an engine failure', () => {
     render(
-      <EngineProvider>
-        <BrokenTab />
-      </EngineProvider>
+      <VisibleTabProvider>
+        <EngineProvider>
+          <BrokenTab />
+        </EngineProvider>
+      </VisibleTabProvider>
     );
 
     expect(screen.getByText(/A tab failed to display/)).toBeInTheDocument();

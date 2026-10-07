@@ -328,10 +328,11 @@ impl NumberProcessor {
 
         let mut i = 0;
         while i < tokens.len() {
+            // No digit pre-check here, matching JS `processTokens`: a match can start at 百
+            // (百分之三十), which is not a digit, and the patterns decide what can match.
             if tokens[i].token_type != "chinese_char"
                 || tokens[i].translated.is_some()
-                || tokens[i].translation_source.is_some()
-                || !tokens[i].value.chars().any(|c| NUMBER_MAP.contains_key(&c)) {
+                || tokens[i].translation_source.is_some() {
                 i += 1;
                 continue;
             }
@@ -570,8 +571,10 @@ impl NumberProcessor {
     fn convert_thousand_ten_thousand(&self, groups: &[&str]) -> Option<String> {
         if groups.is_empty() { return None; }
         let digit = self.get_number(groups[0].chars().next()?)?;
-        let value = digit * 1000;
-        Some(format!("{} vạn", Self::format_with_commas(value)))
+        // 千万 is thousands × 10,000, written out in digits like every other large number
+        // (JS `convertThousandTenThousand`; the old "5,000 vạn" form was the Rust spec alone).
+        let value = digit * 1000 * 10000;
+        Some(Self::format_with_commas(value))
     }
 
     fn convert_thousands(&self, groups: &[&str]) -> Option<String> {
@@ -1182,11 +1185,11 @@ mod tests {
     #[test]
     fn test_converter_thousand_ten_thousand() {
         let p = NumberProcessor::new();
-        // 五千万 → 5,000 vạn
+        // 五千万 → 50,000,000 (5 thousand × 10,000), the digits JS produces
         let tokens = vec![tok("五"), tok("千"), tok("万")];
         let m = p.find_longest_number_match(&tokens, 0);
         assert!(m.is_some());
-        assert_eq!(m.unwrap().result, "5,000 vạn");
+        assert_eq!(m.unwrap().result, "50,000,000");
     }
 
     #[test]
@@ -1238,5 +1241,125 @@ mod tests {
             assert!(token.translated.is_none());
             assert!(token.translation_source.is_none());
         }
+    }
+}
+
+// ============================================================================
+// PARITY WITH THE JS NumberProcessor (test-fixtures/number-parity.json)
+// ============================================================================
+// The fixture is the shared contract; src/utils/__tests__/NumberProcessor.parity.test.js runs the
+// same file against `NumberProcessor.js`, the product. A case the spec intentionally does not match
+// carries `ignore: { rust: "<reason>" }`; a case with an empty reason fails.
+#[cfg(test)]
+mod parity {
+    use super::*;
+
+    #[derive(Deserialize)]
+    struct Ignore {
+        rust: Option<String>,
+    }
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct Span {
+        start: usize,
+        length: usize,
+        translated: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Case {
+        name: String,
+        text: String,
+        converted: Vec<Span>,
+        ignore: Option<Ignore>,
+    }
+
+    #[derive(Deserialize)]
+    struct Fixture {
+        cases: Vec<Case>,
+    }
+
+    /// The spans `process_tokens` converted, asserting the consumed-token contract on the way.
+    fn spans_of(tokens: &[Token], name: &str) -> Vec<Span> {
+        let mut spans = Vec::new();
+        let mut i = 0;
+        while i < tokens.len() {
+            if tokens[i].translation_source.as_deref() != Some("number_conversion") {
+                assert!(
+                    tokens[i].translated.is_none() && tokens[i].translation_source.is_none(),
+                    "case \"{name}\": token {i} carries a conversion without being a leader"
+                );
+                i += 1;
+                continue;
+            }
+            let translated = tokens[i]
+                .translated
+                .clone()
+                .unwrap_or_else(|| panic!("case \"{name}\": leader {i} has no value"));
+            let mut length = 1;
+            while tokens.get(i + length).and_then(|t| t.translation_source.as_deref())
+                == Some("number_conversion_consumed")
+            {
+                assert!(
+                    tokens[i + length].translated.is_none(),
+                    "case \"{name}\": follower {} carries a value",
+                    i + length
+                );
+                length += 1;
+            }
+            spans.push(Span { start: i, length, translated });
+            i += length;
+        }
+        spans
+    }
+
+    #[test]
+    fn process_tokens_matches_the_shared_fixture() {
+        let raw = include_str!("../../test-fixtures/number-parity.json");
+        let fixture: Fixture = serde_json::from_str(raw)
+            .expect("number-parity.json must be valid JSON matching the Fixture shape");
+        assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+        let processor = NumberProcessor::new();
+        let mut diverged = Vec::new();
+        for case in &fixture.cases {
+            if let Some(ignore) = &case.ignore {
+                let reason = ignore.rust.as_deref().unwrap_or("").trim();
+                assert!(
+                    !reason.is_empty(),
+                    "case \"{}\": ignore.rust needs a reason",
+                    case.name
+                );
+                continue;
+            }
+            let tokens: Vec<Token> = case
+                .text
+                .chars()
+                .map(|c| Token {
+                    token_type: "chinese_char".to_string(),
+                    value: c.to_string(),
+                    translated: None,
+                    translation_source: None,
+                })
+                .collect();
+            let input = serde_json::to_string(&tokens).expect("tokens serialize");
+            let output = processor
+                .process_tokens(&input)
+                .unwrap_or_else(|_| panic!("case \"{}\": process_tokens failed", case.name));
+            let out: Vec<Token> = serde_json::from_str(&output).expect("output parses");
+            assert_eq!(out.len(), tokens.len(), "case \"{}\": token count changed", case.name);
+            let spans = spans_of(&out, &case.name);
+            if spans != case.converted {
+                diverged.push(format!(
+                    "\"{}\" ({}): fixture {:?}, spec {:?}",
+                    case.name, case.text, case.converted, spans
+                ));
+            }
+        }
+        assert!(
+            diverged.is_empty(),
+            "number_processor.rs diverged from the shared fixture:\n{}",
+            diverged.join("\n")
+        );
     }
 }

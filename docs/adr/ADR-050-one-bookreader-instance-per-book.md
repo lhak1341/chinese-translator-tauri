@@ -35,3 +35,5 @@ Do not remove the `key` to keep view state across a switch. If some state should
 `ReaderTab.openBook.test.tsx` pins the contract: a palette switch mounts a second `BookReader`, and both instances receive the same `engine`.
 
 The separate gap between the Reader and the Translator, documented in `src/utils/reader/CLAUDE.md`, is unchanged. The tab gate stops new Reader calls on a tab switch but does not abort one already in flight.
+
+**Addendum 2026-10-07:** that gap is closed by ADR-085. The queue this ADR lifted into `ReaderTab` moved into `EngineAccess` (`useEngine().engineAccess`), shared with the Translator; `useReaderEngine` still runs in `ReaderTab` so the call objects stay stable across book switches.

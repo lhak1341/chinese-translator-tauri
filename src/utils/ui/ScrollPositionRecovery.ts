@@ -9,15 +9,6 @@ export interface RecoveryOptions {
   maxRetryAttempts?: number;
   maxRetryDelay?: number;
   initialAttemptDelay?: number;
-  /**
-   * 'timeout' (default): RAF-first attempt, then exponential-backoff setTimeout
-   * retries (delay doubles each miss, capped at maxRetryDelay).
-   * 'raf': every attempt (including retries) runs via requestAnimationFrame —
-   * no backoff, no delay options consulted. For callers whose readiness check
-   * needs frame-cadence polling instead of a growing wait (e.g. waiting for a
-   * virtualized list to finish laying out after remount).
-   */
-  scheduler?: 'timeout' | 'raf';
 }
 
 /**
@@ -44,12 +35,7 @@ export class ScrollPositionRecovery<T> {
   }
 
   restore(positions: T, options: RecoveryOptions = {}): Promise<void> {
-    const {
-      maxRetryAttempts = 10,
-      maxRetryDelay = 1000,
-      initialAttemptDelay = 50,
-      scheduler = 'timeout',
-    } = options;
+    const { maxRetryAttempts = 10, maxRetryDelay = 1000, initialAttemptDelay = 50 } = options;
 
     this.cancel();
 
@@ -57,22 +43,12 @@ export class ScrollPositionRecovery<T> {
       const attempt = (attemptsLeft: number, delay: number): void => {
         if (this.#attemptFn(positions)) {
           this.#timeoutHandle = null;
-          this.#rafHandle = null;
           resolve();
         } else if (attemptsLeft > 0) {
-          if (scheduler === 'raf') {
-            this.#rafHandle = requestAnimationFrame(() => {
-              this.#rafHandle = null;
-              attempt(attemptsLeft - 1, 0);
-            });
-          } else {
-            const nextDelay =
-              delay === 0 ? initialAttemptDelay : Math.min(delay * 2, maxRetryDelay);
-            this.#timeoutHandle = setTimeout(() => attempt(attemptsLeft - 1, nextDelay), nextDelay);
-          }
+          const nextDelay = delay === 0 ? initialAttemptDelay : Math.min(delay * 2, maxRetryDelay);
+          this.#timeoutHandle = setTimeout(() => attempt(attemptsLeft - 1, nextDelay), nextDelay);
         } else {
           this.#timeoutHandle = null;
-          this.#rafHandle = null;
           resolve();
         }
       };

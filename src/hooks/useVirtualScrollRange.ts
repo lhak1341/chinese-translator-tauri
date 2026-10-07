@@ -1,45 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { RefCallback } from 'react';
-import { ScrollPositionRecovery } from '../utils/ui/ScrollPositionRecovery';
-import type { AttemptFn } from '../utils/ui/ScrollPositionRecovery';
 
 /** Rows rendered above and below the visible window. Rows are a fixed height, so this is a constant. */
 const OVERSCAN_ROWS = 10;
 
-/** Total attempts (readiness-gated, then forced) the scroll-restore effect allows. */
-export const SCROLL_RESTORE_MAX_ATTEMPTS = 60;
-
-/**
- * Builds a fresh AttemptFn for one scroll-restore sequence — tracks its own attempt
- * count in closure, independent of ScrollPositionRecovery's own retry countdown, so
- * it mirrors exactly what the readiness heuristic needs: reject the first 3 frames
- * outright (a freshly remounted virtualized list reports scrollHeight === 0 before
- * layout settles), then require scrollHeight > 0, then force-write on the final
- * allowed attempt regardless of readiness so a restore request is never dropped.
- */
-export function buildScrollRestoreAttempt(
-  scrollRef: React.RefObject<HTMLDivElement | null>,
-  position: number,
-  setScrollTop: (value: number) => void
-): AttemptFn<number> {
-  let attempts = 0;
-  return () => {
-    attempts++;
-    const container = scrollRef.current;
-    if (!container) return false;
-    const isReady = container.scrollHeight > 0 && attempts > 3;
-    if (!isReady && attempts < SCROLL_RESTORE_MAX_ATTEMPTS) return false;
-    container.scrollTop = position;
-    setScrollTop(position);
-    return true;
-  };
-}
-
 interface UseVirtualScrollRangeOptions {
   itemHeight: number;
   isActive?: boolean;
-  scrollRestore?: number | null;
-  onScrollSave?: (pos: number | null) => void;
   /** Identifies the list being shown. When it changes, the view returns to the top: the
    * scroll position belongs to the old list. */
   resetKey?: string;
@@ -58,35 +25,20 @@ export interface UseVirtualScrollRangeResult {
   handleScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollToTop: () => void;
   scrollToBottom: () => void;
-  scrollToIndex: (index: number) => void;
   scrollRefCallback: RefCallback<HTMLDivElement>;
-  scrollRef: React.RefObject<HTMLDivElement | null>;
-  setScrollTop: React.Dispatch<React.SetStateAction<number>>;
-  resetScroll: () => void;
-  isScrolling: boolean;
-  scrollVelocity: number;
-  containerHeight: number;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
-  getScrollTop: () => number;
 }
 
 export function useVirtualScrollRange(
   totalItems: number,
   options: UseVirtualScrollRangeOptions
 ): UseVirtualScrollRangeResult {
-  const { itemHeight, isActive, scrollRestore, onScrollSave, resetKey } = options;
+  const { itemHeight, isActive, resetKey } = options;
 
   const [scrollTop, setScrollTop] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(600);
-  const [isScrolling, setIsScrolling] = useState<boolean>(false);
-  // Velocity is a ref, not state: it changes on every scroll event, and as state it forced a
-  // full table re-render per event even when the rendered row range had not moved.
-  const scrollVelocityRef = useRef<number>(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastScrollTop = useRef<number>(0);
-  const lastScrollTime = useRef<number>(Date.now());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   // Remeasure when tab becomes active (fixes virtualization on tab switch)
@@ -137,28 +89,10 @@ export function useVirtualScrollRange(
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>): void => {
-      const newScrollTop = e.currentTarget.scrollTop;
-      const currentTime = Date.now();
-
-      const timeDelta = currentTime - lastScrollTime.current;
-      const scrollDelta = newScrollTop - lastScrollTop.current;
-      const velocity = timeDelta > 0 ? scrollDelta / timeDelta : 0;
-
-      lastScrollTop.current = newScrollTop;
       // Snap to the row boundary: the rendered range depends only on which row is at the top,
-      // so sub-row scroll events now bail out of re-rendering (same state value) instead of
+      // so sub-row scroll events bail out of re-rendering (same state value) instead of
       // re-rendering the whole table on every pixel.
-      setScrollTop(Math.floor(newScrollTop / itemHeight) * itemHeight);
-      scrollVelocityRef.current = velocity;
-      setIsScrolling(true);
-
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsScrolling(false);
-        scrollVelocityRef.current = 0;
-      }, 150);
-
-      lastScrollTime.current = currentTime;
+      setScrollTop(Math.floor(e.currentTarget.scrollTop / itemHeight) * itemHeight);
     },
     [itemHeight]
   );
@@ -173,31 +107,14 @@ export function useVirtualScrollRange(
     if (scrollRef.current) scrollRef.current.scrollTop = totalHeight;
   }, [totalHeight]);
 
-  /** Scrolls so row `index` is at the top of the viewport (clamped to the list). */
-  const scrollToIndex = useCallback(
-    (index: number): void => {
-      if (!scrollRef.current) return;
-      const clamped = Math.max(0, Math.min(index, totalItems - 1));
-      scrollRef.current.scrollTop = clamped * itemHeight;
-    },
-    [totalItems, itemHeight]
-  );
-
-  const resetScroll = useCallback((): void => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    setScrollTop(0);
-    setIsScrolling(false);
-    scrollVelocityRef.current = 0;
-    lastScrollTop.current = 0;
-  }, []);
-
   // A new list starts at the top. Skips the first render: a fresh list is already there.
   const lastResetKeyRef = useRef(resetKey);
   useEffect(() => {
     if (lastResetKeyRef.current === resetKey) return;
     lastResetKeyRef.current = resetKey;
-    resetScroll();
-  }, [resetKey, resetScroll]);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [resetKey]);
 
   const withScrollPreservation = useCallback(
     async (asyncFn: () => Promise<void>): Promise<void> => {
@@ -213,50 +130,12 @@ export function useVirtualScrollRange(
     []
   );
 
-  const getScrollTop = useCallback((): number => scrollRef.current?.scrollTop ?? 0, []);
-
-  // Restore scroll position from parent (survives unmount/remount).
-  // RAF-retry waits for the virtualized list to finish rendering before restoring.
-  // Delegates the retry/backoff mechanism to ScrollPositionRecovery (scheduler: 'raf'
-  // preserves this hook's original frame-cadence polling — no exponential backoff).
-  useEffect(() => {
-    if (scrollRestore == null || !onScrollSave) return;
-
-    const recovery = new ScrollPositionRecovery<number>(
-      buildScrollRestoreAttempt(scrollRef, scrollRestore, setScrollTop)
-    );
-
-    // ScrollPositionRecovery's attemptFn is called maxRetryAttempts + 1 times total
-    // (the initial RAF attempt, then maxRetryAttempts retries) — pass one less than
-    // SCROLL_RESTORE_MAX_ATTEMPTS so the total call count matches exactly, and
-    // buildScrollRestoreAttempt's own force-write on its final permitted call lines
-    // up with ScrollPositionRecovery's own last attempt.
-    recovery
-      .restore(scrollRestore, {
-        maxRetryAttempts: SCROLL_RESTORE_MAX_ATTEMPTS - 1,
-        scheduler: 'raf',
-      })
-      .then(() => {
-        onScrollSave(null);
-      });
-
-    return () => recovery.cancel();
-  }, [scrollRestore, onScrollSave]);
-
   return {
     visibleRange,
     handleScroll,
     scrollToTop,
     scrollToBottom,
-    scrollToIndex,
     scrollRefCallback,
-    scrollRef,
-    setScrollTop,
-    resetScroll,
-    isScrolling,
-    scrollVelocity: scrollVelocityRef.current,
-    containerHeight,
     withScrollPreservation,
-    getScrollTop,
   };
 }

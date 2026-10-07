@@ -23,7 +23,7 @@ Nothing here returns an error when a pattern doesn't fire — it just doesn't fi
 
 ## This crate is a parity mirror, and every divergence truncates silently
 
-Several modules here exist to mirror a JS implementation, not to be called from it. **`number_processor.rs` is spec-only** — `#[wasm_bindgen]` was deliberately removed from the struct and impl, and the file is kept as the spec/test suite for `NumberProcessor.js` (44 tests as of 2026-09-09; earlier "155"/"37" figures here were stale). Do NOT add `#[wasm_bindgen]` back; read `docs/adr/ADR-041-keep-number-processor-rs-as-parity-spec.md` before proposing deletion again, which has happened repeatedly.
+Several modules here exist to mirror a JS implementation, not to be called from it. **`number_processor.rs` is spec-only** — `#[wasm_bindgen]` was deliberately removed from the struct and impl, and the file is kept as the spec/test suite for `NumberProcessor.js`. What it converts is pinned in `test-fixtures/number-parity.json`, which `mod tests::parity` runs through `process_tokens` beside the JS runner (2026-10-07); its remaining tests call the converters and helpers directly. Do NOT add `#[wasm_bindgen]` back; read `docs/adr/ADR-041-keep-number-processor-rs-as-parity-spec.md` before proposing deletion again, which has happened repeatedly.
 
 **Every parity bug found so far had the same shape: one side's matcher was narrower than the other's, and the narrow side truncated its input instead of failing.** That is why none of them surfaced as errors. Confirmed instances, each worth reading as a pattern rather than a fact:
 

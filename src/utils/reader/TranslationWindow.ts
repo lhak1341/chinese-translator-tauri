@@ -150,12 +150,26 @@ function clampRange(range: LineRange, lineCount: number): LineRange {
 }
 
 /**
- * A line that is only whitespace separates paragraphs; it is never translated. A line that has
- * not been fetched (`undefined`) also ends a paragraph here — unlike `PanelRows.isBlankLine`,
- * where `undefined` is NOT blank (the row keeps its estimated height).
+ * Whether a line is one of the file's own paragraph breaks: only whitespace, as `trim()` reads
+ * it (so a lone U+3000 paragraph indent and U+00A0 count). It is never translated, and the
+ * Reader's panels render it at zero height and estimate it at zero too (`PanelRows`).
+ *
+ * `undefined` (a line whose page has not been fetched) is NOT blank here: its row keeps its
+ * full estimated height, so the scrollbar does not shrink and then grow as pages land.
+ * `isParagraphBreak` takes the other view of `undefined` for planning. The one definition of
+ * "whitespace only" lives here, in the leaf module both `PanelRows` and the planner reach.
+ */
+export function isBlankLine(line: string | undefined): boolean {
+  return line?.trim() === '';
+}
+
+/**
+ * Where a paragraph ends, for planning. A blank line separates paragraphs, and a line that has
+ * not been fetched (`undefined`) also ends one here — unlike `isBlankLine`, where it is not
+ * blank — so a chunk is never planned over a prefix of a paragraph whose rest has not landed.
  */
 function isParagraphBreak(line: string | undefined): boolean {
-  return line === undefined || line.trim().length === 0;
+  return line === undefined || isBlankLine(line);
 }
 
 /**
@@ -292,11 +306,6 @@ export interface ChunkPlanOptions {
   ceilingChars?: number;
 }
 
-/** A line known to be blank — as opposed to one that simply has not been fetched. */
-function isKnownBlank(line: string | undefined): boolean {
-  return line !== undefined && line.trim().length === 0;
-}
-
 /**
  * Whether a paragraph's own extent is known, rather than merely where the current range
  * happened to stop.
@@ -312,8 +321,8 @@ function isParagraphComplete(
   getLine: (index: number) => string | undefined,
   lineCount: number
 ): boolean {
-  const boundaryBefore = startLine === 0 || isKnownBlank(getLine(startLine - 1));
-  const boundaryAfter = endLine >= lineCount - 1 || isKnownBlank(getLine(endLine + 1));
+  const boundaryBefore = startLine === 0 || isBlankLine(getLine(startLine - 1));
+  const boundaryAfter = endLine >= lineCount - 1 || isBlankLine(getLine(endLine + 1));
   return boundaryBefore && boundaryAfter;
 }
 

@@ -1,0 +1,537 @@
+{
+  "_comment": "Shared contract for Phase 3 number conversion. Each case is read by src/utils/__tests__/NumberProcessor.parity.test.js (NumberProcessor.processTokens) and by wasm-core/src/number_processor.rs (mod tests::parity -> NumberProcessor::process_tokens, the Rust spec of the JS module; ADR-041). One chinese_char token per character of `text`; `converted` lists the spans the processor converts: `start` and `length` are token (= character) indices, `translated` is the leader token value. An empty list means nothing converts. Both runners also assert the consumed-token contract: a leader carries translationSource number_conversion, each follower number_conversion_consumed with translated null. A case the Rust spec intentionally does not match carries `ignore: { rust: \"<reason>\" }`; a case with no reason fails. Update this file first when a rule changes.",
+  "cases": [
+    {
+      "name": "tens + units 三十五",
+      "text": "三十五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "35"
+        }
+      ]
+    },
+    {
+      "name": "implicit tens 十七",
+      "text": "十七",
+      "converted": [
+        {
+          "start": 0,
+          "length": 2,
+          "translated": "17"
+        }
+      ]
+    },
+    {
+      "name": "standalone tens 三十",
+      "text": "三十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 2,
+          "translated": "30"
+        }
+      ]
+    },
+    {
+      "name": "a lone digit is left to the phrase processor 五",
+      "text": "五",
+      "converted": []
+    },
+    {
+      "name": "a lone 十 is left to the phrase processor",
+      "text": "十",
+      "converted": []
+    },
+    {
+      "name": "hundreds 三百",
+      "text": "三百",
+      "converted": [
+        {
+          "start": 0,
+          "length": 2,
+          "translated": "300"
+        }
+      ]
+    },
+    {
+      "name": "hundreds + tens 三百五十",
+      "text": "三百五十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "350"
+        }
+      ]
+    },
+    {
+      "name": "hundreds + tens + units 三百五十六",
+      "text": "三百五十六",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "356"
+        }
+      ]
+    },
+    {
+      "name": "hundreds with zero 两百零六",
+      "text": "两百零六",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "206"
+        }
+      ]
+    },
+    {
+      "name": "hundreds with implicit tens 三百十七",
+      "text": "三百十七",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "317"
+        }
+      ]
+    },
+    {
+      "name": "truncated short-form hundreds 三百三 is 330, not 303",
+      "text": "三百三",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "330"
+        }
+      ]
+    },
+    {
+      "name": "thousands 三千",
+      "text": "三千",
+      "converted": [
+        {
+          "start": 0,
+          "length": 2,
+          "translated": "3,000"
+        }
+      ]
+    },
+    {
+      "name": "thousands + hundreds 三千七百",
+      "text": "三千七百",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "3,700"
+        }
+      ]
+    },
+    {
+      "name": "thousands with implicit tens 三千十五",
+      "text": "三千十五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "3,015"
+        }
+      ]
+    },
+    {
+      "name": "thousands with zero pattern 三千零二十",
+      "text": "三千零二十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "3,020"
+        }
+      ]
+    },
+    {
+      "name": "thousands with zero + unit 一千零六",
+      "text": "一千零六",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "1,006"
+        }
+      ]
+    },
+    {
+      "name": "truncated short-form thousands 三千三 is 3,300, not 3,003",
+      "text": "三千三",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "3,300"
+        }
+      ]
+    },
+    {
+      "name": "truncated short-form thousands with hundreds remainder 三千二百三 is 3,230",
+      "text": "三千二百三",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "3,230"
+        }
+      ]
+    },
+    {
+      "name": "three-magnitude compound 三千二百十五 keeps 十五 (was silently 3,200)",
+      "text": "三千二百十五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 6,
+          "translated": "3,215"
+        }
+      ]
+    },
+    {
+      "name": "thousand ten-thousand 五千万 is 50,000,000",
+      "text": "五千万",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "50,000,000"
+        }
+      ]
+    },
+    {
+      "name": "maximum token span 三千七百五十五",
+      "text": "三千七百五十五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 7,
+          "translated": "3,755"
+        }
+      ]
+    },
+    {
+      "name": "tens range 五六十",
+      "text": "五六十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "50-60"
+        }
+      ]
+    },
+    {
+      "name": "teen range 十六七",
+      "text": "十六七",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "16-17"
+        }
+      ]
+    },
+    {
+      "name": "tens-based range 二十八九",
+      "text": "二十八九",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "28-29"
+        }
+      ]
+    },
+    {
+      "name": "hundreds range 四五百",
+      "text": "四五百",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "400-500"
+        }
+      ]
+    },
+    {
+      "name": "hundreds + tens range 一百五六十",
+      "text": "一百五六十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "150-160"
+        }
+      ]
+    },
+    {
+      "name": "thousand range 七八千",
+      "text": "七八千",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "7-8 ngàn"
+        }
+      ]
+    },
+    {
+      "name": "ten-thousand range 七八万",
+      "text": "七八万",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "7-8 vạn"
+        }
+      ]
+    },
+    {
+      "name": "an ascending but non-consecutive range 五八十 is allowed",
+      "text": "五八十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 3,
+          "translated": "50-80"
+        }
+      ]
+    },
+    {
+      "name": "a descending range 八五十 is not a range: 八 is left alone and 五十 converts",
+      "text": "八五十",
+      "converted": [
+        {
+          "start": 1,
+          "length": 2,
+          "translated": "50"
+        }
+      ]
+    },
+    {
+      "name": "percentage 百分之三十",
+      "text": "百分之三十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "30%"
+        }
+      ]
+    },
+    {
+      "name": "percentage with units 百分之十五",
+      "text": "百分之十五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "15%"
+        }
+      ]
+    },
+    {
+      "name": "percentage range 百分之五六十",
+      "text": "百分之五六十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 6,
+          "translated": "50-60%"
+        }
+      ]
+    },
+    {
+      "name": "large percentage 百分之两百",
+      "text": "百分之两百",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "200%"
+        }
+      ]
+    },
+    {
+      "name": "bare 百 percentage 百分之百",
+      "text": "百分之百",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "100%"
+        }
+      ]
+    },
+    {
+      "name": "bare 百 percentage with decimal 百分之百点五",
+      "text": "百分之百点五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 6,
+          "translated": "100.5%"
+        }
+      ]
+    },
+    {
+      "name": "percentage with one decimal digit 百分之九十九点九",
+      "text": "百分之九十九点九",
+      "converted": [
+        {
+          "start": 0,
+          "length": 8,
+          "translated": "99.9%"
+        }
+      ]
+    },
+    {
+      "name": "percentage with two decimal digits 百分之九十九点九九",
+      "text": "百分之九十九点九九",
+      "converted": [
+        {
+          "start": 0,
+          "length": 9,
+          "translated": "99.99%"
+        }
+      ]
+    },
+    {
+      "name": "a decimal digit of 零 百分之一百点零五",
+      "text": "百分之一百点零五",
+      "converted": [
+        {
+          "start": 0,
+          "length": 8,
+          "translated": "100.05%"
+        }
+      ]
+    },
+    {
+      "name": "a decimal percentage does not consume a trailing 的",
+      "text": "百分之九十九点九的",
+      "converted": [
+        {
+          "start": 0,
+          "length": 8,
+          "translated": "99.9%"
+        }
+      ]
+    },
+    {
+      "name": "four-digit year 一九四五年",
+      "text": "一九四五年",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "năm 1945"
+        }
+      ]
+    },
+    {
+      "name": "four-digit year with zeros 二零二四年",
+      "text": "二零二四年",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "năm 2024"
+        }
+      ]
+    },
+    {
+      "name": "two numbers in a row: a year, then 三十",
+      "text": "一九四五年三十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 5,
+          "translated": "năm 1945"
+        },
+        {
+          "start": 5,
+          "length": 2,
+          "translated": "30"
+        }
+      ]
+    },
+    {
+      "name": "longest match wins: 三百五十 is one number",
+      "text": "三百五十",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "350"
+        }
+      ]
+    },
+    {
+      "name": "a number inside text converts and the text does not",
+      "text": "他三十五岁",
+      "converted": [
+        {
+          "start": 1,
+          "length": 3,
+          "translated": "35"
+        }
+      ]
+    },
+    {
+      "name": "两 after a number is a tael unit, not a digit: 五百二十两",
+      "text": "五百二十两",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "520"
+        }
+      ]
+    },
+    {
+      "name": "两 after a number is a tael unit, not a digit: 一千五百两",
+      "text": "一千五百两",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "1,500"
+        }
+      ]
+    },
+    {
+      "name": "两 after a number is a tael unit, not a digit: 三千五百两",
+      "text": "三千五百两",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "3,500"
+        }
+      ]
+    },
+    {
+      "name": "两 after a number is a tael unit, not a digit: 两千五百两",
+      "text": "两千五百两",
+      "converted": [
+        {
+          "start": 0,
+          "length": 4,
+          "translated": "2,500"
+        }
+      ]
+    }
+  ]
+}

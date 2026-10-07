@@ -92,7 +92,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const isReadingRef = useRef(false);
   isReadingRef.current = isReading;
   const { announceOpenBook, announceClosedBook } = useBookBinding();
-  // The Reader's engine queue lives here, above every `BookReader` instance — see
+  // The Reader's engine calls are built here, above every `BookReader` instance — see
   // `useReaderEngine`.
   const readerEngine = useReaderEngine();
 

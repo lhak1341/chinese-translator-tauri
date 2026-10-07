@@ -16,7 +16,7 @@
  *   instead of leaving the Chinese showing.
  * - The original panel is pending only on its own page, and fills back in, as plain text,
  *   whatever part of a line no run covers.
- * - A blank line is decided from the Chinese (`isBlankLine`), so all three panels collapse the
+ * - A blank line is decided from the Chinese (`isBlankLine`, in `TranslationWindow.ts`), so all three panels collapse the
  *   same rows — and the panels' estimated row height asks the same function, so a row's
  *   collapse and its estimate cannot disagree.
  *
@@ -24,6 +24,7 @@
  */
 
 import type { CachedChunk } from './TranslationChunkCache';
+import { isBlankLine } from './TranslationWindow';
 import { assembleTranslatedLines, linePieces } from './ChunkLineFold';
 import type { LinePiece } from './ChunkLineFold';
 import {
@@ -221,18 +222,6 @@ function vietnamesePanelRow(
     if (partial) return partial;
   }
   return vietnameseRow(translated, line, isBlank, segments);
-}
-
-/**
- * Whether a line is one of the file's own paragraph breaks — rendered at zero height, see
- * `PanelRow.isBlank`, and estimated at zero too.
- *
- * `undefined` (a line whose page has not been fetched) is not blank: that row keeps its
- * full estimated height, so the scrollbar does not shrink and then grow as pages land.
- * (`TranslationWindow`'s private `isParagraphBreak` takes the opposite view of `undefined`.)
- */
-export function isBlankLine(line: string | undefined): boolean {
-  return line?.trim() === '';
 }
 
 /**

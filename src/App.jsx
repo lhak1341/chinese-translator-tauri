@@ -89,16 +89,17 @@ function AppContent() {
 
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
-      <EngineProvider>
-        {/* Inside EngineProvider: applying a binding reinitializes the engine, and the
-            binding is the authority on the fiction slice of activeProperNouns for every
-            tab, not just the Reader — so it lives above the tab container too. */}
-        <BookBindingProvider>
-          <VisibleTabProvider>
+      {/* Above EngineProvider: the engine's access queue follows the visible tab. */}
+      <VisibleTabProvider>
+        <EngineProvider>
+          {/* Inside EngineProvider: applying a binding reinitializes the engine, and the
+              binding is the authority on the fiction slice of activeProperNouns for every
+              tab, not just the Reader — so it lives above the tab container too. */}
+          <BookBindingProvider>
             <TabbedInterface />
-          </VisibleTabProvider>
-        </BookBindingProvider>
-      </EngineProvider>
+          </BookBindingProvider>
+        </EngineProvider>
+      </VisibleTabProvider>
     </div>
   );
 }

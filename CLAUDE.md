@@ -47,7 +47,7 @@ bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:fu
 
 This file stays short on purpose — everything task-scoped moved to where it's discoverable when you actually need it:
 
-- **Tooling/environment gotchas** (RTK proxy output is lossy, Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
+- **Tooling/environment gotchas** (repo-wide search and ad-hoc scripts importing `src/` — read before either; RTK proxy output is lossy, Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
 - **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing, and before deleting a method with no production callers (dev-console commands and contract tests look dead on grep, e.g. `getWasmStatus`) → [`docs/guides/deleted-symbols.md`](docs/guides/deleted-symbols.md).
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.

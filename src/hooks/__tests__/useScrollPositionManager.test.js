@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useScrollPositionManager } from '../useScrollPositionManager';
+import { useScrollPositionManager, tryRestoreScrollPositions } from '../useScrollPositionManager';
 
 describe('useScrollPositionManager', () => {
   let mockRefs;
@@ -144,5 +144,113 @@ describe('useScrollPositionManager', () => {
       expect(result.current).toBeDefined();
       expect(result.current.savePositions).toBeInstanceOf(Function);
     });
+  });
+});
+
+describe('tryRestoreScrollPositions', () => {
+  /** A panel ref as the DOM reports it: scrollable by (scrollHeight - clientHeight) vertically. */
+  const panel = (overrides = {}) => ({
+    current: {
+      scrollTop: 0,
+      scrollLeft: 0,
+      scrollHeight: 1000,
+      clientHeight: 400,
+      scrollWidth: 800,
+      clientWidth: 500,
+      ...overrides,
+    },
+  });
+  const makeRefs = () => ({ original: panel(), translation: panel(), characterOnly: panel() });
+  const at = (scrollTop, scrollLeft = 0) => ({ scrollTop, scrollLeft });
+
+  test('writes every saved panel and reports success', () => {
+    const refs = makeRefs();
+
+    const done = tryRestoreScrollPositions(refs, {
+      original: at(100, 10),
+      translation: at(200, 20),
+      characterOnly: at(300, 30),
+    });
+
+    expect(done).toBe(true);
+    expect(
+      [refs.original, refs.translation, refs.characterOnly].map((r) => r.current.scrollTop)
+    ).toEqual([100, 200, 300]);
+    expect(
+      [refs.original, refs.translation, refs.characterOnly].map((r) => r.current.scrollLeft)
+    ).toEqual([10, 20, 30]);
+  });
+
+  test('is not ready, and writes nothing, while a saved panel has no layout yet', () => {
+    const refs = makeRefs();
+    refs.translation = panel({ scrollHeight: 0 });
+
+    const done = tryRestoreScrollPositions(refs, {
+      original: at(100),
+      translation: at(200),
+    });
+
+    expect(done).toBe(false);
+    // The panel that was ready is not written either: a restore is all or nothing per attempt.
+    expect(refs.original.current.scrollTop).toBe(0);
+  });
+
+  test('is not ready while a saved panel is not mounted', () => {
+    const refs = makeRefs();
+    refs.characterOnly = { current: null };
+
+    expect(tryRestoreScrollPositions(refs, { characterOnly: at(50) })).toBe(false);
+  });
+
+  test('ignores a panel that was not saved, even one without layout', () => {
+    const refs = makeRefs();
+    refs.translation = { current: null };
+
+    const done = tryRestoreScrollPositions(refs, { original: at(100) });
+
+    expect(done).toBe(true);
+    expect(refs.original.current.scrollTop).toBe(100);
+    expect(refs.characterOnly.current.scrollTop).toBe(0);
+  });
+
+  test('clamps each write to what the panel can now scroll', () => {
+    const refs = makeRefs();
+    // Content shrank after a reload: 1000 - 400 = 600 vertical, 800 - 500 = 300 horizontal.
+    const done = tryRestoreScrollPositions(refs, { original: at(5000, 5000) });
+
+    expect(done).toBe(true);
+    expect(refs.original.current.scrollTop).toBe(600);
+    expect(refs.original.current.scrollLeft).toBe(300);
+  });
+
+  test('clamps a panel that cannot scroll at all to zero', () => {
+    const refs = makeRefs();
+    refs.original = panel({
+      scrollHeight: 300,
+      clientHeight: 400,
+      scrollWidth: 300,
+      clientWidth: 500,
+    });
+
+    tryRestoreScrollPositions(refs, { original: at(100, 100) });
+
+    expect(refs.original.current.scrollTop).toBe(0);
+    expect(refs.original.current.scrollLeft).toBe(0);
+  });
+
+  test("clamps every panel by its own size, not another panel's", () => {
+    const refs = makeRefs();
+    refs.translation = panel({ scrollHeight: 500, clientHeight: 400 });
+    refs.characterOnly = panel({ scrollHeight: 2000, clientHeight: 400 });
+
+    tryRestoreScrollPositions(refs, {
+      original: at(900),
+      translation: at(900),
+      characterOnly: at(900),
+    });
+
+    expect(refs.original.current.scrollTop).toBe(600);
+    expect(refs.translation.current.scrollTop).toBe(100);
+    expect(refs.characterOnly.current.scrollTop).toBe(900);
   });
 });

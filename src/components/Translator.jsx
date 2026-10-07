@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { validateTranslationInput } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { createTranslationRunner, translationTimeoutMs } from '../utils/TranslationRunner';
+import { EngineAccessRefusedError } from '../utils/EngineAccess';
 import { TOAST_DURATIONS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
@@ -173,6 +174,7 @@ const Translator = ({ isActive }) => {
   const {
     enginePhase,
     engineRef,
+    engineAccess,
     initError: initializationError,
     reinitializeEngine,
     destroyEngine,
@@ -484,7 +486,10 @@ const Translator = ({ isActive }) => {
 
     try {
       if (engineRef.current && engineRef.current.isReady()) {
-        const result = await engineRef.current.translateWithCharactersOnly(text);
+        // One call, no `onPreempt`: it is short, so the Reader waits for it.
+        const result = await engineAccess.run('translator', (engine) =>
+          engine.translateWithCharactersOnly(text)
+        );
         if (result) {
           logger.log(
             `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
@@ -503,7 +508,12 @@ const Translator = ({ isActive }) => {
         }
       }
     } catch (error) {
-      logger.error('Character-only translation failed:', error);
+      if (error instanceof EngineAccessRefusedError) {
+        // Not the visible tab: nothing is wrong, the Translator redoes it when shown.
+        logger.warn('Character-only translation skipped:', error.message);
+      } else {
+        logger.error('Character-only translation failed:', error);
+      }
     }
     return Promise.resolve();
   }, []);
@@ -592,101 +602,137 @@ const Translator = ({ isActive }) => {
         }
       }, 10); // Small delay to ensure any previous content has been cleared
 
+      // Set when the Reader needs the engine and `EngineAccess` cancels this run: the run then
+      // ends with a notice instead of an error (Stop and a newer run still cancel silently).
+      let preemptedByReader = false;
+
       // The runner cancels any previous run, owns the timeout and abort, and makes this run's
       // callbacks no-ops once it is cancelled, so a superseded run cannot write over its successor.
-      const result = await translationRunner.run(
-        async ({ signal, guard }) => {
-          updateStreaming({
-            partialText: '',
-            progress: 0,
-            isStreaming: true,
-            completedChunks: 0,
-            totalChunks: 0,
-            batchNumber: 0,
-            avgTimePerChunk: 0,
-          });
-          setActiveTranslations(1);
+      let result;
+      try {
+        result = await translationRunner.run(
+          async ({ signal, guard }) => {
+            updateStreaming({
+              partialText: '',
+              progress: 0,
+              isStreaming: true,
+              completedChunks: 0,
+              totalChunks: 0,
+              batchNumber: 0,
+              avgTimePerChunk: 0,
+            });
+            setActiveTranslations(1);
 
-          const segmentResult = await engineRef.current.translateWithSegments(text, {
-            debug: false,
-            progressive: true,
-            abortSignal: signal,
-            onProgress: guard((progressData) => {
-              // Wrap in startTransition to deprioritize rendering updates
-              // This prevents GPU buffer corruption during rapid updates
-              startTransition(() => {
-                // Use debounced progress handler for smoother UI
-                debouncedProgressHandler.current.handleProgress(progressData);
-              });
-            }),
-            onBatchComplete: guard((batchData) => {
-              startTransition(() => {
-                // Update streaming state with batch completion info
-                updateStreaming({
-                  partialText: batchData.partialText,
-                  progress: batchData.progress || 0,
-                  completedChunks: batchData.completedChunks || 0,
-                  totalChunks: batchData.totalChunks,
-                  batchNumber: batchData.batchNumber,
-                  avgTimePerChunk: batchData.avgTimePerChunk,
-                });
+            // A document run is long, so it is preemptible: when the Reader calls the engine,
+            // `EngineAccess` cancels this run through the runner and starts the Reader's call
+            // once the engine has stopped. The partial text stays on screen.
+            const segmentResult = await engineAccess.run(
+              'translator',
+              (engine) =>
+                engine.translateWithSegments(text, {
+                  debug: false,
+                  progressive: true,
+                  abortSignal: signal,
+                  onProgress: guard((progressData) => {
+                    // Wrap in startTransition to deprioritize rendering updates
+                    // This prevents GPU buffer corruption during rapid updates
+                    startTransition(() => {
+                      // Use debounced progress handler for smoother UI
+                      debouncedProgressHandler.current.handleProgress(progressData);
+                    });
+                  }),
+                  onBatchComplete: guard((batchData) => {
+                    startTransition(() => {
+                      // Update streaming state with batch completion info
+                      updateStreaming({
+                        partialText: batchData.partialText,
+                        progress: batchData.progress || 0,
+                        completedChunks: batchData.completedChunks || 0,
+                        totalChunks: batchData.totalChunks,
+                        batchNumber: batchData.batchNumber,
+                        avgTimePerChunk: batchData.avgTimePerChunk,
+                      });
 
-                // Update partial semantic arrays for incremental highlighting
-                if (batchData.partialSemanticArrays) {
-                  setPartialSemanticArrays(batchData.partialSemanticArrays);
-                }
-              });
-            }),
-          });
+                      // Update partial semantic arrays for incremental highlighting
+                      if (batchData.partialSemanticArrays) {
+                        setPartialSemanticArrays(batchData.partialSemanticArrays);
+                      }
+                    });
+                  }),
+                }),
+              {
+                onPreempt: () => {
+                  preemptedByReader = true;
+                  translationRunner.cancelAll();
+                },
+              }
+            );
 
-          // Final update with complete result - flush any pending debounced updates
-          debouncedProgressHandler.current.flushUpdates();
+            // Final update with complete result - flush any pending debounced updates
+            debouncedProgressHandler.current.flushUpdates();
 
-          if (segmentResult && segmentResult.semanticArrays) {
-            // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
-            try {
-              validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
-            } catch {
-              // Validation error already logged and toasted in validateSemanticArraySize
-              // Clear translation state on overflow
-              clearFullResult();
-              return undefined;
+            if (segmentResult && segmentResult.semanticArrays) {
+              // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
+              try {
+                validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
+              } catch {
+                // Validation error already logged and toasted in validateSemanticArraySize
+                // Clear translation state on overflow
+                clearFullResult();
+                return undefined;
+              }
+
+              setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
             }
 
-            setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
-          }
+            // Clear progress info when done
+            setProgressInfo(null);
 
-          // Clear progress info when done
-          setProgressInfo(null);
+            // Complete streaming and reset state
+            updateStreaming({
+              isStreaming: false,
+              progress: 100,
+              partialText: segmentResult.translatedText,
+            });
 
-          // Complete streaming and reset state
-          updateStreaming({
-            isStreaming: false,
-            progress: 100,
-            partialText: segmentResult.translatedText,
-          });
+            // Clear partial semantic arrays since we have final ones
+            setPartialSemanticArrays(null);
 
-          // Clear partial semantic arrays since we have final ones
-          setPartialSemanticArrays(null);
-
-          return segmentResult.translatedText;
-        },
-        {
-          timeoutMs: translationTimeoutMs(text.length),
-          // CODE REVIEW FIX (CRITICAL-3): a reload awaits this through cancelAllTranslations()
-          cleanup: async ({ superseded }) => {
-            // A newer run owns the streaming flags and the progress handler now
-            if (!superseded) {
-              debouncedProgressHandler.current.cleanup();
-              updateStreaming({ isStreaming: false });
-              setActiveTranslations(0);
-              logger.log('🏁 Translation finished');
-            }
-            // Small delay to ensure state updates are processed
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            return segmentResult.translatedText;
           },
+          {
+            timeoutMs: translationTimeoutMs(text.length),
+            // CODE REVIEW FIX (CRITICAL-3): a reload awaits this through cancelAllTranslations()
+            cleanup: async ({ superseded }) => {
+              // A newer run owns the streaming flags and the progress handler now
+              if (!superseded) {
+                debouncedProgressHandler.current.cleanup();
+                updateStreaming({ isStreaming: false });
+                setActiveTranslations(0);
+                logger.log('🏁 Translation finished');
+              }
+              // Small delay to ensure state updates are processed
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            },
+          }
+        );
+      } catch (error) {
+        if (preemptedByReader) {
+          toast.warning(
+            'Translation paused: the Reader needed the engine. Translate again to finish.',
+            {
+              duration: UI_TIMEOUTS.TOAST_DURATION_ERROR,
+            }
+          );
+          logger.warn('Translation preempted by the Reader');
+          return undefined;
         }
-      );
+        if (error instanceof EngineAccessRefusedError) {
+          logger.warn('Translation skipped:', error.message);
+          return undefined;
+        }
+        throw error;
+      }
 
       // Update performance stats
       recordTranslation(performance.now() - translationStartTime);
@@ -758,9 +804,9 @@ const Translator = ({ isActive }) => {
 
   // The Reader's version of the reload: the same action, minus the step that re-translates
   // *this* tab's hidden input. That step is the single most expensive thing a
-  // Reader-triggered reload used to do, and it also put a second caller on the engine while
-  // the Reader's own chunk fill was running — which `BookReader`'s engine queue is
-  // explicitly documented as assuming cannot happen.
+  // Reader-triggered reload used to do. It no longer corrupts the Reader's chunk (the call
+  // would queue behind it, or cancel it when preemptible), but a whole hidden document is
+  // still time the Reader would spend waiting for an engine it wanted for its own text.
   const handleReaderReload = useCallback(async () => {
     deferRetranslate();
     await handleForceReload({ retranslateInput: false });

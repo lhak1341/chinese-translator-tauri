@@ -1,11 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { transformAppConfig } from '../../utils/appConfig';
-import {
-  toProperNounsDictionaryId,
-  isFictionProperNounsId,
-  dictionaryNameProblem,
-} from '../../utils/dictionary';
+import { toProperNounsDictionaryId, dictionaryNameProblem } from '../../utils/dictionary';
 import { createMissingPatternHalves } from '../../utils/dictionary/DictionaryPairs';
 import { bareNameOf, isProperNounsDict } from '../../utils/dictionary/DictionaryIdClassifier';
 import {
@@ -17,8 +13,7 @@ import { useDictionary } from '../dictionary/DictionaryContext';
 import { useBookBinding } from '../BookBindingContext';
 import {
   activeProperNounsAfterToggle,
-  activeProperNounsForBinding,
-  quickAddViewForBinding,
+  configurationBindingView,
 } from '../../utils/reader/BindingActivation';
 
 /**
@@ -65,38 +60,23 @@ export function useDictionaryConfigManagement() {
   );
 
   /**
-   * What the checkboxes render from.
+   * What the checkboxes, the default and the locks render from.
    *
-   * With a book open this is the binding, not the last thing saved to config — the two
-   * agree on disk, but deriving it means a binding change made in the Reader is reflected
-   * here immediately instead of waiting for the config subscription to catch up.
+   * With a book open this is the binding, not the last thing saved to config — the two agree
+   * on disk, but deriving it means a binding change made in the Reader is reflected here
+   * immediately instead of waiting for the config subscription to catch up. The rule (what the
+   * binding implies, what it locks) lives in `configurationBindingView`; this only feeds it.
    */
-  const effectiveActiveDictionaries = useMemo(
+  const view = useMemo(
     () =>
-      isBookOpen
-        ? activeProperNounsForBinding(activeDictionaries, boundFictionDictionary)
-        : activeDictionaries,
-    [activeDictionaries, boundFictionDictionary, isBookOpen]
-  );
-
-  /**
-   * A book bound to a fiction dictionary points every Add at it (`quickAddViewForBinding`), so
-   * a default written here would change nothing now and be overwritten by the next fiction
-   * bind. A book with no binding leaves a generic default in force, so that stays editable.
-   */
-  const isDefaultLockedByBook =
-    isBookOpen && boundFictionDictionary !== null && isFictionProperNounsId(boundFictionDictionary);
-
-  /** What Cmd-5 does now: the binding's answer while a book is open, the saved default otherwise. */
-  const defaultQuickAddDictionary = useMemo(
-    () =>
-      isBookOpen
-        ? quickAddViewForBinding(
-            { defaultQuickAddDictionary: savedDefaultQuickAddDictionary, activeProperNouns: [] },
-            boundFictionDictionary
-          ).defaultQuickAddDictionary
-        : savedDefaultQuickAddDictionary,
-    [isBookOpen, boundFictionDictionary, savedDefaultQuickAddDictionary]
+      configurationBindingView(
+        {
+          activeProperNouns: activeDictionaries,
+          defaultQuickAddDictionary: savedDefaultQuickAddDictionary,
+        },
+        isBookOpen ? { bound: boundFictionDictionary } : null
+      ),
+    [activeDictionaries, savedDefaultQuickAddDictionary, isBookOpen, boundFictionDictionary]
   );
 
   // Once the Dictionary Store has listed everything, give pre-existing dictionaries their
@@ -143,7 +123,7 @@ export function useDictionaryConfigManagement() {
     // The open book is the authority on its fiction dictionary. Refusing here rather than
     // disabling the input alone means a toggle can never write a fiction entry the Reader
     // would then silently overwrite on its next apply.
-    if (isBookOpen && isFictionProperNounsId(dictionaryId)) return;
+    if (view.isRowLocked(dictionaryId)) return;
     try {
       // Decided against the config as it is when this write's turn comes, not against the
       // React state at click time: a second click before the first save resolved would
@@ -252,7 +232,7 @@ export function useDictionaryConfigManagement() {
   };
 
   const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
-    if (isDefaultLockedByBook) return;
+    if (view.isDefaultLocked) return;
     try {
       // Clicking the current default unsets it (toggle off). Decided against the saved
       // config, not this hook's mirror of it, which a book opening may have moved. The
@@ -271,10 +251,12 @@ export function useDictionaryConfigManagement() {
 
   return {
     availableDictionaries: allDictionaries,
-    activeDictionaries: effectiveActiveDictionaries,
+    activeDictionaries: view.activeProperNouns,
     /** True while the Reader has a book open: fiction rows reflect its binding and cannot
      * be toggled here. */
+    /** True while the Reader has a book open: fiction rows reflect its binding (see `isRowLocked`). */
     isFictionLockedByBook: isBookOpen,
+    isRowLocked: view.isRowLocked,
     openBookTitle: openBook?.title ?? null,
     isLoading: isMigrating || configLoading,
     error,
@@ -286,10 +268,10 @@ export function useDictionaryConfigManagement() {
     renamingDictionaryId,
     renameValue,
     updateRenameValue,
-    defaultQuickAddDictionary,
+    defaultQuickAddDictionary: view.defaultQuickAddDictionary,
     /** True while a book bound to fiction is open: Cmd-5 follows the book, so the default
      * shown is the book's and cannot be changed here. */
-    isDefaultLockedByBook,
+    isDefaultLockedByBook: view.isDefaultLocked,
     categorizedDictionaries,
     handleToggleDictionary,
     handleCreateDictionary,

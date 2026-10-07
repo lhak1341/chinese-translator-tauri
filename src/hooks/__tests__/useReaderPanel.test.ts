@@ -22,7 +22,8 @@ vi.mock('@tanstack/react-virtual', () => ({
 }));
 
 import { useReaderPanel } from '../useReaderPanel';
-import { EMPTY_PANEL_ROWS, isBlankLine, rowAt } from '../../utils/reader/PanelRows';
+import { EMPTY_PANEL_ROWS, rowAt } from '../../utils/reader/PanelRows';
+import { isBlankLine } from '../../utils/reader/TranslationWindow';
 
 /** The lines every case below draws from: blank, unfetched, and ordinary prose. */
 const BLANK_LINE = 1;
