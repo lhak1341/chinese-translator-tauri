@@ -51,6 +51,10 @@ This ADR's original method list did not name this cluster — it is textually di
 
 **Correction, not just extension:** the review also found this cluster had zero test coverage anywhere (not even its own test file), contradicting an initial claim that `TwoPhasePatternProcessor.test.js` covered it. Rather than leave an untested-but-kept surface, dedicated tests were added: `TwoPhasePatternProcessor.internalProfiling.test.js` and `TranslationEngine.patternProfiling.test.js`. Future reviews: this cluster is decided-kept per this ADR; a missing test file is not grounds to re-flag it as dead.
 
+## Addendum (2026-10-09)
+
+`getEngineStats()` was deleted, with `resetStats()`, `this.stats` and `MAX_TOKEN_STATS`. The "real seam, keep as-is" line above rested on app callers that were gone by 2026-07-28, and what remained was a console method whose `totalTime`, `averageTime`, `throughput` and `tokenStats` were always 0 or `{}` (nothing wrote `totalTime` or `tokenStats`). Its other fields are reachable directly from `window.translationEngine` (`dictionaryManager.getGlobalStats()`, `semanticPatternProcessor.getDebugInfo()`). The nine profiling methods and the five pattern-profiling delegators are unaffected: the flat, tab-completable console surface is still the decision. `DictionaryManager.getGlobalStats()` and `getMemoryUsage()` stay (`docs/guides/development.md` names them as console reads).
+
 ## Addendum (2026-09-26)
 
 `getCoreEngineStats()` (and the `coreEngine` getter behind it) was deleted as dead code: no caller in the app, reachable only by hand through `window.translationEngine`. The decision above is unchanged — the remaining methods stay a flat interface on `TranslationEngine`, not a `PerformanceReporter`.

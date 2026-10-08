@@ -178,14 +178,9 @@ import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/Performanc
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
 import {
-  isWasmPatternProcessorReady,
-  hasWasmPatternProcessorFailed,
-} from './wasm/WasmPatternProcessor.js';
-import {
   MEMORY_MANAGEMENT,
-  getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
   PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
-  DEVICE_MEMORY_LIMITS,
+  MAX_INPUT_TOKENS,
   UI_TIMEOUTS,
   PATTERN_FAILURE_DETECTION,
 } from '../constants/TranslationConstants.js';
@@ -268,15 +263,8 @@ export class TranslationEngine {
     this.validatePhaseContracts = process.env.NODE_ENV !== 'production';
     this.punctuationDict = {}; // Store punctuation translation dictionary
 
-    // MEMORY MANAGEMENT: Bounded collection limits for stats
-    this.MAX_TOKEN_STATS = MEMORY_MANAGEMENT.MAX_TOKEN_STATS; // Most frequently used token types
+    // MEMORY MANAGEMENT: Bounded collection limits
     this.MAX_PROPER_NOUN_TRANSLATIONS = MEMORY_MANAGEMENT.MAX_PROPER_NOUN_TRANSLATIONS; // Maximum proper noun cache size (prevents unbounded growth)
-
-    this.stats = {
-      totalTranslations: 0,
-      totalTime: 0,
-      tokenStats: new Map(),
-    };
 
     // Initialize parallel processing configuration (will be set during first use)
 
@@ -294,131 +282,24 @@ export class TranslationEngine {
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
 
-    // Tracks WASM init-failure warning (separate from retry warnings owned by patternFailureTracker)
-    this._wasmInitWarningShown = false;
-
-    // Tracks runtime pattern failures — failure count, time window, disable threshold
+    // Tracks failures of the WASM pattern path — failure count, time window, disable threshold
     this.patternFailureTracker = new PatternFailureTracker({
       failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
       disableThreshold: PATTERN_FAILURE_DETECTION.MAX_FAILURES,
+    });
+    // The JS path has nothing to switch off, so its tracker only decides when to warn: once per
+    // run of failures, again after a success. A JS failure must not feed the WASM counter above.
+    this.jsPatternFailureTracker = new PatternFailureTracker({
+      failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
+      disableThreshold: Infinity,
     });
 
     // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
     // Prevents memory leak when translation is aborted before cleanup completes
     this.pendingCleanupCallbacks = new Set();
-  }
 
-  /**
-   * Calculate maximum safe token count based on available device memory
-   * @returns {number} Maximum tokens that can be safely processed
-   */
-  calculateMaxTokensForDevice() {
-    const defaultMaxTokens = DEVICE_MEMORY_LIMITS.DEFAULT_MAX_TOKENS;
-
-    try {
-      // Use performance memory API if available (Chrome/Edge)
-      if (performance.memory) {
-        const totalMemory = performance.memory.jsHeapSizeLimit;
-        const usedMemory = performance.memory.usedJSHeapSize;
-        const availableMemory = totalMemory - usedMemory;
-
-        // Estimate memory per token: ~100 bytes per token (conservative)
-        // Includes token object, translation data, semantic arrays, DOM elements
-        const estimatedBytesPerToken = 100;
-        const maxTokensByMemory = Math.floor(
-          (availableMemory * DEVICE_MEMORY_LIMITS.MEMORY_USAGE_PERCENTAGE) / estimatedBytesPerToken
-        );
-
-        // Device-specific limits based on total memory
-        let deviceMaxTokens;
-        if (totalMemory > 4 * 1024 * 1024 * 1024) {
-          // >4GB heap limit
-          deviceMaxTokens = DEVICE_MEMORY_LIMITS.VERY_HIGH_MEMORY_TOKENS;
-        } else if (totalMemory > 2 * 1024 * 1024 * 1024) {
-          // >2GB heap limit
-          deviceMaxTokens = DEVICE_MEMORY_LIMITS.MEDIUM_MEMORY_TOKENS;
-        } else {
-          deviceMaxTokens = DEVICE_MEMORY_LIMITS.LOW_MEMORY_TOKENS;
-        }
-
-        // Return the minimum of memory-based and device-based limits
-        const calculatedLimit = Math.min(maxTokensByMemory, deviceMaxTokens);
-
-        return Math.max(calculatedLimit, DEVICE_MEMORY_LIMITS.MIN_TOKEN_LIMIT);
-      }
-
-      // Fallback for browsers without performance.memory API
-      const navigatorMemory = navigator.deviceMemory; // GB, available in some browsers
-      if (navigatorMemory) {
-        if (navigatorMemory >= 8) return DEVICE_MEMORY_LIMITS.VERY_HIGH_MEMORY_TOKENS;
-        if (navigatorMemory >= 4) return DEVICE_MEMORY_LIMITS.HIGH_MEMORY_TOKENS;
-        if (navigatorMemory >= 2) return DEVICE_MEMORY_LIMITS.LOW_MEMORY_TOKENS;
-        return 8000; // <2GB RAM
-      }
-    } catch (error) {
-      logger.warn('⚠️ Device memory detection failed, using conservative limits:', error);
-    }
-
-    return defaultMaxTokens;
-  }
-
-  // ============================================================================
-  // SECTION 4: TRANSLATION SEGMENT CAP
-  // ============================================================================
-  // Purpose: Keep translationSegments bounded (trackTranslationSegment's hard ceiling)
-  // Critical: Cleanup timing must not interfere with translation
-  // ============================================================================
-
-  /**
-   * Cleanup old translation segments to prevent memory leaks
-   *
-   * Removes oldest translation segments when exceeding device-specific threshold. This
-   * prevents unbounded memory growth in long-running applications. Called automatically
-   * before each new translation in translateWithSegments().
-   *
-   * Memory leak prevention:
-   * - Uses adaptive threshold based on device memory (10-35 segments)
-   * - Removes oldest segments first (splice from beginning)
-   * - Keeps only most recent segments for highlighting
-   *
-   * Adaptive thresholds:
-   * - Low memory devices (<2GB): 10 segments
-   * - Medium memory devices (2-4GB): 20 segments
-   * - High memory devices (>4GB): 35 segments
-   *
-   * @returns {void}
-   *
-   * @example
-   * // Called automatically before each translation
-   * this.cleanupOldSegments(); // Before translateWithSegments
-   * this.translationSegments = []; // Start fresh
-   *
-   * @see getAdaptiveMaxSegments - Calculates device-specific threshold
-   * @see translateWithSegments - Calls this before starting new translation
-   * @see performHighPriorityCleanup - More aggressive cleanup during memory pressure
-   *
-   * @performance
-   * - Fast operation: <1ms even with 100+ segments
-   * - Array splice is efficient for small removals
-   * - Prevents gradual memory accumulation
-   *
-   * @critical
-   * Must be called before each translation to prevent memory leaks.
-   * Without this, segments accumulate indefinitely causing OOM crashes.
-   * Adaptive threshold ensures compatibility across device classes.
-   *
-   * @fix
-   * HIGH-5 FIX (2026-01): Prevents memory leaks from segment accumulation.
-   * MEDIUM-2 FIX (2026-01): Adaptive threshold based on device memory.
-   */
-  cleanupOldSegments() {
-    // CODE REVIEW FIX (MEDIUM-2): Use adaptive threshold based on device memory
-    const maxSegments = getAdaptiveMaxSegments();
-
-    if (this.translationSegments.length > maxSegments) {
-      const removedCount = this.translationSegments.length - maxSegments;
-      this.translationSegments.splice(0, removedCount);
-    }
+    // The most tokens one translateDirectly call accepts. A field, not a constant, so a test can lower it.
+    this.maxInputTokens = MAX_INPUT_TOKENS;
   }
 
   /**
@@ -626,6 +507,16 @@ export class TranslationEngine {
       // Initialize semantic pattern processor
       if (dictionaries.patterns) {
         await this.semanticPatternProcessor.initializePatterns(dictionaries.patterns);
+
+        // The WASM path cannot run, so say so now: left on, every chunk would throw "not
+        // available", skipping Phase 1 until the failure counter gave up. Only ever turns it off.
+        if (
+          this.semanticPatternProcessor.patterns.length > 0 &&
+          !this.semanticPatternProcessor.wasmAvailable
+        ) {
+          this.settings.enableTwoPhasePatterns = false;
+          logger.warn('WASM pattern processor unavailable; using the JavaScript pattern path');
+        }
       }
 
       // Load punctuation dictionary for post-processing
@@ -912,10 +803,6 @@ export class TranslationEngine {
     // Performance monitoring: track timing for bottleneck detection
     const perfStartTime = performance.now();
 
-    // Reset segments for new translation
-    // HIGH-5 FIX: Cleanup old segments before resetting to prevent memory leaks
-    this.cleanupOldSegments();
-
     // MEMORY LEAK FIX: Always start fresh for each new translation
     // This ensures old segments don't accumulate across multiple translations
     this.translationSegments = [];
@@ -1101,7 +988,9 @@ export class TranslationEngine {
    * @critical
    * Must run FIRST in 5-phase pipeline (highest priority).
    * Consumed tokens are blocked from all subsequent phases.
-   * Pattern failures fall back to JavaScript (not fatal).
+   * A pattern failure is not fatal: Phase 1 is skipped for that call. After
+   * PATTERN_FAILURE_DETECTION.MAX_FAILURES WASM failures within the window the WASM path is
+   * switched off and later calls use SemanticPatternProcessor (ADR-007).
    *
    * @architectural
    * Cannot be extracted because pattern-consumed tokens affect all subsequent phases.
@@ -1112,6 +1001,9 @@ export class TranslationEngine {
       return;
     }
 
+    // Which path ran decides whose failure counter a throw feeds
+    let usedWasm = false;
+
     try {
       // Use hierarchical two-phase processing if enabled, otherwise use legacy processing
       // Re-enabled to debug hierarchical path
@@ -1119,6 +1011,7 @@ export class TranslationEngine {
         this.settings.enableTwoPhasePatterns &&
         this.semanticPatternProcessor.patterns?.length > 0
       ) {
+        usedWasm = true;
         // Apply hierarchical pattern processing here in Phase 1 (before phrases)
         // Create or reuse TwoPhasePatternProcessor instance
         if (!this.twoPhaseProcessor) {
@@ -1146,37 +1039,6 @@ export class TranslationEngine {
           logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
         }
 
-        // CRITICAL FIX: Detect and report ACTUAL pattern processing failures
-        // IMPORTANT: Zero results ≠ Failure
-        // - Zero results is valid when input text has no structural patterns
-        // - Only warn when WASM explicitly failed (hasWasmPatternProcessorFailed === true)
-        const wasmFailed = hasWasmPatternProcessorFailed();
-
-        if (
-          wasmFailed &&
-          this.semanticPatternProcessor.patterns?.length > 0 &&
-          !this._wasmInitWarningShown
-        ) {
-          const errorContext = {
-            patternsLoaded: this.semanticPatternProcessor.patterns.length,
-            wasmReady: isWasmPatternProcessorReady(),
-            wasmFailed: true,
-            timestamp: Date.now(),
-          };
-
-          logger.error(
-            '⚠️ Pattern processing system failure - WASM initialization failed:',
-            errorContext
-          );
-
-          // Show user-facing notification (only once per session to prevent spam)
-          toast.warning(
-            'Pattern matching unavailable. Translation quality may be reduced. Try reloading dictionaries.',
-            { duration: 8000 }
-          );
-          this._wasmInitWarningShown = true;
-        }
-
         return;
       }
 
@@ -1196,10 +1058,21 @@ export class TranslationEngine {
         prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
       });
       this.applyHierarchicalResults(tokens, jsResults, options);
+      this.jsPatternFailureTracker.reportSuccess();
     } catch (error) {
       // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
+
+      if (!usedWasm) {
+        if (this.jsPatternFailureTracker.reportFailure().action === 'warn') {
+          toast.warning(
+            'Pattern matching failed. Translation quality may be reduced. Try reloading dictionaries.',
+            { duration: 8000 }
+          );
+        }
+        return;
+      }
 
       const { action, count } = this.patternFailureTracker.reportFailure();
 
@@ -2209,75 +2082,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Get comprehensive engine performance and usage statistics
-   *
-   * Returns detailed metrics about translation performance, dictionary usage, memory
-   * management, and pattern processing. Useful for debugging, performance monitoring,
-   * and system health checks.
-   *
-   * Statistics included:
-   * - Translation metrics: total translations, total time, average time, throughput
-   * - Dictionary stats: cache hit rates, lookup counts, dictionary sizes
-   * - Pattern stats: pattern matches, variable extractions, cache performance
-   * - Token stats: token type distribution (bounded to prevent memory leaks)
-   * - Memory stats: pressure levels, cleanup events, profiling data
-   *
-   * @returns {Object} Comprehensive engine statistics
-   * @returns {boolean} result.isInitialized - Whether engine is initialized
-   * @returns {number} result.totalTranslations - Total number of translations performed
-   * @returns {number} result.totalTime - Total time spent translating (milliseconds)
-   * @returns {number} result.averageTime - Average translation time (milliseconds)
-   * @returns {number} result.throughput - Translations per second
-   * @returns {Object} result.tokenStats - Token type distribution (limited to 1000 entries)
-   * @returns {Object} result.dictionaryStats - Dictionary cache hit rates and sizes
-   * @returns {Object} result.patternStats - Pattern processing statistics
-   *
-   * @example
-   * // Get engine statistics
-   * const stats = engine.getEngineStats();
-   * console.log(`Average translation time: ${stats.averageTime.toFixed(2)}ms`);
-   * console.log(`Cache hit rate: ${stats.dictionaryStats.cacheHitRate}%`);
-   *
-   * @example
-   * // Monitor performance in development
-   * if (process.env.NODE_ENV === 'development') {
-   *   setInterval(() => {
-   *     const stats = engine.getEngineStats();
-   *     console.log('Engine Stats:', stats);
-   *   }, 10000); // Every 10 seconds
-   * }
-   *
-   * @see getSmartMemoryStats - Memory management statistics
-   * @see DictionaryManager.getGlobalStats - Dictionary statistics
-   * @see SemanticPatternProcessor.getDebugInfo - Pattern statistics
-   *
-   * @performance
-   * - Fast operation: <1ms to collect statistics
-   * - Safe to call frequently for monitoring
-   * - Token stats bounded to 1000 entries to prevent memory leaks
-   *
-   * @note
-   * Token stats use LRU eviction when exceeding MAX_TOKEN_STATS (1000).
-   * Statistics persist across translations until engine is destroyed.
-   */
-  getEngineStats() {
-    const avgTime =
-      this.stats.totalTranslations > 0 ? this.stats.totalTime / this.stats.totalTranslations : 0;
-
-    return {
-      isInitialized: this.isInitialized,
-      totalTranslations: this.stats.totalTranslations,
-      totalTime: this.stats.totalTime,
-      averageTime: avgTime,
-      throughput:
-        this.stats.totalTime > 0 ? this.stats.totalTranslations / (this.stats.totalTime / 1000) : 0,
-      tokenStats: Object.fromEntries(this.stats.tokenStats),
-      dictionaryStats: this.dictionaryManager.getGlobalStats(),
-      patternStats: this.semanticPatternProcessor.getDebugInfo(),
-    };
-  }
-
-  /**
    * Enable translation profiling to measure phase-by-phase performance
    * Usage: window.translationEngine.enableProfiling()
    * Then translate text and call getProfilingReport() to see breakdown
@@ -2365,17 +2169,6 @@ export class TranslationEngine {
     }
   }
 
-  /**
-   * Reset statistics
-   */
-  resetStats() {
-    this.stats = {
-      totalTranslations: 0,
-      totalTime: 0,
-      tokenStats: new Map(),
-    };
-  }
-
   // ============================================================================
   // SECTION 12: PARALLEL PROCESSING
   // ============================================================================
@@ -2457,21 +2250,7 @@ export class TranslationEngine {
       const processingTime = performance.now() - startTime;
       const avgTimePerChunk = processingTime / batch.length;
 
-      // Use INFO level for better visibility of batch performance
-      const actualBatchNumber =
-        this.currentBatchNumber || Math.floor(batchStart / batch.length) + 1;
-
-      // Track performance degradation across batches
-      if (!this.batchPerformanceHistory) this.batchPerformanceHistory = [];
-      this.batchPerformanceHistory.push({
-        batchNumber: actualBatchNumber,
-        processingTime,
-        avgTimePerChunk,
-        chunkCount: batch.length,
-        timestamp: Date.now(),
-      });
-
-      return { batchNumber: actualBatchNumber, processingTime, avgTimePerChunk };
+      return { processingTime, avgTimePerChunk };
     } catch (error) {
       // Handle parallel processing errors with performance tracking
       logger.error('Parallel chunk processing failed:', error);
@@ -2621,7 +2400,7 @@ export class TranslationEngine {
   // Purpose: Stream translation results in batches for UI progress updates
   // Dependencies: AdaptiveBatchSizer, processChunksInParallel,
   //   ProgressiveProgressReporter, WordSegmentMatcher
-  // Critical: this.batchPerformanceHistory resets per translation
+  // Critical: batchPerformanceHistory is a local, so it resets per translation
   // ============================================================================
 
   async translateWithProgressiveBatches(text, options = {}) {
@@ -2638,10 +2417,8 @@ export class TranslationEngine {
       chunkPostProcessor: this.chunkPostProcessor,
     });
 
-    // Initialize progress update debouncing (reduce UI update overhead)
-    this.lastProgressUpdate = 0;
-    this.progressUpdateInterval = UI_UPDATE_THRESHOLDS.PROGRESS_DEBOUNCE_MS;
-    this.minChunksForStreaming = UI_UPDATE_THRESHOLDS.STREAMING_MIN_CHUNKS;
+    // Progress update debouncing (reduce UI update overhead)
+    let lastProgressUpdate = 0;
 
     // Step 1: Split text into chunks by punctuation boundaries
     const chunks = this.textChunker.chunkText(text);
@@ -2660,10 +2437,8 @@ export class TranslationEngine {
     // and let calculateNextBatchSize grow it toward MAX_BATCH_SIZE while batches stay fast.
     let currentBatchSize = MIN_BATCH_SIZE;
 
-    let _totalBatches = Math.ceil(translatableChunks.length / currentBatchSize);
-
-    // Initialize adaptive batch sizing
-    this.batchPerformanceHistory = []; // Reset for this translation session
+    // Adaptive batch sizing reads this history; it is local, so each translation starts empty
+    const batchPerformanceHistory = [];
     let performanceBaseline = null;
 
     let processedChunks = 0;
@@ -2683,7 +2458,7 @@ export class TranslationEngine {
 
       // Adaptive batch sizing: adjust based on performance history
       const sizing = calculateNextBatchSize({
-        batchPerformanceHistory: this.batchPerformanceHistory,
+        batchPerformanceHistory,
         currentBatchSize,
         performanceBaseline,
         batchIndex,
@@ -2701,9 +2476,6 @@ export class TranslationEngine {
       // MEDIUM FIX: Calculate token offset for this batch
       const batchTokenOffset = cumulativeTokenCount;
 
-      // Pass current batch number for accurate logging
-      this.currentBatchNumber = batchIndex;
-
       // Translate current batch (with parallel processing)
       // MEDIUM FIX: Pass token offset, not chunk index
       const batchTiming = await this.processChunksInParallel(
@@ -2711,6 +2483,16 @@ export class TranslationEngine {
         options,
         batchTokenOffset
       );
+      const batchNumber = batchIndex + 1; // 1-based, as the UI shows it
+
+      // Track performance degradation across batches (read by calculateNextBatchSize)
+      batchPerformanceHistory.push({
+        batchNumber,
+        processingTime: batchTiming.processingTime,
+        avgTimePerChunk: batchTiming.avgTimePerChunk,
+        chunkCount: currentBatch.length,
+        timestamp: Date.now(),
+      });
 
       // Yield to event loop after each batch so the UI can paint a frame.
       // processChunksInParallel runs synchronous WASM (pattern + number processing) inside
@@ -2750,7 +2532,7 @@ export class TranslationEngine {
               Math.round(Math.min(100, (processedChunks / translatableChunks.length) * 100) * 10) /
               10,
             partialSemanticArrays: snapshotSemanticArrays(this.semanticArrayBuilder?.getArrays()),
-            batchNumber: batchTiming.batchNumber,
+            batchNumber,
             batchTime: batchTiming.processingTime,
             avgTimePerChunk: batchTiming.avgTimePerChunk,
             timestamp: Date.now(),
@@ -2762,13 +2544,14 @@ export class TranslationEngine {
 
       // Call progress callback if provided (with debouncing to reduce UI overhead)
       if (options.onProgress) {
-        const enableStreaming = translatableChunks.length >= this.minChunksForStreaming;
+        const enableStreaming =
+          translatableChunks.length >= UI_UPDATE_THRESHOLDS.STREAMING_MIN_CHUNKS;
         const isLastBatch = processedChunks >= translatableChunks.length;
 
         const update = buildProgressiveProgressUpdate({
           now: performance.now(),
-          lastProgressUpdate: this.lastProgressUpdate,
-          progressUpdateInterval: this.progressUpdateInterval,
+          lastProgressUpdate,
+          progressUpdateInterval: UI_UPDATE_THRESHOLDS.PROGRESS_DEBOUNCE_MS,
           isLastBatch,
           enableStreaming,
           batchIndex,
@@ -2781,8 +2564,7 @@ export class TranslationEngine {
 
         if (update.send) {
           options.onProgress(update.payload);
-          this.lastProgressUpdate = performance.now();
-        } else {
+          lastProgressUpdate = performance.now();
         }
       }
     }
@@ -2838,14 +2620,6 @@ export class TranslationEngine {
         dictionary: null, // null = missing, not unknown
         isMissing: true, // Explicit flag for debugging
       };
-    }
-
-    // CRITICAL FIX: Validate metadata array length matches original array
-    // Sparse arrays would cause position misalignment in rendering
-    if (finalMetadata.length !== originalLength) {
-      throw new Error(
-        `Metadata array length mismatch: ${finalMetadata.length} vs ${originalLength} (expected)`
-      );
     }
 
     return {
@@ -2916,8 +2690,6 @@ export class TranslationEngine {
    */
   async translateDirectly(text, options = {}) {
     // This is the original translate method logic, renamed for chunk-based architecture
-    const _translationId = this.stats.totalTranslations++;
-
     try {
       // CRITICAL FIX: Only reset segments if this is a standalone translation
       // DO NOT reset if this is part of multi-chunk translation (would lose semantic arrays from previous chunks)
@@ -2950,7 +2722,7 @@ export class TranslationEngine {
 
       // CRITICAL: Validate token count to prevent memory exhaustion
       const estimatedTokenCount = text.length * 1.2; // Conservative estimate
-      const maxTokensAllowed = this.calculateMaxTokensForDevice();
+      const maxTokensAllowed = this.maxInputTokens;
 
       if (tokens.length > maxTokensAllowed || estimatedTokenCount > maxTokensAllowed) {
         // A chunk is already the smallest unit the chunker produces (it splits on punctuation), so

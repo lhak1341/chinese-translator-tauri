@@ -530,16 +530,18 @@ const Translator = ({ isActive }) => {
    * - Engine readiness checks before processing
    *
    * @param {string} text - Chinese text to translate (max 1MB, validated)
-   * @returns {Promise<string>} Translated Vietnamese text
+   * @returns {Promise<import('../types/UITypes').TranslateTextOutcome>} `done` with the
+   *   Vietnamese text, or `skipped` with a reason when nothing ran (invalid input, reload in
+   *   progress, already loading, engine not ready, preempted by the Reader, refused, overflow).
+   *   A skip has already toasted or logged; a caller must not show it as a translation.
    *
-   * @throws {Error} If input validation fails (oversized, malicious patterns)
-   * @throws {Error} If translation timeout exceeded
-   * @throws {Error} If engine not ready or initialization failed
+   * @throws {Error} If translation timeout exceeded, or a newer run cancelled this one
+   * @throws {Error} If the engine call itself fails
    *
    * @example
    * // Triggered by input text change
-   * const result = await translateText("你好世界");
-   * setTranslatedText(result);
+   * const outcome = await translateText("你好世界");
+   * if (outcome.status === 'done') setTranslatedText(outcome.text);
    */
   const translateText = useCallback(
     async (text) => {
@@ -548,7 +550,7 @@ const Translator = ({ isActive }) => {
       if (!validationResult.valid) {
         toast.error(validationResult.error, { duration: UI_TIMEOUTS.TOAST_DURATION_ERROR });
         logger.warn(`Translation rejected: ${validationResult.error}`);
-        return;
+        return { status: 'skipped', reason: 'invalid' };
       }
 
       // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
@@ -557,17 +559,16 @@ const Translator = ({ isActive }) => {
           duration: 3000,
         });
         logger.warn('Translation rejected: dictionary reload in progress');
-        return;
+        return { status: 'skipped', reason: 'reloading' };
       }
 
       if (isLoading) {
-        return text;
+        return { status: 'skipped', reason: 'loading' };
       }
 
       if (!engineRef.current || !engineRef.current.isReady()) {
-        // Engine not ready - return original text with message
         logger.error('❌ Translation failed: Engine not ready');
-        return 'Engine not ready. Please wait for engine initialization.';
+        return { status: 'skipped', reason: 'not-ready' };
       }
 
       const translationStartTime = performance.now();
@@ -657,7 +658,7 @@ const Translator = ({ isActive }) => {
                 // Validation error already logged and toasted in validateSemanticArraySize
                 // Clear translation state on overflow
                 clearFullResult();
-                return undefined;
+                return { status: 'skipped', reason: 'overflow' };
               }
 
               setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
@@ -676,7 +677,7 @@ const Translator = ({ isActive }) => {
             // Clear partial semantic arrays since we have final ones
             setPartialSemanticArrays(null);
 
-            return segmentResult.translatedText;
+            return { status: 'done', text: segmentResult.translatedText };
           },
           {
             timeoutMs: translationTimeoutMs(text.length),
@@ -703,20 +704,23 @@ const Translator = ({ isActive }) => {
             }
           );
           logger.warn('Translation preempted by the Reader');
-          return undefined;
+          return { status: 'skipped', reason: 'preempted' };
         }
         if (error instanceof EngineAccessRefusedError) {
           logger.warn('Translation skipped:', error.message);
-          return undefined;
+          return { status: 'skipped', reason: 'refused' };
         }
         throw error;
       }
 
       // Update performance stats
-      recordTranslation(performance.now() - translationStartTime);
+      if (result.status === 'done') recordTranslation(performance.now() - translationStartTime);
 
       return result;
     },
+    // isLoading and isDictionaryReloading are read from this render's closure on purpose, not
+    // through a ref: useForceReload retranslates inside the reload window through a callback
+    // captured before the flag was set, and a live flag would refuse it (see components/CLAUDE.md).
     [isLoading, isDictionaryReloading]
   );
 

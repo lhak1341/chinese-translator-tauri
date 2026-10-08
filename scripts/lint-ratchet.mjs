@@ -10,7 +10,9 @@
  *   - count < baseline  -> fail; lower the baseline (keeps the ceiling from going stale)
  *   - count === baseline -> pass
  *
- * Run with --update to write the current count as the new baseline.
+ * Run with --update to write the current count as the new baseline. Run with --ratchet-down
+ * (the pre-commit hook does) to lower the baseline on a drop instead of failing; an increase
+ * and any error still fail.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -57,6 +59,12 @@ if (warnings > maxWarnings) {
       `This change added ${warnings - maxWarnings}. Run \`bun run lint:full\` to see them.`
   );
   process.exit(1);
+}
+
+if (warnings < maxWarnings && process.argv.includes('--ratchet-down')) {
+  writeFileSync(baselinePath, `${JSON.stringify({ maxWarnings: warnings }, null, 2)}\n`);
+  console.log(`lint: ${warnings} warnings is below the baseline of ${maxWarnings}; lowered it.`);
+  process.exit(0);
 }
 
 if (warnings < maxWarnings) {

@@ -26,6 +26,22 @@ export interface ThrottledStreamingState {
 }
 
 // =============================================================================
+// Translation run outcome
+// =============================================================================
+
+/** Why `translateText` ran nothing. It has already told the user (toast or log). */
+export type TranslateTextSkipReason =
+  'invalid' | 'reloading' | 'loading' | 'not-ready' | 'preempted' | 'refused' | 'overflow';
+
+/**
+ * What `translateText` resolves. A timeout or a cancel by a newer run still rejects.
+ * `done.text` is the translated text; `skipped` carries no text, so a caller cannot stream a
+ * refusal as if it were a translation.
+ */
+export type TranslateTextOutcome =
+  { status: 'done'; text: string } | { status: 'skipped'; reason: TranslateTextSkipReason };
+
+// =============================================================================
 // Export all types
 // =============================================================================
 

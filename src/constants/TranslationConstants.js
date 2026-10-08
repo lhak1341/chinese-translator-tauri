@@ -18,9 +18,6 @@ export const DICTIONARY_LOOKUP = {
  * Memory Management Configuration
  */
 export const MEMORY_MANAGEMENT = {
-  // Maximum token stats to track (bounded collection)
-  MAX_TOKEN_STATS: 500,
-
   // Maximum proper noun translations to cache
   MAX_PROPER_NOUN_TRANSLATIONS: 10000,
 };
@@ -40,29 +37,6 @@ export const POSITION_TRACKING = {
   // Warning threshold for logging position tracking size
   WARNING_INTERVAL: 100, // Log every 100 positions after max
 };
-
-/**
- * CODE REVIEW FIX (MEDIUM-2): Adaptive segment cleanup threshold based on device memory
- * Returns appropriate max segments based on available device memory
- * @returns {number} Maximum segments to keep
- */
-export function getAdaptiveMaxSegments() {
-  // Use Device Memory API if available (Chrome, Edge)
-  // Falls back to conservative default (4GB) for browsers that don't support it
-  const deviceMemoryGB = navigator.deviceMemory || 4;
-
-  // Adaptive thresholds based on memory:
-  // - ≤2GB (low memory): 10 segments (conservative)
-  // - ≤4GB (medium memory): 20 segments (balanced)
-  // - >4GB (high memory): 35 segments (original default)
-  if (deviceMemoryGB <= 2) {
-    return 10; // Low memory devices - aggressive cleanup
-  } else if (deviceMemoryGB <= 4) {
-    return 20; // Medium memory devices - moderate cleanup
-  } else {
-    return 35; // High memory devices - original threshold
-  }
-}
 
 /**
  * LOW-2 FIX: Phase Timeout Configuration
@@ -101,40 +75,10 @@ export const PHASE_TIMEOUTS = {
 };
 
 /**
- * Device Memory-Based Token Limits
- * Adaptive token limits based on available device memory (RAM)
- *
- * Rationale:
- * - Low memory devices (≤2GB): Conservative 15K token limit
- * - Medium memory devices (2-4GB): Balanced 25K token limit
- * - High memory devices (4-8GB): Comfortable 40K token limit
- * - Very high memory devices (8GB+): Maximum 50K token limit
- *
- * These limits prevent memory exhaustion while maximizing performance
- * for the user's hardware capabilities.
+ * The most tokens one translateDirectly call accepts; a larger chunk throws "Input too large".
+ * A fixed limit: the app runs in WKWebView, which has no performance.memory to scale it by.
  */
-export const DEVICE_MEMORY_LIMITS = {
-  /** Default fallback limit for older browsers without memory API */
-  DEFAULT_MAX_TOKENS: 15000,
-
-  /** Low memory devices (≤2GB RAM) */
-  LOW_MEMORY_TOKENS: 15000,
-
-  /** Medium memory devices (2-4GB RAM) */
-  MEDIUM_MEMORY_TOKENS: 25000,
-
-  /** High memory devices (4-8GB RAM) */
-  HIGH_MEMORY_TOKENS: 40000,
-
-  /** Very high memory devices (8GB+ RAM) */
-  VERY_HIGH_MEMORY_TOKENS: 50000,
-
-  /** Minimum token limit (safety floor) */
-  MIN_TOKEN_LIMIT: 5000,
-
-  /** Percentage of available memory to use for token storage */
-  MEMORY_USAGE_PERCENTAGE: 0.3, // 30% of available memory
-};
+export const MAX_INPUT_TOKENS = 15000;
 
 /**
  * UI and Interaction Timeouts

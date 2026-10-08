@@ -4,8 +4,6 @@
  * and enable parallel processing
  */
 
-import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
-
 class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
     this.content = content.trim(); // The actual text content
@@ -32,19 +30,17 @@ function isDigitSlash(chars, i) {
   return chars[i] === '/' && /[0-9]/.test(chars[i - 1] ?? '') && /[0-9]/.test(chars[i + 1] ?? '');
 }
 
-export class TextChunker {
-  constructor(punctuationConfig = {}) {
-    // Initialize Unicode-based punctuation detection system
-    this.unicodePunctuationDetector = new UnicodePunctuationDetector(punctuationConfig);
-  }
+/** Every Unicode punctuation category (Pc Pd Pe Pf Pi Po Ps) separates chunks; chunker-parity.json pins Pd and Pc. */
+const PUNCTUATION = /^\p{P}$/u;
 
+export class TextChunker {
   /**
    * Test if a character is treated as a punctuation separator
    * @param {string} char - Character to test
    * @returns {boolean} True if character is a separator
    */
   isPunctuationSeparator(char) {
-    return this.unicodePunctuationDetector.isPunctuationSeparator(char);
+    return PUNCTUATION.test(char);
   }
 
   /**

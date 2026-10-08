@@ -6,6 +6,7 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import type { SemanticArrays } from '../utils/highlighting';
+import type { TranslateTextOutcome } from '../types/UITypes';
 import { createShapeGuard } from './useReloadExecutionContexts.js';
 
 export interface TranslationExecutionContext {
@@ -48,7 +49,7 @@ interface UseAutoTranslateTriggerOptions {
   inputText: string;
   isLoading: boolean;
   isDictionaryReloading: boolean;
-  translateText: (text: string) => Promise<string>;
+  translateText: (text: string) => Promise<TranslateTextOutcome>;
   translateCharacterOnly: (text: string) => void;
   // Stable execution context — assembled once by the caller, excluded from deps
   ctx: TranslationExecutionContext;
@@ -108,7 +109,15 @@ export function useAutoTranslateTrigger({
           setResultArrays(null, []);
 
           try {
-            const newTranslation = await translateText(inputText);
+            const outcome = await translateText(inputText);
+            if (outcome.status === 'skipped') {
+              // translateText already told the user why. The attempt is over, so the clipboard
+              // flag must not leak into the next edit.
+              logger.log(`⏭️ Translation skipped: ${outcome.reason}`);
+              if (isClipboardTranslationRef.current) resetClipboardFlag();
+              return;
+            }
+            const newTranslation = outcome.text;
             logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
             setStreamingText(newTranslation);
 

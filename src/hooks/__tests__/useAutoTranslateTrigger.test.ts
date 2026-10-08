@@ -43,12 +43,14 @@ function makeCtx(
   };
 }
 
+const done = (text: string) => ({ status: 'done' as const, text });
+
 function makeProps(overrides: Partial<Parameters<typeof useAutoTranslateTrigger>[0]> = {}) {
   return {
     inputText: SHORT_TEXT,
     isLoading: false,
     isDictionaryReloading: false,
-    translateText: vi.fn().mockResolvedValue('Xin chào'),
+    translateText: vi.fn().mockResolvedValue(done('Xin chào')),
     translateCharacterOnly: vi.fn(),
     ctx: makeCtx(),
     ...overrides,
@@ -138,7 +140,7 @@ describe('happy path', () => {
     const callOrder: string[] = [];
     const translateText = vi.fn().mockImplementation(() => {
       callOrder.push('translateText');
-      return Promise.resolve('result');
+      return Promise.resolve(done('result'));
     });
     const ctx = makeCtx({
       setResultArrays: vi.fn().mockImplementation(() => callOrder.push('setResultArrays')),
@@ -159,7 +161,7 @@ describe('happy path', () => {
     const callOrder: string[] = [];
     const translateText = vi.fn().mockImplementation(() => {
       callOrder.push('translate');
-      return Promise.resolve('done');
+      return Promise.resolve(done('done'));
     });
     const ctx = makeCtx({
       setIsTranslating: vi
@@ -177,7 +179,7 @@ describe('happy path', () => {
     const ctx = makeCtx();
     const translateText = vi.fn().mockImplementation(() => {
       snapshots.push(ctx.isTranslatingRef.current);
-      return Promise.resolve('done');
+      return Promise.resolve(done('done'));
     });
     await renderAndFlush(makeProps({ translateText, ctx }));
     expect(snapshots[0]).toBe(true);
@@ -186,9 +188,53 @@ describe('happy path', () => {
 
   it('setStreamingText called with resolved translation value', async () => {
     const ctx = makeCtx();
-    const translateText = vi.fn().mockResolvedValue('Thật tuyệt');
+    const translateText = vi.fn().mockResolvedValue(done('Thật tuyệt'));
     await renderAndFlush(makeProps({ translateText, ctx }));
     expect(ctx.setStreamingText).toHaveBeenCalledWith('Thật tuyệt');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A skipped run: translateText already told the user why, so nothing else happens
+// ---------------------------------------------------------------------------
+
+describe('skipped translation', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  async function renderSkipped(clipboard = false) {
+    const ctx = makeCtx({ isClipboardTranslationRef: { current: clipboard } });
+    const props = makeProps({
+      ctx,
+      translateText: vi.fn().mockResolvedValue({ status: 'skipped', reason: 'preempted' }),
+    });
+    await renderAndFlush(props);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    return { ctx, props };
+  }
+
+  it('shows no error toast of its own', async () => {
+    await renderSkipped();
+    expect(mockToast.error).not.toHaveBeenCalled();
+  });
+
+  it('streams nothing and queues no character-only pass', async () => {
+    const { ctx, props } = await renderSkipped();
+    expect(ctx.setStreamingText).not.toHaveBeenCalled();
+    expect(props.translateCharacterOnly).not.toHaveBeenCalled();
+  });
+
+  it('still ends the isTranslating state', async () => {
+    const { ctx } = await renderSkipped();
+    expect(ctx.setIsTranslating).toHaveBeenLastCalledWith(false);
+    expect(ctx.isTranslatingRef.current).toBe(false);
+  });
+
+  it('resets the clipboard flag, since that attempt is over', async () => {
+    const { ctx } = await renderSkipped(true);
+    expect(ctx.resetClipboardFlag).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -275,7 +321,7 @@ describe('clipboard flag', () => {
 
 describe('large text toast', () => {
   it('toast.success fired when text.length > 1000', async () => {
-    const translateText = vi.fn().mockResolvedValue('long result');
+    const translateText = vi.fn().mockResolvedValue(done('long result'));
     await renderAndFlush(makeProps({ inputText: LONG_TEXT, translateText }));
     expect(mockToast.success).toHaveBeenCalledOnce();
   });

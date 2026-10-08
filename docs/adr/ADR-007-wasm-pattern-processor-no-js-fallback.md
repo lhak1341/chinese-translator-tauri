@@ -87,3 +87,9 @@ No `WasmPatternBridge` is extracted. No JS fallback is restored inside `TwoPhase
 - Failure counter + permanent-disable logic: `TranslationEngine.js::applyPatterns()` catch block (~line 2923)
 - WASM availability: `src/utils/wasm/WasmPatternProcessor.js::hasWasmPatternProcessorFailed()`
 - Related: ADR-006 (PatternProcessor interface), ADR-003 (TypeScript hybrid — WASM boundaries)
+
+## Addendum — 2026-10-09
+
+`applyPatterns()` no longer checks `hasWasmPatternProcessorFailed()` after a successful `processTokens()` (the toast, `_wasmInitWarningShown` and the engine's import of both readiness checks are gone): `processTokens()` throws up front unless the lifecycle is ready, and a failure reaches the failure counter through that throw. The counter now covers the WASM path only; a JS-path failure feeds a second tracker that only warns. The decision above is unchanged.
+
+Two more changes the same day make "the JS path takes over" hold when WASM never worked. `PatternFailureTracker` measures its window from the first failure of a run of failures, not from the last success: with no success ever (WASM failed to initialize), the third failure used to `reset` instead of `disable`, so Phase 1 was skipped for every chunk and the JS path never took over. And `TranslationEngine.initialize` sets `enableTwoPhasePatterns = false` right after `initializePatterns` when patterns are loaded and `SemanticPatternProcessor.wasmAvailable` is false, with a `logger.warn` and no toast (the JS path gives the same output, slower), so the first chunks do not pay for three failures.

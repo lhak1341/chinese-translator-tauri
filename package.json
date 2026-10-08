@@ -25,7 +25,8 @@
     "sweep-targets": "cargo sweep --time 7 src-tauri && cargo sweep --time 7 wasm-core",
     "prepare": "husky",
     "lint:fix": "eslint . --fix",
-    "lint:baseline": "node scripts/lint-ratchet.mjs --update"
+    "lint:baseline": "node scripts/lint-ratchet.mjs --update",
+    "lint:ratchet-down": "node scripts/lint-ratchet.mjs --ratchet-down"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",

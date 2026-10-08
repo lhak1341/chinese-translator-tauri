@@ -219,6 +219,18 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     expect(last.completedChunks).toBe(last.totalChunks);
     expect(last.progress).toBe(100);
   });
+
+  test('onBatchComplete numbers batches 1..n', async () => {
+    // currentBatchNumber was the 0-based index read with `||`, so batches 0 and 1 both said 1.
+    const batches = [];
+    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+      progressive: true,
+      onBatchComplete: (data) => batches.push(data),
+    });
+
+    expect(batches.length).toBeGreaterThan(2);
+    expect(batches.map((b) => b.batchNumber)).toEqual(batches.map((_, i) => i + 1));
+  });
 });
 
 describe('ChunkPostProcessor.fixAngleQuotePositioning', () => {

@@ -15,7 +15,7 @@ vi.mock('../../utils/toast', () => ({
 function makeDeps(overrides = {}) {
   return {
     engineRef: { current: { isReady: () => true } },
-    translateText: vi.fn().mockResolvedValue('sequential result'),
+    translateText: vi.fn().mockResolvedValue({ status: 'done', text: 'sequential result' }),
     translateCharacterOnly: vi.fn().mockResolvedValue(undefined),
     setStreamingText: vi.fn(),
     ...overrides,
@@ -73,6 +73,19 @@ describe('useReloadRetranslate', () => {
 
     expect(deps.translateText).not.toHaveBeenCalled();
     expect(deps.setStreamingText).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  test('throws when the translation was skipped, so the reload reports the failure', async () => {
+    const deps = makeDeps({
+      translateText: vi.fn().mockResolvedValue({ status: 'skipped', reason: 'preempted' }),
+    });
+    const { result } = renderHook(() => useReloadRetranslate(deps));
+
+    await expect(result.current('hello')).rejects.toThrow('preempted');
+
+    expect(deps.setStreamingText).not.toHaveBeenCalled();
+    expect(deps.translateCharacterOnly).not.toHaveBeenCalled();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });

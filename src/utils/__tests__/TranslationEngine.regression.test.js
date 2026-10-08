@@ -260,7 +260,7 @@ describe('TranslationEngine Regression Tests', () => {
         enableMemoryMonitoring: false,
         enablePerformanceMonitoring: false,
       });
-      vi.spyOn(engine, 'calculateMaxTokensForDevice').mockReturnValue(5);
+      engine.maxInputTokens = 5;
       const translateSinglePass = vi.spyOn(engine, 'translateSinglePass');
 
       await expect(engine.translateDirectly('说说说说说说说说', {})).rejects.toThrow(
@@ -274,7 +274,7 @@ describe('TranslationEngine Regression Tests', () => {
         enableMemoryMonitoring: false,
         enablePerformanceMonitoring: false,
       });
-      vi.spyOn(engine, 'calculateMaxTokensForDevice').mockReturnValue(5);
+      engine.maxInputTokens = 5;
       const error = await engine
         .processChunksInParallel([{ content: '说说说说说说说说', startIndex: 0 }], {}, 0)
         .catch((caught) => caught);

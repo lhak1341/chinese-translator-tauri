@@ -59,4 +59,28 @@ describe('TextChunker', () => {
       ]);
     });
   });
+
+  describe('isPunctuationSeparator', () => {
+    test.each([
+      ['basic', ['.', ',', '!', '?']],
+      ['Chinese', ['。', '，', '！', '？', '；', '：']],
+      ['brackets and quotes', ['(', ')', '（', '）', '【', '】', '《', '》']],
+    ])('splits on %s punctuation', (_name, chars) => {
+      for (const char of chars) expect(chunker.isPunctuationSeparator(char)).toBe(true);
+    });
+
+    test('leaves letters, digits, spaces and symbols in the text', () => {
+      // Symbols ($ Sc, + Sm, ~ Sm) are not in a P category.
+      for (const char of ['a', '中', '1', ' ', '$', '+', '~']) {
+        expect(chunker.isPunctuationSeparator(char)).toBe(false);
+      }
+    });
+
+    test('chunks mixed Latin and Chinese text on punctuation', () => {
+      const chunks = chunker.chunkText('Hello, world! 你好，世界！How are you?');
+      expect(chunks.length).toBeGreaterThan(1);
+      expect(chunks[0].content).toBe('Hello');
+      expect(chunks[0].punctuation).toBe(',');
+    });
+  });
 });
