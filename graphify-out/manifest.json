@@ -150,8 +150,8 @@
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
   "src/tauriAPI.ts": {
-    "mtime": 1791335657.5963118,
-    "ast_hash": "cbc0547ee119ca9e39c8d16dad1685ba",
+    "mtime": 1791471792.9644284,
+    "ast_hash": "9d16aabca36b1e2d6e5e7b99a253bc4b",
     "semantic_hash": ""
   },
   "src/App.jsx": {
@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791461202.1089709,
-    "ast_hash": "133d6ae90d48658196446d673ab1eaba",
+    "mtime": 1791470051.4223368,
+    "ast_hash": "9cb528a09ec631f8959e537d0c922239",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -385,8 +385,8 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmProcessorLifecycle.js": {
-    "mtime": 1791296029.8172069,
-    "ast_hash": "528525436c3566564cfd37ed2c8467f2",
+    "mtime": 1791471093.588572,
+    "ast_hash": "6f6f50bff52fbffdd2ed1cbc282dff57",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmPatternProcessor.js": {
@@ -465,8 +465,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1791222005.4398925,
-    "ast_hash": "edca6a5513db43a8153fb1578c041ffb",
+    "mtime": 1791466936.4503424,
+    "ast_hash": "04d99006cf6d17d5744657ad2d2a83d2",
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
@@ -835,8 +835,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1791377746.4300573,
-    "ast_hash": "0fbf78893f1abff64d8b8cb7f65f58df",
+    "mtime": 1791470760.764601,
+    "ast_hash": "92e3af82499383695fc1266756345385",
     "semantic_hash": ""
   },
   "README.md": {
@@ -945,8 +945,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1791461273.2738988,
-    "ast_hash": "4734aced359511289b33c57a42494302",
+    "mtime": 1791471793.00636,
+    "ast_hash": "b725a5a4748056f1375cdd3353cdf51e",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -985,8 +985,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-009-wasm-processor-lifecycle.md": {
-    "mtime": 1791337499.0678096,
-    "ast_hash": "ee85844734f70610ad1d929954517df4",
+    "mtime": 1791471093.5898726,
+    "ast_hash": "7a1e6b1ad86923fcea79e673693e112e",
     "semantic_hash": ""
   },
   "docs/adr/ADR-017-skip-wasm-pool-analytics-separation.md": {
@@ -1080,8 +1080,8 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1791308270.6079328,
-    "ast_hash": "4b374c0d7af7f558327f15cab58d791f",
+    "mtime": 1791472750.376373,
+    "ast_hash": "0a28ab5587dd7dbed21565040b693ffa",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791461279.0206335,
-    "ast_hash": "96a060ed348b759e7e8eeec9444a9011",
+    "mtime": 1791472750.3773694,
+    "ast_hash": "0b20ca1582c04033a5477814516aa159",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1120,8 +1120,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791459106.7093778,
-    "ast_hash": "7d0c06bbb5f40c9bb1ceacffd03b72c1",
+    "mtime": 1791465791.4125214,
+    "ast_hash": "af0fc8fb26d748f3ff63788eeb32234e",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": ""
   },
   "src/utils/performance/ProgressiveProgressReporter.js": {
-    "mtime": 1786981129.6372633,
-    "ast_hash": "e074ce0edbad8ae7f3b3661722de20e8",
+    "mtime": 1791466936.4501095,
+    "ast_hash": "590f249924bedfa37148f0e6da41f566",
     "semantic_hash": ""
   },
   "src/utils/text/AdaptiveBatchSizer.ts": {
@@ -1505,8 +1505,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1791379324.4134703,
-    "ast_hash": "f91a02c8c173637a6d4e20c6c1711ce5",
+    "mtime": 1791465796.2124329,
+    "ast_hash": "c1fba5c7aa5dfba4866119350c20ce21",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1515,8 +1515,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1791379577.0291684,
-    "ast_hash": "8659430df24fb9e46472ccab161d2664",
+    "mtime": 1791466974.407414,
+    "ast_hash": "13300b3b1114c6bcde5346b66e1c75d2",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1535,8 +1535,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791461267.099153,
-    "ast_hash": "34401db2dd56154c5c3111cf56163471",
+    "mtime": 1791471793.0068452,
+    "ast_hash": "35b7d4d81f96a20bc68459d4c8cbca54",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1565,8 +1565,8 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/CLAUDE.md": {
-    "mtime": 1791338398.9548306,
-    "ast_hash": "3d709bb764b49c0a453b527828599c6a",
+    "mtime": 1791471093.5908194,
+    "ast_hash": "a7006257e2e354060f650eb540378617",
     "semantic_hash": ""
   },
   "src-tauri/src/book_commands.rs": {
@@ -2305,8 +2305,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/MatchSource.ts": {
-    "mtime": 1791338567.7249346,
-    "ast_hash": "ae8677b83119c298de77b0956435ae77",
+    "mtime": 1791464970.8328319,
+    "ast_hash": "bd07d24c330d236b54df642ac676de5b",
     "semantic_hash": ""
   },
   "docs/adr/ADR-082-match-source-one-seam-for-candidate-matches.md": {
@@ -2355,8 +2355,38 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-087-phase-5-is-a-point-lookup.md": {
-    "mtime": 1791461266.6349552,
-    "ast_hash": "4cc1f9e1effeeb1b92d6a8bb3b9abf57",
+    "mtime": 1791468623.2626183,
+    "ast_hash": "4927f51eed4bb9ec2e496cc1ba2053e5",
+    "semantic_hash": ""
+  },
+  "src/utils/NumberLiangFix.ts": {
+    "mtime": 1791470051.3872545,
+    "ast_hash": "ac72bf9235ba32a488522d1764871edc",
+    "semantic_hash": ""
+  },
+  "src/utils/text/CharOnlyAssembly.ts": {
+    "mtime": 1791468578.3111129,
+    "ast_hash": "cff15c38e5bb38221210123e5074ba03",
+    "semantic_hash": ""
+  },
+  "src/utils/text/ProgressiveBatchText.ts": {
+    "mtime": 1791466967.2444239,
+    "ast_hash": "16dda64f124e86aaef2a5f486cdf09df",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-088-skip-moving-the-cache-invalidator-registration.md": {
+    "mtime": 1791464846.7748559,
+    "ast_hash": "9c2ca05f3b449a5df6a1236082c6f54d",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-089-the-character-only-pass-leaves-punctuation-alone.md": {
+    "mtime": 1791468623.2394693,
+    "ast_hash": "9f40c6263f0ddc412ec91a27c07ab7e0",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-090-keep-the-tauri-api-invoke-shell-narrow.md": {
+    "mtime": 1791471793.2851148,
+    "ast_hash": "8210a691368f685016ecdc58adaaf7ff",
     "semantic_hash": ""
   }
 }

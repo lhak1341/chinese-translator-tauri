@@ -199,6 +199,26 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     expect(result.translatedText).toMatch(/^Thuyết/);
     expect(result.translatedText).toMatch(/[,，] biệt/);
   });
+
+  test('onBatchComplete reports the text including the batch that just finished', async () => {
+    const batches = [];
+    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+      progressive: true,
+      onBatchComplete: (data) => batches.push(data),
+    });
+
+    expect(batches.length).toBeGreaterThan(1);
+    // Batch 1 already carries its own text (it used to be '' because the callback fired before
+    // the batch was added), and each later batch extends the one before it.
+    expect(batches[0].partialText).not.toBe('');
+    for (let i = 1; i < batches.length; i++) {
+      expect(batches[i].partialText.startsWith(batches[i - 1].partialText)).toBe(true);
+      expect(batches[i].partialText.length).toBeGreaterThan(batches[i - 1].partialText.length);
+    }
+    const last = batches[batches.length - 1];
+    expect(last.completedChunks).toBe(last.totalChunks);
+    expect(last.progress).toBe(100);
+  });
 });
 
 describe('ChunkPostProcessor.fixAngleQuotePositioning', () => {

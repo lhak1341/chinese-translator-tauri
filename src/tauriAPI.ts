@@ -120,7 +120,8 @@ function requireValidDictionaryIds(
  * multi-field fallback shapes).
  * ID validation stays at each of those call sites, not folded in here — it's an orthogonal
  * pre-invoke guard, not part of the invoke/catch shell (architecture review 2026-09-09,
- * candidate #2 grilling).
+ * candidate #2 grilling). Extending the shell to cover them was proposed again and declined:
+ * ADR-090. Their failure handling is tested in src/__tests__/tauriAPI.test.ts.
  */
 async function callTauriCommand<T extends ElectronResult>(
   cmd: string,

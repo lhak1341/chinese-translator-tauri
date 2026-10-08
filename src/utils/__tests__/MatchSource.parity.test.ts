@@ -8,7 +8,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import fixture from '../../test/fixtures/lookup_index_parity.json';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
-import { TranslationEngine } from '../TranslationEngine.js';
 import { openMatchSource } from '../dictionary/MatchSource';
 
 vi.mock('../logger', () => ({
@@ -122,26 +121,6 @@ describe('lookup index parity fixture', () => {
               lookup.category
             );
             expect(pick(matches)).toEqual(lookup.expected);
-          });
-        }
-
-        // The character-only pass used to take `findLongestMatchAtPosition` when no index
-        // was built; it now takes the first match of the character lookup. They must agree.
-        if (lookup.category === 'characters') {
-          it(`first character match equals findLongestMatchAtPosition: ${label}`, async () => {
-            const manager = await loadManager();
-            const tokens = tokensFor(testCase.text);
-            const at = tokenIndexAt(testCase.text, lookup.position);
-            const longest = TranslationEngine.prototype.findLongestMatchAtPosition.call(
-              {},
-              tokens,
-              at,
-              manager.getDictionary('characters'),
-              'characters'
-            );
-            const first = manager.findAllMatches(testCase.text, lookup.position, ['characters'])[0];
-            expect(longest?.word).toBe(first?.word);
-            expect(longest?.translation).toBe(first?.translation);
           });
         }
       }

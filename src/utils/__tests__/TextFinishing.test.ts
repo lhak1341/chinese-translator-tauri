@@ -125,6 +125,19 @@ describe('engine parity: Full Translation vs character-only', () => {
     expect(full.translatedText).toBe('Thuyết 2,700! Biệt');
   });
 
+  it('gives every character-only unit a position that slices to its own text', async () => {
+    const e = await engine();
+    const { translatedText, semanticArrays } = await e.translateWithCharactersOnly('说别说', {});
+
+    expect(translatedText).toBe('Thuyết biệt thuyết');
+    expect(semanticArrays.translated).toHaveLength(3);
+    semanticArrays.metadata.forEach((meta, i) => {
+      expect(translatedText.slice(meta.translatedStart, meta.translatedEnd)).toBe(
+        semanticArrays.translated[i]
+      );
+    });
+  });
+
   it('keeps a thousands separator inside a larger number in both modes', async () => {
     const e = await engine();
     const input = '说1,200别';

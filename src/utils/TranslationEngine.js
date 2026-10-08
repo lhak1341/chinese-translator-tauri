@@ -140,14 +140,13 @@ import { SemanticPatternProcessor } from './pattern/SemanticPatternProcessor.js'
 import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
+import { fixNumberPlusLiang } from './NumberLiangFix';
 import {
   applySmartCapitalization,
-  cleanFullText,
   cleanupFormatting,
-  finishCharOnlyText,
   finishFullText,
 } from './text/FormattingPasses';
-import { needsSpaceCharOnly } from './text/CharOnlySpacing';
+import { assembleCharOnlyResult } from './text/CharOnlyAssembly';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
@@ -166,7 +165,11 @@ import {
   validateConsumedTokenContract,
 } from './TranslationSourcePriority.js';
 import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
-import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
+import {
+  buildProgressiveProgressUpdate,
+  snapshotSemanticArrays,
+} from './performance/ProgressiveProgressReporter.js';
+import { createProgressiveBatchText } from './text/ProgressiveBatchText';
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
@@ -728,168 +731,37 @@ export class TranslationEngine {
       };
     }
 
-    // Pure JavaScript character-only translation (WASM removed for reliability)
-
-    const _operationId = `character_only_translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
     logger.debug('[char-engine]', `Starting character-only translation: ${text.length} chars`);
 
-    // OPTIMIZATION: Rust-powered lookup index for character-only translations (HUGE speedup)
-    // Character-only mode benefits even more from pre-computed lookups!
+    // One lookup source for the whole text; the Rust index answers it from 50 characters up.
     const matchSource = await openMatchSource(text, {
       dictionaryManager: this.dictionaryManager,
       logWarn: (msg) => logger.warn(msg),
     });
 
-    // Create isolated semantic array builder to prevent conflicts with concurrent main translations
-    const characterOnlySemanticBuilder = new SemanticArrayBuilder(
-      Math.max(50, Math.floor(text.length / 5))
-    );
-
     try {
-      // For character-only translation, process the text directly without chunking
-      // to preserve all whitespace and punctuation
-      let translatedText = '';
+      // Tokenize the entire text directly (chunking would drop whitespace and punctuation)
+      const tokens = this.tokenizer.tokenize(text);
 
-      // Tokenize the entire text directly (don't use chunking which removes whitespace/punctuation)
-      let tokens = this.tokenizer.tokenize(text);
-
-      logger.debug('[tokenization]', `Tokenization completed: ${tokens.length} tokens`);
-
-      // Skip number processing in character-only mode - translate each character individually
-      // Character-only mode should only apply Phase 5 (character-level translation)
-
-      // Only apply Phase 5: Character-level translation to all tokens
+      // Only Phase 5 applies: no number processing, each character translates on its own
       await this.processCharacterOnlyTokens(tokens, options, matchSource);
 
-      // Build result text and semantic arrays from tokens
-      for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-
-        const translatedValue = token.translated != null ? token.translated : token.value;
-
-        // Build semantic array entry for each token
-        // Check for both null and undefined to avoid adding invalid entries
-        if (
-          token.type === 'chinese_char' &&
-          token.translated != null && // != null checks for both null and undefined
-          token.translated !== token.value
-        ) {
-          characterOnlySemanticBuilder.addUnit(
-            token.value,
-            token.translated,
-            token.translationSource || 'characters',
-            i, // Pass tokenIndex to enable position tracking
-            'characters',
-            // applyMatchToTokens sets token.translationSource = match.dictionary (never token.dictionary).
-            // For translated tokens in character-only mode, translationSource IS the dictionary name.
-            token.translationSource || null
-          );
-        }
-
-        // Add the translated value
-        translatedText += translatedValue;
-
-        // Spacing decision for this token → next token. A third, independently
-        // verified copy of the spacing rules alongside needsSpace() (full
-        // translation path) — see needsSpaceCharOnly()'s own doc comment for
-        // why it isn't the same function, and src/utils/CLAUDE.md's
-        // "Spacing (11 rules)" row.
-        if (
-          i < tokens.length - 1 &&
-          needsSpaceCharOnly(token, tokens[i + 1], translatedValue, translatedText.endsWith(' '))
-        ) {
-          translatedText += ' ';
-        }
-
-        // Debug what we're adding (the units were added to the private builder above, not by processCharacterOnlyTokens)
-        if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
-          logger.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
-        }
-      }
-
-      // Shared post-assembly cleanup — same pipeline as full translation.
-      // Handles: punctuation dict translation, comma-digit preservation (1,200 stays intact),
-      // colon-quote spacing (道：「→ 道： 「), space-after-punct, first-letter + colon/newline caps.
-      translatedText = finishCharOnlyText(translatedText, (char) => this.lookupPunctuation(char));
-
-      logger.debug(
-        '[char-engine]',
-        `Character-only translation completed: ${translatedText.length} chars`
+      // Text, units and positions come from the stamped tokens (CharOnlyAssembly)
+      const { translatedText, semanticArrays } = assembleCharOnlyResult(tokens, (char) =>
+        this.lookupPunctuation(char)
       );
-
-      // Add position metadata AFTER all text transformations but BEFORE updateWithCapitalizedText.
-      // Order matters: this loop advances searchPosition sequentially, correctly assigning distinct
-      // positions to duplicate words. updateWithCapitalizedText's fallback path uses first-occurrence
-      // indexOf (no searchPosition), so running it first stamps every duplicate with the same wrong
-      // position — the loop then sees translatedStart >= 0 and skips them all, locking in bad data.
-      // With the correct order: loop sets accurate positions → updateWithCapitalizedText takes the
-      // O(1) fast path for every unit (reads capitalized form from finalText[start:end]) → no fallback.
-      {
-        const tempArrays = characterOnlySemanticBuilder.getArrays();
-        const lowerText = translatedText.toLowerCase();
-        let searchPosition = 0;
-
-        for (let i = 0; i < tempArrays.translated.length; i++) {
-          const translatedUnit = tempArrays.translated[i];
-          const metadata = tempArrays.metadata[i];
-
-          // Skip if already has valid position metadata
-          if (
-            metadata &&
-            metadata.translatedStart >= 0 &&
-            metadata.translatedEnd > metadata.translatedStart
-          ) {
-            searchPosition = metadata.translatedEnd;
-            continue;
-          }
-
-          // Find unit position in final text (case-insensitive after capitalization)
-          const lowerUnit = translatedUnit.toLowerCase();
-          const unitPosition = lowerText.indexOf(lowerUnit, searchPosition);
-
-          if (unitPosition !== -1 && metadata && metadata.tokenIndex >= 0) {
-            const startPos = unitPosition;
-            const endPos = unitPosition + translatedUnit.length;
-
-            characterOnlySemanticBuilder.setPositionByMatch(
-              metadata.tokenIndex,
-              translatedUnit,
-              startPos,
-              endPos
-            );
-
-            searchPosition = endPos;
-          } else {
-            // Move past this position to avoid infinite loop
-            searchPosition++;
-          }
-        }
-      }
-
-      // Update semantic arrays to match capitalized text. Runs AFTER the position loop so every
-      // entry already has translatedStart/End set — updateWithCapitalizedText takes the O(1) fast
-      // path (reads from the known position) instead of the fallback indexOf that aliases duplicates.
-      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
-
-      // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
-      // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
-      const semanticArrays = characterOnlySemanticBuilder.getArrays();
 
       logger.debug(
         '[char-semantics]',
-        `Character-only semantic arrays: ${semanticArrays.original.length} original, ${semanticArrays.translated.length} translated`
+        `Character-only translation completed: ${translatedText.length} chars, ${semanticArrays.original.length} semantic units`
       );
 
-      const result = {
+      return {
         translatedText,
         semanticArrays,
         prebuiltSegments: [],
       };
-
-      return result;
     } catch (error) {
-      // MEDIUM-8 FIX: Standardize error logging with logger.error
       logger.error('🚨 Character-only translation failed:', error);
       throw error;
     }
@@ -910,7 +782,6 @@ export class TranslationEngine {
   async processCharacterOnlyTokens(tokens, options, matchSource) {
     const stampOptions = { ...options, recordMatches: false };
     const characterMatchesAt = matchSource.forPhase(['characters']);
-    const punctuationDictionary = this.dictionaryManager.getDictionary('punctuation');
 
     if (!this.dictionaryManager.getDictionary('characters')) {
       // MEDIUM-8 FIX: Standardize error logging with logger.error
@@ -949,26 +820,10 @@ export class TranslationEngine {
             logger.log(`⚠️ Chinese char untranslated: "${token.value}"`);
           }
         }
-      } else if (token.type === 'punctuation' && punctuationDictionary) {
-        // Try to translate punctuation for readability.
-        // Only apply if the match covers the FULL token value — multi-char punctuation tokens
-        // like '……' (two U+2026) would otherwise get a partial 1-char match and lose the
-        // second char (token.translated = '…' instead of '……').
-        const match = this.findLongestMatchAtPosition(tokens, i, punctuationDictionary);
-        if (match && match.word.length >= token.value.length) {
-          const matchWithDictName = {
-            ...match,
-            dictionary: 'punctuation',
-          };
-          this.applyMatchToTokens(tokens, i, matchWithDictName, stampOptions);
-        } else {
-          // No full match — preserve as-is; cleanupFormatting translates char-by-char later.
-          token.translated = token.value;
-          token.translationSource = 'untranslated-punctuation';
-        }
       } else {
-        // For ALL other token types (whitespace, latin_word, number, unknown, etc.)
-        // Preserve as-is to ensure readable output
+        // Every other token type (punctuation, whitespace, latin_word, number, unknown) is kept
+        // as-is. Punctuation is translated later, by cleanupFormatting's lookupPunctuation:
+        // applyMatchToTokens ignores a non-Chinese start token, so matching it here stamped nothing.
         token.translated = token.value;
         token.translationSource = `preserved-${token.type}`;
       }
@@ -2423,59 +2278,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Get partial translation result for streaming UI updates
-   * @param {number} completedChunks - Number of completed chunks
-   * @returns {Object} Partial translation result
-   */
-  getPartialTranslationResult(completedChunks) {
-    try {
-      // Get current partial text from progressive position tracker
-      const partialText = this.progressivePositionTracker?.finalText || '';
-
-      // Calculate progress metrics
-      const totalChunks = this.totalChunks || 1;
-      const progress = Math.min(100, (completedChunks / totalChunks) * 100);
-
-      // Get partial semantic arrays from current builder state
-      let partialSemanticArrays = null;
-      try {
-        const currentArrays = this.semanticArrayBuilder?.getArrays();
-        if (currentArrays && currentArrays.original && currentArrays.original.length > 0) {
-          partialSemanticArrays = {
-            original: [...currentArrays.original],
-            translated: [...currentArrays.translated],
-            metadata: currentArrays.metadata ? [...currentArrays.metadata] : [],
-            isPartial: true,
-            completedSegments: currentArrays.original.length,
-          };
-        }
-      } catch (semanticError) {
-        logger.warn('⚠️ Failed to get partial semantic arrays:', semanticError);
-      }
-
-      return {
-        partialText,
-        completedChunks,
-        totalChunks,
-        progress: Math.round(progress * 10) / 10, // Round to 1 decimal
-        partialSemanticArrays,
-        timestamp: Date.now(),
-      };
-    } catch (error) {
-      logger.error('🚨 Failed to build partial translation result:', error);
-      return {
-        partialText: '',
-        completedChunks: 0,
-        totalChunks: 1,
-        progress: 0,
-        partialSemanticArrays: null,
-        error: error.message,
-        timestamp: Date.now(),
-      };
-    }
-  }
-
-  /**
    * Enable translation profiling to measure phase-by-phase performance
    * Usage: window.translationEngine.enableProfiling()
    * Then translate text and call getProfilingReport() to see breakdown
@@ -2601,7 +2403,8 @@ export class TranslationEngine {
    * @param {Array} batch - Array of chunks to process
    * @param {Object} options - Translation options
    * @param {number} batchStart - Starting index for chunk offset calculation
-   * @returns {Promise} Resolves when all chunks are processed
+   * @returns {Promise<{ batchNumber: number, processingTime: number, avgTimePerChunk: number }>}
+   *   Resolves when all chunks are processed, with the batch's timing for the caller's callbacks
    */
   async processChunksInParallel(batch, options, batchStart) {
     const startTime = performance.now();
@@ -2658,21 +2461,6 @@ export class TranslationEngine {
       const actualBatchNumber =
         this.currentBatchNumber || Math.floor(batchStart / batch.length) + 1;
 
-      // NEW: Call batch completion callback for streaming UI updates
-      if (options.onBatchComplete) {
-        try {
-          const partialResult = this.getPartialTranslationResult(batchStart + batch.length);
-          options.onBatchComplete({
-            ...partialResult,
-            batchNumber: actualBatchNumber,
-            batchTime: processingTime,
-            avgTimePerChunk: avgTimePerChunk,
-          });
-        } catch (callbackError) {
-          logger.warn('⚠️ Batch completion callback failed:', callbackError);
-        }
-      }
-
       // Track performance degradation across batches
       if (!this.batchPerformanceHistory) this.batchPerformanceHistory = [];
       this.batchPerformanceHistory.push({
@@ -2682,6 +2470,8 @@ export class TranslationEngine {
         chunkCount: batch.length,
         timestamp: Date.now(),
       });
+
+      return { batchNumber: actualBatchNumber, processingTime, avgTimePerChunk };
     } catch (error) {
       // Handle parallel processing errors with performance tracking
       logger.error('Parallel chunk processing failed:', error);
@@ -2842,13 +2632,11 @@ export class TranslationEngine {
     const estimatedUnits = Math.max(100, Math.ceil(text.length / 2)); // Progressive needs more capacity
     this.semanticArrayBuilder.reset(estimatedUnits);
 
-    // PHASE 2: Initialize progressive position tracking
-    this.progressivePositionTracker = {
-      runningTextPosition: 0,
-      finalText: '',
-      totalOriginalSegments: [],
-      totalTranslatedSegments: [],
-    };
+    // The running text both progress callbacks read; see ProgressiveBatchText.ts
+    const progressiveText = createProgressiveBatchText({
+      punctuationDict: this.punctuationDict,
+      chunkPostProcessor: this.chunkPostProcessor,
+    });
 
     // Initialize progress update debouncing (reduce UI update overhead)
     this.lastProgressUpdate = 0;
@@ -2866,9 +2654,6 @@ export class TranslationEngine {
         semanticArrays: this.semanticArrayBuilder?.getArrays() || emptySemanticArrays(),
       };
     }
-
-    // Store total chunks for streaming progress calculation
-    this.totalChunks = translatableChunks.length;
 
     // Step 2: Process chunks in adaptive batches. Start at MIN_BATCH_SIZE — the floor the
     // sizer's severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes —
@@ -2921,7 +2706,11 @@ export class TranslationEngine {
 
       // Translate current batch (with parallel processing)
       // MEDIUM FIX: Pass token offset, not chunk index
-      await this.processChunksInParallel(currentBatch, options, batchTokenOffset);
+      const batchTiming = await this.processChunksInParallel(
+        currentBatch,
+        options,
+        batchTokenOffset
+      );
 
       // Yield to event loop after each batch so the UI can paint a frame.
       // processChunksInParallel runs synchronous WASM (pattern + number processing) inside
@@ -2938,24 +2727,38 @@ export class TranslationEngine {
       }, 0);
       cumulativeTokenCount += batchTokenCount;
 
-      // PHASE 1 FIX: Process only current batch chunks, not all chunks (eliminates O(n²) redundancy)
-      this.processBatchChunksProgressive(currentBatch, chunks, batchStart);
+      // Only the current batch is processed here, never all chunks again (no O(n²) rework).
+      // Capitalization happens once, at the final level.
+      // `chunks`, not translatableChunks: comma spacing reads the non-translatable neighbours.
+      const { batchText, cumulativeText } = progressiveText.addBatch(currentBatch, chunks);
 
-      // PHASE 2: Process batch progressively with position tracking
-      const batchResult = await this.processBatchWithProgressivePositioning(
-        currentBatch,
-        chunks,
-        batchStart
-      );
-
-      // Use the already-processed text from batch processing (eliminates redundant reconstruction)
-      const cleanedResult = batchResult.cleanedBatchText;
-
-      this.semanticArrayBuilder.updateWithCapitalizedText(cleanedResult);
+      this.semanticArrayBuilder.updateWithCapitalizedText(batchText);
 
       // Update progress tracking
       processedChunks = batchEnd;
       batchIndex++;
+
+      // Streaming callback: the batch's text and arrays are both in place, so partialText
+      // includes the batch that just finished.
+      if (options.onBatchComplete) {
+        try {
+          options.onBatchComplete({
+            partialText: cumulativeText,
+            completedChunks: processedChunks,
+            totalChunks: translatableChunks.length,
+            progress:
+              Math.round(Math.min(100, (processedChunks / translatableChunks.length) * 100) * 10) /
+              10,
+            partialSemanticArrays: snapshotSemanticArrays(this.semanticArrayBuilder?.getArrays()),
+            batchNumber: batchTiming.batchNumber,
+            batchTime: batchTiming.processingTime,
+            avgTimePerChunk: batchTiming.avgTimePerChunk,
+            timestamp: Date.now(),
+          });
+        } catch (callbackError) {
+          logger.warn('⚠️ Batch completion callback failed:', callbackError);
+        }
+      }
 
       // Call progress callback if provided (with debouncing to reduce UI overhead)
       if (options.onProgress) {
@@ -2973,7 +2776,7 @@ export class TranslationEngine {
           totalChunks: translatableChunks.length,
           currentBatchSize,
           semanticArrays: this.semanticArrayBuilder?.getArrays(),
-          progressText: this.progressivePositionTracker.finalText || cleanedResult,
+          progressText: cumulativeText,
         });
 
         if (update.send) {
@@ -3020,17 +2823,6 @@ export class TranslationEngine {
 
     this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
 
-    // OPTIMIZED FIX: Use naturally accumulated semantic arrays and update with final text
-    // PHASE 4: Validate progressive results before return
-    const progressiveTextLength = this.progressivePositionTracker.finalText.length;
-    const fallbackTextLength = cleanedFinalResult.length;
-
-    if (Math.abs(progressiveTextLength - fallbackTextLength) > 10) {
-      logger.warn(
-        `⚠️ Progressive text length mismatch: ${progressiveTextLength} vs ${fallbackTextLength} (fallback)`
-      );
-    }
-
     // BUGFIX: Use semanticArrayBuilder directly for final return to avoid duplicates
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
     const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
@@ -3057,7 +2849,7 @@ export class TranslationEngine {
     }
 
     return {
-      translatedText: cleanedFinalResult, // Use capitalized result, not progressive tracker (which lacks capitalization)
+      translatedText: cleanedFinalResult, // The finished text, not the progressive preview (batches are only cleaned)
       semanticArrays: {
         original: finalSemanticArrays.original || [],
         translated: finalSemanticArrays.translated || [],
@@ -3728,7 +3520,7 @@ export class TranslationEngine {
 
       // Apply final fixes that need to run after all processing
       this.phaseProfiler.profileSync('postProcess', () => {
-        this.fixNumberPlusLiangTranslations(tokens);
+        fixNumberPlusLiang(tokens);
       });
 
       // MEDIUM-1 FIX: Enhanced phase completion logging and monitoring
@@ -3791,141 +3583,6 @@ export class TranslationEngine {
         }
       }
     });
-  }
-
-  /**
-   * Find the longest dictionary match starting at a specific position
-   *
-   * Integration #6: WASM Dictionary Trie (Phase 2)
-   * - Tries WASM trie first for 2-4x speedup (character dictionary only)
-   * - Falls back to JavaScript Map-based lookup on WASM failure
-   * - Graceful degradation ensures reliability
-   *
-   * @param {Array} tokens - Token array
-   * @param {number} position - Starting token position
-   * @param {Object} dictionary - Dictionary Map object
-   * @param {string} [dictionaryName] - Optional dictionary name for WASM optimization
-   * @returns {Object|null} Match object with {word, translation, tokenLength, dictionary}
-   */
-  findLongestMatchAtPosition(tokens, position, dictionary, dictionaryName = null) {
-    // JavaScript Map-based implementation (O(1) hash lookup, faster than WASM trie at current dictionary sizes)
-    let bestMatch = null;
-    let maxLength = 0;
-
-    // Try matches of different lengths starting from current position
-    for (let length = 1; length <= tokens.length - position && length <= 10; length++) {
-      const tokenSequence = tokens.slice(position, position + length);
-      const text = tokenSequence.map((t) => t.value).join('');
-
-      // Use dictionary trie directly instead of translation manager
-      const result = dictionary.get(text);
-      if (result) {
-        if (length > maxLength) {
-          maxLength = length;
-          bestMatch = {
-            word: text,
-            translation: result,
-            dictionary: dictionaryName || 'unknown',
-            tokenLength: length,
-          };
-        }
-      }
-    }
-
-    return bestMatch;
-  }
-
-  /**
-   * PHASE 1: Progressive batch processing - eliminates O(n²) redundancy
-   * Process only current batch chunks instead of all chunks every time
-   * @param {TextChunk[]} currentBatch - Current batch of chunks to process
-   * @param {TextChunk[]} allChunks - All chunks (for context like capitalization)
-   * @param {number} batchStartIndex - Starting index of current batch
-   */
-  processBatchChunksProgressive(currentBatch, allChunks, _batchStartIndex) {
-    // Apply punctuation translation to only the current batch chunks. The batch holds only the
-    // translatable chunks, so neighbour lookups (comma spacing) read the full list instead.
-    this.chunkPostProcessor.translatePunctuation(currentBatch, this.punctuationDict, allChunks);
-
-    // Capitalization is handled at the final level (not per-batch)
-  }
-
-  /**
-   * PHASE 2: Process batch with progressive position tracking
-   * @param {TextChunk[]} currentBatch - Current batch of chunks
-   * @param {TextChunk[]} allChunks - All chunks for text reconstruction
-   * @param {number} batchStartIndex - Starting index of batch
-   */
-  async processBatchWithProgressivePositioning(currentBatch, _allChunks, _batchStartIndex) {
-    try {
-      // Step 1: Reconstruct just the current batch text
-      const batchText = this.chunkPostProcessor.reconstructText(currentBatch);
-      const cleanedBatchText = cleanFullText(batchText);
-
-      // Step 2: Update progressive tracker
-      this.progressivePositionTracker.finalText += cleanedBatchText;
-      this.progressivePositionTracker.runningTextPosition += cleanedBatchText.length;
-
-      // Semantic arrays are accumulated by semanticArrayBuilder (no duplication needed)
-
-      return {
-        cleanedBatchText: cleanedBatchText,
-        batchText: cleanedBatchText,
-        cumulativeText: this.progressivePositionTracker.finalText,
-      };
-    } catch (error) {
-      // PHASE 4: Progressive error handling - graceful degradation
-      logger.error(`❌ Progressive batch processing failed: ${error.message}`);
-      logger.error('Progressive positioning error:', error);
-
-      // Fallback: Return basic batch info
-      const fallbackText = this.chunkPostProcessor.reconstructText(currentBatch);
-      const cleanedFallbackText = cleanFullText(fallbackText);
-
-      // Still update position tracker to maintain text continuity
-      this.progressivePositionTracker.finalText += cleanedFallbackText;
-      this.progressivePositionTracker.runningTextPosition += cleanedFallbackText.length;
-
-      return {
-        batchText: cleanedFallbackText,
-        cumulativeText: this.progressivePositionTracker.finalText,
-        hasError: true,
-      };
-    }
-  }
-
-  /**
-   * Fix number + 两 (tael unit) translations
-   * Converts "lưỡng" to "lượng" when 两 follows a converted number
-   * @param {Token[]} tokens - Array of tokens
-   */
-  fixNumberPlusLiangTranslations(tokens) {
-    for (let i = 0; i < tokens.length; i++) {
-      const currentToken = tokens[i];
-
-      // Check if current token is a converted number
-      if (currentToken.translated && /^\d+(?:,\d{3})*$/.test(currentToken.translated)) {
-        // Find the next non-consumed token after this number
-        for (let j = i + 1; j < tokens.length; j++) {
-          const nextToken = tokens[j];
-
-          // Skip consumed tokens (from number conversion)
-          if (isConsumedSource(nextToken.translationSource, 'number_conversion')) {
-            continue;
-          }
-
-          // Check if this next token is "两" translated as "lưỡng"
-          if (nextToken.value === '两' && nextToken.translated === 'lưỡng') {
-            // Update the translation from "lưỡng" to "lượng" for tael unit
-            nextToken.translated = 'lượng';
-            nextToken.translationSource = 'number_plus_liang_fix';
-          }
-
-          // Only check the first non-consumed token after the number
-          break;
-        }
-      }
-    }
   }
 
   /**

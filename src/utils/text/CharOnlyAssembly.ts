@@ -1,0 +1,94 @@
+import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
+import { needsSpaceCharOnly } from './CharOnlySpacing';
+import { finishCharOnlyText } from './FormattingPasses';
+import type { PunctuationLookup } from './FormattingPasses';
+
+/** A token after the stamping pass: `translated` is null when nothing claimed it. */
+export interface StampedToken {
+  type: string;
+  value: string;
+  end: number;
+  translated?: string | null;
+  translationSource?: string | null;
+}
+
+export interface CharOnlyAssemblyResult {
+  translatedText: string;
+  semanticArrays: ReturnType<SemanticArrayBuilder['getArrays']>;
+}
+
+/**
+ * The Character-only result, built from tokens the engine has already stamped (CONTEXT.md
+ * "CharOnlyAssembly"). Pure: it builds its own private SemanticArrayBuilder.
+ *
+ * ORDER IS LOAD-BEARING: the positions are searched in the FINISHED text (finishing rewrites it),
+ * and before updateWithCapitalizedText, whose fallback takes the first occurrence and would stamp
+ * every repeat of a word with the same position. With this order each unit already has its
+ * position, and updateWithCapitalizedText reads the capitalized form from finalText[start:end].
+ */
+export function assembleCharOnlyResult(
+  tokens: StampedToken[],
+  lookupPunctuation: PunctuationLookup
+): CharOnlyAssemblyResult {
+  const textLength = tokens.length > 0 ? tokens[tokens.length - 1].end : 0;
+  const builder = new SemanticArrayBuilder(Math.floor(textLength / 5));
+  let translatedText = '';
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const translatedValue = token.translated != null ? token.translated : token.value;
+
+    if (
+      token.type === 'chinese_char' &&
+      token.translated != null &&
+      token.translated !== token.value
+    ) {
+      builder.addUnit(
+        token.value,
+        token.translated,
+        token.translationSource || 'characters',
+        i, // tokenIndex, so the position back-fill can find the unit
+        'characters',
+        // applyMatchToTokens sets token.translationSource = match.dictionary (never token.dictionary),
+        // so for a translated token here it IS the dictionary name.
+        token.translationSource || null
+      );
+    }
+
+    translatedText += translatedValue;
+
+    // A third, independently verified copy of the spacing rules; see needsSpaceCharOnly().
+    if (
+      i < tokens.length - 1 &&
+      needsSpaceCharOnly(token, tokens[i + 1], translatedValue, translatedText.endsWith(' '))
+    ) {
+      translatedText += ' ';
+    }
+  }
+
+  // Punctuation dictionary translation, comma-digit preservation (1,200 stays intact), colon-quote
+  // spacing, space after punctuation, first-letter and colon/newline capitals.
+  translatedText = finishCharOnlyText(translatedText, lookupPunctuation);
+
+  const arrays = builder.getArrays();
+  const lowerText = translatedText.toLowerCase();
+  let searchPosition = 0;
+
+  for (let i = 0; i < arrays.translated.length; i++) {
+    const translatedUnit = arrays.translated[i];
+    const metadata = arrays.metadata[i];
+
+    const unitPosition = lowerText.indexOf(translatedUnit.toLowerCase(), searchPosition);
+    // A unit the search cannot find stays unmapped and leaves the cursor where it was: moving it
+    // would make the NEXT unit's search start late and miss a word sitting at the cursor.
+    if (unitPosition === -1 || !metadata || metadata.tokenIndex < 0) continue;
+
+    const endPos = unitPosition + translatedUnit.length;
+    builder.setPositionByMatch(metadata.tokenIndex, translatedUnit, unitPosition, endPos);
+    searchPosition = endPos;
+  }
+
+  builder.updateWithCapitalizedText(translatedText);
+
+  return { translatedText, semanticArrays: builder.getArrays() };
+}

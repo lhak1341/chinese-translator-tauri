@@ -1,6 +1,6 @@
 # ADR-087: Phase 5 Is a Point Lookup, Not a MatchSource Reader
 
-**Status:** Decided
+**Status:** Decided (punctuation line in "Not done" superseded by ADR-089)
 **Date:** 2026-10-08
 
 ## Context

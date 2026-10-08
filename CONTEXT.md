@@ -208,9 +208,9 @@ The `translationSource` string on a token: which phase wrote it, and whether the
 
 ## WasmProcessorLifecycle
 
-The shared initialization contract for WASM processors. Owns the invariant sequence every WASM processor must run before its instance is usable: `instantiateFn()` → instance method verification (the binary is loaded by `WasmSharedModule`, not the lifecycle). Wraps the sequence in exponential-backoff retry (transient errors only) and tracks initialization state (`isReady`, `hasFailed`, cooldown, failure count).
+The shared initialization contract for WASM processors. Owns the invariant sequence every WASM processor must run before its instance is usable: `instantiateFn()` → instance method verification (the binary is loaded by `WasmSharedModule`, not the lifecycle). Wraps the sequence in exponential-backoff retry (transient errors only) and tracks initialization state (`isReady`, `hasFailed`, cooldown).
 
-Each lifecycle-holding WASM processor (Pattern, ConflictResolution) holds one `WasmProcessorLifecycle` instance. (There were seven: Dictionary went with ADR-073, StringProcessor with ADR-078, TextChunker, TextAssembler and TextTokenizer with ADR-079.) Every `instantiateFn` calls `loadSharedWasmModule()` (`WasmSharedModule.js`) rather than the generated `init`, so the binary is verified and instantiated once (ADR-009, "Current state"). The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
+One WASM processor holds a `WasmProcessorLifecycle` instance today: Pattern. (There were seven: Dictionary went with ADR-073, StringProcessor with ADR-078, TextChunker, TextAssembler and TextTokenizer with ADR-079, ConflictResolution with ADR-083.) The class is generic over `{ name, expectedMethods }` and the registry over holders on purpose: ADR-083 kept `WasmCascadeRegistry` with one wrapper, because `WasmSharedModule` and the wrapper both register a retire handler. Every `instantiateFn` calls `loadSharedWasmModule()` (`WasmSharedModule.js`) rather than the generated `init`, so the binary is verified and instantiated once (ADR-009, "Current state"). The processor module provides `instantiateFn`: a function that receives the verified binary and returns the configured WASM instance. Domain-specific setup (e.g., loading pattern dictionaries into the WASM instance) happens inside `instantiateFn` before it returns. Runtime error handling (toasts, fallback mode) stays in the processor module — the lifecycle only owns the init lifecycle.
 
 Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
@@ -675,6 +675,36 @@ Builds the `onProgress` payload for `translateWithProgressiveBatches`. Owns the 
 Interface: `buildProgressiveProgressUpdate(input) → { send: true, payload } | { send: false, log }`. Pure function, no engine state.
 
 Entry point: `src/utils/performance/ProgressiveProgressReporter.js`. `TranslationEngine.js` imports this module directly; `utils/performance` has no barrel. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
+
+## ProgressiveBatchText
+
+The running translated text of `translateWithProgressiveBatches`. Owns one step per batch, in a fixed order: `translatePunctuation(batch, dict, allChunks)` (neighbour lookups for comma spacing read `allChunks`, every chunk of the text, because the batch holds only translatable ones), `reconstructText`, `cleanFullText`, append. It keeps the cumulative text, which both `onProgress` and `onBatchComplete` read. A batch that throws propagates: there is no fallback text.
+
+Interface: `createProgressiveBatchText({ punctuationDict, chunkPostProcessor }) → { addBatch(batch, allChunks) → { batchText, cumulativeText } }`. Plain module, no engine state, so tests feed it chunks.
+
+The engine's per-batch order is: `addBatch`, `semanticArrayBuilder.updateWithCapitalizedText(batchText)`, snapshot, then both callbacks. `onBatchComplete` fires from the progressive loop, after the add, so `partialText` includes the batch that just finished. Its semantic arrays come from `snapshotSemanticArrays` in `ProgressiveProgressReporter`, the same copy `onProgress` gets: the arrays are copied and metadata gaps are filled, the entries are shared. This text is not the final text: batches are cleaned with `cleanFullText`, and the whole text is finished once with `finishFullText` afterwards.
+
+Entry point: `src/utils/text/ProgressiveBatchText.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
+
+## CharOnlyAssembly
+
+The Character-only result, built from tokens the engine has already stamped. Owns, in this order: the output text (`translated ?? value` per token, with `needsSpaceCharOnly` deciding the space after each), one semantic unit per `chinese_char` whose `translated` differs from its `value`, `finishCharOnlyText` over the whole text, the position back-fill, then `updateWithCapitalizedText`. The back-fill searches each unit's text, case-insensitively, in the _finished_ text, moving a cursor forward so repeated words get distinct, increasing positions; it must run after finishing (finishing rewrites the text) and before `updateWithCapitalizedText` (whose fallback takes the first occurrence and would stamp every repeat with the same position). A unit the search cannot find stays unmapped (`translatedStart = -1`) and does not move the cursor.
+
+Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state. Builder capacity comes from the last token's `end`.
+
+Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`), `openMatchSource`, and `prebuiltSegments: []`. The pass looks up `characters` through `MatchSource` (ADR-087 defers making that a point lookup until the trie adapter is measured). Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation through `lookupPunctuation` later (ADR-089).
+
+Entry point: `src/utils/text/CharOnlyAssembly.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithCharactersOnly`.
+
+## NumberLiangFix
+
+The post-pass that reads 两 as a tael unit after a converted number. When a token's `translated` is a number (`/^\d+(?:,\d{3})*$/`) and the first non-consumed token after it (consumed followers of the number are skipped) is 两 translated `lưỡng`, that token becomes `lượng` and its `translationSource` becomes `number_plus_liang_fix` (a Phase 3 source string). It must run after Phase 5, because 两's translation does not exist before then; the engine calls it once per `translateSinglePass`, inside `postProcess`'s `profileSync`, even when Phase 5 failed.
+
+Interface: `fixNumberPlusLiang(tokens): void`. Mutates the tokens in place; no engine state.
+
+**Known limits, kept on purpose.** It depends on the user's `characters` dictionary mapping 两 to exactly `lưỡng` (the bundled default has no 两; the production file does), so a different value switches the rule off without a signal. It fires only after a number `NumberProcessor` converted, so only multi-character numerals qualify: `五百二十两` gives `520 lượng`, `五两` stays `Ngũ lưỡng`. A phrase hit wins (`五百两人` gives `500 hai người`). Changing the coverage is a translation-quality decision, not part of this module.
+
+Entry point: `src/utils/NumberLiangFix.ts`, beside `NumberProcessor.js`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s post-Phase-5 step.
 
 ## WordSegmentMatcher
 

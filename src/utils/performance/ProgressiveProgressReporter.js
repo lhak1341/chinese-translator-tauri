@@ -22,6 +22,28 @@ const DEFAULT_METADATA = Object.freeze({
 });
 
 /**
+ * Copy the builder's arrays for a callback, filling metadata gaps with the shared default.
+ * The arrays are copied, the entries are not: the next batch keeps appending to the builder,
+ * so a callback must never receive its live arrays. Shared by onProgress and onBatchComplete.
+ *
+ * @param {{ original?: Array<*>, translated?: Array<*>, metadata?: Array<*> } | null | undefined} semanticArrays
+ * @returns {{ original: Array<*>, translated: Array<*>, metadata: Array<*> }}
+ */
+export function snapshotSemanticArrays(semanticArrays) {
+  const arrays = semanticArrays || { original: [], translated: [], metadata: [] };
+  const targetLength = arrays.original?.length || 0;
+  const metadata = arrays.metadata ? arrays.metadata.slice() : [];
+  for (let i = metadata.length; i < targetLength; i++) {
+    metadata[i] = DEFAULT_METADATA;
+  }
+  return {
+    original: arrays.original ? [...arrays.original] : [],
+    translated: arrays.translated ? [...arrays.translated] : [],
+    metadata,
+  };
+}
+
+/**
  * @param {{
  *   now: number,
  *   lastProgressUpdate: number,
@@ -70,13 +92,6 @@ export function buildProgressiveProgressUpdate({
   const estimatedRemainingBatches = Math.ceil(remainingChunks / currentBatchSize);
   const estimatedTotalBatches = batchIndex + estimatedRemainingBatches;
 
-  const arrays = semanticArrays || { original: [], translated: [], metadata: [] };
-  const targetLength = arrays.original?.length || 0;
-  const progressiveMetadata = arrays.metadata ? arrays.metadata.slice() : [];
-  for (let i = progressiveMetadata.length; i < targetLength; i++) {
-    progressiveMetadata[i] = DEFAULT_METADATA;
-  }
-
   return {
     send: true,
     payload: {
@@ -86,11 +101,7 @@ export function buildProgressiveProgressUpdate({
       totalChunks,
       partialTranslation: progressText,
       isComplete: isLastBatch,
-      semanticArrays: {
-        original: arrays.original ? [...arrays.original] : [],
-        translated: arrays.translated ? [...arrays.translated] : [],
-        metadata: progressiveMetadata,
-      },
+      semanticArrays: snapshotSemanticArrays(semanticArrays),
     },
   };
 }

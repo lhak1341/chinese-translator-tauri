@@ -1,8 +1,9 @@
 /**
  * Tests for tauriAPI.ts's `callTauriCommand` seam — the shared invoke/catch shell for the
- * 17 command wrappers whose failure contract is exactly `{success: false, error: String(error)}`.
- * Previously untested: 19 near-identical inline try/catch blocks were untested because there
- * was nothing worth isolating (architecture review 2026-09-09, candidate #2 grilling).
+ * wrappers whose failure contract is exactly `{success: false, error: String(error)}` — and for
+ * the four wrappers that stay inline because their failure handling differs: saveDictionary,
+ * loadDictionary, loadDictionariesParallel and buildLookupIndex (readClipboard rethrows). Why
+ * the shell stays narrow: ADR-090. These inline blocks were untested until round 20.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
@@ -89,5 +90,154 @@ describe('excluded from the seam — readClipboard rethrows instead of returning
     mockInvoke.mockRejectedValueOnce(new Error('clipboard denied'));
 
     await expect(tauriAPI.readClipboard()).rejects.toThrow('clipboard denied');
+  });
+});
+
+const INVALID_ID_ERROR =
+  'Invalid dictionary ID: use letters, digits, _ . - only, at most 100 characters';
+
+describe('saveDictionary — inline, logs a failure the backend returned', () => {
+  it('rejects an invalid id without calling invoke', async () => {
+    const result = await tauriAPI.saveDictionary('../x', {});
+
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(result).toEqual({ success: false, error: INVALID_ID_ERROR });
+  });
+
+  it('passes a success result through without logging', async () => {
+    mockInvoke.mockResolvedValueOnce({ success: true });
+
+    const result = await tauriAPI.saveDictionary('characters', { a: 'b' });
+
+    expect(mockInvoke).toHaveBeenCalledWith('save_dictionary', {
+      dictionaryId: 'characters',
+      data: { a: 'b' },
+    });
+    expect(result).toEqual({ success: true });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('returns a failure the backend returned unchanged, and logs it', async () => {
+    mockInvoke.mockResolvedValueOnce({ success: false, error: 'disk full' });
+
+    const result = await tauriAPI.saveDictionary('characters', {});
+
+    expect(result).toEqual({ success: false, error: 'disk full' });
+    expect(logger.error).toHaveBeenCalledWith('Save dictionary failed:', 'disk full');
+  });
+
+  it('turns a rejection into the failure shape', async () => {
+    mockInvoke.mockRejectedValueOnce('ipc down');
+
+    expect(await tauriAPI.saveDictionary('characters', {})).toEqual({
+      success: false,
+      error: 'ipc down',
+    });
+  });
+});
+
+describe('loadDictionary — inline, a missing file is not worth a log line', () => {
+  it('rejects an invalid id without calling invoke', async () => {
+    const result = await tauriAPI.loadDictionary('a/b');
+
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(result).toEqual({ success: false, error: INVALID_ID_ERROR });
+  });
+
+  it('returns "File not found" without logging it', async () => {
+    mockInvoke.mockResolvedValueOnce({ success: false, error: 'File not found' });
+
+    const result = await tauriAPI.loadDictionary('phrases');
+
+    expect(result).toEqual({ success: false, error: 'File not found' });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('logs any other failure the backend returned', async () => {
+    mockInvoke.mockResolvedValueOnce({ success: false, error: 'bad json' });
+
+    await tauriAPI.loadDictionary('phrases');
+
+    expect(logger.error).toHaveBeenCalledWith('Load dictionary failed:', 'bad json');
+  });
+
+  it('turns a rejection into the failure shape', async () => {
+    mockInvoke.mockRejectedValueOnce('ipc down');
+
+    expect(await tauriAPI.loadDictionary('phrases')).toEqual({
+      success: false,
+      error: 'ipc down',
+    });
+  });
+});
+
+describe('loadDictionariesParallel — inline, failure is a batch of failed ids', () => {
+  it('passes the batch to invoke when every id is valid', async () => {
+    const batch = { total: 2, successful: 2, failed: 0, results: [] };
+    mockInvoke.mockResolvedValueOnce(batch);
+
+    const result = await tauriAPI.loadDictionariesParallel(['characters', 'phrases']);
+
+    expect(mockInvoke).toHaveBeenCalledWith('load_dictionaries_parallel', {
+      dictionaryIds: ['characters', 'phrases'],
+    });
+    expect(result).toBe(batch);
+  });
+
+  it('fails every id without calling invoke when any id is invalid', async () => {
+    const result = await tauriAPI.loadDictionariesParallel(['characters', '../x']);
+
+    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      total: 2,
+      successful: 0,
+      failed: 2,
+      results: [
+        { dictionary_id: 'characters', success: false, error: 'Batch validation failed' },
+        { dictionary_id: '../x', success: false, error: INVALID_ID_ERROR },
+      ],
+    });
+  });
+
+  it('turns a rejection into one failed result per id', async () => {
+    mockInvoke.mockRejectedValueOnce('ipc down');
+
+    expect(await tauriAPI.loadDictionariesParallel(['characters', 'phrases'])).toEqual({
+      total: 2,
+      successful: 0,
+      failed: 2,
+      results: [
+        { dictionary_id: 'characters', success: false, error: 'ipc down' },
+        { dictionary_id: 'phrases', success: false, error: 'ipc down' },
+      ],
+    });
+  });
+});
+
+describe('buildLookupIndex — inline, failure is a zero-filled result', () => {
+  it('sends only the length gate as options', async () => {
+    mockInvoke.mockResolvedValueOnce({ success: true, index: {} });
+
+    await tauriAPI.buildLookupIndex('text', [], ['characters'], 50);
+
+    expect(mockInvoke).toHaveBeenCalledWith('build_lookup_index', {
+      text: 'text',
+      dictionaries: [],
+      dictionaryOrder: ['characters'],
+      options: { minTextLength: 50 },
+    });
+  });
+
+  it('turns a rejection into an empty index with the error', async () => {
+    mockInvoke.mockRejectedValueOnce('ipc down');
+
+    expect(await tauriAPI.buildLookupIndex('text', [], [], 50)).toEqual({
+      success: false,
+      index: {},
+      buildTimeMs: 0,
+      positionsIndexed: 0,
+      indexSize: 0,
+      error: 'ipc down',
+    });
   });
 });

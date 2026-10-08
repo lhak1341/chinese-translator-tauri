@@ -37,7 +37,6 @@ export class WasmProcessorLifecycle {
     /** @type {Promise<boolean>|null} */
     this._initializationPromise = null;
     this._retryAllowedAfter = 0;
-    this._failureCount = 0;
   }
 
   get isReady() {
@@ -95,7 +94,6 @@ export class WasmProcessorLifecycle {
       } catch (error) {
         logger.error(`❌ Failed to initialize ${this.name} after retries:`, error);
         this._hasFailed = true;
-        this._failureCount++;
         this._retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
         this._initializationPromise = null;
         return false;
@@ -131,19 +129,6 @@ export class WasmProcessorLifecycle {
     this._isReady = false;
     this._hasFailed = true;
     this._initializationPromise = null;
-  }
-
-  /**
-   * @returns {{ name: string, isReady: boolean, hasFailed: boolean, failureCount: number, inCooldown: boolean }}
-   */
-  getStatus() {
-    return {
-      name: this.name,
-      isReady: this._isReady,
-      hasFailed: this._hasFailed,
-      failureCount: this._failureCount,
-      inCooldown: this._retryAllowedAfter > Date.now(),
-    };
   }
 
   /**

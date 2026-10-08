@@ -23,7 +23,7 @@ export class ChunkPostProcessor {
    *
    * EXECUTION PATH:
    *   - Used by: Full Translation mode, progressive-batch path
-   *   - Called from: TranslationEngine.processBatchWithProgressivePositioning(), once per
+   *   - Called from: ProgressiveBatchText.addBatch(), once per
    *     batch, and translateWithProgressiveBatches() once over every chunk. No segments are
    *     built here: they come from WordSegmentMatcher.matchWordSegments against the
    *     fully-assembled, finished text.

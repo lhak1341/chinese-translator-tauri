@@ -148,29 +148,3 @@ describe('WasmProcessorLifecycle — instance verification failure', () => {
     expect(lc.hasFailed).toBe(true);
   });
 });
-
-describe('WasmProcessorLifecycle — getStatus()', () => {
-  test('returns expected shape', () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    const status = lc.getStatus();
-    expect(status).toMatchObject({
-      name: 'TestProcessor',
-      isReady: false,
-      hasFailed: false,
-      failureCount: 0,
-      inCooldown: false,
-    });
-  });
-
-  test('isReady updates in status after successful init', async () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    await lc.initialize(makeInstantiateFn());
-    expect(lc.getStatus().isReady).toBe(true);
-  });
-
-  test('hasFailed updates in status after permanentlyFail', () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    lc.permanentlyFail();
-    expect(lc.getStatus().hasFailed).toBe(true);
-  });
-});
