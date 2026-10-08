@@ -32,10 +32,6 @@
  * 2. Core Engine Class - Constructor                         [COUPLED]
  *    - Critical: Initializes all subsystems
  *
- * 3. Dictionary Operations                                   [COUPLED]
- *    - Semantic caching with phase priority
- *    - Critical: Cache timing affects phase order
- *
  * 5. Engine Initialization                                   [COUPLED]
  *    - initialize() — dictionary loading & WASM setup
  *    - Critical: Initialization order matters
@@ -63,7 +59,7 @@
  * 10. Phase 5 - Character Processing                         [COUPLED]
  *     - Also contains Phase 2 (Proper Noun) logic: applyDictionaryTranslation()
  *       sits inside this section, not its own. The main Phase 5 method,
- *       processRemainingTokensInBatches(), is NOT here — it's physically inside
+ *       processRemainingTokens(), is NOT here — it's physically inside
  *       section 12 (Parallel Processing). Phase content and physical section
  *       boundaries diverge throughout this file; do not assume a section named
  *       after a phase contains only that phase's code.
@@ -75,7 +71,7 @@
  *
  * 12. Parallel Processing                                    [COUPLED]
  *     - processChunksInParallel()
- *     - processRemainingTokensInBatches() — Phase 5's main method, see note above
+ *     - processRemainingTokens() — Phase 5's main method, see note above
  *     - Critical: assigns semantic indices by chunk-completion order
  *
  * 13. Progressive Batch Translation                          [COUPLED]
@@ -361,38 +357,6 @@ export class TranslationEngine {
     }
 
     return defaultMaxTokens;
-  }
-
-  // ============================================================================
-  // SECTION 3: DICTIONARY OPERATIONS
-  // ============================================================================
-  // Purpose: Dictionary lookups, caching, synchronization
-  // Dependencies: DictionaryManager, caching system
-  // Extraction Potential: NONE - Timing-sensitive, phase-critical
-  // Critical: Cache invalidation must coordinate with phase processing
-  // ============================================================================
-
-  /**
-   * Sync dictionaries to Phase 6 Core Engine (Rust) - Deprecated
-   *
-   * This method is a no-op maintained for backward compatibility. Originally synchronized
-   * dictionaries with the WASM Core Engine, but the WASM Core Engine was removed. Dictionary
-   * synchronization is now handled automatically by the DictionaryManager.
-   *
-   * @returns {Promise<void>} Resolves immediately (no synchronization needed)
-   *
-   * @deprecated Since 2025 - WASM Core Engine removed, no synchronization needed
-   *
-   * @example
-   * // This call is safe but does nothing
-   * await engine.syncDictionaries();
-   *
-   * @see DictionaryManager - Handles all dictionary operations
-   * @see invalidateDictionaryCaches - Use this to refresh caches after dictionary changes
-   */
-  async syncDictionaries() {
-    // WASM Core Engine removed - this method is a no-op
-    // Kept for backward compatibility (may be called during initialization)
   }
 
   // ============================================================================
@@ -2734,27 +2698,17 @@ export class TranslationEngine {
   }
 
   /**
-   * Process remaining tokens in optimized batches for character-level translation
+   * Phase 5: translate every token no earlier phase claimed, by a point lookup in the characters
+   * dictionary. Its keys are one code point (PersistTimeValidator enforces that on every write and
+   * DictionaryManager warns on a load that breaks it), so a match is always one token long: no
+   * span, no overlap, nothing to batch. See ADR-087.
    * @param {Token[]} tokens - Array of tokens
    * @param {Set} processedTokens - Set of already processed token indices
    * @param {Object} options - Translation options
    */
-  async processRemainingTokensInBatches(tokens, processedTokens, options) {
-    const BATCH_SIZE = 150; // Process 150 tokens at a time for improved performance (reduced from 20)
-    const batchPromises = [];
-    let currentBatch = [];
-    let currentBatchIndices = [];
-
-    // Count unprocessed tokens for debugging
-    let unprocessedCount = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      if (!processedTokens.has(i)) {
-        unprocessedCount++;
-      }
-    }
-
-    if (unprocessedCount > 0) {
-    }
+  async processRemainingTokens(tokens, processedTokens, options) {
+    const dictionary = this.dictionaryManager.getDictionary('characters');
+    if (!dictionary) return;
 
     try {
       let characterPhaseYieldTime = performance.now();
@@ -2768,78 +2722,7 @@ export class TranslationEngine {
           );
         }
 
-        if (processedTokens.has(i)) {
-          // Process batch at end of loop even if current token is processed
-          if (i === tokens.length - 1 && currentBatch.length > 0) {
-            // Create batch processing promise
-            const batchPromise = this.processTokenBatch(
-              tokens,
-              currentBatchIndices,
-              processedTokens,
-              options
-            );
-            batchPromises.push(batchPromise);
-
-            await Promise.all(batchPromises);
-          }
-          continue;
-        }
-
-        currentBatch.push(tokens[i]);
-        currentBatchIndices.push(i);
-
-        // Process batch when it's full or we've reached the end
-        if (currentBatch.length >= BATCH_SIZE || i === tokens.length - 1) {
-          // Create batch processing promise
-          const batchPromise = this.processTokenBatch(
-            tokens,
-            currentBatchIndices,
-            processedTokens,
-            options
-          );
-          batchPromises.push(batchPromise);
-
-          // Process batches in groups to avoid overwhelming the system
-          if (batchPromises.length >= 3 || i === tokens.length - 1) {
-            await Promise.all(batchPromises);
-            batchPromises.length = 0; // Clear the array
-          }
-
-          // Reset current batch
-          currentBatch = [];
-          currentBatchIndices = [];
-
-          // Time-slice: Yield control when processing time exceeds 16ms (60fps threshold)
-          const currentTime = performance.now();
-          if (currentTime - characterPhaseYieldTime > 16 && i < tokens.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 0));
-            characterPhaseYieldTime = performance.now();
-          }
-        }
-      }
-    } catch (error) {
-      logger.error(`🚨 Phase 5 Character Processing failed:`, error);
-      logger.error(`🚨 Phase 5 Error stack:`, error.stack);
-    }
-  }
-
-  /**
-   * Process a batch of tokens for character-level translation
-   * @param {Token[]} tokens - Full token array
-   * @param {number[]} batchIndices - Indices of tokens to process in this batch
-   * @param {Set} processedTokens - Set of already processed token indices
-   * @param {Object} options - Translation options
-   */
-  async processTokenBatch(tokens, batchIndices, processedTokens, options) {
-    const dictionary = this.dictionaryManager.getDictionary('characters');
-
-    // Phase A: Concurrent lookups — find matches without mutating tokens.
-    // findLongestMatchAtPosition is a pure trie read; no token state is changed here.
-    const lookupResults = await Promise.all(
-      batchIndices.map(async (i) => {
-        if (processedTokens.has(i)) {
-          return { index: i, match: null };
-        }
+        if (processedTokens.has(i)) continue;
 
         // Skip guard: a token another phase translated or consumed, unless a pattern partial
         // reset released it
@@ -2847,54 +2730,29 @@ export class TranslationEngine {
           tokens[i].translated !== null ||
           (tokens[i].translationSource && !tokens[i].isPatternPartialReset)
         ) {
-          return { index: i, match: null };
+          continue;
         }
 
-        if (!dictionary) {
-          return { index: i, match: null };
-        }
-
-        try {
-          const match = this.findLongestMatchAtPosition(tokens, i, dictionary, 'characters');
-          return { index: i, match };
-        } catch (error) {
-          logger.error(
-            `🚨 Token batch lookup failed at index ${i} ("${tokens[i]?.value}"):`,
-            error
+        const translation = dictionary.get(tokens[i].value);
+        if (translation) {
+          this.applyMatchToTokens(
+            tokens,
+            i,
+            { word: tokens[i].value, translation, dictionary: 'characters', tokenLength: 1 },
+            options
           );
-          return { index: i, match: null };
+          processedTokens.add(i);
         }
-      })
-    );
 
-    // Phase B: Sequential application — each match is applied and processedTokens is
-    // updated before the next match is considered, eliminating mutation races between
-    // concurrent lookups that returned overlapping spans.
-    for (const { index, match } of lookupResults) {
-      if (!match) continue;
-
-      // Overlap check against the up-to-date set (earlier results in this loop
-      // may have already claimed some of these indices).
-      let hasOverlap = false;
-      for (let j = 0; j < match.tokenLength; j++) {
-        if (processedTokens.has(index + j)) {
-          logger.warn(
-            `⚠️ Overlap detected: token ${index + j} already consumed. Skipping match at ${index}.`
-          );
-          hasOverlap = true;
-          break;
+        // Time-slice: yield control when processing time exceeds 16ms (60fps threshold)
+        if (i % 150 === 149 && performance.now() - characterPhaseYieldTime > 16) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          characterPhaseYieldTime = performance.now();
         }
       }
-      if (hasOverlap) continue;
-
-      // Apply the match — this is the only place tokens[] is mutated in this method
-      const matchWithDictName = { ...match, dictionary: 'characters' };
-      this.applyMatchToTokens(tokens, index, matchWithDictName, options);
-
-      // Mark consumed indices so subsequent iterations see them immediately
-      for (let j = 0; j < match.tokenLength; j++) {
-        processedTokens.add(index + j);
-      }
+    } catch (error) {
+      logger.error(`🚨 Phase 5 Character Processing failed:`, error);
+      logger.error(`🚨 Phase 5 Error stack:`, error.stack);
     }
   }
 
@@ -3337,7 +3195,7 @@ export class TranslationEngine {
   //   2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
   //   3. Number Processing     (NumberProcessor.processTokens, via this.numberProcessor)
   //   4. Phrase Processing     (createOptimalPhraseGroups)
-  //   5. Character Processing  (processRemainingTokensInBatches)
+  //   5. Character Processing  (processRemainingTokens)
   //
   // Why Sequential: Each phase consumes tokens, preventing double-processing
   // Why Coupled: Shared token state requires synchronous coordination
@@ -3362,7 +3220,7 @@ export class TranslationEngine {
    * 2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
    * 3. Number Processing (NumberProcessor.processTokens, via this.numberProcessor)
    * 4. Phrase Processing (createOptimalPhraseGroups)
-   * 5. Character Processing (processRemainingTokensInBatches) - Lowest priority
+   * 5. Character Processing (processRemainingTokens) - Lowest priority
    *
    * Why this order cannot change:
    * - Each phase marks processed tokens with translationSource: "X_consumed"
@@ -3413,7 +3271,7 @@ export class TranslationEngine {
    *      siblings — corrected 2026-08-18, architecture review follow-up to candidate #3;
    *      previously cited a non-existent `processNumbersWasm` method)
    * @see createOptimalPhraseGroups - Phase 4 implementation
-   * @see processRemainingTokensInBatches - Phase 5 implementation
+   * @see processRemainingTokens - Phase 5 implementation
    *
    * @sideeffects Mutates the `tokens` array in place — every phase writes
    * `translated`, `translationSource`, `groupLeader`, and `isGrouped` directly
@@ -3833,7 +3691,7 @@ export class TranslationEngine {
         }
         await withTimeout(
           this.phaseProfiler.profile('characters', async () => {
-            await this.processRemainingTokensInBatches(tokens, processedTokens, options);
+            await this.processRemainingTokens(tokens, processedTokens, options);
           }),
           PHASE_TIMEOUTS.characters,
           'characters'
@@ -4095,14 +3953,12 @@ export class TranslationEngine {
    * - Undo/redo dictionary operations
    *
    * Clears:
-   * - DictionaryManager caches (character, phrase, pattern lookups)
-   * - Proper noun translation cache
-   * - WASM dictionary sync (re-sync specific dictionary)
+   * - DictionaryManager's lookup cache for `dictionaryName`
+   * - Proper noun translation cache (all entries)
    *
    * Does NOT clear (not affected by single dictionary entry changes):
    * - Semantic array builder cache (capitalization updates)
    * - Pattern processor variable cache (pattern structure unchanged)
-   * - Rust lookup index cache (character dictionary only)
    * - Translation segments (position mappings)
    *
    * @param {string} dictionaryName - Dictionary that was modified

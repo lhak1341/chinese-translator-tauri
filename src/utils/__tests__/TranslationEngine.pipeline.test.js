@@ -86,6 +86,15 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       expect(tokens[1].translated).toBe('bên trong');
       expect(tokens[1].translationSource).toBe('characters');
     });
+
+    test('a token no dictionary knows stays untranslated, and a stamped one is left alone', async () => {
+      const stamped = { ...tok('在', 1), translated: 'PRE', translationSource: 'patterns' };
+      const tokens = [tok('龘', 0), stamped];
+      await runSinglePass(engine, tokens, {});
+      expect(tokens[0].translated).toBeNull();
+      expect(tokens[1].translated).toBe('PRE');
+      expect(tokens[1].translationSource).toBe('patterns');
+    });
   });
 
   // ── Phase 4: phrase lookup ─────────────────────────────────────────────────

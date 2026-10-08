@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791379549.7287362,
-    "ast_hash": "a0301b99297d313fe2861b1b36c6feb0",
+    "mtime": 1791461202.1089709,
+    "ast_hash": "133d6ae90d48658196446d673ab1eaba",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -415,8 +415,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryManager.js": {
-    "mtime": 1791338567.725618,
-    "ast_hash": "7f44ba1e7101837d3b9c1a4a05fe1f59",
+    "mtime": 1791461232.153441,
+    "ast_hash": "df70382f4218de3ae5491d3a6e24e363",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryLoadClassifier.ts": {
@@ -590,8 +590,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1791380008.949868,
-    "ast_hash": "eeca0d896a89fd2772651687ba2d2897",
+    "mtime": 1791459106.4212997,
+    "ast_hash": "1b70cdf4b21157ac5614d8cb2b206094",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -945,8 +945,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1791376912.139533,
-    "ast_hash": "b54817e6880d01d2abce9032145d830a",
+    "mtime": 1791461273.2738988,
+    "ast_hash": "4734aced359511289b33c57a42494302",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791377755.861102,
-    "ast_hash": "0c3e5cd4e77964bc317a7b0ac63d8470",
+    "mtime": 1791461279.0206335,
+    "ast_hash": "96a060ed348b759e7e8eeec9444a9011",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1120,8 +1120,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791380066.2939084,
-    "ast_hash": "9f1790a11f9d24a07c08a03a770f4be7",
+    "mtime": 1791459106.7093778,
+    "ast_hash": "7d0c06bbb5f40c9bb1ceacffd03b72c1",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1535,8 +1535,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791380083.3064418,
-    "ast_hash": "d85b5407b6c1de4b12f4b60f89a42fef",
+    "mtime": 1791461267.099153,
+    "ast_hash": "34401db2dd56154c5c3111cf56163471",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -2352,6 +2352,11 @@
   "src/types/engineConformance.ts": {
     "mtime": 1791380045.7911916,
     "ast_hash": "b7c9aa850cf2394f0e57d810030bfbbd",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-087-phase-5-is-a-point-lookup.md": {
+    "mtime": 1791461266.6349552,
+    "ast_hash": "4cc1f9e1effeeb1b92d6a8bb3b9abf57",
     "semantic_hash": ""
   }
 }

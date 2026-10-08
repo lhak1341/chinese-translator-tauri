@@ -134,14 +134,6 @@ describe('openMatchSource — what it sends', () => {
     expect(sent.map((d: { name: string }) => d.name)).toEqual(['characters']);
   });
 
-  it('accepts a plain object of entries as well as a Map', async () => {
-    const sent = await sentDictionaries(
-      makeDictionaryManager({ flatEntries: { characters: [ENTRY] } })
-    );
-
-    expect(sent).toEqual([{ name: 'characters', entries: [ENTRY], priority: 1 }]);
-  });
-
   it('sends no dictionaries when the search order is empty', async () => {
     const sent = await sentDictionaries(
       makeDictionaryManager({ getDefaultSearchOrder: vi.fn(() => []) })

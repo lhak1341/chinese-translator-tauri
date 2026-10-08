@@ -43,7 +43,7 @@ export interface MatchSource {
 }
 
 interface MatchSourceDictionaryManager {
-  flatEntries: Map<string, LookupIndexEntry[]> | Record<string, LookupIndexEntry[]>;
+  flatEntries: Map<string, LookupIndexEntry[]>;
   getDefaultSearchOrder(): string[];
   getPriorityForDictionary(dictionaryName: string): number;
   findAllMatches(text: string, startPos: number, dictionaryOrder: string[]): Match[];
@@ -88,7 +88,7 @@ function toRustDictionaries(
   const { flatEntries } = dictionaryManager;
   const dictionaries: LookupIndexDictionary[] = [];
   for (const name of dictionaryOrder) {
-    const entries = flatEntries instanceof Map ? flatEntries.get(name) : flatEntries[name];
+    const entries = flatEntries.get(name);
     if (!entries) continue;
     dictionaries.push({
       name,

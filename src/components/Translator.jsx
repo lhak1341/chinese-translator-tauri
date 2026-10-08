@@ -460,12 +460,8 @@ const Translator = ({ isActive }) => {
       return Promise.resolve();
     }
 
-    // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
-    if (isDictionaryReloading) {
-      logger.warn('Character-only translation rejected: dictionary reload in progress');
-      return Promise.resolve();
-    }
-
+    // No reload guard here, on purpose: useReloadRetranslate calls this inside the reload window,
+    // before the flag clears. User-driven callers guard themselves (see components/CLAUDE.md).
     try {
       if (engineRef.current && engineRef.current.isReady()) {
         // One call, no `onPreempt`: it is short, so the Reader waits for it.

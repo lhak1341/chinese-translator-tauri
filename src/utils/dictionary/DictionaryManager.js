@@ -87,6 +87,17 @@ export class DictionaryManager {
         );
       }
 
+      // Phase 5 looks a token up whole, so a multi-character key here would never match (ADR-087).
+      // PersistTimeValidator refuses one on every write; a hand-edited file is the way in.
+      if (dictionaryName === 'characters') {
+        const multiCharacterKeys = Object.keys(dictionary).filter((key) => [...key].length > 1);
+        if (multiCharacterKeys.length > 0) {
+          logger.warn(
+            `"characters" has ${multiCharacterKeys.length} multi-character key(s) that Phase 5 will not match, e.g. "${multiCharacterKeys[0]}"`
+          );
+        }
+      }
+
       this.dictionaries.set(dictionaryName, trie);
       this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
 

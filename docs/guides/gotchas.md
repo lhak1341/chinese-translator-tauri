@@ -51,6 +51,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Ad-hoc scripts that import `src/` modules (benchmarks, importer scans): run them with `bun script.mjs`, not `node`** — src imports use `.js` specifiers for `.ts` files (`../logger.js` is `logger.ts`), so node dies with `ERR_MODULE_NOT_FOUND`. Put the script in the scratchpad, not the repo.
 
+**To prove an engine change behaviour-preserving, diff its output before and after.** `bun script.mjs` cannot run the engine's WASM path, so write a throwaway vitest test (it runs with WASM mocked, so it covers phases 2–5 only) that dumps `[value, translated, translationSource]` per token to the scratchpad, run it, edit, run it again, `diff` the dumps, and delete the test. Copy production dictionaries to the scratchpad first (the read needs `dangerouslyDisableSandbox`).
+
 - **Expected `bun run tauri:deploy` output, none of it an error:** the PostCSS "did not pass the `from` option" warning (no PostCSS config in the repo, so it comes from Vite or a dependency); "chunks larger than 500 kB" (desktop app loaded from disk; the knob is `build.chunkSizeWarningLimit`); two `INEFFECTIVE_DYNAMIC_IMPORT` notes (`WasmPatternProcessor.js` and `SemanticPatternProcessor.js` are also imported statically elsewhere). `import.meta.dirname` replaced `__dirname` in both Vite configs 2026-10-03, so the `configLoader: 'native'` warning should be gone; if it returns, a new `__dirname` crept in.
 
 ## JavaScript / TypeScript
