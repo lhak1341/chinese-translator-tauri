@@ -156,32 +156,67 @@ export class ChunkPostProcessor {
   }
 
   /**
-   * Normal punctuation translation (original logic)
+   * `text` with every dictionary key replaced by its value, longest key first at each position.
+   * One pass over the text, so a value is never looked up again: an entry whose value is another
+   * entry's key (「→“ beside “→") translates once, not twice. A key maps by code point, so a
+   * multi-character key (……) matches where a per-character lookup cannot. A missing or falsy
+   * value leaves the character as it is.
+   * @param {string} text
+   * @param {Object} dict - Punctuation translation dictionary
+   * @param {number} maxKeyLength - Longest key in `dict`, in code points
+   * @returns {string}
+   */
+  _translateWithDictionary(text, dict, maxKeyLength) {
+    const codePoints = Array.from(text);
+    let result = '';
+    let i = 0;
+    while (i < codePoints.length) {
+      let matched = false;
+      for (let length = Math.min(maxKeyLength, codePoints.length - i); length >= 1; length--) {
+        const key = codePoints.slice(i, i + length).join('');
+        if (Object.hasOwn(dict, key) && dict[key]) {
+          result += dict[key];
+          i += length;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        result += codePoints[i];
+        i++;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Punctuation translation: the dictionary is applied to a chunk's punctuation once, then the
+   * comma spacing is decided. Running it again over the same chunks (the final pass over every
+   * chunk, after the batches) redoes only the spacing: `chunk.punctuationTranslated` records that
+   * the dictionary already ran, because applying it to its own output changes the result for an
+   * entry like ……→… (a second run gave …) or a chain like 「→“ with “→".
    * @param {TextChunk[]} chunks - Array of chunks to translate
    * @param {Object} punctuationDict - Punctuation translation dictionary
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk in text order, for neighbour lookups
    */
   translatePunctuationNormally(chunks, punctuationDict, allChunks = chunks) {
+    const maxKeyLength = Math.max(
+      1,
+      ...Object.keys(punctuationDict).map((k) => Array.from(k).length)
+    );
+
     for (const chunk of chunks) {
       if (chunk.punctuation) {
-        // If translatedPunctuation already exists (with spacing), preserve the spacing
-        if (chunk.translatedPunctuation && chunk.translatedPunctuation !== 'null') {
-          // Apply character translation while preserving spacing
-          let result = chunk.translatedPunctuation;
-          for (const [originalChar, translatedChar] of Object.entries(punctuationDict)) {
-            result = result.replace(
-              new RegExp(originalChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-              translatedChar
-            );
-          }
-          chunk.translatedPunctuation = result;
-        } else {
-          // Translate each punctuation character normally
-          let translatedPunctuation = '';
-          for (const char of chunk.punctuation) {
-            translatedPunctuation += punctuationDict[char] || char;
-          }
-          chunk.translatedPunctuation = translatedPunctuation;
+        if (!chunk.punctuationTranslated) {
+          // A translatedPunctuation already set by a caller (with spacing) is translated in place,
+          // keeping its spacing; otherwise the source punctuation is translated.
+          const hasPreset = chunk.translatedPunctuation && chunk.translatedPunctuation !== 'null';
+          chunk.translatedPunctuation = this._translateWithDictionary(
+            hasPreset ? chunk.translatedPunctuation : chunk.punctuation,
+            punctuationDict,
+            maxKeyLength
+          );
+          chunk.punctuationTranslated = true;
         }
 
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
@@ -233,11 +268,11 @@ export class ChunkPostProcessor {
 
       // Also translate punctuation characters that might be mixed in the content
       if (chunk.content) {
-        let translatedContent = '';
-        for (const char of chunk.content) {
-          translatedContent += punctuationDict[char] || char;
-        }
-        chunk.translatedContent = translatedContent;
+        chunk.translatedContent = this._translateWithDictionary(
+          chunk.content,
+          punctuationDict,
+          maxKeyLength
+        );
       }
     }
   }

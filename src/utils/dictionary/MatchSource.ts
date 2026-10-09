@@ -22,8 +22,8 @@ import { compareMatchesBySpecificityThenPriority } from './MatchComparator';
  * returns `(tokens, pos, category) => matches`, longest first, lower priority number on a tie.
  * `dictionaryOrder` names the dictionaries the phase searches; every one of them must have the
  * Rust category `category` (an id Rust does not recognise counts as `phrases`), as the
- * `properNouns` phase (the properNouns dictionaries) and the character-only pass (`characters`)
- * do. A match carries `word`, `translation`, `dictionary` and `priority`; its `metadata` is
+ * `properNouns` phase (the properNouns dictionaries)
+ * does. A match carries `word`, `translation`, `dictionary` and `priority`; its `metadata` is
  * the parsed object from the trie and the raw string from the index, and nothing reads it.
  */
 

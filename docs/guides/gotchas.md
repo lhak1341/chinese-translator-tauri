@@ -51,7 +51,7 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Ad-hoc scripts that import `src/` modules (benchmarks, importer scans): run them with `bun script.mjs`, not `node`** — src imports use `.js` specifiers for `.ts` files (`../logger.js` is `logger.ts`), so node dies with `ERR_MODULE_NOT_FOUND`. Put the script in the scratchpad, not the repo.
 
-**To prove an engine change behaviour-preserving, diff its output before and after.** `bun script.mjs` cannot run the engine's WASM path, so write a throwaway vitest test (it runs with WASM mocked, so it covers phases 2–5 only) that dumps `[value, translated, translationSource]` per token to the scratchpad, run it, edit, run it again, `diff` the dumps, and delete the test. Copy production dictionaries to the scratchpad first (the read needs `dangerouslyDisableSandbox`).
+**To prove an engine change behaviour-preserving, diff its output before and after.** `bun script.mjs` cannot run the engine's WASM path, so write a throwaway vitest test (it runs with WASM mocked, so it covers phases 2–5 only) that dumps `[value, translated, translationSource]` per token to the scratchpad, run it, edit, run it again, `diff` the dumps, and delete the test. Production dictionaries read fine in the default sandbox (verified 2026-10-10: `ls`, `python3`, vitest `fs`); reach for `dangerouslyDisableSandbox` only after an EPERM.
 
 - **Expected `bun run deploy` output, none of it an error:** the PostCSS "did not pass the `from` option" warning (no PostCSS config in the repo, so it comes from Vite or a dependency); "chunks larger than 500 kB" (desktop app loaded from disk; the knob is `build.chunkSizeWarningLimit`); two `INEFFECTIVE_DYNAMIC_IMPORT` notes (`WasmPatternProcessor.js` and `SemanticPatternProcessor.js` are also imported statically elsewhere). `import.meta.dirname` replaced `__dirname` in both Vite configs 2026-10-03, so the `configLoader: 'native'` warning should be gone; if it returns, a new `__dirname` crept in.
 
@@ -262,6 +262,8 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **A test file that hand-copies a production method "verbatim" is a reimplementation, not a mock** — it drifts silently. `TranslationEngine.patternSemanticType.test.js` was missing a `groupLeader` assignment and hardcoded a value the real method derives dynamically. Prefer calling the real method on a minimal stub (`EngineClass.prototype.method.call(stub, ...)`).
 
+**A `TextChunk[]` fixture capitalizes every chunk unless its `startedBy` says otherwise.** `applySmartCapitalization` keys on `startedBy` (`'start'` and sentence-end marks capitalize), not on position, so a lowercase expectation needs `startedBy: ','` (or similar) on every chunk after the first. Seen in `FullTextAssembly.test.ts`, 2026-10-10.
+
 ### jsdom and React Testing Library
 
 **`renderHook` dep objects must be stable `const`s defined outside the callback** — an inline `makeArrays()` creates a new reference each render, retriggers the effect, and OOMs via infinite re-render.
@@ -290,7 +292,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 ### Before asserting
 
-**Prove a new guard test by breaking the line it guards once** (delete the key, the `resetKey`, the in-commit read) and watching it fail; a second mechanism can make it pass anyway. The Dictionary table's switch test passed without the view's `key` until its two dictionaries shared their sources, because `useEntrySelection` prunes selected keys whose entry is gone. Mutate the exact call-site text with a uniqueness assert: a first-occurrence replace hit a doc comment and the guard test "passed" (2026-10-06).
+**Prove a new guard test by breaking the line it guards once** (delete the key, the `resetKey`, the in-commit read) and watching it fail; a second mechanism can make it pass anyway. The Dictionary table's switch test passed without the view's `key` until its two dictionaries shared their sources, because `useEntrySelection` prunes selected keys whose entry is gone. Mutate the exact call-site text with a uniqueness assert: a first-occurrence replace hit a doc comment and the guard test "passed" (2026-10-06). For a whole-file change, `cp` the file aside, `git show HEAD:<file> > <file>`, run the test, `cp` it back; `git stash` touches the index.
 
 **Before rewriting a refactored module's tests, run the old suite unchanged against the new code** — a pass is the behaviour-preserved proof, and moving cases first throws it away (the `useWindowedTranslation` suite passed against the `WindowFiller` adapter before its cases moved, 2026-09-30).
 

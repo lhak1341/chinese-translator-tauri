@@ -1,6 +1,6 @@
 # ADR-087: Phase 5 Is a Point Lookup, Not a MatchSource Reader
 
-**Status:** Decided (punctuation line in "Not done" superseded by ADR-089)
+**Status:** Decided (punctuation line in "Not done" superseded by ADR-089; character-only line done, see Addendum)
 **Date:** 2026-10-08
 
 ## Context
@@ -31,3 +31,13 @@ No timing was taken. In the 2026-09-15 profile pattern matching was 97.9% of tra
 ## Consequence
 
 A `characters` entry is one code point. Anything that writes the dictionary outside `PersistTimeValidator` (import, a direct file edit) can break that, and the load-time warning is the only signal. If a multi-character `characters` key is ever wanted, Phase 5 needs its longest-match loop back.
+
+## Addendum (2026-10-10, architecture review round 24, candidate #1)
+
+The character-only pass is now a point lookup too. `processCharacterOnlyTokens` is synchronous and takes no `MatchSource`; `translateWithCharactersOnly` no longer calls `openMatchSource`. Both character passes ask `characterMatchFor(dictionary, token)` (`src/utils/dictionary/CharacterMatch.ts`), the one place the one-code-point rule is applied.
+
+The "measure the trie adapter first" gate did not apply: nothing in the pass reads the trie adapter or the Rust index any more, so ADR-082's choice is not reopened, one consumer of it is gone. Verified by the same kind of differential as above, old against new over three texts (a 76-character mixed text with an astral character, a short text, and whitespace-heavy text) against the production `characters.json`: byte-identical `translatedText` and semantic arrays, 985 lines of JSON. Not timed (the Tauri IPC cost cannot be seen headlessly, as in ADR-077). `TextFinishing.test.ts` pins that a 60-character text never calls `buildLookupIndex`.
+
+Effects: the pass no longer ships the dictionaries to Rust (ADR-077's 4.4M-character payload per Reader window); it cannot interleave with another engine call (it has no `await`); and no production phase reads the `characters` category through `MatchSource`.
+
+Not done: the Rust index, `flatEntries`, `DictionaryEntryFlattener`, the Rust `TrieCache` and the failure counter stay. Full translation reaches them only for a punctuation-free chunk of 50 or more characters, which ADR-077 measured as almost none. Retiring them needs a measurement of how often that happens on real books, and reopens ADR-082 (one live adapter is a hypothetical seam).

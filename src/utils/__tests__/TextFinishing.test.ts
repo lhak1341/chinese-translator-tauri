@@ -7,7 +7,7 @@
  *   - Full Translation strips line-edge whitespace; character-only keeps a line's indentation.
  *   - Both space a letter from an adjacent digit and normalise to NFC.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
 import {
   cleanFullText,
@@ -188,23 +188,57 @@ describe('character-only pass leaves the engine state of Full Translation alone'
     return e;
   }
 
-  it('adds nothing to the shared builder or segment list, from a fresh engine', async () => {
+  it('adds nothing to the shared builder, from a fresh engine', async () => {
     const e = await engine();
     await e.translateWithCharactersOnly('说别单', {});
     expect(e.semanticArrayBuilder.getArrays().translated).toEqual([]);
-    expect(e.translationSegments).toEqual([]);
   });
 
-  it('leaves the arrays and segments a Full Translation just produced as they were', async () => {
+  it('leaves the arrays a Full Translation just produced as they were', async () => {
     const e = await engine();
     await e.translateWithSegments('说别单', {});
     const arraysBefore = e.semanticArrayBuilder.getArrays();
-    const segmentsBefore = [...e.translationSegments];
 
     const result = await e.translateWithCharactersOnly('说别单', {});
 
     expect(e.semanticArrayBuilder.getArrays()).toEqual(arraysBefore);
-    expect(e.translationSegments).toEqual(segmentsBefore);
     expect(result.semanticArrays.translated.length).toBeGreaterThan(0);
+  });
+
+  it('Full Translation returns the prebuilt segments it built, from the result alone', async () => {
+    const e = await engine();
+    const result = await e.translateWithSegments('说别单', {});
+    expect(result.prebuiltSegments.length).toBeGreaterThan(0);
+    expect(result).not.toHaveProperty('segments');
+  });
+});
+
+describe('character-only pass is a point lookup: it never builds the Rust lookup index', () => {
+  const dictionaries = {
+    characters: { 说: 'thuyết', 别: 'biệt', 单: 'đan' },
+    phrases: {},
+    patterns: {},
+    properNouns: {},
+    conversion: {},
+    punctuation: {},
+  };
+  const longText = '说别单'.repeat(20);
+
+  afterEach(() => {
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI;
+  });
+
+  it('does not call buildLookupIndex for a text past the 50-character gate', async () => {
+    const buildLookupIndex = vi.fn();
+    (window as unknown as { electronAPI: unknown }).electronAPI = { buildLookupIndex };
+    const e = createTranslationEngine();
+    await e.initialize(dictionaries, { activeProperNouns: ['properNouns'] });
+
+    const result = await e.translateWithCharactersOnly(longText, {});
+
+    expect(longText.length).toBeGreaterThanOrEqual(50);
+    expect(buildLookupIndex).not.toHaveBeenCalled();
+    expect(result.translatedText).toBe(`Thuyết biệt đan${' thuyết biệt đan'.repeat(19)}`);
+    expect(result.semanticArrays.original).toHaveLength(60);
   });
 });

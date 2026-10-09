@@ -4,6 +4,7 @@
  * Tests prevent regressions for:
  * - the corruption signal and growth past any starting size
  * - adjacent units not counted as overlapping
+ * - setTranslatedCasing changing the casing of a placed unit and nothing else
  */
 
 import { describe, it, expect } from 'vitest';
@@ -62,6 +63,31 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       builder.addUnit('123', '123', 'characters', 1);
       builder.setPositionByMatch(0, 'abc', 0, 3, 0);
       expect(builder.setPositionByMatch(1, '123', 2, 5, 3)).toBe(false);
+    });
+  });
+
+  describe('setTranslatedCasing', () => {
+    it('takes the casing of the form it is given, lower or upper', () => {
+      const builder = new SemanticArrayBuilder();
+      builder.addUnit('说', 'Thuyết', 'characters', 0);
+      builder.addUnit('别', 'biệt', 'characters', 1);
+
+      builder.setTranslatedCasing(0, 'thuyết');
+      builder.setTranslatedCasing(1, 'Biệt');
+
+      expect(builder.getArrays().translated).toEqual(['thuyết', 'Biệt']);
+    });
+
+    it('ignores a form that differs in anything but case, and an index out of range', () => {
+      const builder = new SemanticArrayBuilder();
+      builder.addUnit('说', 'thuyết', 'characters', 0);
+
+      builder.setTranslatedCasing(0, 'thuyêt');
+      builder.setTranslatedCasing(0, 'Thuyết!');
+      builder.setTranslatedCasing(5, 'Thuyết');
+      builder.setTranslatedCasing(-1, 'Thuyết');
+
+      expect(builder.getArrays().translated).toEqual(['thuyết']);
     });
   });
 });

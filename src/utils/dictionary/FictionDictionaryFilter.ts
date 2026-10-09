@@ -53,7 +53,7 @@ export function filterDictionariesForEngine(
 /**
  * Whether a match's source dictionary counts as a proper noun for the engine: the root
  * `properNouns` dictionary always, any other `properNouns-*` only while it is active. What
- * `applyMatchToTokens`, `trackTranslationSegment` and the segment builder each decide
+ * `applyMatchToTokens` and the semantic array builder each decide
  * before they keep a translation's dictionary capitalisation. Not `getSourcePriority`'s
  * test, which resolves the root through its priority table and asks only about the
  * dynamic names.

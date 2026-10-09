@@ -26,4 +26,4 @@ Nothing varied across the seam ADR-087 declined to build, because nothing was be
 
 ## Consequence
 
-ADR-087's "Not done" item on the character-only `characters` lookup still stands: the pass stays on `MatchSource` until the trie adapter's per-character cost is measured. If a multi-character punctuation key is ever wanted, matching has to start from `applyMatchToTokens` accepting a punctuation start token, not from restoring the deleted method.
+ADR-087's "Not done" item on the character-only `characters` lookup was done on 2026-10-10: the pass is a point lookup and no longer reads `MatchSource` (ADR-087 addendum). If a multi-character punctuation key is ever wanted, matching has to start from `applyMatchToTokens` accepting a punctuation start token, not from restoring the deleted method.

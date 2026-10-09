@@ -387,7 +387,8 @@ export class SemanticArrayBuilder {
       // occurrence in the text for every unit that lacks position metadata, regardless of
       // which occurrence unit i actually maps to. This only fires when translatedStart/End
       // is not set — the fast path above (O(1), position-gated) handles the common case
-      // correctly. The same limitation exists in SemanticArrayBuilder.
+      // correctly. The same limitation exists in SemanticArrayBuilder. FullTextAssembly works
+      // around it for Full Translation with setTranslatedCasing, after this call.
       if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
       const lowerUnit = originalTranslation.toLowerCase();
       let searchFrom = 0;
@@ -407,6 +408,21 @@ export class SemanticArrayBuilder {
         searchFrom = idx + 1;
       }
     }
+  }
+
+  /**
+   * Take a unit's casing from the finished text, where the caller has already found the unit.
+   * Unlike `updateWithCapitalizedText`, which guesses the unit's place from its text when no
+   * position was recorded (the first occurrence, so a later lowercase repeat is stamped with an
+   * earlier capital), this is told the place. It changes the casing only: a form that differs in
+   * length or in anything but case is ignored.
+   */
+  setTranslatedCasing(index: number, finalForm: string): void {
+    if (index < 0 || index >= this.length) return;
+    const current = this.translated[index];
+    if (finalForm.length !== current.length) return;
+    if (finalForm.toLowerCase() !== current.toLowerCase()) return;
+    this.translated[index] = finalForm;
   }
 
   private validateArrays(): boolean {

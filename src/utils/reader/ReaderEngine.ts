@@ -1,6 +1,5 @@
 import type { TranslationEngine } from '../../types/TranslationEngineTypes';
 import type { EngineAccess } from '../EngineAccess';
-import type { WordSegment } from '../highlighting';
 import type { ChunkTranslationResult, GlossResult } from './WindowedTranslationFill';
 
 /**
@@ -60,12 +59,7 @@ export function createReaderEngine(access: EngineAccess): ReaderEngineCalls {
       return {
         translatedText: result?.translatedText ?? '',
         semanticArrays: result?.semanticArrays ?? null,
-        // `TranslationEngineTypes.d.ts` declares these as `TranslationSegment[]`, but what
-        // fills them is `matchWordSegments`, whose output is `WordSegment[]` — offsets into
-        // the translated text plus a unit index, which is what the Reader slices by. The
-        // Translator reaches the same runtime objects through an `as any` at its own panel;
-        // this asserts the real shape instead.
-        prebuiltSegments: (result?.prebuiltSegments ?? []) as unknown as WordSegment[],
+        prebuiltSegments: result?.prebuiltSegments ?? [],
       };
     }),
 

@@ -31,3 +31,5 @@ Two adapters, both real in production (short text and Rust failure use the trie)
 ## Consequence
 
 Anything that needs the matches at a token goes through `MatchSource`. A new reader must pass dictionaries of one Rust category per phase. Rust's `DictionaryType::from_name` still decides categories and still sends unknown ids to `phrases`; the per-phase dictionary filter in the index adapter is what makes that safe, so do not drop it. A parity case is added to the fixture when either adapter's answer changes on purpose. Reconsider the surrogate skip if a corpus with many astral characters shows up; the fix then is to convert UTF-16 offsets to code-point offsets, not to read the index unchecked.
+
+**Addendum (2026-10-10):** the character-only pass no longer reads `MatchSource` (ADR-087 addendum). The index now serves Full translation's `translateDirectly` only, which reaches it for a punctuation-free chunk of 50 or more characters. No production phase reads the `characters` category; the parity fixture still holds it.

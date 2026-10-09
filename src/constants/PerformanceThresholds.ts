@@ -1,24 +1,12 @@
 /**
  * Centralized performance thresholds and configuration constants
  *
- * These values control memory management, rendering optimization, and
+ * These values control rendering optimization and
  * WASM acceleration activation throughout the translation system.
  *
  * ⚠️ WARNING: Changing these values can significantly impact performance
  * and system behavior. Consult CLAUDE.md before modifying.
  */
-
-/**
- * Memory management threshold configuration
- */
-interface MemoryThresholds {
-  /** Trigger cleanup when segment count exceeds this value */
-  readonly SEGMENT_CLEANUP_TRIGGER: number;
-  /** Keep this many segments after cleanup */
-  readonly SEGMENT_CLEANUP_KEEP: number;
-  /** Above this, trim synchronously instead of waiting for idle time */
-  readonly SEGMENT_CLEANUP_HARD_CEILING: number;
-}
 
 /**
  * Progress callback and UI update threshold configuration
@@ -31,40 +19,6 @@ interface UIUpdateThresholds {
   /** Minimum chunks before showing streaming translation UI */
   readonly STREAMING_MIN_CHUNKS: number;
 }
-
-/**
- * Memory management thresholds for translation segments
- *
- * Background: Translation segments accumulate during operation and cause
- * 100x performance degradation when unbounded. These thresholds prevent
- * memory leaks while preserving clickable highlighting functionality.
- *
- * Technical reasoning:
- * - Each segment adds O(n) complexity to position calculations
- * - At 75 segments: ~5-10ms position lookup overhead per interaction
- * - At 35 segments: ~1-2ms overhead (negligible for real-time UI)
- */
-export const MEMORY_THRESHOLDS: MemoryThresholds = {
-  /**
-   * Trigger cleanup when segment count exceeds this value
-   * Based on regression detection: 2.5x baseline degradation at 75 segments
-   */
-  SEGMENT_CLEANUP_TRIGGER: 75,
-
-  /**
-   * Keep this many segments after cleanup
-   * Balances memory usage with clickable highlighting coverage
-   */
-  SEGMENT_CLEANUP_KEEP: 35,
-
-  /**
-   * Above this, the push site trims synchronously instead of deferring to
-   * requestIdleCallback/setTimeout — closes the gap where a synchronous burst
-   * of pushes (or idle time getting starved under load) lets the count run
-   * away before the deferred cleanup ever gets to run.
-   */
-  SEGMENT_CLEANUP_HARD_CEILING: 100,
-} as const;
 
 /**
  * Progress callback and UI update thresholds

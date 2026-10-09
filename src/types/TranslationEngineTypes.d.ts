@@ -10,6 +10,7 @@
  */
 
 import { SemanticArrays } from './SemanticTypes';
+import type { WordSegment } from '../utils/highlighting';
 
 // ============================================================================
 // Translation Source Strings
@@ -211,33 +212,6 @@ export interface TranslationOptions {
 // ============================================================================
 
 /**
- * Translation segment for clickable highlighting
- */
-export interface TranslationSegment {
-  /** Original text segment */
-  originalSegment: string;
-  /** Translated text segment */
-  translatedSegment: string;
-  /** Source dictionary/phase name */
-  source: string;
-  /** Start position in original text */
-  originalStart: number;
-  /** End position in original text */
-  originalEnd: number;
-  /** Start position in translated text */
-  translatedStart: number;
-  /** End position in translated text */
-  translatedEnd: number;
-  /** Segment metadata */
-  metadata?: {
-    phase?: string;
-    dictionaryName?: string;
-    confidence?: number;
-    [key: string]: any;
-  };
-}
-
-/**
  * Translation statistics and metrics
  */
 interface TranslationStats {
@@ -269,12 +243,10 @@ export interface TranslationResult {
   originalText: string;
   /** Final translated text */
   translatedText: string;
-  /** Translation segments for clickable highlighting */
-  segments: TranslationSegment[];
   /** Semantic arrays for UI rendering */
   semanticArrays: SemanticArrays;
   /** Pre-built segments for instant rendering */
-  prebuiltSegments?: TranslationSegment[];
+  prebuiltSegments?: WordSegment[];
   /** Translation statistics */
   stats?: TranslationStats;
 }
@@ -288,7 +260,7 @@ export interface CharacterOnlyResult {
   /** Semantic arrays for character-only translation */
   semanticArrays: SemanticArrays;
   /** Pre-built segments (usually empty for character-only) */
-  prebuiltSegments: TranslationSegment[];
+  prebuiltSegments: WordSegment[];
 }
 
 // ============================================================================

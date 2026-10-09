@@ -8,6 +8,7 @@
  *   06a5b50 — »« adjacency: processSequence must insert space between closing+opening angle quotes
  *   6dd1475 — «»<> as quote chars: comma must not get trailing space when followed by angle quotes
  */
+import fs from 'node:fs';
 import { describe, test, expect, beforeEach } from 'vitest';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
@@ -413,5 +414,64 @@ describe('ChunkPostProcessor: thousands separator', () => {
     const batch = [all[0], all[2]];
     cpp.translatePunctuation(batch, PUNCT_DICT, all);
     expect(all[0].translatedPunctuation).toBe(',');
+  });
+});
+
+// ── translatePunctuation runs twice per translation ──────────────────────────
+// The batch loop translates each batch's chunks; the final pass translates every chunk again
+// (cross-chunk comma and quote spacing). The dictionary must apply once, not once per pass.
+
+describe('ChunkPostProcessor.translatePunctuation: the dictionary applies once', () => {
+  /** @type {ChunkPostProcessor} */
+  let cpp;
+  beforeEach(() => {
+    cpp = new ChunkPostProcessor();
+  });
+
+  /** The chunk's translatedPunctuation after one pass and after a second pass over the same chunk. */
+  function afterTwoPasses(punctuation, dict) {
+    const chunks = [makeChunk({ content: '说', translated: 'x', punctuation })];
+    cpp.translatePunctuation(chunks, dict);
+    const first = chunks[0].translatedPunctuation;
+    cpp.translatePunctuation(chunks, dict);
+    return [first, chunks[0].translatedPunctuation];
+  }
+
+  test('a chained dictionary (「→“, “→") translates once, not twice', () => {
+    expect(afterTwoPasses('「', { '「': '“', '“': '"' })).toEqual(['“', '“']);
+  });
+
+  test('a multi-character key (……→…) applies on the first pass, so a second pass changes nothing', () => {
+    expect(afterTwoPasses('……', { '……': '…', '…': '…' })).toEqual(['…', '…']);
+  });
+
+  test('the longest key wins at each position', () => {
+    expect(afterTwoPasses('……', { '…': 'a', '……': 'b' })).toEqual(['b', 'b']);
+  });
+
+  test('an empty value leaves the character as it is', () => {
+    expect(afterTwoPasses('，', { '，': '' })).toEqual(['，', '，']);
+  });
+
+  test('the second pass still redoes the comma spacing against the finished neighbours', () => {
+    const chunks = [
+      makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
+      makeChunk({ content: '' }),
+    ];
+    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    expect(chunks[0].translatedPunctuation).toBe(',');
+
+    chunks[1].content = '话';
+    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    expect(chunks[0].translatedPunctuation).toBe(', ');
+  });
+
+  test('the bundled punctuation dictionary turns …… into … on the first pass', () => {
+    const bundled = JSON.parse(fs.readFileSync('src/dictionaries/punctuation.json', 'utf-8'));
+    const chunks = [makeChunk({ content: '说', translated: 'x', punctuation: '……' })];
+
+    cpp.translatePunctuation(chunks, bundled);
+
+    expect(chunks[0].translatedPunctuation).toBe('…');
   });
 });

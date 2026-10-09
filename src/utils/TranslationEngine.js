@@ -141,11 +141,7 @@ import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { fixNumberPlusLiang } from './NumberLiangFix';
-import {
-  applySmartCapitalization,
-  cleanupFormatting,
-  finishFullText,
-} from './text/FormattingPasses';
+import { cleanupFormatting } from './text/FormattingPasses';
 import { assembleCharOnlyResult } from './text/CharOnlyAssembly';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
@@ -154,6 +150,7 @@ import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
 import { openMatchSource } from './dictionary/MatchSource';
+import { characterMatchFor } from './dictionary/CharacterMatch';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // Phase 4 conflict resolution — pure JS (the WASM twin was slower, ADR-083)
 import { resolveGlobalConflicts } from './ConflictResolution';
@@ -170,11 +167,11 @@ import {
   snapshotSemanticArrays,
 } from './performance/ProgressiveProgressReporter.js';
 import { createProgressiveBatchText } from './text/ProgressiveBatchText';
-import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
+import { assembleFullText } from './text/FullTextAssembly';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
 import { assembleWithSpacing } from './text/TextAssembly.js';
-import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
+import { UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
 import {
@@ -262,9 +259,6 @@ export class TranslationEngine {
 
     // Initialize parallel processing configuration (will be set during first use)
 
-    // Translation segments for interactive highlighting
-    this.translationSegments = [];
-
     // Hierarchical pattern processing settings
     this.settings = {
       enableTwoPhasePatterns: true, // Enable hierarchical pattern processing
@@ -287,10 +281,6 @@ export class TranslationEngine {
       failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
       disableThreshold: Infinity,
     });
-
-    // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
-    // Prevents memory leak when translation is aborted before cleanup completes
-    this.pendingCleanupCallbacks = new Set();
 
     // The most tokens one translateDirectly call accepts. A field, not a constant, so a test can lower it.
     this.maxInputTokens = MAX_INPUT_TOKENS;
@@ -351,34 +341,10 @@ export class TranslationEngine {
       this.dictionaryManager.dispose();
     }
 
-    // Clear translation segments
-    if (this.translationSegments) {
-      this.translationSegments = [];
-    }
-
     // Clear proper noun translations map
     if (this.properNounTranslations) {
       this.properNounTranslations.clear();
       this.properNounTranslations = null;
-    }
-
-    // CODE REVIEW FIX (2026-02-01): Cancel all pending cleanup callbacks to prevent memory leak
-    // Prevents callbacks from accessing destroyed state after engine is destroyed
-    if (this.pendingCleanupCallbacks && this.pendingCleanupCallbacks.size > 0) {
-      this.pendingCleanupCallbacks.forEach((callbackId) => {
-        try {
-          if (typeof cancelIdleCallback !== 'undefined') {
-            cancelIdleCallback(callbackId);
-          } else {
-            clearTimeout(callbackId);
-          }
-        } catch (error) {
-          // Ignore errors during cleanup (callback may have already fired)
-        }
-      });
-      const cancelledCount = this.pendingCleanupCallbacks.size;
-      this.pendingCleanupCallbacks.clear();
-      logger.log(`🧹 Cancelled ${cancelledCount} pending cleanup callbacks`);
     }
 
     // Reset initialization state
@@ -544,19 +510,17 @@ export class TranslationEngine {
    *
    * Performs character-by-character translation without applying patterns, proper nouns,
    * numbers, or phrases. This mode is useful for understanding raw character meanings and
-   * is significantly faster than full 5-phase translation. Automatically uses Rust lookup
-   * index for texts of 50 or more characters (6-50x speedup).
+   * is significantly faster than full 5-phase translation. Each character is a point lookup in
+   * the characters dictionary (ADR-087); no Rust lookup index is built for it.
    *
    * Translation process:
    * 1. Tokenize input text into individual characters
-   * 2. Build Rust-powered lookup index for texts of 50+ chars (the JS trie answers shorter ones)
-   * 3. Lookup each character in character dictionary
-   * 4. Generate semantic arrays for clickable highlighting
-   * 5. Assemble final translated text with position tracking
+   * 2. Lookup each character in character dictionary
+   * 3. Generate semantic arrays for clickable highlighting
+   * 4. Assemble final translated text with position tracking
    *
    * @param {string} text - Input Chinese text to translate
    * @param {Object} [options={}] - Translation options
-   * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    *
    * @returns {Promise<Object>} Translation result
    * @returns {string} result.translatedText - Translated Vietnamese text
@@ -573,25 +537,12 @@ export class TranslationEngine {
    * const result = await engine.translateWithCharactersOnly('你好世界');
    * console.log(result.translatedText); // "bạn tốt thế giới"
    *
-   * @example
-   * // Texts of 50+ chars use the Rust lookup index automatically
-   * const result = await engine.translateWithCharactersOnly(longText);
-   *
-   * @example
-   * // With abort signal
-   * const controller = new AbortController();
-   * const result = await engine.translateWithCharactersOnly(text, {
-   *   abortSignal: controller.signal
-   * });
-   * // Later: controller.abort() to cancel translation
-   *
    * @see translateWithSegments - Full 5-phase translation (patterns, proper nouns, numbers, phrases, characters)
    * @see translateSinglePass - Core 5-phase translation pipeline
-   * @see openMatchSource - Rust-powered whole-text lookup index or the JS trie (MatchSource.ts)
+   * @see characterMatchFor - The point lookup both character passes apply (CharacterMatch.ts)
    *
    * @performance
    * - Small texts (<500 chars): ~10ms for 100 characters
-   * - Large texts (50+ chars with Rust index): 6-50x faster than sequential lookup
    * - 27,000+ dictionary entries loaded in <100ms
    */
   async translateWithCharactersOnly(text, options = {}) {
@@ -613,18 +564,12 @@ export class TranslationEngine {
 
     logger.debug('[char-engine]', `Starting character-only translation: ${text.length} chars`);
 
-    // One lookup source for the whole text; the Rust index answers it from 50 characters up.
-    const matchSource = await openMatchSource(text, {
-      dictionaryManager: this.dictionaryManager,
-      logWarn: (msg) => logger.warn(msg),
-    });
-
     try {
       // Tokenize the entire text directly (chunking would drop whitespace and punctuation)
       const tokens = this.tokenizer.tokenize(text);
 
       // Only Phase 5 applies: no number processing, each character translates on its own
-      await this.processCharacterOnlyTokens(tokens, options, matchSource);
+      this.processCharacterOnlyTokens(tokens, options);
 
       // Text, units and positions come from the stamped tokens (CharOnlyAssembly)
       const { translatedText, semanticArrays } = assembleCharOnlyResult(tokens, (char) =>
@@ -652,18 +597,20 @@ export class TranslationEngine {
    * Also includes punctuation and whitespace for readability
    *
    * Stamps tokens only: it passes `recordMatches: false` to applyMatchToTokens, so it adds
-   * nothing to `this.semanticArrayBuilder` or `this.translationSegments`. The caller
+   * nothing to `this.semanticArrayBuilder`. The caller
    * (translateWithCharactersOnly) builds its own arrays from the stamped tokens.
+   *
+   * A point lookup, like Phase 5 (ADR-087): synchronous, so the pass cannot interleave with
+   * another call into the engine.
    *
    * @param {Array} tokens
    * @param {Object} options
-   * @param {import('./dictionary/MatchSource').MatchSource} matchSource - Answers the character lookups
    */
-  async processCharacterOnlyTokens(tokens, options, matchSource) {
+  processCharacterOnlyTokens(tokens, options) {
     const stampOptions = { ...options, recordMatches: false };
-    const characterMatchesAt = matchSource.forPhase(['characters']);
+    const dictionary = this.dictionaryManager.getDictionary('characters');
 
-    if (!this.dictionaryManager.getDictionary('characters')) {
+    if (!dictionary) {
       // MEDIUM-8 FIX: Standardize error logging with logger.error
       logger.error('🚨 Character-only processing - No character dictionary found');
       return;
@@ -683,15 +630,10 @@ export class TranslationEngine {
 
       // Handle different token types - ensure ALL tokens get processed
       if (token.type === 'chinese_char') {
-        // The first match is the longest one
-        const match = characterMatchesAt(tokens, i, 'characters')[0];
+        const match = characterMatchFor(dictionary, token);
 
         if (match) {
-          const matchWithDictName = {
-            ...match,
-            dictionary: 'characters',
-          };
-          this.applyMatchToTokens(tokens, i, matchWithDictName, stampOptions);
+          this.applyMatchToTokens(tokens, i, match, stampOptions);
         } else {
           // No dictionary match, preserve as-is
           token.translated = token.value;
@@ -716,7 +658,7 @@ export class TranslationEngine {
   // Purpose: translateWithSegments entry point, dictionary match conflict resolution
   // Dependencies: TextChunker, progressive/chunked translation paths
   // Extraction Potential: NONE - Phase 4's conflict resolution is already the pure ConflictResolution.ts; see src/utils/CLAUDE.md
-  // Critical: translateWithSegments resets translationSegments per call
+  // Critical: translateWithSegments resets the semantic array builder per call
   // ============================================================================
 
   /**
@@ -785,16 +727,12 @@ export class TranslationEngine {
    * - Automatically builds Rust lookup index for texts of 50+ chars (6-50x speedup)
    *
    * @critical
-   * This method resets translationSegments for each new translation.
+   * This method resets the semantic array builder for each new translation.
    * Do not call concurrently - results will interfere with each other.
    */
   async translateWithSegments(text, options = {}) {
     // Performance monitoring: track timing for bottleneck detection
     const perfStartTime = performance.now();
-
-    // MEMORY LEAK FIX: Always start fresh for each new translation
-    // This ensures old segments don't accumulate across multiple translations
-    this.translationSegments = [];
 
     // Reset semantic array builder for new translation with capacity estimation
     this.semanticArrayBuilder.reset();
@@ -809,14 +747,11 @@ export class TranslationEngine {
     const translatedText = progressiveResult.translatedText;
     const semanticArrays = progressiveResult.semanticArrays;
 
-    // Legacy precomputed segments removed - components now compute segments on-demand from semanticArrays
-
     const result = {
       originalText: text,
       translatedText: translatedText,
-      segments: this.translationSegments,
       semanticArrays: semanticArrays, // Components compute segments on-demand from this
-      prebuiltSegments: this.prebuiltSegments || [], // Instant segments built during translation
+      prebuiltSegments: progressiveResult.prebuiltSegments, // Instant segments built during translation
     };
 
     // Performance monitoring: check for bottlenecks
@@ -1797,7 +1732,7 @@ export class TranslationEngine {
    * @param {number} startIndex - Starting token index
    * @param {Object} match - Dictionary match object
    * @param {Object} options - Translation options (may include chunkOffset). `recordMatches: false`
-   *   stamps the tokens without touching the engine's shared segment list or semantic builder
+   *   stamps the tokens without touching the engine's shared semantic builder
    *   (the character-only pass, which builds its own arrays).
    */
   applyMatchToTokens(tokens, startIndex, match, options = {}) {
@@ -1832,11 +1767,6 @@ export class TranslationEngine {
       tokens[startIndex].translationSource = match.dictionary;
 
       const recordMatches = options.recordMatches !== false;
-
-      // Track segment for interactive highlighting (legacy position-based system)
-      if (recordMatches) {
-        this.trackTranslationSegment(tokens, startIndex, tokenSpan, match, options);
-      }
 
       // NEW: Capture semantic relationship for array-based highlighting
       // Calculate global position accounting for chunk offset
@@ -1925,132 +1855,6 @@ export class TranslationEngine {
         }
       }
     }
-  }
-
-  /**
-   * Track translation segment for interactive highlighting
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Starting token index
-   * @param {number} tokenSpan - Number of tokens in the segment
-   * @param {Object} match - Dictionary match object
-   * @param {Object} options - Translation options (may include chunkOffset)
-   */
-  trackTranslationSegment(tokens, startIndex, tokenSpan, match, options = {}) {
-    // Calculate original text positions by counting all characters
-    let originalStart = 0;
-    for (let i = 0; i < startIndex; i++) {
-      originalStart += tokens[i].value.length;
-    }
-
-    // Add chunk offset if provided (for chunked translation)
-    if (typeof options.chunkOffset === 'number') {
-      originalStart += options.chunkOffset;
-    }
-
-    const originalEnd = originalStart + match.word.length;
-    const tokenIndices = [];
-
-    // Collect token indices that are part of this segment
-    for (let i = 0; i < tokenSpan; i++) {
-      if (startIndex + i < tokens.length) {
-        tokenIndices.push(startIndex + i);
-      }
-    }
-
-    // Create segment object
-    const segment = {
-      id: `seg_${this.translationSegments.length}`,
-      originalText: match.word,
-      translatedText: match.translation,
-      originalStart,
-      originalEnd,
-      translatedStart: -1, // Will be set during text construction
-      translatedEnd: -1, // Will be set during text construction
-      translationSource: match.dictionary,
-      sourceDict: match.dictionary,
-      tokenIndices,
-      isProperNoun: isActiveProperNounSource(match.dictionary, this.activeProperNouns),
-      metadata: match.metadata || {},
-    };
-
-    // Add pattern-specific information if available
-    if (match.pattern) {
-      segment.pattern = match.pattern;
-    }
-
-    this.translationSegments.push(segment);
-
-    // MEMORY LEAK FIX: Proactive cleanup during normal operation
-    // Keep reasonable number of segments while preserving clickable highlighting
-    // This prevents the 100x slowdown from unbounded segment growth
-    //
-    // Thresholds based on regression detection testing:
-    // - 75 segments = Observable slowdown threshold (2.5x baseline degradation detected)
-    // - 35 segments = Optimal balance (maintains full clickable highlighting + performance)
-    // - Lower values break highlighting coverage, higher values degrade performance
-    //
-    // Technical reasoning:
-    // Each segment adds O(n) complexity to position calculations during rendering.
-    // At 75 segments: ~5-10ms position lookup overhead per highlight interaction.
-    // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
-    // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING) {
-      // Idle-deferred cleanup below never got a chance to run (starved idle time,
-      // or a synchronous burst of pushes outran it) — trim now instead of waiting.
-      const segmentsBefore = this.translationSegments.length;
-      this.translationSegments = this.translationSegments.slice(
-        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-      );
-      logger.warn(
-        `🧹 Segment cleanup fell behind (idle callback starved): synchronous trim ${segmentsBefore} → ${this.translationSegments.length}`
-      );
-    } else if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-      // Log once when crossing the threshold, not on every subsequent push
-      if (this.translationSegments.length === MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER + 1) {
-        logger.debug(
-          `Translation segments crossed cleanup threshold (${this.translationSegments.length}) — cleanup queued`
-        );
-      }
-
-      // Use requestIdleCallback for non-blocking cleanup (or setTimeout fallback)
-      const cleanupFn = () => {
-        // Re-check threshold before cleanup to prevent race condition
-        // (new segments may have been added while cleanup was queued)
-        if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-          const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
-          const segmentsBefore = this.translationSegments.length;
-          const actualRemoved = segmentsBefore - segmentsToKeep;
-
-          this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
-
-          // MEMORY PROFILING FIX: Always log cleanup trigger for verification
-          // This helps verify cleanup executes reliably in production
-          logger.log(
-            `🧹 Segment cleanup triggered: ${actualRemoved} segments removed (${segmentsBefore} → ${this.translationSegments.length})`
-          );
-        }
-      };
-
-      // Use requestIdleCallback if available, otherwise defer with setTimeout
-      if (typeof requestIdleCallback !== 'undefined') {
-        const callbackId = requestIdleCallback(
-          () => {
-            this.pendingCleanupCallbacks.delete(callbackId);
-            cleanupFn();
-          },
-          { timeout: 1000 }
-        );
-        this.pendingCleanupCallbacks.add(callbackId);
-      } else {
-        const callbackId = setTimeout(() => {
-          this.pendingCleanupCallbacks.delete(callbackId);
-          cleanupFn();
-        }, 0);
-        this.pendingCleanupCallbacks.add(callbackId);
-      }
-    }
-
-    // Only log segment creation at DEBUG level to avoid performance impact
   }
 
   // calculateTranslatedPositions method removed - position tracking now handled inline during text construction
@@ -2285,14 +2089,9 @@ export class TranslationEngine {
           continue;
         }
 
-        const translation = dictionary.get(tokens[i].value);
-        if (translation) {
-          this.applyMatchToTokens(
-            tokens,
-            i,
-            { word: tokens[i].value, translation, dictionary: 'characters', tokenLength: 1 },
-            options
-          );
+        const match = characterMatchFor(dictionary, tokens[i]);
+        if (match) {
+          this.applyMatchToTokens(tokens, i, match, options);
           processedTokens.add(i);
         }
 
@@ -2387,9 +2186,6 @@ export class TranslationEngine {
   // ============================================================================
 
   async translateWithProgressiveBatches(text, options = {}) {
-    // Initialize segments collection for progressive translation
-    this.translationSegments = [];
-
     // Reset semantic builder with capacity estimation for progressive translation
     this.semanticArrayBuilder.reset();
 
@@ -2551,74 +2347,20 @@ export class TranslationEngine {
       }
     }
 
-    // PHASE 1: Apply final processing over all chunks
-    // Apply punctuation translation to all chunks (needed for cross-chunk context like comma-quote spacing)
-    this.chunkPostProcessor.translatePunctuation(chunks, this.punctuationDict);
-
-    // Apply capitalization to all chunks
-    applySmartCapitalization(chunks, this.properNounTranslations);
-
-    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-    // reconstructText builds no segments: prebuiltSegments is built below via matchWordSegments,
-    // against the finished text.
-    const finalResult = this.chunkPostProcessor.reconstructText(chunks);
-    const cleanedFinalResult = finishFullText(finalResult);
-
-    // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
-    // Vietnamese "màu" can be NFC (3 chars: m+à+u) or NFD (4 chars: m+a+combining-grave+u)
-    // Without normalization, .length calculations create wrong segment boundaries
-    // causing "màu" to split into "mà" (clickable) + "u" (not clickable)
-
-    // Note: semanticArrays already obtained above - reuse it
-    // Find the original chunk that was translated
-    const translatedChunk = chunks.find((chunk) => chunk.translated && chunk.content.trim());
-
-    if (translatedChunk && semanticArrays.original.length > 0) {
-      // Map each translated semantic unit onto its actual position in the output text
-      // (extracted to WordSegmentMatcher — architecture review 2026-07-29, candidate #1)
-      this.prebuiltSegments = matchWordSegments(semanticArrays, cleanedFinalResult);
-    } else {
-      this.prebuiltSegments = [];
-      logger.log(`⚠️ Progressive: No translated chunks or semantic arrays available`);
-    }
-
-    // Debug logging for semantic array building
-
-    this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
-
-    // BUGFIX: Use semanticArrayBuilder directly for final return to avoid duplicates
-    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-
-    // BUGFIX: Use existing metadata from builder, fill gaps with defaults
-    // CRITICAL FIX: Use explicit missing indicator for better debugging
-    const originalLength = finalSemanticArrays.original?.length || 0;
-    const finalMetadata = [];
-    for (let i = 0; i < originalLength; i++) {
-      finalMetadata[i] = finalSemanticArrays.metadata?.[i] || {
-        source: 'progressive',
-        phase: null, // null = missing, not unknown
-        dictionary: null, // null = missing, not unknown
-        isMissing: true, // Explicit flag for debugging
-      };
-    }
-
-    return {
-      translatedText: cleanedFinalResult, // The finished text, not the progressive preview (batches are only cleaned)
-      semanticArrays: {
-        original: finalSemanticArrays.original || [],
-        translated: finalSemanticArrays.translated || [],
-        metadata: finalMetadata,
-      },
-    };
+    // Final processing over all chunks: the finishing order lives in FullTextAssembly.ts
+    return assembleFullText(chunks, {
+      chunkPostProcessor: this.chunkPostProcessor,
+      punctuationDict: this.punctuationDict,
+      properNounTranslations: this.properNounTranslations,
+      builder: this.semanticArrayBuilder,
+    });
   }
 
   // ============================================================================
   // SECTION 14: DIRECT TRANSLATION
   // ============================================================================
   // Purpose: Translate one chunk (or a short text) as a single unit
-  // Dependencies: translateSinglePass, cleanupFormatting, finishFullText
+  // Dependencies: translateSinglePass, cleanupFormatting
   // Note: Called per chunk by processChunksInParallel, which the progressive branch drives
   // ============================================================================
 
@@ -2687,7 +2429,6 @@ export class TranslationEngine {
       // - If useChunking !== false: RESET (standard translation)
       const isPartOfMultiChunkTranslation = options.isParallelChunk === true;
       if (!isPartOfMultiChunkTranslation) {
-        this.translationSegments = [];
         // Reset semantic array builder for new translation
         this.semanticArrayBuilder.reset();
       }

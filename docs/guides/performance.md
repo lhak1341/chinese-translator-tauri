@@ -15,17 +15,6 @@ window.performanceDashboard.getStats(); // avgTime, totalOperations, opsPerSecon
 // False alarm: Memory warnings with <20% usage = baseline comparison errors
 ```
 
-### Verify Segment Cleanup
-
-```javascript
-window.translationEngine.translationSegments.length;
-// Cleanup is idle-deferred at SEGMENT_CLEANUP_TRIGGER (75) and trims back to
-// SEGMENT_CLEANUP_KEEP (35); SEGMENT_CLEANUP_HARD_CEILING (100) trims synchronously.
-// Problem: sustained >100 = the engine's own cleanup is not firing
-```
-
-**Pattern**: Translation segments accumulate unbounded arrays, causing 100x slowdown. Proactive cleanup standardized in `PerformanceThresholds.ts`.
-
 ### Check Cache Performance
 
 ```javascript
@@ -176,17 +165,14 @@ console.log(
 
 **Every accumulator that grows per-translation or per-interval needs a size cap and an explicit teardown at the site that creates it.** A cleanup pass bolted on elsewhere does not count — it drifts out of sync with the thing it is cleaning, and the accumulator is unbounded in the window between them. Four accumulator kinds appear here; the generic JS half (store the interval id, clear it in `destroy()`, evict oldest on insert since `Map` iterates in insertion order) is not repeated below, only what is project-specific.
 
-| Accumulator                   | Cap                                                                                                                                                              | Owner                                                               |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Translation segments          | `SEGMENT_CLEANUP_TRIGGER` 75 (idle-deferred), trimmed back to `SEGMENT_CLEANUP_KEEP` 35; `SEGMENT_CLEANUP_HARD_CEILING` 100 trims synchronously at the push site | `TranslationEngine`, values in `constants/PerformanceThresholds.ts` |
-| Proper-noun translation cache | 10,000 entries                                                                                                                                                   | `TranslationEngine`                                                 |
-| localStorage-backed caches    | proactive cleanup at 4MB of the ~5MB quota (count key+value as UTF-16, 2 bytes/char)                                                                             | translation cache                                                   |
+| Accumulator                   | Cap                                                                                  | Owner               |
+| ----------------------------- | ------------------------------------------------------------------------------------ | ------------------- |
+| Proper-noun translation cache | 10,000 entries                                                                       | `TranslationEngine` |
+| localStorage-backed caches    | proactive cleanup at 4MB of the ~5MB quota (count key+value as UTF-16, 2 bytes/char) | translation cache   |
 
 Timers follow the same rule: every `setInterval`/`setTimeout` needs its id stored and cleared in a teardown that React's effect cleanup actually calls (`useEffect(() => () => x.destroy(), [])`). `Translator.jsx`'s `highlightScrollTimeoutRef` is the live example — a ref cleared in its own effect cleanup.
 
 Historical impact, for calibration on whether a regression here matters: long sessions went 50MB → <10MB (timer cleanup), dictionary switching 20-50MB → <5MB (bounded collections), translation cache 12.6MB → <5MB (quota monitoring).
-
-Verifying at runtime: `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
 
 ---
 
