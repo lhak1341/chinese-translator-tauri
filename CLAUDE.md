@@ -11,19 +11,13 @@ cargo check --manifest-path src-tauri/Cargo.toml  # NOT cd + cargo — zoxide br
 cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check both when touching Rust
 cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
-bun run tauri:dev  # opens a native WebView window, not a browser tab — claude-in-chrome tools can't attach to it; ask the user to check visually, or verify via bun run test/type-check instead
 bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag. `bunx vitest --run <path>` for single-file iteration bypasses the freshness gate (it lives in the npm script, not vitest) — fast, but re-run the full command before trusting any result that depends on Rust
 bun run type-check  # 0 errors expected; excludes **/*.test.ts(x) — a test file's own type errors surface only at test-run time, not here
-bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:full` for the findings. Exits 1 both directions — *below* baseline fails too, with a "nice." message that reads like success; `bun run lint:baseline` locks the lower count in and is required to go green. The pre-commit hook runs `bun run lint:ratchet-down` when a JS/TS file is staged: it lowers the baseline itself and stages `.lint-baseline.json`, so only an increase blocks a commit and CI still fails on a drop
 ```
 
 `git commit` runs the pre-commit hook (prettier, eslint, a full `tsc --noEmit`) and has taken over 300 s; a chained test + lint + commit run went past 600 s. Run long chains with `run_in_background`, then check `git log` rather than trusting the exit code.
 
-`bun run deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
-
-## Standard commands (same names in all my Tauri apps)
-
-`bun run tauri:dev` native app with hot reload · `bun run tauri:build` release bundle · `bun run deploy` build, quit the running copy, install into `~/Applications`, then `sweep-targets` (needs `cargo install cargo-sweep`) · `bun run check` type-check · `bun run test` · `bun run lint` (warning ceiling in `.lint-baseline.json`; `lint:full` shows findings, `lint:baseline` locks a lower count) · `bun run format` / `format:check`. Dev ports: translator 5174, fanfiction-reader 1420, family-ledger 1430. Husky `pre-commit` runs lint-staged and ratchets the lint baseline down; CI runs check, lint, format:check, test and `cargo test`. `scripts/install-app.sh` is identical in all three — it reads the app name from `tauri.conf.json`.
+Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, app-data and sandbox rules): `tauri-app-dev` skill.
 
 ---
 
@@ -41,7 +35,7 @@ bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:fu
 
 **DO NOT modify dictionaries** without permission. Production: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`. When permission is given for a bulk edit: back up the target files to the scratchpad dir first; confirm real formatting (indent width, literal-UTF-8 vs `\u` escapes via `grep -c '\\u'`, trailing-newline via `tail -c`) before `JSON.parse`→mutate→`JSON.stringify(obj,null,2)`, so the rewrite is a surgical diff. Orphaned `*.trie.json` files (the persisted trie cache was deleted, ADR-075) are safe to delete by hand. When bulk-matching entries by key-string suffix/prefix, also verify the matched entries' **field shape** (`allowedVariableTypes`/`semanticType`) matches the expected category before mutating — a string match alone can catch unrelated entries.
 
-**Bash tool sandbox virtualizes writes outside the repo dir** (e.g. `~/Library/Application Support/...`) — a write can appear to succeed and read back correctly in the same session while the real on-disk file is untouched. Any write to a path outside the repo (dictionaries, `transform-rules.json`, `config.json`, `appearance.json`) needs `dangerouslyDisableSandbox: true` on the Bash call, both for the write AND the verifying read. Separately: after any direct edit to a file the running app owns, the app must be **fully quit and relaunched** (not just window-closed) before trusting the edit — a live process's own next save silently overwrites it with stale in-memory state.
+**App-owned files** in `~/Library/Application Support/com.lhak.chinese-translator/`: dictionaries, `transform-rules.json`, `config.json`, `appearance.json`. Editing any of them follows the `tauri-app-dev` app-data rules (unsandboxed write and read, full quit and relaunch).
 
 **Large files are intentional.** `TranslationEngine.js` and `Translator.jsx` coordinate state that can't be extracted. Can extract: pure functions → `src/utils/`; single-concern hooks → `src/hooks/`. Cannot extract: anything using `this.*`, `setState`, refs, or requiring 10+ parameters. **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`.
 
