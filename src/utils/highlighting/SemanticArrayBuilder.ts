@@ -1,6 +1,6 @@
 /**
  * @file SemanticArrayBuilder.ts
- * Semantic Array Builder — memory-efficient semantic relationship tracking with pre-allocated arrays.
+ * Semantic Array Builder — memory-efficient semantic relationship tracking.
  */
 
 import { logger } from '../logger';
@@ -72,14 +72,6 @@ export interface SemanticArrayMetadata {
 }
 
 /**
- * Performance statistics
- */
-interface PerformanceStats {
-  totalUnits: number;
-  capacityResizes: number;
-}
-
-/**
  * Position candidate match
  */
 interface PositionCandidate {
@@ -98,41 +90,11 @@ interface SemanticArraysResult {
   length?: number; // Only present when copy=false
 }
 
-/**
- * Debug information structure
- */
-interface DebugInfo {
-  totalUnits: number;
-  allocatedCapacity: number;
-  memoryEfficiency: string;
-  isValid: boolean;
-  stats: PerformanceStats;
-  sources: string[];
-  performance: {
-    capacityResizes: number;
-  };
-}
-
-/**
- * Memory statistics
- */
-interface MemoryStats {
-  totalEstimated: number;
-  strings: number;
-  arrays: number;
-  metadata: number;
-  wastedCapacity: number;
-}
-
 export class SemanticArrayBuilder {
-  private original: string[];
-  private translated: string[];
-  private metadata: SemanticArrayMetadata[];
+  private original: string[] = [];
+  private translated: string[] = [];
+  private metadata: SemanticArrayMetadata[] = [];
   private length: number = 0;
-  private estimatedCapacity: number;
-
-  // Performance tracking
-  private stats: PerformanceStats;
 
   // Pre-compiled pattern for capitalization check — /u flag required for \p{Lu}
   private readonly uppercasePattern: RegExp = /^\p{Lu}/u;
@@ -141,24 +103,14 @@ export class SemanticArrayBuilder {
   private lastPositionSet: number = -1;
 
   // Corruption tracking
-  private isCorrupted: boolean = false;
+  private corrupted: boolean = false;
 
-  constructor(estimatedCapacity: number = 100) {
-    this.estimatedCapacity = Math.max(50, estimatedCapacity); // Minimum capacity
-
-    // Performance tracking
-    this.stats = {
-      totalUnits: 0,
-      capacityResizes: 0,
-    };
-
-    // Pre-allocate arrays (will be properly initialized in reset())
-    this.original = new Array<string>(this.estimatedCapacity);
-    this.translated = new Array<string>(this.estimatedCapacity);
-    this.metadata = new Array<SemanticArrayMetadata>(this.estimatedCapacity);
-
-    // Now safe to call reset() since all properties are initialized
-    this.reset();
+  /**
+   * True once an `addUnit` left the arrays out of sync (an `undefined` text slot). Sticky until
+   * `reset()`: every later `addUnit` is refused, so highlighting is off for the rest of the run.
+   */
+  get isCorrupted(): boolean {
+    return this.corrupted;
   }
 
   /**
@@ -169,67 +121,18 @@ export class SemanticArrayBuilder {
     this.lastPositionSet = -1;
   }
 
-  /**
-   * Reset the builder for a new translation with capacity estimation
-   * @param estimatedSize - Expected number of semantic units
-   */
-  reset(estimatedSize?: number): void {
-    // Validate input early to prevent NaN propagation
-    const validSize =
-      estimatedSize !== undefined && Number.isFinite(estimatedSize) && estimatedSize > 0
-        ? estimatedSize
-        : null;
-
-    if (validSize) {
-      // CRITICAL: Clamp input BEFORE multiplication to prevent overflow
-      // 8333 * 1.2 = 9999.6 → 10000 (max safe capacity)
-      // Validates BEFORE computation, not after (catches overflow early)
-      const MAX_SAFE_INPUT = 8333;
-      const clampedSize = Math.min(validSize, MAX_SAFE_INPUT);
-
-      // Log if input was clamped (helps debug large text issues)
-      if (validSize > MAX_SAFE_INPUT) {
-        logger.warn(
-          `⚠️ Semantic array size clamped: ${validSize} → ${MAX_SAFE_INPUT} (prevents overflow)`
-        );
-      }
-
-      // Adjust capacity based on clamped estimation (with 20% buffer)
-      let newCapacity = Math.ceil(clampedSize * 1.2);
-
-      // Validate capacity to prevent "Invalid array length" error
-      // This is secondary validation - should never trigger if input clamped correctly
-      const MAX_SAFE_CAPACITY = 10000; // Conservative limit for translation arrays
-      if (newCapacity < 1 || newCapacity > MAX_SAFE_CAPACITY) {
-        logger.error('❌ Capacity calculation error:', {
-          input: validSize,
-          clamped: clampedSize,
-          calculated: newCapacity,
-        });
-        newCapacity = Math.min(1000, Math.max(100, clampedSize));
-      }
-
-      this.estimatedCapacity = newCapacity;
-    }
-
-    // Ensure estimatedCapacity is always valid (fallback for first call or invalid input)
-    if (!Number.isFinite(this.estimatedCapacity) || this.estimatedCapacity < 1) {
-      this.estimatedCapacity = 100;
-    }
-
-    // Pre-allocate arrays with validated capacity
-    this.original = new Array<string>(this.estimatedCapacity);
-    this.translated = new Array<string>(this.estimatedCapacity);
-    this.metadata = new Array<SemanticArrayMetadata>(this.estimatedCapacity);
-
-    // Track actual usage
+  /** Reset the builder for a new translation. */
+  reset(): void {
+    this.original = [];
+    this.translated = [];
+    this.metadata = [];
     this.length = 0;
 
     // Track position mapping order (CRITICAL-2: Detect out-of-order calls)
     this.lastPositionSet = -1;
 
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
-    this.isCorrupted = false;
+    this.corrupted = false;
   }
 
   /**
@@ -251,19 +154,13 @@ export class SemanticArrayBuilder {
     dictionary: string | null = null
   ): boolean {
     // CRITICAL FIX: Block operations on corrupted builder to prevent cascading failures
-    if (this.isCorrupted) {
+    if (this.corrupted) {
       logger.error('❌ Cannot add unit - optimized semantic array builder is corrupted');
       return false;
     }
 
-    // Resize arrays if we exceed pre-allocated capacity
-    if (this.length >= this.original.length) {
-      this.resizeArrays();
-    }
-
     const index = this.length;
 
-    // Store in pre-allocated arrays
     this.original[index] = originalText;
     this.translated[index] = translatedText;
 
@@ -283,14 +180,13 @@ export class SemanticArrayBuilder {
     };
 
     this.length++;
-    this.stats.totalUnits++;
 
     // CRITICAL-4 FIX: Validate arrays stay synchronized after mutation
     // HIGH-6 FIX: Check validation result (no longer throws)
     // CRITICAL FIX: Mark as corrupted and signal failure to caller
     if (!this.validateArrays()) {
       // Desync detected - mark builder as corrupted to prevent further operations
-      this.isCorrupted = true;
+      this.corrupted = true;
       logger.error('❌ Optimized semantic arrays corrupted - highlighting will be disabled');
       return false; // Signal failure to caller
     }
@@ -373,33 +269,6 @@ export class SemanticArrayBuilder {
     this.translated[target.index] = translatedText;
 
     return true;
-  }
-
-  /**
-   * Resize arrays when capacity is exceeded
-   * @private
-   */
-  private resizeArrays(): void {
-    const newCapacity = Math.ceil(this.original.length * 1.5);
-
-    // Create new arrays with increased capacity
-    const newOriginal = new Array<string>(newCapacity);
-    const newTranslated = new Array<string>(newCapacity);
-    const newMetadata = new Array<SemanticArrayMetadata>(newCapacity);
-
-    // Copy existing data
-    for (let i = 0; i < this.length; i++) {
-      newOriginal[i] = this.original[i];
-      newTranslated[i] = this.translated[i];
-      newMetadata[i] = this.metadata[i];
-    }
-
-    this.original = newOriginal;
-    this.translated = newTranslated;
-    this.metadata = newMetadata;
-    this.stats.capacityResizes++;
-
-    logger.info('[semantic-resize]', `Resized semantic arrays to capacity ${newCapacity}`);
   }
 
   /**
@@ -540,35 +409,13 @@ export class SemanticArrayBuilder {
     }
   }
 
-  /**
-   * Get the actual number of semantic units
-   * @returns Number of semantic units
-   */
-  getLength(): number {
-    return this.length;
-  }
-
-  /**
-   * Check if arrays are properly aligned and builder is not corrupted
-   * CRITICAL FIX: Now checks both array alignment AND corruption flag
-   * @returns True if arrays are properly aligned and not corrupted
-   */
-  isValid(): boolean {
-    return (
-      !this.isCorrupted &&
-      this.length <= this.original.length &&
-      this.length <= this.translated.length &&
-      this.length <= this.metadata.length
-    );
-  }
-
   private validateArrays(): boolean {
     return semanticArrayValidator.validateArrays(this.getSnapshot());
   }
 
   /**
    * Return a read-only snapshot of the builder's internal arrays for external validation.
-   * Passes raw (capacity-sized) arrays so validators can detect partial writes at index length-1.
+   * Passes the raw arrays so validators can detect partial writes at index length-1.
    */
   getSnapshot(): SemanticArraySnapshot {
     return {
@@ -578,77 +425,6 @@ export class SemanticArrayBuilder {
       length: this.length,
       capacity: this.original.length,
     };
-  }
-
-  /**
-   * Get debug information including performance statistics
-   * @returns Debug information
-   */
-  getDebugInfo(): DebugInfo {
-    const memoryEfficiency =
-      this.original.length > 0 ? ((this.length / this.original.length) * 100).toFixed(1) : '0';
-
-    return {
-      totalUnits: this.getLength(),
-      allocatedCapacity: this.original.length,
-      memoryEfficiency: `${memoryEfficiency}%`,
-      isValid: this.isValid(),
-      stats: this.stats,
-      sources: this.metadata.slice(0, this.length).map((m) => m?.source || 'unknown'),
-      performance: {
-        capacityResizes: this.stats.capacityResizes,
-      },
-    };
-  }
-
-  /**
-   * Get memory usage statistics
-   * @returns Memory usage information
-   */
-  getMemoryStats(): MemoryStats {
-    const elementSize = 8; // Approximate bytes per array element
-    const stringMemory =
-      this.original.slice(0, this.length).reduce((sum, str) => sum + (str?.length || 0) * 2, 0) + // Original strings (UTF-16)
-      this.translated.slice(0, this.length).reduce((sum, str) => sum + (str?.length || 0) * 2, 0); // Translated strings
-
-    const arrayMemory = this.original.length * elementSize * 3; // 3 arrays
-    const metadataMemory = this.length * 32; // Approximate metadata object size
-
-    return {
-      totalEstimated: stringMemory + arrayMemory + metadataMemory,
-      strings: stringMemory,
-      arrays: arrayMemory,
-      metadata: metadataMemory,
-      wastedCapacity: (this.original.length - this.length) * elementSize * 3,
-    };
-  }
-
-  /**
-   * Compact arrays to remove unused capacity
-   */
-  compact(): void {
-    if (this.original.length <= this.length) return;
-
-    const compactOriginal = new Array<string>(this.length);
-    const compactTranslated = new Array<string>(this.length);
-    const compactMetadata = new Array<SemanticArrayMetadata>(this.length);
-
-    for (let i = 0; i < this.length; i++) {
-      compactOriginal[i] = this.original[i];
-      compactTranslated[i] = this.translated[i];
-      compactMetadata[i] = this.metadata[i];
-    }
-
-    const oldCapacity = this.original.length;
-
-    this.original = compactOriginal;
-    this.translated = compactTranslated;
-    this.metadata = compactMetadata;
-
-    logger.info(
-      '[semantic-compact]',
-      `Compacted arrays from ${oldCapacity} to ${this.length} capacity`
-    );
   }
 }
 

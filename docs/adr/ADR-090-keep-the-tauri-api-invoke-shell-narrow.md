@@ -28,3 +28,5 @@ Covering them takes an `onResult` hook and a `fallback` factory, and the logic w
 ## Consequence
 
 Future architecture reviews should not re-propose folding the four wrappers into `callTauriCommand`, or unifying `String(error)` with `extractErrorMessage`. Revisit if the inline wrappers converge on one failure shape.
+
+**Addendum 2026-10-09 (round 22):** `loadDictionary` was deleted (`deleted-symbols.md`, ADR-053 addendum); three wrappers stay inline: `saveDictionary`, `loadDictionariesParallel` and `buildLookupIndex`. The decision stands.

@@ -117,18 +117,6 @@ export interface PatternProcessingSettings {
 }
 
 /**
- * Semantic array builder configuration
- */
-interface SemanticArrayBuilderConfig {
-  /** Use optimized semantic array builder */
-  useOptimized?: boolean;
-  /** Initial capacity for arrays */
-  initialCapacity?: number;
-  /** Enable capacity auto-growth */
-  enableAutoGrowth?: boolean;
-}
-
-/**
  * Translation engine initialization options
  */
 export interface TranslationEngineInitOptions {
@@ -140,8 +128,6 @@ export interface TranslationEngineInitOptions {
   dictionaryManager?: DictionaryManagerConfig;
   /** Pattern processing settings */
   patternSettings?: PatternProcessingSettings;
-  /** Semantic array builder configuration */
-  semanticBuilder?: SemanticArrayBuilderConfig;
 }
 
 // ============================================================================

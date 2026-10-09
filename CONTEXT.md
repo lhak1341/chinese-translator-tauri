@@ -162,7 +162,7 @@ The protocol is pinned once by `appFile.test.ts`, each file's wiring by `UnreadF
 
 ## Unread dictionary
 
-A dictionary whose file exists but failed to load: invalid JSON, over 10 MB or 50,000 entries, nested too deep, or a read error that survived the serial retry. It is **left out of the provider's `dictionaries`** and listed in `unreadDictionaryIds` (both kept by the Dictionary Store), and nothing saves over its file until a Reload reads it cleanly (ADR-053). Until then the load protocol put `{}` in its place, the planners accepted it as an empty dictionary, and the next Add saved a one-entry file over everything it held.
+A dictionary whose file exists but failed to load: invalid JSON, over 10 MB or 50,000 entries, nested too deep, or a read error that survived the retry. It is **left out of the provider's `dictionaries`** and listed in `unreadDictionaryIds` (both kept by the Dictionary Store), and nothing saves over its file until a Reload reads it cleanly (ADR-053). Until then the load protocol put `{}` in its place, the planners accepted it as an empty dictionary, and the next Add saved a one-entry file over everything it held.
 
 - **Not quarantined**, unlike the app files: the file stays where it is. You fix it by hand and press Reload (the Dictionary tab's notice, or force reload, which retries every unread id).
 - **Every edit refuses it for free**: the plans already reject a dictionary that is not in memory, and `EditCommitter` names the reason ("Couldn't read X.json; not saving over it"). Undo and redo refuse too, since the dictionary counts as changed.
@@ -350,7 +350,7 @@ No ADR conflict here despite the original architecture-review candidate's claim 
 
 ## DictionaryBackend
 
-The IO module for dictionary persistence. Owns the load protocol: parallel batch load via `loadDictionariesParallel` → serial retry for cold-launch failures (file lock, Rayon thread pool warmup, OS read pressure) → classification of still-failed IDs. Returns raw (unsorted) data; callers own sorting, toasting, and React state.
+The IO module for dictionary persistence. Owns the load protocol: parallel batch load via `loadDictionariesParallel` → one batched retry of the failed ids for cold-launch failures (file lock, Rayon thread pool warmup, OS read pressure) → classification of still-failed IDs. Returns raw (unsorted) data; callers own sorting, toasting, and React state.
 
 Interface: `loadAllDictionaries(dictionaryIds: string[]): Promise<BatchLoadResult>` where `BatchLoadResult` carries `loadedDictionaries` (all IDs present; failed IDs initialized to `{}`), `stillFailedIds`, and `total`.
 
@@ -690,7 +690,7 @@ Entry point: `src/utils/text/ProgressiveBatchText.ts`. Not barrel-exported. Sole
 
 The Character-only result, built from tokens the engine has already stamped. Owns, in this order: the output text (`translated ?? value` per token, with `needsSpaceCharOnly` deciding the space after each), one semantic unit per `chinese_char` whose `translated` differs from its `value`, `finishCharOnlyText` over the whole text, the position back-fill, then `updateWithCapitalizedText`. The back-fill searches each unit's text, case-insensitively, in the _finished_ text, moving a cursor forward so repeated words get distinct, increasing positions; it must run after finishing (finishing rewrites the text) and before `updateWithCapitalizedText` (whose fallback takes the first occurrence and would stamp every repeat with the same position). A unit the search cannot find stays unmapped (`translatedStart = -1`) and does not move the cursor.
 
-Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state. Builder capacity comes from the last token's `end`.
+Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state.
 
 Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`), `openMatchSource`, and `prebuiltSegments: []`. The pass looks up `characters` through `MatchSource` (ADR-087 defers making that a point lookup until the trie adapter is measured). Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation through `lookupPunctuation` later (ADR-089).
 
@@ -751,7 +751,7 @@ interface TransformRule {
 }
 ```
 
-`charCount` constrains the TOTAL Source text length, exact-match only — omitted means no constraint. Lets a rule target short names specifically (e.g. only 3-char sources ending in `城`) without also firing on long ones ending the same way. Distinct from `key`'s own 1-4 char cap.
+`charCount` constrains the TOTAL Source text length, exact-match only — omitted means no constraint. Lets a rule target short names specifically (e.g. only 3-char sources ending in `城`) without also firing on long ones ending the same way. Distinct from `key`'s own 1-4 char cap. **Characters are code points** everywhere in the engine (`charCount`, key length, the per-character gloss, rule and entry ordering), as `parseValidatedKey` already counts: `𠮷` is one character. A variation selector after a Han character counts as its own (a key cannot contain one, a source can).
 
 **Matching precedence**: a `suffix` match always wins outright over a `prefix` match on the same entry — prefix rules are only even considered when no suffix rule matches at all. Within one `matchKind` pool, longest `key` wins on conflict. `(matchKind, key)` is unique at the persistence layer — two rules can't share both fields, but `"城"` can exist once as a suffix rule and once as a prefix rule simultaneously.
 

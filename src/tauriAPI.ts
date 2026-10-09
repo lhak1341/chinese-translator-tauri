@@ -11,7 +11,6 @@ import { extractErrorMessage } from './utils/errorHelpers';
 import { isValidDictionaryId } from './utils/dictionary/DictionaryIdClassifier';
 import type {
   ElectronResult,
-  DictionaryLoadResult,
   BatchDictionaryResponse,
   SaveResult,
   DictionaryOperationResult,
@@ -40,7 +39,6 @@ import type { TransformRule } from './types/TransformRuleTypes';
 export const CMD = {
   READ_CLIPBOARD: 'read_clipboard',
   SAVE_DICTIONARY: 'save_dictionary',
-  LOAD_DICTIONARY: 'load_dictionary',
   LOAD_DICTIONARIES_PARALLEL: 'load_dictionaries_parallel',
   OPEN_DICTIONARY_FOLDER: 'open_dictionary_folder',
   LIST_PROPER_NOUNS_DICTIONARIES: 'list_proper_nouns_dictionaries',
@@ -115,9 +113,8 @@ function requireValidDictionaryIds(
  * Shared invoke/catch shell for the 17 command wrappers whose failure contract is exactly
  * `{success: false, error: String(error)}` — no custom fallback shape, no success-path logic.
  * Deliberately excludes: `readClipboard` (rethrows, doesn't return a result object),
- * `saveDictionary`/`loadDictionary` (real success-path logic — failure logging, one with a
- * special-cased suppressed error), `loadDictionariesParallel`/`buildLookupIndex` (custom,
- * multi-field fallback shapes).
+ * `saveDictionary` (real success-path logic — failure logging),
+ * `loadDictionariesParallel`/`buildLookupIndex` (custom, multi-field fallback shapes).
  * ID validation stays at each of those call sites, not folded in here — it's an orthogonal
  * pre-invoke guard, not part of the invoke/catch shell (architecture review 2026-09-09,
  * candidate #2 grilling). Extending the shell to cover them was proposed again and declined:
@@ -241,21 +238,6 @@ const tauriAPI = {
       return result;
     } catch (error) {
       logger.error('Error in saveDictionary:', error);
-      return { success: false, error: String(error) };
-    }
-  },
-
-  loadDictionary: async (dictionaryId: string): Promise<DictionaryLoadResult> => {
-    const invalid = requireValidDictionaryIds({ dictionaryId });
-    if (invalid) return invalid;
-    try {
-      const result = await invoke<DictionaryLoadResult>(CMD.LOAD_DICTIONARY, { dictionaryId });
-      if (!result.success && result.error !== 'File not found') {
-        logger.error('Load dictionary failed:', result.error);
-      }
-      return result;
-    } catch (error) {
-      logger.error('Error in loadDictionary:', error);
       return { success: false, error: String(error) };
     }
   },

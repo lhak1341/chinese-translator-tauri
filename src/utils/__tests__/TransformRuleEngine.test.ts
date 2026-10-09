@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
   findBestMatch,
+  ruleMatches,
+  joinCharGloss,
   applyRule,
   findConflict,
   dictionarySupportsTransformRules,
@@ -412,5 +414,59 @@ describe('previewRuleGuess', () => {
       'phrases'
     );
     expect(result.winner?.id).toBe('draft');
+  });
+});
+
+// A character is a code point: 𠮷 (U+20BB7) is one character, two UTF-16 units. `parseValidatedKey`
+// already counts keys this way, so every count and split in the engine has to agree with it.
+describe('astral-plane characters count as one', () => {
+  const dictionaries = { characters: { 京: 'kinh', 城: 'thanh', 𠮷: 'cat' } };
+  const gloss = (text: string) => joinCharGloss(dictionaries, text);
+
+  test('charCount counts characters, not UTF-16 units', () => {
+    const three = rule({ charCount: 3 });
+    const four = rule({ charCount: 4 });
+    expect(ruleMatches(three, '𠮷京城')).toBe(true);
+    expect(ruleMatches(four, '𠮷京城')).toBe(false);
+  });
+
+  test('joinCharGloss keeps an astral character whole', () => {
+    const result = joinCharGloss({ characters: { 京: 'kinh', 城: 'thanh' } }, '𠮷京城');
+    expect(result).toBe('𠮷 kinh thanh');
+    expect(result.isWellFormed()).toBe(true);
+  });
+
+  test('joinCharGloss looks an astral character up in the characters dictionary', () => {
+    expect(gloss('𠮷京')).toBe('cat kinh');
+  });
+
+  test('a suffix rule on a source with an astral character gives a well-formed guess', () => {
+    const result = applyRule(rule({ key: '城' }), '𠮷京城', gloss);
+    expect(result).toBe('thanh Cat Kinh');
+    expect(result.isWellFormed()).toBe(true);
+  });
+
+  test('a prefix rule with an astral key moves the whole character', () => {
+    const prefix = rule({ matchKind: 'prefix', key: '𠮷', capitalizeExceptN: 1 });
+    const result = applyRule(prefix, '𠮷京城', gloss);
+    expect(result).toBe('Kinh Thanh cat');
+    expect(result.isWellFormed()).toBe(true);
+  });
+
+  test('an astral key is measured in characters when rules are ranked', () => {
+    const twoAstral = rule({ id: 'astral', key: '𠮷𠀀' }); // 2 characters, 4 UTF-16 units
+    const threeBmp = rule({ id: 'bmp', key: '南京卫' }); // 3 characters, 3 UTF-16 units
+    expect([twoAstral, threeBmp].sort(compareRulePrecedence)).toEqual([threeBmp, twoAstral]);
+  });
+
+  test('entries sort by character count, then alphabetically', () => {
+    const dicts = {
+      phrases: {
+        '𠮷京城': { translation: 'a' }, // 3 characters, 4 UTF-16 units
+        南京城: { translation: 'b' }, // 3 characters, 3 UTF-16 units
+      },
+    };
+    const result = findRuleMatchingEntries(rule({ key: '城' }), dicts);
+    expect(result.map((row) => row.source)).toEqual(['南京城', '𠮷京城']);
   });
 });

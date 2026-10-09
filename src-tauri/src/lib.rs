@@ -52,7 +52,6 @@ pub fn run() {
             dictionary_commands::create_fiction_dictionary_pair,
             dictionary_commands::rename_proper_nouns_dictionary,
             dictionary_commands::save_dictionary,
-            dictionary_commands::load_dictionary,
             dictionary_commands::load_dictionaries_parallel,
             dictionary_commands::load_configuration,
             dictionary_commands::save_configuration,

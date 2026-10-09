@@ -338,11 +338,6 @@ export class TranslationEngine {
    * After calling destroy(), the engine instance cannot be reused - create a new instance.
    */
   destroy() {
-    // Clear semantic array builder cache
-    if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
-      this.semanticArrayBuilder.clearCache();
-    }
-
     // Clear pattern processor variable cache
     if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
       this.semanticPatternProcessor.variableCache.clear();
@@ -808,8 +803,7 @@ export class TranslationEngine {
     this.translationSegments = [];
 
     // Reset semantic array builder for new translation with capacity estimation
-    const estimatedUnits = Math.max(50, Math.ceil(text.length / 3));
-    this.semanticArrayBuilder.reset(estimatedUnits);
+    this.semanticArrayBuilder.reset();
 
     // Progressive batch translation is the sole path — the non-progressive `translate()`
     // dispatcher (with translateWithChunking/translateDirectly at the top level) was deleted
@@ -2408,8 +2402,7 @@ export class TranslationEngine {
     this.translationSegments = [];
 
     // Reset semantic builder with capacity estimation for progressive translation
-    const estimatedUnits = Math.max(100, Math.ceil(text.length / 2)); // Progressive needs more capacity
-    this.semanticArrayBuilder.reset(estimatedUnits);
+    this.semanticArrayBuilder.reset();
 
     // The running text both progress callbacks read; see ProgressiveBatchText.ts
     const progressiveText = createProgressiveBatchText({
@@ -2965,11 +2958,7 @@ export class TranslationEngine {
     let corruptionToastShown = false;
     const checkSemanticArrayCorruption = (phaseName) => {
       if (this.semanticArrayBuilder.isCorrupted) {
-        const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
-        logger.error(`🚨 Semantic array corruption detected in ${phaseName} phase`, {
-          totalCorruptions: telemetry.totalCorruptions,
-          lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
-        });
+        logger.error(`🚨 Semantic array corruption detected in ${phaseName} phase`);
 
         // Notify user about degraded translation quality — show at most once per translation.
         if (!corruptionToastShown) {
@@ -3331,27 +3320,17 @@ export class TranslationEngine {
       // Note: Per-phase checking (added above) now identifies which phase caused corruption.
       // This final check catches any corruption that occurred during postProcess or cleanup.
       if (this.semanticArrayBuilder.isCorrupted) {
-        const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
         logger.error(
-          '🚨 Semantic array corruption detected after all phases (may be in postProcess)',
-          {
-            totalCorruptions: telemetry.totalCorruptions,
-            lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
-          }
+          '🚨 Semantic array corruption detected after all phases (may be in postProcess)'
         );
 
-        // Toast notification already shown by per-phase check if corruption occurred during phases
-        // This catch is for postProcess corruption only
-        const lastPhaseCheck = telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1];
-        if (!lastPhaseCheck || !lastPhaseCheck.phase) {
+        // A per-phase check that already toasted has told the user once; this one covers
+        // corruption that only appeared during postProcess.
+        if (!corruptionToastShown) {
+          corruptionToastShown = true;
           toast.error('Translation quality degraded (postProcess). Try reloading dictionaries.', {
             duration: 10000,
           });
-        }
-
-        // Log telemetry for production monitoring
-        if (process.env.NODE_ENV === 'production') {
-          logger.warn('📊 Semantic array corruption telemetry:', telemetry);
         }
       }
     });

@@ -23,9 +23,11 @@ import {
   lowercaseAll,
 } from '../wordTransformHelpers';
 
+/** `charCount`, key length and every split here count code points: 𠮷 is one character, as in
+ * `parseValidatedKey`. */
 export function ruleMatches(rule: TransformRule, source: string): boolean {
   if (!rule.enabled) return false;
-  if (rule.charCount !== undefined && source.length !== rule.charCount) return false;
+  if (rule.charCount !== undefined && [...source].length !== rule.charCount) return false;
   return rule.matchKind === 'suffix' ? source.endsWith(rule.key) : source.startsWith(rule.key);
 }
 
@@ -45,7 +47,7 @@ export function dictionarySupportsTransformRules(dictionaryId: string): boolean 
 export function compareRulePrecedence(a: TransformRule, b: TransformRule): number {
   if (a.matchKind !== b.matchKind) return a.matchKind === 'suffix' ? -1 : 1;
   return (
-    b.key.length - a.key.length ||
+    [...b.key].length - [...a.key].length ||
     a.key.localeCompare(b.key) ||
     a.semanticType.localeCompare(b.semanticType)
   );
@@ -63,7 +65,7 @@ export function findBestMatch(rules: TransformRule[], source: string): Transform
  *
  * `relocate` is always a boolean relocate/stay flag, never a literal word count — the
  * number of words moved (or replaced) is always the key's own character count
- * (`rule.key.length`). `relocate: true` moves to the opposite end; `relocate: false`
+ * (`[...rule.key].length`). `relocate: true` moves to the opposite end; `relocate: false`
  * leaves the words (or, with `moveReplacement` set, the replacement text) in the key's
  * own position.
  */
@@ -93,10 +95,6 @@ export function applyRule(
 }
 
 /**
- * Returns the existing rule that collides with `candidate` on (matchKind, key),
- * or undefined if there's no collision. A rule never conflicts with itself.
- */
-/**
  * Derives the Capitalize-except-N default when a rule's `key` changes, shared by
  * NewRuleModal's per-keystroke create path and RuleRow's inline edit path — see
  * CONTEXT.md's "Transform Rule" glossary entry for why capitalizeExceptN defaults
@@ -118,6 +116,10 @@ export function deriveCapitalizeExceptNForKeyEdit(
   return oldLength === newLength ? currentValue : newLength;
 }
 
+/**
+ * Returns the existing rule that collides with `candidate` on (matchKind, key),
+ * or undefined if there's no collision. A rule never conflicts with itself.
+ */
 export function findConflict(
   rules: TransformRule[],
   candidate: Pick<TransformRule, 'id' | 'matchKind' | 'key'>
@@ -177,7 +179,7 @@ export function findRuleMatchingEntries(
 
   return results.sort(
     (a, b) =>
-      b.source.length - a.source.length ||
+      [...b.source].length - [...a.source].length ||
       a.source.localeCompare(b.source) ||
       a.dictionaryLabel.localeCompare(b.dictionaryLabel)
   );
@@ -191,10 +193,7 @@ export function joinCharGloss(
 ): string {
   if (!dictionaries?.characters || !sourceText) return '';
   const chars = dictionaries.characters as Record<string, string>;
-  return sourceText
-    .split('')
-    .map((ch) => chars[ch] || ch)
-    .join(' ');
+  return [...sourceText].map((ch) => chars[ch] || ch).join(' ');
 }
 
 /** Fallback Translation guess for a newly-populated Source when no Transform Rule

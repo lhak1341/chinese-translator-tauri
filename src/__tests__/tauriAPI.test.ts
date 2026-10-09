@@ -2,7 +2,7 @@
  * Tests for tauriAPI.ts's `callTauriCommand` seam — the shared invoke/catch shell for the
  * wrappers whose failure contract is exactly `{success: false, error: String(error)}` — and for
  * the four wrappers that stay inline because their failure handling differs: saveDictionary,
- * loadDictionary, loadDictionariesParallel and buildLookupIndex (readClipboard rethrows). Why
+ * loadDictionariesParallel and buildLookupIndex (readClipboard rethrows). Why
  * the shell stays narrow: ADR-090. These inline blocks were untested until round 20.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -130,41 +130,6 @@ describe('saveDictionary — inline, logs a failure the backend returned', () =>
     mockInvoke.mockRejectedValueOnce('ipc down');
 
     expect(await tauriAPI.saveDictionary('characters', {})).toEqual({
-      success: false,
-      error: 'ipc down',
-    });
-  });
-});
-
-describe('loadDictionary — inline, a missing file is not worth a log line', () => {
-  it('rejects an invalid id without calling invoke', async () => {
-    const result = await tauriAPI.loadDictionary('a/b');
-
-    expect(mockInvoke).not.toHaveBeenCalled();
-    expect(result).toEqual({ success: false, error: INVALID_ID_ERROR });
-  });
-
-  it('returns "File not found" without logging it', async () => {
-    mockInvoke.mockResolvedValueOnce({ success: false, error: 'File not found' });
-
-    const result = await tauriAPI.loadDictionary('phrases');
-
-    expect(result).toEqual({ success: false, error: 'File not found' });
-    expect(logger.error).not.toHaveBeenCalled();
-  });
-
-  it('logs any other failure the backend returned', async () => {
-    mockInvoke.mockResolvedValueOnce({ success: false, error: 'bad json' });
-
-    await tauriAPI.loadDictionary('phrases');
-
-    expect(logger.error).toHaveBeenCalledWith('Load dictionary failed:', 'bad json');
-  });
-
-  it('turns a rejection into the failure shape', async () => {
-    mockInvoke.mockRejectedValueOnce('ipc down');
-
-    expect(await tauriAPI.loadDictionary('phrases')).toEqual({
       success: false,
       error: 'ipc down',
     });

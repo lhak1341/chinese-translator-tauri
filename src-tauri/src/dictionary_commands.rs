@@ -768,60 +768,84 @@ fn write_dictionary_bytes(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn load_dictionary(
-    app_handle: tauri::AppHandle,
-    cache: State<'_, DictionaryCache>,
-    dictionary_id: String,
-) -> Result<DictionaryResponse, String> {
-    // SECURITY: Validate dictionary ID to prevent path traversal
-    validate_dictionary_id(&dictionary_id)?;
+/// Why a dictionary file could not be read. The batch loader reports each one as that id's
+/// failure; a missing file is not one of them (see `read_dictionary_file`).
+#[derive(Debug)]
+enum LoadFailure {
+    /// Over the size limit, or its metadata could not be read. The message is already sanitized.
+    Rejected(String),
+    InvalidJson,
+    /// `validate_dictionary_payload` refused the parsed content.
+    Invalid(String),
+    /// The read itself failed (permission, I/O, not UTF-8). The message is already sanitized.
+    Io(String),
+}
 
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-    let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
-
-    let cache_key = get_cache_key(&dictionary_id);
-
-    // Check cache first
-    if let Some(cached_data) = cache.get(&cache_key) {
-        return Ok(DictionaryResponse::ok_with_data(cached_data));
+impl LoadFailure {
+    fn message(self, dictionary_id: &str) -> String {
+        match self {
+            Self::Rejected(message) | Self::Io(message) => message,
+            Self::InvalidJson => format!("Invalid JSON in dictionary '{}'", dictionary_id),
+            Self::Invalid(error) => format!("Dictionary '{}': {}", dictionary_id, error),
+        }
     }
-    let generation = cache.generation();
+}
 
-    // A missing file is a soft failure (`tauriAPI.loadDictionary` expects exactly this error
-    // text) — checked before the size guard, whose metadata call would turn it into an `Err`.
-    if let Err(e) = fs::metadata(&file_path) {
+/// The single read protocol for a dictionary file: cache first, else `read_dictionary_file`.
+/// The write-side twin is `write_dictionary_bytes`.
+fn load_dictionary_file(
+    path: &PathBuf,
+    cache: &DictionaryCache,
+    dictionary_id: &str,
+) -> Result<serde_json::Value, LoadFailure> {
+    if let Some(cached) = cache.get(&get_cache_key(dictionary_id)) {
+        return Ok(cached);
+    }
+    read_dictionary_file(path, cache, dictionary_id, cache.generation())
+}
+
+/// Read, guard and cache one dictionary file. `generation` is the cache's invalidation count
+/// read BEFORE this call touches the file, so a write that lands meanwhile stops the stale
+/// bytes being cached (`DictionaryCache::set_if_current`).
+///
+/// A file that does not exist is an empty dictionary, not an unread one: nothing seeds the
+/// dictionary directory, so a fresh install or a reset has no `phrases.json` until the first
+/// Add creates it. Only a file that exists and cannot be read is a failure; the TS side
+/// refuses to save over those (CONTEXT.md "Unread dictionary", ADR-053). Empty is not cached,
+/// so the first save's file is what the next load reads.
+fn read_dictionary_file(
+    path: &PathBuf,
+    cache: &DictionaryCache,
+    dictionary_id: &str,
+    generation: u64,
+) -> Result<serde_json::Value, LoadFailure> {
+    let empty = || serde_json::json!({});
+
+    // Checked before the size guard, whose metadata call would turn a missing file into a failure.
+    if let Err(e) = fs::metadata(path) {
         if e.kind() == std::io::ErrorKind::NotFound {
-            return Ok(DictionaryResponse::err("File not found"));
+            return Ok(empty());
         }
     }
 
     // SECURITY: Check file size before reading
-    validate_file_size(&file_path, MAX_JSON_SIZE_BYTES)?;
+    validate_file_size(path, MAX_JSON_SIZE_BYTES).map_err(LoadFailure::Rejected)?;
 
-    // Load from file
-    match fs::read_to_string(&file_path) {
-        Ok(contents) => {
-            let data: serde_json::Value = serde_json::from_str(&contents)
-                .map_err(|_| format!("Invalid JSON in dictionary '{}'", dictionary_id))?;
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(empty()),
+        Err(e) => return Err(LoadFailure::Io(sanitize_io_error(e, "dictionary file"))),
+    };
+    let data: serde_json::Value =
+        serde_json::from_str(&contents).map_err(|_| LoadFailure::InvalidJson)?;
 
-            // SECURITY: Re-run the same guard sequence as save_dictionary/import_dictionaries
-            // on load, not just on write. A file written externally or imported from a ZIP
-            // could bypass those guards, causing unbounded trie memory growth or stack
-            // pressure from pathological nesting.
-            validate_dictionary_payload(&data)
-                .map_err(|e| format!("Dictionary '{}': {}", dictionary_id, e))?;
+    // SECURITY: Re-run the same guard sequence as save_dictionary/import_dictionaries on load,
+    // not just on write. A file written externally or imported from a ZIP could bypass those
+    // guards, causing unbounded trie memory growth or stack pressure from pathological nesting.
+    validate_dictionary_payload(&data).map_err(LoadFailure::Invalid)?;
 
-            // Cache the result
-            cache.set_if_current(cache_key, data.clone(), generation);
-
-            Ok(DictionaryResponse::ok_with_data(data))
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Ok(DictionaryResponse::err("File not found"))
-        }
-        Err(e) => Err(sanitize_io_error(e, "dictionary file")),
-    }
+    cache.set_if_current(get_cache_key(dictionary_id), data.clone(), generation);
+    Ok(data)
 }
 
 fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -1069,7 +1093,7 @@ fn export_dictionaries_impl(
 
     // Parallel read all files into memory
     // CODE REVIEW FIX (MEDIUM-7): Validate file size before reading, consistent with
-    // load_dictionary which calls validate_file_size. Without this, an externally-grown
+    // read_dictionary_file which calls validate_file_size. Without this, an externally-grown
     // file bypassing the write path could cause a DoS via unbounded memory allocation.
     let file_contents: Vec<_> = entries
         .par_iter()
@@ -1218,7 +1242,7 @@ fn import_dictionaries_impl(
 
         match serde_json::from_str::<serde_json::Value>(&contents) {
             Ok(data) => {
-                // SECURITY: Same guard sequence as save_dictionary and load_dictionary —
+                // SECURITY: Same guard sequence as save_dictionary and read_dictionary_file —
                 // entry-count cap + nesting depth. serde_json limits deserialization to
                 // 128 levels, but deep Values cause unbounded recursion in the Rust drop
                 // path; cap at 50 as defense-in-depth.
@@ -1318,58 +1342,9 @@ fn load_dictionaries_parallel_impl(
             }
 
             let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
-            let cache_key = get_cache_key(dictionary_id);
-
-            // Check cache first (thread-safe)
-            if let Some(cached_data) = cache.get(&cache_key) {
-                return BatchDictionaryResult::ok(dictionary_id, cached_data);
-            }
-            let generation = cache.generation();
-
-            // A dictionary whose file does not exist yet is empty, not unread: nothing seeds the
-            // dictionary directory, so a fresh install or a reset has no `phrases.json` until the
-            // first Add creates it. Only a file that exists and cannot be read is a failure — the
-            // TS side refuses to save over those (CONTEXT.md "Unread dictionary", ADR-053). Not
-            // cached, so the first save's file is what the next load reads.
-            if let Err(e) = fs::metadata(&file_path) {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    return BatchDictionaryResult::ok(dictionary_id, serde_json::json!({}));
-                }
-            }
-
-            // SECURITY: Validate file size before reading (matches serial load path)
-            if let Err(e) = validate_file_size(&file_path, MAX_JSON_SIZE_BYTES) {
-                return BatchDictionaryResult::err(dictionary_id, e);
-            }
-
-            // Load from file
-            match fs::read_to_string(&file_path) {
-                Ok(contents) => {
-                    match serde_json::from_str::<serde_json::Value>(&contents) {
-                        Ok(data) => {
-                            // SECURITY: Single guard sequence — mirrors save_dictionary/import_dictionaries/load_dictionary.
-                            if let Err(e) = validate_dictionary_payload(&data) {
-                                return BatchDictionaryResult::err(
-                                    dictionary_id,
-                                    format!("Dictionary '{}': {}", dictionary_id, e),
-                                );
-                            }
-
-                            // Cache the result (thread-safe)
-                            cache.set_if_current(cache_key, data.clone(), generation);
-
-                            BatchDictionaryResult::ok(dictionary_id, data)
-                        }
-                        Err(_) => BatchDictionaryResult::err(
-                            dictionary_id,
-                            format!("Invalid JSON in dictionary '{}'", dictionary_id),
-                        ),
-                    }
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    BatchDictionaryResult::err(dictionary_id, "File not found")
-                }
-                Err(e) => BatchDictionaryResult::err(dictionary_id, sanitize_io_error(e, "dictionary file")),
+            match load_dictionary_file(&file_path, cache, dictionary_id) {
+                Ok(data) => BatchDictionaryResult::ok(dictionary_id, data),
+                Err(failure) => BatchDictionaryResult::err(dictionary_id, failure.message(dictionary_id)),
             }
         })
         .collect();
@@ -2609,6 +2584,47 @@ mod tests {
         assert_eq!(response.failed, 0);
         assert!(response.results[0].success);
         assert_eq!(response.results[0].data, Some(serde_json::json!({})));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_dictionary_file_rejects_an_oversize_file_before_reading_it() {
+        let dir = temp_test_dir("load_oversize");
+        let path = dir.join("phrases.json");
+        // A sparse file one byte over the limit: the size guard must refuse it from metadata alone.
+        fs::File::create(&path).unwrap().set_len(MAX_JSON_SIZE_BYTES as u64 + 1).unwrap();
+        let cache = make_cache();
+
+        match load_dictionary_file(&path, &cache, "phrases") {
+            Err(LoadFailure::Rejected(message)) => assert!(message.contains("too large"), "{message}"),
+            other => panic!("expected Rejected, got {other:?}"),
+        }
+        assert!(cache.get("phrases").is_none(), "a refused file must not be cached");
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+        assert_eq!(response.failed, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_dictionary_file_does_not_cache_a_read_that_raced_an_invalidation() {
+        let dir = temp_test_dir("load_raced_invalidation");
+        let path = dir.join("phrases.json");
+        fs::write(&path, r#"{"old":"cũ"}"#).unwrap();
+        let cache = make_cache();
+
+        let generation = cache.generation();
+        cache.invalidate(Some("phrases")); // a save lands after the loader took its generation
+        let data = read_dictionary_file(&path, &cache, "phrases", generation).unwrap();
+
+        assert_eq!(data, serde_json::json!({"old": "cũ"}), "the read itself still answers");
+        assert!(cache.get("phrases").is_none(), "stale bytes must not outlive the invalidation");
+
+        // The next load starts from the current generation and does cache.
+        load_dictionary_file(&path, &cache, "phrases").unwrap();
+        assert!(cache.get("phrases").is_some());
 
         let _ = fs::remove_dir_all(&dir);
     }

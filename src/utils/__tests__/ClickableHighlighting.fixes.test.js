@@ -442,7 +442,7 @@ describe('Edge Cases and Error Handling', () => {
     const builder = new SemanticArrayBuilder();
 
     expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
-    expect(builder.isValid()).toBe(true);
+    expect(builder.isCorrupted).toBe(false);
 
     const report = semanticArrayValidator.validateAllPositions(builder.getSnapshot());
     expect(report.total).toBe(0);
@@ -460,7 +460,7 @@ describe('Edge Cases and Error Handling', () => {
   });
 
   test('should handle very long semantic arrays', () => {
-    const builder = new SemanticArrayBuilder(1000);
+    const builder = new SemanticArrayBuilder();
 
     // Add 1000 units
     for (let i = 0; i < 1000; i++) {
@@ -468,7 +468,7 @@ describe('Edge Cases and Error Handling', () => {
     }
 
     expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
-    expect(builder.getLength()).toBe(1000);
+    expect(builder.getArrays().original).toHaveLength(1000);
   });
 
   test('should handle duplicate units with different positions', () => {

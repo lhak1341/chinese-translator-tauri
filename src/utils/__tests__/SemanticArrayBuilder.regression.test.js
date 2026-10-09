@@ -2,83 +2,51 @@
  * Regression tests for SemanticArrayBuilder bug fixes
  *
  * Tests prevent regressions for:
- * - Invalid array length edge case (early input validation)
+ * - the corruption signal and growth past any starting size
+ * - adjacent units not counted as overlapping
  */
 
 import { describe, it, expect } from 'vitest';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
 
 describe('SemanticArrayBuilder Regression Tests', () => {
-  describe('Bug Fix: Invalid Array Length Edge Case', () => {
-    it('should handle NaN estimatedSize gracefully', () => {
+  describe('Corruption signal', () => {
+    it('starts clean, and a well-formed unit leaves it clean', () => {
       const builder = new SemanticArrayBuilder();
 
-      // Bug fix: Should not crash with NaN
-      expect(() => {
-        builder.reset(NaN);
-      }).not.toThrow();
-
-      // Should fall back to default capacity
-      expect(builder.estimatedCapacity).toBeGreaterThan(0);
-      expect(builder.estimatedCapacity).toBeLessThanOrEqual(10000);
+      expect(builder.isCorrupted).toBe(false);
+      expect(builder.addUnit('你', 'bạn', 'characters', 0)).toBe(true);
+      expect(builder.isCorrupted).toBe(false);
     });
 
-    it('should handle Infinity estimatedSize gracefully', () => {
+    it('an undefined translation corrupts the builder and refuses every later unit', () => {
       const builder = new SemanticArrayBuilder();
 
-      expect(() => {
-        builder.reset(Infinity);
-      }).not.toThrow();
-
-      // Should fall back to safe capacity
-      expect(builder.estimatedCapacity).toBeGreaterThan(0);
-      expect(builder.estimatedCapacity).toBeLessThanOrEqual(10000);
+      expect(builder.addUnit('你', undefined, 'characters', 0)).toBe(false);
+      expect(builder.isCorrupted).toBe(true);
+      expect(builder.addUnit('好', 'tốt', 'characters', 1)).toBe(false);
     });
 
-    it('should handle negative estimatedSize gracefully', () => {
+    it('reset() clears it, so the next translation starts fresh', () => {
       const builder = new SemanticArrayBuilder();
+      builder.addUnit('你', undefined, 'characters', 0);
 
-      expect(() => {
-        builder.reset(-100);
-      }).not.toThrow();
+      builder.reset();
 
-      // Should fall back to default capacity
-      expect(builder.estimatedCapacity).toBeGreaterThan(0);
-      expect(builder.estimatedCapacity).toBeLessThanOrEqual(10000);
+      expect(builder.isCorrupted).toBe(false);
+      expect(builder.getArrays().original).toEqual([]);
+      expect(builder.addUnit('你', 'bạn', 'characters', 0)).toBe(true);
     });
 
-    it('should handle zero estimatedSize', () => {
+    it('grows past any starting size without a capacity to set', () => {
       const builder = new SemanticArrayBuilder();
+      for (let i = 0; i < 20000; i++) builder.addUnit(`原${i}`, `dịch${i}`, 'characters', i);
 
-      expect(() => {
-        builder.reset(0);
-      }).not.toThrow();
-
-      // Should fall back to default capacity
-      expect(builder.estimatedCapacity).toBe(100);
-    });
-
-    it('should handle excessively large estimatedSize', () => {
-      const builder = new SemanticArrayBuilder();
-
-      expect(() => {
-        builder.reset(1000000); // 1 million
-      }).not.toThrow();
-
-      // Should cap at MAX_SAFE_CAPACITY (10000)
-      expect(builder.estimatedCapacity).toBeLessThanOrEqual(10000);
-    });
-
-    it('should accept valid estimatedSize', () => {
-      const builder = new SemanticArrayBuilder();
-
-      builder.reset(500);
-
-      // Should set capacity to ~500 * 1.2 = 600
-      expect(builder.estimatedCapacity).toBeGreaterThanOrEqual(500);
-      expect(builder.estimatedCapacity).toBeLessThanOrEqual(1000);
+      expect(builder.isCorrupted).toBe(false);
+      expect(builder.getArrays().original).toHaveLength(20000);
     });
   });
+
   describe('Bug Fix: adjacent units are not overlapping', () => {
     it('accepts a unit starting exactly where the previous one ended (e.g. "A" then "1")', () => {
       const builder = new SemanticArrayBuilder();

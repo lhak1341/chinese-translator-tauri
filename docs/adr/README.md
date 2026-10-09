@@ -154,6 +154,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-088](./ADR-088-skip-moving-the-cache-invalidator-registration.md)              | Skip moving the cache-invalidator registration               | Decided                           | Correct and tested at the seam; relies on the always-mounted Translator, like reload. Revisit if tabs go lazy.                                       |
 | [ADR-089](./ADR-089-the-character-only-pass-leaves-punctuation-alone.md)            | The character-only pass leaves punctuation alone             | Decided                           | Its punctuation match stamped nothing (output identical with it stubbed); amends ADR-087.                                                            |
 | [ADR-090](./ADR-090-keep-the-tauri-api-invoke-shell-narrow.md)                      | Keep the tauriAPI invoke shell narrow                        | Decided                           | The four inline wrappers differ where a shell needs callbacks; the gap was tests, now added.                                                         |
+| [ADR-091](./ADR-091-skip-translatetext-extraction.md)                               | Skip extracting translateText                                | Decided                           | Wiring over ~14 component inputs, one call site; round 21 fixed the outcome shape.                                                                   |
 
 ## ADR Format
 
@@ -212,4 +213,5 @@ Write an ADR when making decisions about:
 - **2026-10-06**: ADR-079; ADR-080
 - **2026-10-07**: ADR-081; ADR-082; ADR-083; ADR-084; ADR-085; ADR-086
 - **2026-10-08**: ADR-087; ADR-088; ADR-089; ADR-090
+- **2026-10-09**: ADR-091
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

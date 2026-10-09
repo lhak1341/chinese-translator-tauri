@@ -30,8 +30,7 @@ export function assembleCharOnlyResult(
   tokens: StampedToken[],
   lookupPunctuation: PunctuationLookup
 ): CharOnlyAssemblyResult {
-  const textLength = tokens.length > 0 ? tokens[tokens.length - 1].end : 0;
-  const builder = new SemanticArrayBuilder(Math.floor(textLength / 5));
+  const builder = new SemanticArrayBuilder();
   let translatedText = '';
 
   for (let i = 0; i < tokens.length; i++) {

@@ -30,3 +30,5 @@ A missing file is not unread. The parallel loader returns `{}` for it, because t
 ## Consequence
 
 The engine translates without an unread dictionary until it is repaired. The Dictionary tab's notice and the selector label are the only signs. A review proposing dictionary quarantine should find this ADR first. Reconsider it if dictionaries ever get a sane default, or if users report getting stuck on an unread dictionary they cannot repair by hand.
+
+**2026-10-09 addendum (architecture review round 22, candidate #1 grilling).** The rule that a missing file is not unread now has one implementation. `load_dictionary` (single id) returned `Err("File not found")` for a missing file while the batch returned `{}`, and its only caller was the retry after a failed batch, which can never fail on a missing file. The command is deleted; `read_dictionary_file` returns `{}` for a missing file (uncached) and the retry calls `loadDictionariesParallel` with the failed ids. A review proposing a missing-file policy parameter for the read protocol should find this: there is one policy.

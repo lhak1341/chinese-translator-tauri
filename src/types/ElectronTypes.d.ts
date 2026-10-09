@@ -35,14 +35,6 @@ export interface ElectronResult<T = any> {
 }
 
 /**
- * Dictionary load result
- */
-export interface DictionaryLoadResult extends ElectronResult<any> {
-  /** Dictionary data */
-  data?: any;
-}
-
-/**
  * Proper-nouns dictionary listing result: the ids on disk.
  */
 export interface ProperNounsListResult extends ElectronResult {
