@@ -81,5 +81,8 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Format
+        run: bun run format:check
+
       - name: Run tests
         run: bun run test --run

@@ -19,7 +19,11 @@ bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:fu
 
 `git commit` runs the pre-commit hook (prettier, eslint, a full `tsc --noEmit`) and has taken over 300 s; a chained test + lint + commit run went past 600 s. Run long chains with `run_in_background`, then check `git log` rather than trusting the exit code.
 
-`bun run tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
+`bun run deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
+
+## Standard commands (same names in all my Tauri apps)
+
+`bun run tauri:dev` native app with hot reload · `bun run tauri:build` release bundle · `bun run deploy` build, quit the running copy, install into `~/Applications`, then `sweep-targets` (needs `cargo install cargo-sweep`) · `bun run check` type-check · `bun run test` · `bun run lint` (warning ceiling in `.lint-baseline.json`; `lint:full` shows findings, `lint:baseline` locks a lower count) · `bun run format` / `format:check`. Dev ports: translator 5174, fanfiction-reader 1420, family-ledger 1430. Husky `pre-commit` runs lint-staged and ratchets the lint baseline down; CI runs check, lint, format:check, test and `cargo test`. `scripts/install-app.sh` is identical in all three — it reads the app name from `tauri.conf.json`.
 
 ---
 
