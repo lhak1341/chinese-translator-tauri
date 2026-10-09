@@ -550,8 +550,8 @@
     "semantic_hash": ""
   },
   "src/utils/performance/PerformanceMonitor.js": {
-    "mtime": 1791099680.287034,
-    "ast_hash": "3f86228ec54ac4a60ca3bad6cea23813",
+    "mtime": 1791558698.0685563,
+    "ast_hash": "0fdb01757cc6f6168f9732202131fb3c",
     "semantic_hash": ""
   },
   "src/utils/caching/LRUCache.ts": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "src/hooks/usePerformanceMonitoring.js": {
-    "mtime": 1791099680.287342,
-    "ast_hash": "624f1af225efbbe0c062fe8b1f8c82b9",
+    "mtime": 1791558699.7077334,
+    "ast_hash": "7bfe64255d0c286382f76ccc73db7161",
     "semantic_hash": ""
   },
   "src/hooks/useAutoTranslateTrigger.ts": {
@@ -830,8 +830,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1791557589.6549602,
-    "ast_hash": "965c0056e907eb2f04d94e0601dca707",
+    "mtime": 1791558709.6238067,
+    "ast_hash": "7108d9f6a42d863cecb0b079e4a535ef",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1075,8 +1075,8 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1791472750.376373,
-    "ast_hash": "0a28ab5587dd7dbed21565040b693ffa",
+    "mtime": 1791557787.8978574,
+    "ast_hash": "63a75902b0017e8de0a6925bbca94da8",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1105,8 +1105,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791556855.360626,
-    "ast_hash": "1f94d9ad398e535e87fa1a1642b0e30a",
+    "mtime": 1791557787.8984115,
+    "ast_hash": "b0e22e922b1023ba7da2730696d94956",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1365,8 +1365,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
-    "mtime": 1791557574.364102,
-    "ast_hash": "4dc3628315e3c3827e7d8a66ea738dd4",
+    "mtime": 1791557655.7928288,
+    "ast_hash": "f03a7e62f5d6234b7a705db44fd1e693",
     "semantic_hash": ""
   },
   "src/utils/highlighting/UnitHighlightPredicate.ts": {
@@ -1530,8 +1530,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791556855.361214,
-    "ast_hash": "ab1f6d487ee5bee49e4f2e9194287691",
+    "mtime": 1791558709.6249616,
+    "ast_hash": "e1bd86b316f5ec375d3f555a8ed22065",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {

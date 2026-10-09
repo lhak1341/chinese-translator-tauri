@@ -196,12 +196,6 @@ import {
  * @typedef {Object} ChunkOptions
  * @property {number}  [chunkOffset=0]          - TOKEN count of all preceding chunks.
  *                                                 Used as offset for cross-chunk tokenIndex.
- *                                                 DO NOT confuse with chunkStartChar.
- * @property {number}  [chunkStartChar=0]        - CHARACTER position of this chunk's start
- *                                                 in the full source text. Passed to postProcess()
- *                                                 so originalStart values are absolute, not chunk-relative.
- *                                                 token.start is chunk-relative; add chunkStartChar
- *                                                 to get the absolute character position.
  * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
  * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
  * @property {boolean} [useChunking]             - Enable adaptive chunking for long texts
@@ -1766,11 +1760,6 @@ export class TranslationEngine {
     // Step 2: Join segments with appropriate spacing AND track positions for semantic array
     const { translatedText: result, positions: assembledPositions } = assembleWithSpacing(segments);
 
-    // chunkStartChar is the character offset of this chunk's start in the original full text.
-    // For a direct (non-chunked) translation it is 0 by default.
-    // For chunked translation, the caller passes chunk.startIndex here.
-    const chunkStartChar = typeof options?.chunkStartChar === 'number' ? options.chunkStartChar : 0;
-
     // Compute cumulative character positions from token value lengths.
     // token.start is a code-point index (WASM) or UTF-16 index (JS fallback), never bytes, and the
     // two differ after an astral char. Summing value.length gives the UTF-16 position.
@@ -1792,7 +1781,7 @@ export class TranslationEngine {
           text,
           start,
           end,
-          tokenIndex < tokens.length ? chunkStartChar + tokenCharPositions[tokenIndex] : undefined
+          tokenIndex < tokens.length ? tokenCharPositions[tokenIndex] : undefined
         );
       }
     }

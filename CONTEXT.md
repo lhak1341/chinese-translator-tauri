@@ -216,9 +216,9 @@ Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
 ## PerformanceMonitor
 
-Sampling-based global operation stats. Owns: sample-rate gating (5% prod / 20% dev), rolling sample buffer, aggregate stats (`totalOperations`, `avgTime`, `minTime`, `maxTime`, `opsPerSecond`), `startTimer`/`endTimer`, `getMetrics()`. Also provides `log(level, message)` — a performance-aware logging channel that silences everything below error level in production to prevent console spam.
+Running timing stats for translations. Owns: the aggregate (`totalOperations`, `avgTime`, `minTime`, `maxTime`, `opsPerSecond`), `record(durationMs)`, `getMetrics()`, `reset()`. Every recorded operation updates the aggregate; there is no sampling, buffer or metrics cache (deleted 2026-10-09, `docs/guides/deleted-symbols.md`).
 
-Exports `globalPerformanceMonitor` singleton. Two callers: `usePerformanceMonitoring` (writes via `endTimer`, reads `getMetrics().avgTime` for the stats chip) and `TranslationEngine` (uses `.log()` as a debug channel). There is no regression detector behind it (ADR-069).
+Exports `globalPerformanceMonitor` singleton. Readers: `usePerformanceMonitoring` (records each completed translation, reads `getMetrics().avgTime` for the stats chip) and the dev console's `performanceDashboard.getStats()`. `TranslationEngine` does not use it. There is no regression detector behind it (ADR-069).
 
 Entry point: `src/utils/performance/PerformanceMonitor.js`.
 
@@ -626,7 +626,7 @@ Entry point: `src/components/char-only/SegmentedParagraphs.tsx`. Not barrel-expo
 
 ## PositionBasedSegmentBuilder
 
-The direct-placement fast path for `precomputeOriginalSegments` (original Chinese panel): when every semantic-array entry already has `originalStart`/`originalEnd` metadata (set during `postProcess`), walks entries sorted by `originalStart` instead of running the greedy scan. Avoids the scan's first-available tie-breaking, which can diverge from the Vietnamese panel's assignment order for duplicate translated words. Only fires for single-chunk (short) translations — the parallel merge loop drops `originalStart`, so multi-chunk translations always fall through to the scan.
+The direct-placement fast path for `precomputeOriginalSegments` (original Chinese panel): when every semantic-array entry already has `originalStart`/`originalEnd` metadata (set during `postProcess`), walks entries sorted by `originalStart` instead of running the greedy scan. Avoids the scan's first-available tie-breaking, which can diverge from the Vietnamese panel's assignment order for duplicate translated words. Only fires for single-chunk Full Translation texts (no internal punctuation): a later chunk calls `setPositionByMatch` with a chunk-local `tokenIndex` while `addUnit` stored the global one, so no unit matches and `originalStart` stays `-1`. Character-only never sets `originalStart`, so its original panel always runs the scan, and prose with sentence punctuation does too.
 
 Split out of `SegmentPrecomputer.ts`; self-contained, shares no state or matching logic with `precomputeSegments`/`precomputeOriginalSegments`, the two scan loops ADR-036 protects from unification. Not that pair; the split doesn't reopen ADR-036. Its existing tests (`SegmentPrecomputer.test.ts`, `describe('buildSegmentsFromPositions (fast path)')`) test it black-box through `precomputeOriginalSegments`'s routing and needed no changes — they never imported the function directly, since it wasn't exported before this extraction.
 

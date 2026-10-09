@@ -174,8 +174,6 @@ Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.
 
 ### Fake timers and async ordering
 
-**A throwaway probe test's `console.log` is swallowed by the setup** — assert with `toEqual` and read the diff. Filter results with `^ *Tests |^ FAIL`; `Error:` also matches the logged noise from deliberate-failure tests.
-
 **`vi.useFakeTimers()` does not fake `performance.now()` by default** — pass `{ toFake: ['setTimeout','clearTimeout','setInterval','clearInterval','Date','performance'] }` explicitly when testing code with `performance.now()`-based thresholds or growth-rate math.
 
 **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check crosses the boundary rather than merely reaching it.
@@ -300,7 +298,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Temporary debug instrumentation in huge files (`TranslationEngine.js`, `SemanticPatternProcessor.js`) is easy to leave behind** — grep for `console.error`/`console.log`/whatever debug tag you added before considering a bug hunt finished. File size makes a stray line easy to miss on a final read-through.
 
-**A throwaway probe test reports through a file, not `console.log`** — test output doesn't reach the terminal here (observed 2026-10-04: `console.log` from a `src/utils/__tests__/Zz*.test.js` probe printed nothing), so `fs.writeFileSync` the result to the scratchpad and read it back; name probes `Zz*` and confirm `ls src/utils/__tests__ | grep -c '^Zz'` is 0 before you finish.
+**A throwaway probe test reports through a file, not `console.log`** — the setup swallows it (seen 2026-10-04 and 2026-10-09). `appendFileSync` the result to the scratchpad and read it back, or assert with `toEqual` and read the diff. Filter runs with `^ *Tests |^ FAIL`; `Error:` also matches logged noise from deliberate-failure tests. Name probes `Zz*` and confirm `ls src/utils/__tests__ | grep -c '^Zz'` is 0 before you finish.
 
 ## `// @ts-check` Coverage
 

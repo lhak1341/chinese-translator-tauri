@@ -17,7 +17,7 @@ export function usePerformanceMonitoring() {
   const [avgTime, setAvgTime] = useState(() => globalPerformanceMonitor.getMetrics().avgTime ?? 0);
 
   const recordTranslation = useCallback((operationTimeMs) => {
-    globalPerformanceMonitor.record(operationTimeMs, 'translation');
+    globalPerformanceMonitor.record(operationTimeMs);
     setAvgTime(globalPerformanceMonitor.getMetrics().avgTime ?? 0);
   }, []);
 

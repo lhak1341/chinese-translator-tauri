@@ -67,8 +67,8 @@ export interface SemanticArrayMetadata {
   dictionary: string | null; // Provenance only — zero real readers today (write-only; see addUnit's CLAUDE.md gotcha)
   translatedStart: number; // Consumed by: char-only only (PositionMetadataSegmenter.ts, characterOnlySemanticBuilder setup)
   translatedEnd: number; // Consumed by: char-only only (see translatedStart)
-  originalStart: number; // Character position in original Chinese text (-1 if not set). Consumed by: char-only only (ClickableOriginalSemantic.tsx → precomputeOriginalSegments → buildSegmentsFromPositions)
-  originalEnd: number; // End position in original Chinese text (-1 if not set). Consumed by: char-only only (see originalStart)
+  originalStart: number; // Character position in original Chinese text (-1 if not set). Set by Full Translation's postProcess for the first chunk only (later chunks pass chunk-local tokenIndex, so setPositionByMatch finds no unit); character-only never sets it. Read by precomputeOriginalSegments → buildSegmentsFromPositions
+  originalEnd: number; // End position in original Chinese text (-1 if not set). Set and read as originalStart is
 }
 
 /**
