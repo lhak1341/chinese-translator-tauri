@@ -164,6 +164,8 @@ export async function openMatchSource(
   { dictionaryManager, logWarn }: MatchSourceDeps
 ): Promise<MatchSource> {
   const fallback = trieSource(dictionaryManager);
+  // The tokenizer indexes the NFC form (`token.start`), so Rust must index the same text.
+  text = text.normalize('NFC');
   if (
     text.length < DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX ||
     SURROGATE.test(text) ||

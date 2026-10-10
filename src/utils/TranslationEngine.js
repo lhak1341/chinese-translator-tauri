@@ -3099,9 +3099,9 @@ export class TranslationEngine {
    *
    * Clears:
    * - DictionaryManager's lookup cache for `dictionaryName`
-   * - Proper noun translation cache (all entries)
    *
    * Does NOT clear (not affected by single dictionary entry changes):
+   * - Proper noun casing map (built at initialize(); nothing rebuilds it)
    * - Semantic array builder cache (capitalization updates)
    * - Pattern processor variable cache (pattern structure unchanged)
    * - Translation segments (position mappings)
@@ -3115,10 +3115,9 @@ export class TranslationEngine {
         this.dictionaryManager.invalidateCache(dictionaryName);
       }
 
-      // 2. Proper Noun Translation Cache (all proper noun translations)
-      if (this.properNounTranslations) {
-        this.properNounTranslations.clear();
-      }
+      // The proper noun casing map is kept: it is built once at initialize() from the
+      // dictionaries the engine loaded, nothing rebuilds it, and the engine has not seen this
+      // edit until a reload. Emptying it would stop casing restoration for the whole session.
     } catch (error) {
       logger.error('❌ Error invalidating dictionary caches:', error);
       throw error;

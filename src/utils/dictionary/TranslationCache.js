@@ -2,8 +2,10 @@
  * Lookup memo for multi-dictionary translations.
  *
  * `DictionaryManager.translate` is the only reader: it keys a result by the word plus
- * the dictionary search order. Invalidating one dictionary drops every memoized lookup
- * that searched it, through a per-dictionary key index (O(k), not a scan of the whole cache).
+ * the dictionary search order. A miss is memoized too (as `null`). Each entry remembers the
+ * dictionaries it searched, so invalidating one drops every lookup that searched it by scanning
+ * the (bounded) LRU: edits are rare, and a separate key index would outlive the evictions that
+ * make its keys stale.
  */
 
 import { LRUCache } from '../caching/LRUCache.js';
@@ -15,9 +17,6 @@ export class TranslationCache {
     this.lookupCache = new LRUCache(this.lookupCacheSize);
 
     this.isEnabled = options.enabled !== false; // Default to enabled
-
-    // dictionaryName → Set<cacheKey> of every memoized lookup that searched it
-    this.dictionaryIndex = new Map();
   }
 
   /**
@@ -64,11 +63,11 @@ export class TranslationCache {
    */
   getLookup(text, dictionaryNames) {
     if (!this.isEnabled) return undefined;
-    return this.lookupCache.get(this.generateMultiLookupKey(text, dictionaryNames));
+    return this.lookupCache.get(this.generateMultiLookupKey(text, dictionaryNames))?.result;
   }
 
   /**
-   * Cache multi-dictionary lookup result and index it under every dictionary searched
+   * Cache multi-dictionary lookup result, remembering every dictionary searched
    * @param {string} text - Text translated
    * @param {Array} dictionaryNames - Array of dictionary names
    * @param {*} result - Translation result
@@ -77,14 +76,7 @@ export class TranslationCache {
     if (!this.isEnabled) return;
 
     const cacheKey = this.generateMultiLookupKey(text, dictionaryNames);
-    this.lookupCache.set(cacheKey, result);
-
-    for (const dictionaryName of dictionaryNames) {
-      if (!this.dictionaryIndex.has(dictionaryName)) {
-        this.dictionaryIndex.set(dictionaryName, new Set());
-      }
-      this.dictionaryIndex.get(dictionaryName).add(cacheKey);
-    }
+    this.lookupCache.set(cacheKey, { result, dictionaryNames: [...dictionaryNames] });
   }
 
   /**
@@ -93,17 +85,14 @@ export class TranslationCache {
    * @param {string} dictionaryName - Dictionary name to invalidate
    */
   invalidateDictionary(dictionaryName) {
-    const lookupKeys = this.dictionaryIndex.get(dictionaryName);
-    if (lookupKeys) {
-      lookupKeys.forEach((key) => this.lookupCache.delete(key));
-      this.dictionaryIndex.delete(dictionaryName);
+    for (const [key, entry] of this.lookupCache.entries()) {
+      if (entry.dictionaryNames.includes(dictionaryName)) this.lookupCache.delete(key);
     }
   }
 
-  /** Clear the memo and its dictionary index */
+  /** Clear the memo */
   clear() {
     this.lookupCache.clear();
-    this.dictionaryIndex.clear();
   }
 
   /**
@@ -121,7 +110,6 @@ export class TranslationCache {
     this.isEnabled = false;
 
     this.lookupCache = null;
-    this.dictionaryIndex = null;
 
     logger.log('🗑️ TranslationCache disposed');
   }

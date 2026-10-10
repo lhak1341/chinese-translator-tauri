@@ -3,7 +3,7 @@
  *
  * The lookup memo's interface, crossed directly:
  * - Multi-dictionary key generation and fast-path caching
- * - Invalidation through the per-dictionary key index
+ * - Invalidation of every entry that searched a dictionary
  * - clear(), setEnabled(), dispose() idempotency
  */
 
@@ -117,11 +117,28 @@ describe('TranslationCache — invalidateDictionary', () => {
     expect(cache.getLookup('你', ['characters'])).toBe('bạn-v2');
   });
 
-  test('dictionaryIndex is cleared after invalidation', () => {
-    cache.setLookup('你', ['characters'], 'bạn');
+  test('invalidation drops only entries that searched the dictionary', () => {
+    cache.setLookup('你', ['characters', 'phrases'], 'bạn');
+    cache.setLookup('他', ['phrases'], 'anh ấy');
     cache.invalidateDictionary('characters');
 
-    expect(cache.dictionaryIndex.has('characters')).toBe(false);
+    expect(cache.getLookup('你', ['characters', 'phrases'])).toBeUndefined();
+    expect(cache.getLookup('他', ['phrases'])).toBe('anh ấy');
+  });
+
+  test('invalidation drops a cached null too', () => {
+    cache.setLookup('无', ['characters'], null);
+    expect(cache.getLookup('无', ['characters'])).toBeNull();
+    cache.invalidateDictionary('characters');
+    expect(cache.getLookup('无', ['characters'])).toBeUndefined();
+  });
+
+  test('holds no bookkeeping beyond the LRU: evicted lookups leave nothing behind', () => {
+    const small = makeCache({ lookupCacheSize: 5 });
+    for (let i = 0; i < 100; i++) small.setLookup(`w${i}`, ['characters'], i);
+
+    expect(small.lookupCache.size()).toBe(5);
+    expect(small.dictionaryIndex).toBeUndefined();
   });
 });
 
@@ -143,14 +160,6 @@ describe('TranslationCache — clear', () => {
 
     expect(cache.getLookup('好', ['characters'])).toBeUndefined();
     expect(cache.getLookup('他', ['phrases'])).toBeUndefined();
-  });
-
-  test('clear empties the dictionary index', () => {
-    cache.setLookup('他', ['characters'], 'anh ấy');
-
-    cache.clear();
-
-    expect(cache.dictionaryIndex.size).toBe(0);
   });
 
   test('cache is usable after clear', () => {
@@ -211,7 +220,6 @@ describe('TranslationCache — dispose', () => {
     cache.setLookup('你', ['characters'], 'bạn');
     cache.dispose();
     expect(cache.lookupCache).toBeNull();
-    expect(cache.dictionaryIndex).toBeNull();
   });
 
   test('dispose sets isEnabled to false', () => {

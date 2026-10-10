@@ -60,6 +60,25 @@ beforeEach(() => {
   mockToastWarning.mockReset();
 });
 
+describe('openMatchSource — text sent to Rust', () => {
+  it('sends the NFC form the tokenizer indexes, so index positions match token.start', async () => {
+    // か + U+3099 is two code points raw and one once normalized; every position after it
+    // would otherwise be shifted by one against the tokens.
+    const decomposed = '\u304B\u3099' + LONG_TEXT;
+    const { open } = await load();
+    await open(decomposed);
+    expect(mockBuildLookupIndex).toHaveBeenCalledTimes(1);
+    expect(mockBuildLookupIndex.mock.calls[0][0]).toBe(decomposed.normalize('NFC'));
+  });
+
+  it('gates on the normalized length', async () => {
+    // 50 raw UTF-16 units, 49 once the 25 decomposed pairs compose.
+    const { open } = await load();
+    await open('\u304B\u3099'.repeat(25));
+    expect(mockBuildLookupIndex).not.toHaveBeenCalled();
+  });
+});
+
 describe('openMatchSource — when it does not call Rust', () => {
   it('skips text shorter than MIN_TEXT_FOR_RUST_INDEX', async () => {
     const { open } = await load();

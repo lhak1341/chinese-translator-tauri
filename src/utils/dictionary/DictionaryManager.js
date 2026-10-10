@@ -128,8 +128,9 @@ export class DictionaryManager {
     const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
 
     // Check cache first for multi-dictionary lookup
+    // `undefined` is a miss; a cached `null` is a known absence and is served too
     const cachedResult = this.cache.getLookup(word, searchOrder);
-    if (cachedResult) {
+    if (cachedResult !== undefined) {
       return cachedResult;
     }
 

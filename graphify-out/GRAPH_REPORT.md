@@ -2,18 +2,18 @@
 
 ## Corpus Check
 
-- 455 files · ~413,896 words
+- 455 files · ~412,987 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 4404 nodes · 8937 edges · 329 communities (267 shown, 62 thin omitted)
+- 4404 nodes · 8937 edges · 330 communities (268 shown, 62 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 128 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `ba49f68b`
+- Built from commit: `84d06d6a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -141,6 +141,7 @@
 - translation_wasm_core.d.ts
 - ElectronTypes.d.ts
 - pattern.rs
+- BookRecordValidation.ts
 - jsdom
 - useCharacterOnlySegments.ts
 - eslint-plugin-react
@@ -375,7 +376,7 @@
 
 - **RulesManager two-surface shared field-policy group** — src_components_rules_newrulemodal_newrulemodal, src_components_rules_rulerow_rulerow, src_components_rules_rulefieldvalidation_rulefieldvalidation, src_utils_dictionary_transformruleengine_transformruleengine, src_components_rules_tests_rulefieldparity_rulefieldparity [EXTRACTED 1.00]
 
-## Communities (329 total, 62 thin omitted)
+## Communities (330 total, 62 thin omitted)
 
 ### Community 0 - "dictionary_commands.rs"
 
@@ -394,8 +395,8 @@ Nodes (66): NumberProcessor, Case, ConversionPattern, create_conversion_patterns
 
 ### Community 4 - "V8OptimizationUtils.js"
 
-Cohesion: 0.12
-Nodes (30): BookBindingProvider(), CHAPTER_PATTERN_IDS, BookObservations, emptyBookRecord(), ReaderAnswerField, refreshBookRecord(), booksFile, EMPTY_RECORDS (+22 more)
+Cohesion: 0.18
+Nodes (17): BookBindingProvider(), BookObservations, ReaderAnswerField, refreshBookRecord(), booksFile, EMPTY_RECORDS, OpenedBookObservations, recordBookOpened() (+9 more)
 
 ### Community 5 - "PerformanceProfiler"
 
@@ -460,7 +461,7 @@ Nodes (19): ClickableOriginalSemantic(), ClickableTranslationSemantic(), Highlig
 ### Community 17 - "Tauri Backend Security Audit"
 
 Cohesion: 0.06
-Nodes (57): react, DictionaryTableView(), getHeaderColumns(), HeaderColumn, DuplicateDictionaryTableView(), DuplicateDictionaryTableViewProps, entryPatcher(), EntrySemanticCell() (+49 more)
+Nodes (65): react, DictionaryTableView(), getHeaderColumns(), HeaderColumn, DuplicateDictionaryTableView(), DuplicateDictionaryTableViewProps, entryPatcher(), EntrySemanticCell() (+57 more)
 
 ### Community 18 - "Future Improvements Implementation - 2026-02-01"
 
@@ -549,8 +550,8 @@ Nodes (21): Attack Scenarios (If Exploited), Attack Vector Analysis, Comparison 
 
 ### Community 35 - "TranslationEngine.js"
 
-Cohesion: 0.16
-Nodes (18): EngineContext, EngineProvider(), useEngine(), BookReader(), ReaderEngineErrorBanner(), useBookLines(), useReaderEngine(), useReaderHighlight() (+10 more)
+Cohesion: 0.17
+Nodes (17): EngineContext, EngineProvider(), useEngine(), BookReader(), ReaderEngineErrorBanner(), useBookLines(), useReaderEngine(), useReaderHighlight() (+9 more)
 
 ### Community 36 - "Dictionary Trie Integration Session Summary"
 
@@ -734,8 +735,8 @@ Nodes (6): ADR-052: Dictionary Edit Commits — One Queue, TypeScript Write-Back
 
 ### Community 77 - "wasmOperationTimeout.js"
 
-Cohesion: 0.17
-Nodes (13): EntryContextMenu(), EntryContextMenuProps, RuleMatchesModal(), CLOSED, ContextMenuState, useContextMenu(), UseContextMenuActions, MoveTargetDictionary (+5 more)
+Cohesion: 0.48
+Nodes (5): MoveTargetDictionary, useMoveTargetDictionaries(), canMoveBetween(), BASE_DICTIONARY_ORDER, compareDictionaryOrder()
 
 ### Community 78 - "WasmRegexUtilsWrapper"
 
@@ -956,6 +957,11 @@ Nodes (14): ADR-008: Dictionary Cache Invalidation — Locality in handleForceRe
 
 Cohesion: 0.18
 Nodes (26): BookBindingContext, BookBindingContextValue, ADR-0062, bindingConfigFields(), BookBindingDeps, BookBindingSnapshot, BookBindingStore, createBookBindingStore() (+18 more)
+
+### Community 123 - "BookRecordValidation.ts"
+
+Cohesion: 0.27
+Nodes (14): CHAPTER_PATTERN_IDS, emptyBookRecord(), parseRecords(), isChapterPatternId(), isChapterPatternIdOrNull(), isFiniteNonNegative(), isFiniteOrNull(), isFraction() (+6 more)
 
 ### Community 124 - "jsdom"
 

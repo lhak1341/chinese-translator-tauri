@@ -223,6 +223,29 @@ describe('DictionaryManager translate()/_findInDictionaries cache split (candida
     expect(setLookupSpy).toHaveBeenCalledWith('不存在', manager.getDefaultSearchOrder(), null);
   });
 
+  test('a cached miss is served: the second translate() of an unknown word does not search again', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+
+    const findSpy = vi.spyOn(manager, '_findInDictionaries');
+    expect(manager.translate('不存在')).toBeNull();
+    expect(manager.translate('不存在')).toBeNull();
+
+    expect(findSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('invalidating a dictionary drops its cached misses', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+    expect(manager.translate('不存在')).toBeNull();
+
+    const findSpy = vi.spyOn(manager, '_findInDictionaries');
+    manager.invalidateCache('chars');
+    manager.translate('不存在');
+
+    expect(findSpy).toHaveBeenCalledTimes(1);
+  });
+
   test('_findInDictionaries never reads or writes the cache', async () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({ chars: { 在: 'ở' } });

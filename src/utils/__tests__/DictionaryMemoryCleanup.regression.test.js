@@ -186,17 +186,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       expect(cache.isEnabled).toBe(false);
     });
 
-    it('should nullify dictionary indexes', () => {
-      const cache = new TranslationCache();
-
-      cache.setLookup('的', ['characters'], { translation: 'của' });
-      expect(cache.dictionaryIndex.size).toBeGreaterThan(0);
-
-      cache.dispose();
-
-      expect(cache.dictionaryIndex).toBeNull();
-    });
-
     it('should be safe to call dispose() multiple times', () => {
       const cache = new TranslationCache();
 

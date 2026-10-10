@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791568968.5796962,
-    "ast_hash": "7ebf91b5fcfb72343c6edef112afddc1",
+    "mtime": 1791623902.676189,
+    "ast_hash": "17c60ee818c2457fc5128f1bbffb776a",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -415,8 +415,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryManager.js": {
-    "mtime": 1791461232.153441,
-    "ast_hash": "df70382f4218de3ae5491d3a6e24e363",
+    "mtime": 1791624131.8924372,
+    "ast_hash": "0fd99b8b244ebd6309d4154d8e0dd9b3",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryLoadClassifier.ts": {
@@ -430,8 +430,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TranslationCache.js": {
-    "mtime": 1790963366.2574883,
-    "ast_hash": "8645cfccd7732b9f011b35370ad08414",
+    "mtime": 1791624131.8919013,
+    "ast_hash": "41551e83f8ee2c5643ed906b219c17d8",
     "semantic_hash": ""
   },
   "src/utils/dictionary/PersistTimeValidator.ts": {
@@ -1090,8 +1090,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1791377755.6205218,
-    "ast_hash": "b313b4578f7af39ebbeb894e06b105c6",
+    "mtime": 1791613294.591439,
+    "ast_hash": "e16f0c32de0e98f82e9bb7175cfb6794",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1100,8 +1100,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791612155.1290076,
-    "ast_hash": "649e81338cd8e0f786fa3b4e1f0a4b55",
+    "mtime": 1791624597.6565373,
+    "ast_hash": "a61d99fd7111eb484fdc2fd4aadee309",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1495,8 +1495,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1791570000.1751873,
-    "ast_hash": "e88306508f155ba2ad9250e5a165b416",
+    "mtime": 1791613294.5921984,
+    "ast_hash": "0f45147904bf777a743dbe2c821a407b",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -2295,8 +2295,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/MatchSource.ts": {
-    "mtime": 1791569045.6560962,
-    "ast_hash": "a1b5bf6635cc7f45a130bae79b33faa4",
+    "mtime": 1791623612.7866135,
+    "ast_hash": "6f7c91328d57c7129f693bb6974a7f29",
     "semantic_hash": ""
   },
   "docs/adr/ADR-082-match-source-one-seam-for-candidate-matches.md": {
