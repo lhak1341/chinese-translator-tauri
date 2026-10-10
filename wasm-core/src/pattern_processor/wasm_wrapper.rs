@@ -108,20 +108,6 @@ impl WasmPatternProcessor {
             .map_err(|e| JsValue::from_str(&format!("Failed to serialize results: {}", e)))
     }
 
-    /// Get statistics about the pattern processor.
-    /// Returns a JSON string — caller: `JSON.parse(processor.getStatistics())`.
-    #[wasm_bindgen(js_name = getStatistics)]
-    pub fn get_statistics(&self) -> String {
-        let stats = self.processor.get_statistics();
-        serde_json::json!({
-            "totalPatterns": stats.total_patterns,
-            "variablePatterns": stats.variable_patterns,
-            "compositeEligible": stats.composite_eligible,
-            "initialized": self.initialized,
-        })
-        .to_string()
-    }
-
     /// Check if the processor is initialized
     #[wasm_bindgen(js_name = isInitialized)]
     pub fn is_initialized(&self) -> bool {

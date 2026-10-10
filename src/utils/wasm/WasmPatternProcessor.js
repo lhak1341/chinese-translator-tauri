@@ -56,7 +56,7 @@ import { loadSharedWasmModule } from './WasmSharedModule';
 
 const lifecycle = new WasmProcessorLifecycle({
   name: 'PatternProcessor',
-  expectedMethods: ['initialize', 'processTokens', 'getStatistics', 'free'],
+  expectedMethods: ['initialize', 'processTokens', 'free'],
 });
 
 let wasmModule = null;
@@ -77,7 +77,7 @@ registerCascadeHandler(retireWasmPatternProcessorOnSharedPanic);
  * @param {Object} patternsDict - Pattern dictionary (e.g., {"X的Y": "Y của X"})
  * @returns {Promise<boolean>} True if initialization succeeded
  */
-export async function initializeWasmPatternProcessor(patternsDict) {
+async function initializeWasmPatternProcessor(patternsDict) {
   const success = await lifecycle.initialize(async () => {
     wasmModule = await import('../../wasm/translation_wasm_core.js');
 
@@ -123,58 +123,15 @@ const TOAST_DURATION = {
  * @returns {Promise<Object>} Result object with { success: boolean, results: Array, error?: string }
  */
 export async function processTokensWasm(semanticTokens, variableCache) {
-  // CRITICAL-2 FIX: Degrade gracefully instead of throwing
-  // Patterns enhance translation quality but aren't essential - allow basic translation to continue
-
-  // Wait for in-progress initialization before degrading
-  if (lifecycle.pendingInit && !wasmPatternProcessor) {
-    const success = await lifecycle.pendingInit;
-
-    // CRITICAL: Verify initialization actually succeeded
-    if (!success || !wasmPatternProcessor) {
-      const errorMsg = 'WASM Pattern Processor initialization failed - skipping pattern processing';
-      logger.warn(`⚠️ ${errorMsg}`);
-      logger.warn('Translation will continue with lower quality (no pattern matching)');
-
-      // CODE REVIEW FIX (HIGH-1): Add user notification for initialization failure
-      const now = Date.now();
-      if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
-        toast.warning(
-          'Pattern matching initialization failed. Translation quality may be reduced.',
-          {
-            duration: TOAST_DURATION.WARNING,
-          }
-        );
-        lastPatternWarningTime = now;
-      }
-
-      return {
-        success: false,
-        results: [],
-        error: errorMsg,
-      };
-    }
-  }
-
+  // Degrade gracefully instead of throwing: patterns enhance translation quality but aren't
+  // essential. TwoPhasePatternProcessor gates on isWasmPatternProcessorReady() first, so this
+  // guard is only a backstop; without it a null processor would throw a TypeError into the
+  // catch below, which retires every WASM processor.
   if (!wasmPatternProcessor) {
-    const errorMsg = 'WASM Pattern Processor not initialized - skipping pattern processing';
-    logger.warn(`⚠️ ${errorMsg}`);
-    logger.warn('Translation will continue with lower quality (no pattern matching)');
-
-    // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
-    const now = Date.now();
-    if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
-      toast.warning('Pattern matching unavailable. Translation quality may be reduced.', {
-        duration: TOAST_DURATION.WARNING,
-      });
-      lastPatternWarningTime = now;
-    }
-
-    // MEDIUM FIX: Return structured error object instead of empty array
     return {
       success: false,
       results: [],
-      error: errorMsg,
+      error: 'WASM Pattern Processor not initialized - skipping pattern processing',
     };
   }
 
@@ -217,44 +174,11 @@ export async function processTokensWasm(semanticTokens, variableCache) {
 }
 
 /**
- * Check if WASM Pattern Processor is available
- * @returns {boolean} True if WASM is loaded and ready
- */
-export function isWasmPatternProcessorAvailable() {
-  return lifecycle.isReady && wasmPatternProcessor !== null;
-}
-
-/**
- * Check if WASM initialization failed
- * @returns {boolean} True if initialization failed
- */
-export function hasWasmPatternProcessorFailed() {
-  return lifecycle.hasFailed;
-}
-
-/**
  * Check if WASM Pattern Processor is ready to use (available and not failed)
  * @returns {boolean} True if WASM is loaded, initialized, and has not failed
  */
 export function isWasmPatternProcessorReady() {
   return lifecycle.isReady;
-}
-
-/**
- * Get pattern processor statistics
- * @returns {Object|null} Statistics object or null if not initialized
- */
-export function getWasmPatternProcessorStats() {
-  if (!wasmPatternProcessor) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(wasmPatternProcessor.getStatistics());
-  } catch (error) {
-    logger.error('❌ Error getting WASM pattern processor stats:', error);
-    return null;
-  }
 }
 
 /**

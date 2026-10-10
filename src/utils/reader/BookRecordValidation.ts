@@ -32,7 +32,7 @@ function isFiniteOrNull(v: unknown): v is number | null {
 
 /** Validates one persisted `manualChapterPattern`. `null` (not overridden) or anything
  * malformed both fall back to `null` — trusting election is always a safe default. */
-export function validateManualChapterPattern(raw: unknown): ChapterPatternId | null {
+function validateManualChapterPattern(raw: unknown): ChapterPatternId | null {
   return isChapterPatternId(raw) ? raw : null;
 }
 
@@ -55,7 +55,7 @@ function validateChapterPatternCandidate(raw: unknown): ChapterPatternCandidate 
  * `null` (meaning "never detected") rather than dropping the whole record. A record with
  * even one malformed candidate is dropped as a whole (not repaired candidate-by-candidate)
  * so a corrupt outline can never look like a real, if partial, election result. */
-export function validateChapterOutline(raw: unknown): ChapterOutlineSummary | null {
+function validateChapterOutline(raw: unknown): ChapterOutlineSummary | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (!isChapterPatternIdOrNull(o.pattern)) return null;
@@ -80,7 +80,7 @@ export function validateChapterOutline(raw: unknown): ChapterOutlineSummary | nu
  * reason the engine's own id checks exist: binding the fiction slice to `phrases` (or to a
  * path fragment) is not a reading preference, it is a corrupt file.
  */
-export function validateBookBinding(raw: unknown): BookBinding | null {
+function validateBookBinding(raw: unknown): BookBinding | null {
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
   if (b.fictionDictionary === null) return { fictionDictionary: null };
@@ -92,7 +92,7 @@ export function validateBookBinding(raw: unknown): BookBinding | null {
 /** Validates a persisted reading position. Returns `null` (meaning "not started") for
  * anything malformed — a corrupt position is not worth dropping the whole record over,
  * since the record's other fields (and the book itself) are still perfectly good. */
-export function validateReadingPosition(raw: unknown): ReadingPosition | null {
+function validateReadingPosition(raw: unknown): ReadingPosition | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   if (!Number.isInteger(r.line) || (r.line as number) < 0) return null;

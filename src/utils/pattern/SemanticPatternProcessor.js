@@ -27,6 +27,7 @@ import { buildPatternVariableCache } from './PatternVariableCache.js';
 import { classifyVariableType } from './VariableTypeClassifier.js';
 import { PatternTemplateEngine } from './PatternTemplateEngine.js';
 import { NUMBER_VARIABLE, NUMBER_VARIABLE_TYPE } from './NumberVariable.js';
+import { reinitializeWasmPatternProcessor } from '../wasm/WasmPatternProcessor.js';
 
 /**
  * Whether a resolved variable of `varType` may fill `varName` in `pattern`. Mirrors
@@ -61,7 +62,6 @@ export class SemanticPatternProcessor {
 
     // WASM pattern processor state
     this.wasmAvailable = false;
-    this.wasmInitialized = false;
 
     // Pre-computed string optimization
     this.precomputedStrings = null;
@@ -139,20 +139,11 @@ export class SemanticPatternProcessor {
 
     // Try to initialize WASM pattern processor alongside JavaScript version
     try {
-      // Import reinitializeWasmPatternProcessor for dictionary reload support
-      const { reinitializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
-
       // Always reinitialize to pick up new patterns (fixes reload bug)
       this.wasmAvailable = await reinitializeWasmPatternProcessor(patternsDict);
-      this.wasmInitialized = this.wasmAvailable;
-
-      if (this.wasmAvailable) {
-      } else {
-      }
     } catch (error) {
       logger.warn('Failed to initialize WASM pattern processor:', error);
       this.wasmAvailable = false;
-      this.wasmInitialized = false;
     }
   }
 

@@ -3,7 +3,6 @@ import {
   mapSelectedUnits,
   touchedUnits,
   registerSelectionMapper,
-  mapSelectionRange,
   resolveQuickAddSource,
   mapTranslatorSelection,
   mapReaderSelection,
@@ -101,50 +100,6 @@ describe('touchedUnits', () => {
     const gap = container.querySelectorAll('span')[5];
     const range = select(gap.firstChild!, 0, gap.firstChild!, 1);
     expect(touchedUnits(range, container)).toBeNull();
-  });
-});
-
-describe('mapSelectionRange', () => {
-  const range = (): Range => {
-    const text = document.createTextNode('林风');
-    const r = document.createRange();
-    r.setStart(text, 0);
-    r.setEnd(text, 2);
-    return r;
-  };
-
-  test('asks each registered mapper, taking the first that recognises the selection', () => {
-    const unregisterA = registerSelectionMapper(() => ({ kind: 'unmapped' }));
-    const unregisterB = registerSelectionMapper(() => ({
-      kind: 'mapped',
-      source: '林风',
-    }));
-    expect(mapSelectionRange(range())).toEqual({
-      kind: 'mapped',
-      source: '林风',
-    });
-    unregisterB();
-    expect(mapSelectionRange(range())).toEqual({ kind: 'unmapped' });
-    unregisterA();
-  });
-
-  test('a mapper that throws is treated as unmapped', () => {
-    const unregister = registerSelectionMapper(() => {
-      throw new Error('stale');
-    });
-    expect(mapSelectionRange(range())).toEqual({ kind: 'unmapped' });
-    unregister();
-  });
-
-  test('no selection is unmapped without asking any mapper', () => {
-    let asked = 0;
-    const unregister = registerSelectionMapper(() => {
-      asked += 1;
-      return { kind: 'refused', reason: 'x' };
-    });
-    expect(mapSelectionRange(null)).toEqual({ kind: 'unmapped' });
-    expect(asked).toBe(0);
-    unregister();
   });
 });
 
@@ -250,6 +205,47 @@ describe('resolveQuickAddSource', () => {
     r.setEnd(node, text.length);
     return r;
   };
+
+  test('asks each registered mapper, taking the first that recognises the selection', async () => {
+    const unregisterA = registerSelectionMapper(() => ({ kind: 'unmapped' }));
+    const unregisterB = registerSelectionMapper(() => ({ kind: 'mapped', source: '林风' }));
+    const selection = selectionOf('Lâm Phong', rangeOver('Lâm Phong'));
+    expect(await resolveQuickAddSource(selection, vi.fn())).toEqual({
+      kind: 'source',
+      text: '林风',
+    });
+    unregisterB();
+    // Unmapped: the selection's own text
+    expect(await resolveQuickAddSource(selection, vi.fn())).toEqual({
+      kind: 'source',
+      text: 'Lâm Phong',
+    });
+    unregisterA();
+  });
+
+  test('a mapper that throws is treated as unmapped', async () => {
+    const unregister = registerSelectionMapper(() => {
+      throw new Error('stale');
+    });
+    const result = await resolveQuickAddSource(
+      selectionOf('Lâm Phong', rangeOver('Lâm Phong')),
+      vi.fn()
+    );
+    unregister();
+    expect(result).toEqual({ kind: 'source', text: 'Lâm Phong' });
+  });
+
+  test('no selection asks no mapper', async () => {
+    let asked = 0;
+    const unregister = registerSelectionMapper(() => {
+      asked += 1;
+      return { kind: 'refused', reason: 'x' };
+    });
+    const result = await resolveQuickAddSource(null, async () => '萧炎');
+    unregister();
+    expect(asked).toBe(0);
+    expect(result).toEqual({ kind: 'source', text: '萧炎' });
+  });
 
   test('a mapped selection gives its Chinese, without reading the clipboard', async () => {
     const unregister = registerSelectionMapper(() => ({ kind: 'mapped', source: '林风' }));

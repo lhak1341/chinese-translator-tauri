@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import {
-  validateBookBinding,
-  validateBookRecord,
-  validateChapterOutline,
-  validateManualChapterPattern,
-  validateReadingPosition,
-} from '../BookRecordValidation';
+import { validateBookRecord } from '../BookRecordValidation';
 
 function rawRecord(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -20,6 +14,17 @@ function rawRecord(overrides: Record<string, unknown> = {}): Record<string, unkn
     ...overrides,
   };
 }
+
+// The field validators are not exported: each repair rule is exercised through the record,
+// as the backend reaches it.
+const field = (
+  key: 'position' | 'binding' | 'manualChapterPattern' | 'chapterOutline',
+  value: unknown
+) => validateBookRecord('fp1', rawRecord({ [key]: value }))?.[key];
+const validateReadingPosition = (v: unknown) => field('position', v);
+const validateBookBinding = (v: unknown) => field('binding', v);
+const validateManualChapterPattern = (v: unknown) => field('manualChapterPattern', v);
+const validateChapterOutline = (v: unknown) => field('chapterOutline', v);
 
 describe('validateReadingPosition', () => {
   test('accepts a well-formed position', () => {

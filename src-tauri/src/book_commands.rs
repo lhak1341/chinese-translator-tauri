@@ -5,7 +5,7 @@
 //! path validation that keeps an IPC call from reading arbitrary files.
 //!
 //! Chapter-outline detection is a separate concern with its own two commands, in
-//! `chapter_outline_commands.rs` — it reads the open book via `snapshot_open_book` below
+//! `chapter_outline_commands.rs` — it reads the open book via `open_book_handle` below
 //! (`pub(crate)`, the one seam exposed across that file boundary) rather than touching
 //! `BookCache`'s internals directly, which stay private to this file.
 //!
@@ -17,7 +17,7 @@
 //! loop the feature exists to serve.
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -43,7 +43,7 @@ const DEFAULT_LIBRARY_SUBPATH: [&str; 2] = ["Downloads", "_FICTION"];
 
 struct CachedBook {
     fingerprint: String,
-    content: BookContent,
+    content: Arc<BookContent>,
 }
 
 /// Holds the one decoded book. Follows the dictionary cache's poisoning discipline:
@@ -403,7 +403,7 @@ pub async fn open_book(
     if let (Some(content), Some(book)) = (content, result.book.as_ref()) {
         let cached = CachedBook {
             fingerprint: book.fingerprint.clone(),
-            content,
+            content: Arc::new(content),
         };
         cache.with_current(|current| {
             *current = Some(cached);
@@ -441,24 +441,22 @@ pub async fn read_book_lines(
     })
 }
 
-/// Copy out the fingerprint-matched book's text and line index, releasing `cache`'s lock
-/// immediately afterward. Chapter detection is a handful of regex passes over every line
-/// of up to a ~128 MB book — running that while holding the lock would stall every other
-/// book command (`read_book_lines`, first among them) for as long as detection takes. The
-/// clone itself is cheap relative to that: a memcpy versus a multi-pass regex scan.
+/// A shared handle to the fingerprint-matched book, releasing `cache`'s lock immediately
+/// afterward. Chapter detection is a handful of regex passes over every line of up to a
+/// ~128 MB book — running that while holding the lock would stall every other book command
+/// (`read_book_lines`, first among them) for as long as detection takes. The handle shares
+/// the cached book rather than copying it, and stays valid and unchanged if `open_book`
+/// replaces the cached book while a scan is still running.
 ///
 /// `pub(crate)`: the one seam `chapter_outline_commands.rs` crosses to read the open book.
 /// `CachedBook` and `BookCache::with_current` stay private to this file — a caller outside
-/// this module gets the open book's text through this function's contract, never the raw
-/// cache.
-pub(crate) fn snapshot_open_book(
+/// this module gets the open book through this function's contract, never the raw cache.
+pub(crate) fn open_book_handle(
     cache: &BookCache,
     fingerprint: &str,
-) -> Result<(String, Vec<(usize, usize)>), String> {
+) -> Result<Arc<BookContent>, String> {
     cache.with_current(|current| match current.as_ref() {
-        Some(book) if book.fingerprint == fingerprint => {
-            Ok((book.content.text.clone(), book.content.lines.clone()))
-        }
+        Some(book) if book.fingerprint == fingerprint => Ok(Arc::clone(&book.content)),
         Some(_) => Err("A different book is open".to_string()),
         None => Err("No book is open".to_string()),
     })
@@ -633,8 +631,38 @@ pub(crate) mod tests {
             LoadOutcome::NeedsEncodingChoice(_) => panic!("override must decode"),
         };
         cache.with_current(|current| {
-            *current = Some(CachedBook { fingerprint: fingerprint.clone(), content });
+            *current = Some(CachedBook { fingerprint: fingerprint.clone(), content: Arc::new(content) });
         });
         (cache, fingerprint)
+    }
+
+    #[test]
+    fn open_book_handle_shares_the_cached_book() {
+        let (cache, fingerprint) = cache_with_open_book("一\r\n二\r\n");
+        let first = open_book_handle(&cache, &fingerprint).expect("book is open");
+        let second = open_book_handle(&cache, &fingerprint).expect("book is open");
+        assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn open_book_handle_survives_the_book_being_replaced() {
+        let (cache, fingerprint) = cache_with_open_book("一\r\n二\r\n");
+        let handle = open_book_handle(&cache, &fingerprint).expect("book is open");
+
+        let (replacement, replacement_fingerprint) = cache_with_open_book("三\r\n");
+        let replacement = open_book_handle(&replacement, &replacement_fingerprint)
+            .expect("replacement is open");
+        cache.with_current(|current| {
+            *current = Some(CachedBook {
+                fingerprint: replacement_fingerprint.clone(),
+                content: replacement,
+            });
+        });
+
+        assert_eq!(handle.line_slices(), vec!["一", "二"]);
+        assert_eq!(
+            open_book_handle(&cache, &fingerprint).err().as_deref(),
+            Some("A different book is open")
+        );
     }
 }

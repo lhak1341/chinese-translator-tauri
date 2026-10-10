@@ -2,8 +2,8 @@
 //! detection logic) can't see on its own, since that module has no Tauri, no state, no
 //! filesystem — only regexes over a line slice it's handed.
 //!
-//! Reads the open book via `book_commands::snapshot_open_book` (`pub(crate)`, copies the
-//! text and line index out, releases the lock immediately) rather than touching
+//! Reads the open book via `book_commands::open_book_handle` (`pub(crate)`, a shared handle,
+//! releases the lock immediately) rather than touching
 //! `BookCache`'s internals directly — those stay private to `book_commands.rs`.
 
 use tauri::State;
@@ -11,13 +11,9 @@ use tauri::State;
 use crate::book_commands::{self, BookCache};
 use crate::chapter_outline::{self, ChapterHeader, ChapterOutline, PatternId};
 
-fn line_slices_of<'a>(text: &'a str, lines: &[(usize, usize)]) -> Vec<&'a str> {
-    lines.iter().map(|&(start, end)| &text[start..end]).collect()
-}
-
 fn detect_chapter_outline_impl(cache: &BookCache, fingerprint: &str) -> Result<ChapterOutline, String> {
-    let (text, lines) = book_commands::snapshot_open_book(cache, fingerprint)?;
-    Ok(chapter_outline::elect(&line_slices_of(&text, &lines)))
+    let book = book_commands::open_book_handle(cache, fingerprint)?;
+    Ok(chapter_outline::elect(&book.line_slices()))
 }
 
 fn chapter_headers_for_pattern_impl(
@@ -25,8 +21,8 @@ fn chapter_headers_for_pattern_impl(
     fingerprint: &str,
     pattern: PatternId,
 ) -> Result<Vec<ChapterHeader>, String> {
-    let (text, lines) = book_commands::snapshot_open_book(cache, fingerprint)?;
-    Ok(chapter_outline::headers_for_pattern(&line_slices_of(&text, &lines), pattern))
+    let book = book_commands::open_book_handle(cache, fingerprint)?;
+    Ok(chapter_outline::headers_for_pattern(&book.line_slices(), pattern))
 }
 
 /// Run the full chapter-pattern election over the open book.

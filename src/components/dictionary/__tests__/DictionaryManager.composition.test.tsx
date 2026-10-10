@@ -76,6 +76,9 @@ const {
   },
 }));
 
+// Undo/redo buttons are disabled until the store says there is history.
+const history = vi.hoisted(() => ({ canUndo: false, canRedo: false }));
+
 vi.mock('../DictionaryContext', () => ({
   useDictionary: () => ({
     dictionaries: dictionariesRef.current,
@@ -90,8 +93,8 @@ vi.mock('../DictionaryContext', () => ({
     patchEntry,
     undo,
     redo,
-    canUndo: false,
-    canRedo: false,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
     loadDictionary,
     importDictionaries,
     dictionaryTypes,
@@ -146,6 +149,8 @@ function getRowCheckbox(sourceText: string): HTMLInputElement {
 beforeEach(() => {
   vi.clearAllMocks();
   bulkDeleteEntries.mockResolvedValue({ successCount: 0, errors: [] });
+  history.canUndo = false;
+  history.canRedo = false;
   selectedDictionaryRef.current = 'properNouns-Test';
   unreadRef.current = [];
   dictionariesRef.current = {
@@ -458,5 +463,61 @@ describe('Show in Finder', () => {
 
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('Undo, redo and export failures', () => {
+  test('a failed undo shows the error banner', async () => {
+    history.canUndo = true;
+    undo.mockRejectedValueOnce(new Error('history gone'));
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByTitle('Undo last change'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to undo last change. Please try again.'
+    );
+  });
+
+  test('a failed redo shows the error banner', async () => {
+    history.canRedo = true;
+    redo.mockRejectedValueOnce(new Error('history gone'));
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByTitle('Redo last change'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to redo change. Please try again.'
+    );
+  });
+
+  const stubExport = (exportDictionaries: () => Promise<unknown>): void => {
+    global.window.electronAPI = {
+      exportDictionaries,
+    } as unknown as typeof window.electronAPI;
+  };
+
+  test('an export that reports failure shows the error banner', async () => {
+    stubExport(async () => ({ success: false, error: 'Disk full' }));
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByRole('button', { name: /Export All/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Export failed: Disk full');
+  });
+
+  test('a rejected export shows the error banner too', async () => {
+    stubExport(async () => {
+      throw new Error('ipc down');
+    });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+
+    fireEvent.click(screen.getByRole('button', { name: /Export All/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Export error: ipc down');
   });
 });

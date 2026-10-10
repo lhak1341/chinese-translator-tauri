@@ -212,9 +212,6 @@ pub struct TwoPhasePatternProcessor {
     /// Phase A patterns (allowAsPatternVariable == true)
     variable_patterns: Vec<SemanticPattern>,
 
-    /// Composite-eligible patterns (single-variable patterns)
-    composite_eligible_patterns: Vec<SemanticPattern>,
-
     /// Pattern index for Phase A (variable patterns only)
     phase_a_index: PatternIndex,
 
@@ -232,13 +229,9 @@ impl TwoPhasePatternProcessor {
     /// Create a new two-phase pattern processor
     pub fn new(patterns: Vec<SemanticPattern>) -> Self {
         let mut variable_patterns = Vec::new();
-        let mut composite_eligible_patterns = Vec::new();
         for p in &patterns {
             if p.allow_as_pattern_variable {
                 variable_patterns.push(p.clone());
-            }
-            if p.variables.len() == 1 {
-                composite_eligible_patterns.push(p.clone());
             }
         }
 
@@ -258,7 +251,6 @@ impl TwoPhasePatternProcessor {
         Self {
             all_patterns: patterns,
             variable_patterns,
-            composite_eligible_patterns,
             phase_a_index,
             phase_b_index,
             phase_a_variable_literals,
@@ -932,23 +924,6 @@ impl TwoPhasePatternProcessor {
 
         hierarchical_results
     }
-
-    /// Get processing statistics
-    pub fn get_statistics(&self) -> TwoPhaseStats {
-        TwoPhaseStats {
-            total_patterns: self.all_patterns.len(),
-            variable_patterns: self.variable_patterns.len(),
-            composite_eligible: self.composite_eligible_patterns.len(),
-        }
-    }
-}
-
-/// Two-phase processing statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TwoPhaseStats {
-    pub total_patterns: usize,
-    pub variable_patterns: usize,
-    pub composite_eligible: usize,
 }
 
 #[cfg(test)]
@@ -1094,7 +1069,6 @@ mod tests {
 
         // Check categorization
         assert_eq!(processor.variable_patterns.len(), 1); // Only "X的Y" has allowAsPatternVariable
-        assert_eq!(processor.composite_eligible_patterns.len(), 2); // "这些X" and "在X眼中" (single-variable)
         assert_eq!(processor.all_patterns.len(), 3);
     }
 

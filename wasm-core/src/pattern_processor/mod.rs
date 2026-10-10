@@ -38,7 +38,7 @@ pub use parser::{parse_pattern, parse_patterns_dict};
 pub use pattern::{
     PatternMetadata, PatternToken, PatternUsage, SemanticPattern, TokenType,
 };
-pub use two_phase::{PatternProcessingResult, TwoPhasePatternProcessor, TwoPhaseStats};
+pub use two_phase::{PatternProcessingResult, TwoPhasePatternProcessor};
 pub use variable::is_variable_at;
 
 #[cfg(test)]

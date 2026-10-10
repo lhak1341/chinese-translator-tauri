@@ -14,11 +14,6 @@ import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useEngine } from './EngineContext';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import {
-  scheduleHighlightScroll,
-  findCharacterOnlyMatch,
-  HIGHLIGHT_SCROLL_DELAY_MS,
-} from '../utils/highlighting';
 import { DebouncedProgressHandler } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -28,10 +23,9 @@ import { useSelectionMapper } from '../hooks/useSelectionMapper';
 import { mapTranslatorSelection } from '../utils/highlighting/SelectionMapping';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
-import { useCharacterOnlyBridge } from '../hooks/useCharacterOnlyBridge';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
 import { useTranslationResults } from '../hooks/useTranslationResults';
-import { useHighlightingState } from '../hooks/useHighlightingState';
+import { useHighlightInteraction } from '../hooks/useHighlightInteraction';
 import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
 import { useDeferredRetranslate } from '../hooks/useDeferredRetranslate';
@@ -81,18 +75,17 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   - Scroll position management requires DOM ref coordination
 //
 // Hook Call-Order Dependencies (why reordering hook calls below can silently break things):
-//   - useHighlightingState(semanticArrays) requires useTranslationResults to run first
-//   - useCharacterOnlyBridge requires useTranslationResults + useHighlightingState (both
-//     several hooks earlier) — consumes their destructured fields directly
-//   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightingState
+//   - useHighlightInteraction (owns useHighlightingState) requires useTranslationResults to
+//     run first, and the three panel refs declared above it
+//   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightInteraction
 //   - executionCtx (plain object literal — see useAutoTranslateTrigger.ts's own dev-only
 //     shape guard) fans in from 5 earlier hooks:
-//     useDictionaryReloadGuard, useHighlightingState, useTranslationResults,
+//     useDictionaryReloadGuard, useHighlightInteraction, useTranslationResults,
 //     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
 //   - useReloadRetranslate requires useEngine()'s engineRef
 //   - forceReloadCtx (useForceReloadContext) is the biggest fan-in: useEngine(),
 //     useStreamingTranslation, useTranslationResults,
-//     useDictionaryReloadGuard, useHighlightingState, useReloadRetranslate,
+//     useDictionaryReloadGuard, useHighlightInteraction, useReloadRetranslate,
 //     useScrollPositionManager — then useForceReload consumes it
 //   Net effect: nearly every hook above exists to eventually feed forceReloadCtx/
 //   useForceReload at the end of the setup section.
@@ -133,23 +126,23 @@ const Translator = ({ isActive }) => {
     clearFullResult,
   } = useTranslationResults();
 
-  const {
-    highlighting,
-    highlightOriginal: _highlightOriginal,
-    highlightTranslation,
-    highlightBoth,
-    highlightFromCharacterOnly,
-    setCharacterOnlyIndex,
-    clearHighlighting,
-    validateSemanticArraySize,
-  } = useHighlightingState(semanticArrays);
+  const originalTextRef = useRef(null);
+  const translationTextRef = useRef(null);
+  const characterOnlyTextRef = useRef(null);
+  const { highlighting, handleSemanticSegmentClick, clearHighlighting, validateSemanticArraySize } =
+    useHighlightInteraction({
+      semanticArrays,
+      characterOnlySemanticArrays,
+      originalTextRef,
+      translationTextRef,
+      characterOnlyTextRef,
+    });
 
   // Destructure for easier access (maintains backward compatibility with existing code)
   const {
     unitIndex: highlightedUnitIndex,
     translationUnitIndex: highlightedTranslationUnitIndex,
     characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
-    isCharacterOnlyClick,
   } = highlighting;
   const [isTranslating, setIsTranslating] = useState(false);
   const isTranslatingRef = useRef(false);
@@ -163,11 +156,6 @@ const Translator = ({ isActive }) => {
   } = useEngine();
   const [activeTranslations, setActiveTranslations] = useState(0);
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
-
-  // Refs for auto-scrolling to highlighted elements
-  const originalTextRef = useRef(null);
-  const translationTextRef = useRef(null);
-  const characterOnlyTextRef = useRef(null);
 
   // Cmd-1..7 over a Full Translation selection add the Chinese it came from.
   useSelectionMapper((range) =>
@@ -195,40 +183,22 @@ const Translator = ({ isActive }) => {
   const { isDictionaryReloading, setDictionaryReloading, consumeReloadTransition } =
     useDictionaryReloadGuard();
 
-  // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
-  const highlightScrollTimeoutRef = useRef(null);
-
-  // CODE REVIEW FIX: Track component mount status to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-
   /**
    * Cleanup effect - prevents memory leaks on component unmount
    *
    * Lifecycle: Runs cleanup on unmount
    *
    * Cleanup operations:
-   * - Marks component as unmounted (prevents timeout setters after unmount)
    * - Clears scroll restoration timers
-   * - Clears highlight scroll timeout
    * - Destroys translation segment cache timer
    * - Resets engine initialization flag
    *
    * Critical for preventing memory leaks from timers, intervals, and async operations.
    */
   useEffect(() => {
-    isMountedRef.current = true;
     return () => {
-      // CODE REVIEW FIX: Mark component as unmounted to prevent timeout setting after unmount
-      isMountedRef.current = false;
-
       // MEDIUM-7 FIX: Use shared cleanup function (eliminates duplication)
       cleanupScrollRestoration();
-
-      // CODE REVIEW FIX: Clean up highlight scroll timeout
-      if (highlightScrollTimeoutRef.current) {
-        clearTimeout(highlightScrollTimeoutRef.current);
-        highlightScrollTimeoutRef.current = null;
-      }
     };
   }, [cleanupScrollRestoration]);
 
@@ -260,150 +230,11 @@ const Translator = ({ isActive }) => {
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
 
-  /**
-   * Handles clickable highlighting - bidirectional mapping between translation panels
-   *
-   * User action: Click any segment in Original, Full Translation, or Character Only panels
-   *
-   * This is one of TWO triggers into the highlighting reducer — see CONTEXT.md's
-   * "Click-to-Highlight Lifecycle" entry for the full 7-file story, including the second,
-   * independent effect-driven trigger (useCharacterOnlyBridge) that fires on ANY change to
-   * unitIndex/translationUnitIndex, not just clicks routed through this handler.
-   *
-   * Supports three click directions:
-   * 1. translation-to-original: Full Translation → Original Text + Character Only
-   * 2. original-to-translation: Original Text → Full Translation
-   * 3. character-only-to-original: Character Only → Original Text + Full Translation
-   *
-   * Highlighting algorithm:
-   * - Direct mapping: Uses semantic array unit indices for precise position tracking
-   * - Character Only bridge: Position-based scoring with context matching
-   * - Multi-occurrence handling: Sequential occurrence matching + context scoring
-   * - Auto-scroll: Scrolls target panel to highlighted element (10ms delay)
-   *
-   * Side effects:
-   * - Updates highlighting state via reducer (HIGHLIGHT_BOTH, HIGHLIGHT_TRANSLATION, etc.)
-   * - Auto-scrolls target panels to highlighted elements
-   * - Sets timeout for scroll animation (cleaned up on component unmount)
-   *
-   * Position mapping details:
-   * - Full Translation uses semantic arrays with exact unit indices
-   * - Character Only uses position ratio + context scoring for accuracy
-   * - Fallback to position-based heuristic if no context match found
-   *
-   * Error handling:
-   * - Validates semantic arrays exist before processing
-   * - Skips if click originated from Character Only (prevents infinite loops)
-   * - Clears timeouts on component unmount (prevents memory leaks)
-   * - Only sets timeouts if component is mounted (isMountedRef check)
-   *
-   * @param {SegmentClickPayload} segmentInfo - Click payload with direction and position
-   * @param {string} segmentInfo.direction - Click direction (translation-to-original, original-to-translation, character-only-to-original)
-   * @param {number} segmentInfo.unitIndex - Index in source semantic array
-   * @returns {void}
-   *
-   * @example
-   * // Translation panel click (highlights original)
-   * handleSemanticSegmentClick({
-   *   direction: 'translation-to-original',
-   *   unitIndex: 42
-   * });
-   *
-   * // Character-only panel click (highlights both original and translation)
-   * handleSemanticSegmentClick({
-   *   direction: 'character-only-to-original',
-   *   unitIndex: 10
-   * });
-   */
-  const handleSemanticSegmentClick = useCallback(
-    (segmentInfo) => {
-      // Only log in development for performance
-      // DEBUG: Segment click logging removed for cleaner console
-
-      if (segmentInfo.direction === 'translation-to-original') {
-        // Clicked translation text, highlight original text AND keep translation highlighted
-        // CRITICAL FIX: Use HIGHLIGHT_BOTH to keep Full Translation highlighted
-        // while also highlighting Original and Character-only (via bridge useEffect)
-        highlightBoth(segmentInfo.unitIndex);
-
-        // Auto-scroll to highlighted element in original text after state update
-        scheduleHighlightScroll(
-          highlightScrollTimeoutRef,
-          isMountedRef,
-          [originalTextRef],
-          segmentInfo.unitIndex,
-          HIGHLIGHT_SCROLL_DELAY_MS
-        );
-      } else if (segmentInfo.direction === 'original-to-translation') {
-        // Clicked original text, highlight translation text
-        highlightTranslation(segmentInfo.unitIndex);
-
-        // Auto-scroll to highlighted element in translation text after state update
-        scheduleHighlightScroll(
-          highlightScrollTimeoutRef,
-          isMountedRef,
-          [translationTextRef],
-          segmentInfo.unitIndex,
-          HIGHLIGHT_SCROLL_DELAY_MS
-        );
-      } else if (segmentInfo.direction === 'character-only-to-original') {
-        // Clicked character-only text, highlight original text and full translation.
-        // Reverse direction of the Full Translation/Original → Character Only bridge
-        // (useCharacterOnlyBridge.ts) — findCharacterOnlyMatch is already symmetric in
-        // its (sourceIndex, sourceArrays, targetArrays) params, so the same scored
-        // occurrence-matching algorithm (with its MAX_MATCHES cap) applies here with
-        // source/target simply swapped.
-        if (semanticArrays && semanticArrays.original && characterOnlySemanticArrays) {
-          const matchIndices = findCharacterOnlyMatch(
-            segmentInfo.unitIndex,
-            characterOnlySemanticArrays,
-            semanticArrays
-          );
-
-          if (matchIndices) {
-            const targetIndex = matchIndices[0];
-
-            // Set highlighting for both Chinese Text and Full Translation (from character-only click)
-            highlightFromCharacterOnly(targetIndex);
-
-            // Auto-scroll to highlighted elements
-            scheduleHighlightScroll(
-              highlightScrollTimeoutRef,
-              isMountedRef,
-              [originalTextRef, translationTextRef],
-              targetIndex,
-              HIGHLIGHT_SCROLL_DELAY_MS
-            );
-          } else {
-            logger.warn(
-              `⚠️ No match found for character-only unit ${segmentInfo.unitIndex} in Chinese Text — clearing highlight`
-            );
-            highlightFromCharacterOnly(-1);
-          }
-        }
-      }
-    },
-    [semanticArrays, characterOnlySemanticArrays]
-  ); // Added dependencies for character-only handling
-
-  // Helper function to scroll to a highlighted element
-
   // Streaming state now managed by useStreamingTranslation hook
 
   // UI responsiveness optimizations
   // Increased from 100ms to 300ms to reduce GPU rendering pressure
   const debouncedProgressHandler = useRef(new DebouncedProgressHandler(300));
-
-  useCharacterOnlyBridge({
-    unitIndex: highlightedUnitIndex,
-    translationUnitIndex: highlightedTranslationUnitIndex,
-    characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
-    isCharacterOnlyClick,
-    semanticArrays,
-    characterOnlySemanticArrays,
-    setCharacterOnlyIndex,
-    characterOnlyTextRef,
-  });
 
   /**
    * Cache health monitoring effect - alerts user when cache performance degrades

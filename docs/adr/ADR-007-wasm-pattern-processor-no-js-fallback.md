@@ -85,7 +85,7 @@ No `WasmPatternBridge` is extracted. No JS fallback is restored inside `TwoPhase
 
 - `TwoPhasePatternProcessor.processTokens()`: `src/utils/pattern/TwoPhasePatternProcessor.js`
 - Failure counter + permanent-disable logic: `TranslationEngine.js::applyPatterns()` catch block (~line 2923)
-- WASM availability: `src/utils/wasm/WasmPatternProcessor.js::hasWasmPatternProcessorFailed()`
+- WASM availability: `src/utils/wasm/WasmPatternProcessor.js::isWasmPatternProcessorReady()` (`hasWasmPatternProcessorFailed()` was deleted 2026-10-10)
 - Related: ADR-006 (PatternProcessor interface), ADR-003 (TypeScript hybrid — WASM boundaries)
 
 ## Addendum — 2026-10-09

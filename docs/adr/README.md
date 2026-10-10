@@ -155,6 +155,8 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-089](./ADR-089-the-character-only-pass-leaves-punctuation-alone.md)            | The character-only pass leaves punctuation alone             | Decided                           | Its punctuation match stamped nothing (output identical with it stubbed); amends ADR-087.                                                            |
 | [ADR-090](./ADR-090-keep-the-tauri-api-invoke-shell-narrow.md)                      | Keep the tauriAPI invoke shell narrow                        | Decided                           | The four inline wrappers differ where a shell needs callbacks; the gap was tests, now added.                                                         |
 | [ADR-091](./ADR-091-skip-translatetext-extraction.md)                               | Skip extracting translateText                                | Decided                           | Wiring over ~14 component inputs, one call site; round 21 fixed the outcome shape.                                                                   |
+| [ADR-092](./ADR-092-chapter-detection-runs-inline.md)                               | Chapter detection runs inline                                | Decided                           | Measured 26 ms (release, 25.8 MB); a lone spawn_blocking among 26 async commands would be inconsistent.                                              |
+| [ADR-093](./ADR-093-skip-dictionary-tab-action-runner.md)                           | Skip a Dictionary-tab action runner                          | Decided                           | Only undo and redo share a shape; the rest differ in channel, message and loading flag. Gap was tests, now added.                                    |
 
 ## ADR Format
 
@@ -214,4 +216,5 @@ Write an ADR when making decisions about:
 - **2026-10-07**: ADR-081; ADR-082; ADR-083; ADR-084; ADR-085; ADR-086
 - **2026-10-08**: ADR-087; ADR-088; ADR-089; ADR-090
 - **2026-10-09**: ADR-091
+- **2026-10-10**: ADR-092; ADR-093
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

@@ -22,3 +22,7 @@ Tab gating is unnecessary for the same reason, and `src/components/CLAUDE.md` al
 ## Consequence
 
 Future reviews should not re-flag the registry's global `Set` or its first-answer rule. Reconsider only if a surface registers a mapper whose container can contain another surface's panel (a mapper keyed on `document.body`, say), or two mounted instances of one surface share a container. Either would let two mappers answer one selection, and then order would matter.
+
+## Addendum (2026-10-10)
+
+Architecture review round 25 (candidate #4) un-exported `mapSelectionRange`: `resolveQuickAddSource` is its only caller, and the registry's behavior (first recognising mapper wins, a throwing mapper counts as unmapped, no selection asks no mapper) is tested through it. `mapSelectedUnits` and `touchedUnits` stay exported on purpose. They are the pure and DOM cores of `mapTranslatorSelection` and `mapReaderSelection`, with direct tests on span order, line-break refusal and snapping to whole units; routing those through the mappers needs a full Translator or Reader fixture each time. A review that sees them exported with no production caller should find this first.

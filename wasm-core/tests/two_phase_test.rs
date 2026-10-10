@@ -26,45 +26,6 @@ fn create_token(value: &str, index: usize) -> SemanticToken {
 }
 
 #[test]
-fn test_pattern_categorization() {
-    // Pattern 1: "X的Y" with allowAsPatternVariable: true (Phase A pattern)
-    let pattern1 = parse_pattern(
-        "X的Y".to_string(),
-        "Y của X".to_string(),
-        None,
-        true, // allowAsPatternVariable
-        None,
-    );
-
-    // Pattern 2: "这些X" without allowAsPatternVariable (Phase B only)
-    let pattern2 = parse_pattern(
-        "这些X".to_string(),
-        "những X này".to_string(),
-        None,
-        false,
-        None,
-    );
-
-    // Pattern 3: "在X眼中" without allowAsPatternVariable (Phase B only)
-    let pattern3 = parse_pattern(
-        "在X眼中".to_string(),
-        "ở trong mắt X".to_string(),
-        None,
-        false,
-        None,
-    );
-
-    let patterns = vec![pattern1, pattern2, pattern3];
-    let processor = TwoPhasePatternProcessor::new(patterns);
-
-    // Check categorization
-    let stats = processor.get_statistics();
-    assert_eq!(stats.variable_patterns, 1); // Only "X的Y" has allowAsPatternVariable
-    assert_eq!(stats.composite_eligible, 2); // "这些X" and "在X眼中" (single-variable)
-    assert_eq!(stats.total_patterns, 3);
-}
-
-#[test]
 fn test_phase_a_processing() {
     // Pattern: "X的Y" → "Y của X" (Phase A pattern)
     let pattern = parse_pattern(

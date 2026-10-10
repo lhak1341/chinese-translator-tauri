@@ -3422,6 +3422,47 @@ mod tests {
         assert_eq!(first.index_size, second.index_size);
     }
 
+    // Wire format of the outer lookup-index types. `lookup_index_engine.rs` pins the nested
+    // `DictionaryMatch`/`CategorizedMatches` keys; these two cover the half that lives here, which
+    // `MatchSource.ts` reads (`buildTimeMs`) and `tauriAPI.ts` sends (`minTextLength`).
+
+    #[test]
+    fn test_lookup_index_response_serializes_to_camel_case_json() {
+        let response = LookupIndexResponse {
+            success: true,
+            index: HashMap::new(),
+            build_time_ms: 1,
+            positions_indexed: 2,
+            index_size: 3,
+            error: None,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        for key in ["\"buildTimeMs\"", "\"positionsIndexed\"", "\"indexSize\""] {
+            assert!(json.contains(key), "expected {} in wire format, got: {}", key, json);
+        }
+        for leaked in ["build_time_ms", "positions_indexed", "index_size"] {
+            assert!(!json.contains(leaked), "snake_case {} leaked into wire format: {}", leaked, json);
+        }
+        assert!(!json.contains("\"error\""), "a None error is omitted from the wire format: {}", json);
+    }
+
+    #[test]
+    fn test_lookup_index_options_deserialize_from_camel_case_json() {
+        let options: LookupIndexOptions = serde_json::from_str(
+            r#"{"minTextLength": 7, "enableIndexing": false, "useParallel": false}"#,
+        )
+        .unwrap();
+        assert_eq!(options.min_text_length, Some(7));
+        assert_eq!(options.enable_indexing, Some(false));
+        assert_eq!(options.use_parallel, Some(false));
+
+        // tauriAPI.ts sends only the length gate; the other two fall back to Rust's defaults.
+        let gate_only: LookupIndexOptions = serde_json::from_str(r#"{"minTextLength": 50}"#).unwrap();
+        assert_eq!(gate_only.min_text_length, Some(50));
+        assert_eq!(gate_only.enable_indexing, None);
+        assert_eq!(gate_only.use_parallel, None);
+    }
+
     #[test]
     fn test_build_lookup_index_impl_sees_edited_entries_immediately() {
         // Proves content-hash keying never serves a stale trie: editing a dictionary's

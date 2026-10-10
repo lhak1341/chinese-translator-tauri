@@ -6,8 +6,6 @@ import { describe, test, expect, vi } from 'vitest';
 vi.mock('../wasm/WasmPatternProcessor.js', () => ({
   reinitializeWasmPatternProcessor: vi.fn().mockResolvedValue(false),
   isWasmPatternProcessorReady: vi.fn().mockReturnValue(false),
-  hasWasmPatternProcessorFailed: vi.fn().mockReturnValue(false),
-  initializeWasmPatternProcessor: vi.fn().mockResolvedValue(false),
   processTokensWasm: vi.fn(),
 }));
 vi.mock('../logger.js', () => ({

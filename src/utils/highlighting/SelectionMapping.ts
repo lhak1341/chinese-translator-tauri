@@ -43,7 +43,8 @@ const UNMAPPED: SelectionMapping = { kind: 'unmapped' };
 export const CROSSES_LINE_REASON = 'Selection spans more than one line — select within one line';
 
 /**
- * The covering span of the units named by `keys`, over `sourceText`.
+ * The covering span of the units named by `keys`, over `sourceText`. Exported as the pure
+ * test seam of `mapTranslatorSelection` and `mapReaderSelection` (ADR-049 addendum).
  *
  * Refused when the span crosses a line break: no dictionary entry spans lines, so a span
  * that does is a drag that went further than meant.
@@ -77,6 +78,7 @@ export function mapSelectedUnits(
  * "not a translation-panel selection", which the caller answers with the raw text. A unit
  * is an element carrying a non-negative `data-unit-index`; runs no unit produced carry -1
  * or no attribute at all.
+ * Exported as the DOM test seam of the two mappers (ADR-049 addendum).
  */
 export function touchedUnits(range: Range, container: HTMLElement): HTMLElement[] | null {
   if (!container.contains(range.commonAncestorContainer)) return null;
@@ -163,7 +165,7 @@ export function registerSelectionMapper(mapper: SelectionMapper): () => void {
  * surface's state went stale under it — counts as not recognising the selection, so the
  * key still falls back to the raw text instead of failing.
  */
-export function mapSelectionRange(range: Range | null): SelectionMapping {
+function mapSelectionRange(range: Range | null): SelectionMapping {
   if (!range || range.collapsed) return UNMAPPED;
   for (const mapper of mappers) {
     try {
