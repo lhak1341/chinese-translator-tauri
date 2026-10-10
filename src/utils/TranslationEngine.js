@@ -193,6 +193,8 @@ import {
  * @typedef {Object} ChunkOptions
  * @property {number}  [chunkOffset=0]          - TOKEN count of all preceding chunks.
  *                                                 Used as offset for cross-chunk tokenIndex.
+ * @property {number}  [chunkCharOffset=0]      - UTF-16 index of the chunk's content in the full text
+ *                                                 (`TextChunk.startIndex`); added to `originalStart`.
  * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
  * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
  * @property {boolean} [useChunking]             - Enable adaptive chunking for long texts
@@ -1716,7 +1718,9 @@ export class TranslationEngine {
           text,
           start,
           end,
-          tokenIndex < tokens.length ? tokenCharPositions[tokenIndex] : undefined
+          tokenIndex < tokens.length
+            ? tokenCharPositions[tokenIndex] + (options.chunkCharOffset ?? 0)
+            : undefined
         );
       }
     }
@@ -2024,6 +2028,9 @@ export class TranslationEngine {
             // is called redundantly, but those are harmless: the first call sets the correct
             // position and subsequent calls are no-ops.
             chunkOffset: chunkTokenOffsets[index],
+            // The chunk's content starts after any leading punctuation, so token positions
+            // are local to it; `originalStart` is an offset into the whole text.
+            chunkCharOffset: chunk.startIndex,
             chunkIndex: batchStart + index,
             isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };

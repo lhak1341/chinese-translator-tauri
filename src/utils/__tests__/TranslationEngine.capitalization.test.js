@@ -194,6 +194,18 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     await engine.initialize(DICTS, { activeProperNouns: ['properNouns'] });
   }, 30_000);
 
+  test('a text opening with punctuation still records each unit at its offset in the whole text', async () => {
+    // Leading punctuation is its own chunk, so the content chunk's tokens start at 0 locally:
+    // originalStart must add the chunk's startIndex or every Chinese run lands one early.
+    const text = '“说别';
+    const { semanticArrays } = await engine.translateWithSegments(text, { progressive: true });
+    for (const meta of semanticArrays.metadata) {
+      expect(text.slice(meta.originalStart, meta.originalEnd)).toBe(
+        semanticArrays.original[semanticArrays.metadata.indexOf(meta)]
+      );
+    }
+  });
+
   test('capitalizes the start of the text but not after a comma', async () => {
     const result = await engine.translateWithSegments('说，别', { progressive: true });
     expect(result.translatedText).toMatch(/^Thuyết/);
