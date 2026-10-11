@@ -31,7 +31,7 @@ export interface ThrottledStreamingState {
 
 /** Why `translateText` ran nothing. It has already told the user (toast or log). */
 export type TranslateTextSkipReason =
-  'invalid' | 'reloading' | 'loading' | 'not-ready' | 'preempted' | 'refused' | 'overflow';
+  'invalid' | 'reloading' | 'loading' | 'not-ready' | 'preempted' | 'refused';
 
 /**
  * What `translateText` resolves. A timeout or a cancel by a newer run still rejects.

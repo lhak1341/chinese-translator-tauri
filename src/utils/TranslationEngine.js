@@ -144,7 +144,6 @@ import { cleanupFormatting } from './text/FormattingPasses';
 import { assembleCharOnlyResult } from './text/CharOnlyAssembly';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
-import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { claimSpan, claimGroupedSpan } from './TokenClaim.js';
@@ -2431,17 +2430,6 @@ export class TranslationEngine {
    * Token state is shared - concurrent execution would corrupt results.
    */
   async translateSinglePass(tokens, options, matchSource) {
-    // CODE REVIEW FIX 2026-02-01 (IMPORTANT-2): Early document size validation
-    // Validate token count before processing to prevent integer overflow in position calculations
-    // Position mappings multiply segment indices by character positions, which can exceed
-    // Number.MAX_SAFE_INTEGER for extremely large documents
-    if (tokens.length > MAX_SAFE_SEGMENTS) {
-      throw new Error(
-        `Document too large: ${tokens.length.toLocaleString()} tokens exceeds safe limit of ${MAX_SAFE_SEGMENTS.toLocaleString()} tokens. ` +
-          `This prevents integer overflow in position calculations for clickable highlighting.`
-      );
-    }
-
     // CRITICAL FIX: Track phase completion for debugging silent failures
     // Phases can fail silently (catch error, log, continue) which makes debugging difficult
     // This Set tracks which phases completed successfully vs failed

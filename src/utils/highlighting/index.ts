@@ -27,14 +27,14 @@ export type { LitUnit, ResolvedHighlights } from './HighlightResolver';
 export { isUnitHighlighted } from './UnitHighlightPredicate';
 
 // --- Scroll ---
-export { scrollToHighlightedElement, scheduleHighlightScroll } from './ScrollHelpers';
+export {
+  scrollToHighlightedElement,
+  scheduleHighlightScroll,
+  HIGHLIGHT_SCROLL_DELAY_MS,
+} from './ScrollHelpers';
 
 // --- Position utilities ---
 export { compareByTokenIndex, resolveTokenIndex } from './TextPositionMapper';
-
-// --- Overflow guard constants (shared with TranslationEngine and Translator) ---
-export { MAX_SAFE_SEGMENTS, HIGHLIGHT_SCROLL_DELAY_MS } from './semanticArrayConstants';
-export { validateSemanticArraySize } from './SemanticArraySizeGuard';
 
 // --- Word-position matching (progressive translation) ---
 export type { WordSegment, WordSegmentSemanticArrays } from './WordSegmentMatcher';

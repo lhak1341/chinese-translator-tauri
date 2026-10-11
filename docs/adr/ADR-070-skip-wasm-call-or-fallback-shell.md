@@ -33,3 +33,5 @@ Delete the stats scaffolding the sweep found unread, in JS and in `wasm-core`:
 ## Consequence
 
 Future architecture reviews should not re-propose a shared WASM-call-or-fallback shell. Revisit only if the catch blocks converge on one return shape.
+
+**2026-10-11 note (architecture review round 30, candidate #4 grilling):** "Seven wrappers" above is the 2026-10-04 count. One wrapper (`WasmPatternProcessor.js`) and one panic catch block (`processTokensWasm`) remain, so the revisit condition holds only because there is nothing left to converge. A shell around a single call site is shallower than it was; the skip stands. The generic lifecycle and registry stay on purpose (ADR-009 "Current state", `src/utils/wasm/CLAUDE.md`), and `wasmInstanceCheck.js` stays its own file (ADR-080 addendum).

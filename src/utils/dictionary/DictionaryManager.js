@@ -105,7 +105,6 @@ export class DictionaryManager {
         name: dictionaryName,
         entryCount,
         priority,
-        stats: trie.getStats(),
       });
     }
 
@@ -206,7 +205,8 @@ export class DictionaryManager {
   }
 
   /**
-   * Get global statistics
+   * Get global statistics (a devtools console read). Each trie is walked here, on demand: four
+   * full walks per dictionary, about a third of the time `loadDictionaries` spends building them.
    * @returns {Object} Global stats
    */
   getGlobalStats() {
@@ -219,9 +219,10 @@ export class DictionaryManager {
     };
 
     for (const [name, metadata] of this.metadata.entries()) {
+      const trieStats = this.dictionaries.get(name).getStats();
       stats.totalEntries += metadata.entryCount;
-      stats.totalNodes += metadata.stats.nodeCount;
-      stats.dictionaries[name] = metadata;
+      stats.totalNodes += trieStats.nodeCount;
+      stats.dictionaries[name] = { ...metadata, stats: trieStats };
     }
 
     return stats;

@@ -7,6 +7,9 @@
 
 import type { MutableRefObject, RefObject } from 'react';
 
+// Wait for React state update to complete before scrolling to the highlighted element.
+export const HIGHLIGHT_SCROLL_DELAY_MS = 10;
+
 /**
  * Scrolls a container to bring a highlighted element into view
  *

@@ -12,7 +12,6 @@ import { useState, useCallback } from 'react';
  *   setCharOnlyResult(text, arrays)    — charOnly fields only
  *   setStatusMessage(msg)              — status/progress text; clears all arrays
  *   setError(msg)                      — error text; clears all arrays
- *   clearFullResult()                  — clears full-translation fields, preserves charOnly
  *   reset()                            — all fields → initial state
  */
 export function useTranslationResults() {
@@ -65,12 +64,6 @@ export function useTranslationResults() {
     clearArraysAndSetText(msg);
   }, []);
 
-  const clearFullResult = useCallback(() => {
-    setTranslatedText('');
-    setSemanticArrays(null);
-    setPrebuiltSegments([]);
-  }, []);
-
   const reset = useCallback(() => {
     setTranslatedText('');
     setCharacterOnlyText('');
@@ -92,7 +85,6 @@ export function useTranslationResults() {
     setCharOnlyResult,
     setStatusMessage,
     setError,
-    clearFullResult,
     reset,
   };
 }

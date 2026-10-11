@@ -7,6 +7,21 @@
  */
 
 /**
+ * The one definition of "Han" for the pipeline: CJK Unified, Extension A and Compatibility
+ * Ideographs (BMP only). The tokenizer types these `chinese_char` and the chunker keeps a chunk
+ * that holds one. Not `\p{Script=Han}` on purpose: that adds `々`, `〇` and astral Extension B+,
+ * which would change tokenization. `TransformRuleValidation` and `Bookshelf` use
+ * `\p{Script=Han}` for their own jobs and stay on it.
+ */
+const HAN_CLASS = '\\u4e00-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff';
+const HAN_TEST = new RegExp(`[${HAN_CLASS}]`);
+
+/** True when `text` holds at least one character the tokenizer would type `chinese_char`. */
+export function containsHan(text: string): boolean {
+  return HAN_TEST.test(text);
+}
+
+/**
  * Token type enum for classification
  */
 export enum TokenType {
@@ -156,7 +171,7 @@ export class TextTokenizer {
     // punctuation is never grouped, so "：“" is two tokens and the punctuation dictionary's
     // single-character keys match each one. `u` makes `[\s\S]` take a whole code point.
     this.tokenRegex = new RegExp(
-      `([\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff])|([A-Za-z]+)|([0-9]+)|(\\p{White_Space}+)|([\\s\\S])`,
+      `([${HAN_CLASS}])|([A-Za-z]+)|([0-9]+)|(\\p{White_Space}+)|([\\s\\S])`,
       'gu'
     );
   }

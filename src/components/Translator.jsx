@@ -21,7 +21,6 @@ import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useSelectionMapper } from '../hooks/useSelectionMapper';
 import { mapTranslatorSelection } from '../utils/highlighting/SelectionMapping';
-import { validateSemanticArraySize } from '../utils/highlighting';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
@@ -116,7 +115,6 @@ const Translator = ({ isActive }) => {
     setCharOnlyResult,
     setStatusMessage,
     setError: setTranslationError,
-    clearFullResult,
   } = useTranslationResults();
 
   const originalTextRef = useRef(null);
@@ -294,13 +292,6 @@ const Translator = ({ isActive }) => {
           logger.log(
             `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
           );
-          // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
-          try {
-            validateSemanticArraySize(result.semanticArrays, 'character-only translation');
-          } catch {
-            // Validation error already logged and toasted in validateSemanticArraySize
-            return;
-          }
           // Use requestAnimationFrame for smooth UI updates during parallel processing
           requestAnimationFrame(() => {
             setCharOnlyResult(result.translatedText, result.semanticArrays);
@@ -473,16 +464,6 @@ const Translator = ({ isActive }) => {
             debouncedProgressHandler.current.flushUpdates();
 
             if (segmentResult && segmentResult.semanticArrays) {
-              // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
-              try {
-                validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
-              } catch {
-                // Validation error already logged and toasted in validateSemanticArraySize
-                // Clear translation state on overflow
-                clearFullResult();
-                return { status: 'skipped', reason: 'overflow' };
-              }
-
               setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
             }
 

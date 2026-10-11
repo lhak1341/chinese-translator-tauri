@@ -4,6 +4,8 @@
  * and enable parallel processing
  */
 
+import { containsHan } from './TextTokenizer.js';
+
 class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
     this.content = content.trim(); // The actual text content
@@ -149,53 +151,11 @@ export class TextChunker {
   }
 
   /**
-   * Analyze chunk composition for optimization
-   * @param {TextChunk[]} chunks - Array of chunks
-   * @returns {Object} Analysis results
-   */
-  analyzeChunks(chunks) {
-    const analysis = {
-      totalChunks: chunks.length,
-      averageLength: 0,
-      maxLength: 0,
-      minLength: Infinity,
-      chineseChunks: 0,
-      emptyChunks: 0,
-      parallelizable: chunks.length > 1,
-    };
-
-    let totalLength = 0;
-    const chineseRegex = /[\u4e00-\u9fff]/;
-
-    for (const chunk of chunks) {
-      const length = chunk.content.length;
-      totalLength += length;
-
-      if (length === 0) {
-        analysis.emptyChunks++;
-      } else {
-        analysis.maxLength = Math.max(analysis.maxLength, length);
-        analysis.minLength = Math.min(analysis.minLength, length);
-
-        if (chineseRegex.test(chunk.content)) {
-          analysis.chineseChunks++;
-        }
-      }
-    }
-
-    analysis.averageLength = chunks.length > 0 ? totalLength / chunks.length : 0;
-    analysis.minLength = analysis.minLength === Infinity ? 0 : analysis.minLength;
-
-    return analysis;
-  }
-
-  /**
    * Filter chunks that need translation
    * @param {TextChunk[]} chunks - Array of chunks
    * @returns {TextChunk[]} Chunks that contain Chinese text
    */
   getTranslatableChunks(chunks) {
-    const chineseRegex = /[\u4e00-\u9fff]/;
-    return chunks.filter((chunk) => chunk.content.trim() && chineseRegex.test(chunk.content));
+    return chunks.filter((chunk) => chunk.content.trim() && containsHan(chunk.content));
   }
 }

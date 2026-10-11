@@ -234,7 +234,7 @@ describe('useTranslationResults.setError()', () => {
       result.current.setError('oops');
     });
 
-    // setError clears ALL fields — distinguishes it from clearFullResult (which preserves charOnly)
+    // setError clears ALL fields, charOnly included
     expect(result.current.characterOnlyText).toBe('');
     expect(result.current.characterOnlySemanticArrays).toBeNull();
   });
@@ -263,34 +263,5 @@ describe('useTranslationResults.setStatusMessage()', () => {
     expect(result.current.semanticArrays).toBeNull();
     expect(result.current.characterOnlySemanticArrays).toBeNull();
     expect(result.current.prebuiltSegments).toEqual([]);
-  });
-});
-
-// ── clearFullResult() ────────────────────────────────────────────────────────
-
-describe('useTranslationResults.clearFullResult()', () => {
-  test('clears full-translation fields (3); preserves charOnly fields (2)', () => {
-    const { result } = useHook();
-    act(() => {
-      result.current.setDualResults(
-        { translatedText: 'nói', semanticArrays: MOCK_ARRAYS },
-        { translatedText: 'lời', semanticArrays: MOCK_ARRAYS_CHAR_ONLY }
-      );
-    });
-    act(() => {
-      result.current.setResultArrays(MOCK_ARRAYS, MOCK_SEGS);
-    });
-
-    act(() => {
-      result.current.clearFullResult();
-    });
-
-    // Full-translation fields zeroed
-    expect(result.current.translatedText).toBe('');
-    expect(result.current.semanticArrays).toBeNull();
-    expect(result.current.prebuiltSegments).toEqual([]);
-    // charOnly fields preserved
-    expect(result.current.characterOnlyText).toBe('lời');
-    expect(result.current.characterOnlySemanticArrays).toBe(MOCK_ARRAYS_CHAR_ONLY);
   });
 });
