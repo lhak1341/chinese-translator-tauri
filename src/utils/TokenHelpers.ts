@@ -75,8 +75,8 @@ export function isSemanticTokenType(type: string): boolean {
 }
 
 /**
- * Extract semantic tokens from token array — the one definition both pattern adapters
- * (TwoPhasePatternProcessor) and the Rust matcher agree on.
+ * Extract semantic tokens from token array — the one definition
+ * `TwoPhasePatternProcessor` and the Rust matcher agree on.
  *
  * Keeps tokens whose type passes `isSemanticTokenType`, drops grouped followers
  * (`isGrouped && groupLeader !== null`), and tags each kept token with its position in the

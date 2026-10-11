@@ -47,11 +47,6 @@ export class WasmProcessorLifecycle {
     return this._hasFailed;
   }
 
-  /** The in-progress initialization promise, or null. Use to await a concurrent init. */
-  get pendingInit() {
-    return this._initializationPromise;
-  }
-
   /**
    * Run the init sequence: instantiateFn() → verify instance methods. Retries on transient
    * failures with exponential backoff. Idempotent: returns true immediately if already ready.

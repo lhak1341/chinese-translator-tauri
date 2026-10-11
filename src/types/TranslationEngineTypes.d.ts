@@ -88,18 +88,6 @@ export interface DictionaryPriorities {
   conversion: number;
 }
 
-/**
- * Configuration for EnhancedDictionaryManager
- */
-interface DictionaryManagerConfig {
-  /** Enable dictionary result caching */
-  cacheEnabled?: boolean;
-  /** Enable WASM acceleration for dictionary operations */
-  enableWasm?: boolean;
-  /** WASM memory limit in MB */
-  wasmMemoryLimit?: number;
-}
-
 // ============================================================================
 // Translation Engine Configuration
 // ============================================================================
@@ -125,8 +113,6 @@ export interface TranslationEngineInitOptions {
   priorities?: DictionaryPriorities;
   /** Active proper noun dictionary names */
   activeProperNouns?: string[];
-  /** Dictionary manager configuration */
-  dictionaryManager?: DictionaryManagerConfig;
   /** Pattern processing settings */
   patternSettings?: PatternProcessingSettings;
 }

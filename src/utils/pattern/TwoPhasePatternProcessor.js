@@ -1,4 +1,3 @@
-import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
@@ -7,36 +6,22 @@ import { buildPatternVariableCache } from './PatternVariableCache.js';
 import { isPatternSource } from '../TranslationSourcePriority.js';
 
 /**
- * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
+ * TwoPhasePatternProcessor - the JS side of Phase 1 pattern matching.
  *
- * Implements two-phase pattern matching using Rust WASM (10-50x speedup):
- * - Phase A: Process patterns with allowAsPatternVariable: true
- * - Phase B: Process all patterns, using Phase A results as enhanced variables
- * - Composite Detection: Identify when Phase A results can be absorbed into Phase B patterns
- * - Decision Engine: Select optimal translation from all candidates
- *
- * JavaScript fallback removed after parity verification (January 2025)
- * Requires WASM initialization - will throw error if WASM unavailable
- *
- * @import {
- *   SemanticPattern,
- *   PhaseAResult,
- *   PhaseBResult,
- *   CompositePatternResult,
- *   PatternMatchResult,
- *   PatternProcessingOptions,
- *   PatternCategorizationResult,
- *   PhaseProcessingStats,
- *   DecisionEngineResult
- * } from '../types/PatternProcessingTypes'
+ * The two phases (variable patterns first, then all patterns using those results) and the
+ * choice of the best match all run in Rust (`wasm-core/src/pattern_processor/two_phase.rs`).
+ * This class gates on WASM readiness, extracts the semantic tokens, builds the variable cache
+ * the matcher reads, makes the one WASM call, and drops any result whose token indices fall
+ * outside the token array. There is no JS fallback (ADR-007, ADR-101): it throws when WASM is
+ * not ready.
  */
 class TwoPhasePatternProcessor {
+  /**
+   * @param {Array<{ originalPattern: string, template: string, allowAsPatternVariable: boolean }>} patterns
+   *   PatternStore's entries; read only to decide whether number variables apply
+   */
   constructor(patterns) {
-    this.analyzer = new PatternAnalyzer();
-
-    // Analyze and categorize patterns
-    this.processedPatterns = this.analyzer.analyzePatterns(patterns);
-    this.categorizePatterns();
+    this.patterns = patterns;
 
     // Internal performance profiling
     this.internalProfiling = {
@@ -47,22 +32,6 @@ class TwoPhasePatternProcessor {
     };
 
     // TwoPhasePatternProcessor initialized successfully
-  }
-
-  /**
-   * Categorize patterns into processing phases
-   */
-  categorizePatterns() {
-    // Phase A: Patterns that can serve as variables for other patterns
-    this.variablePatterns = this.processedPatterns.filter((p) => p.allowAsPatternVariable === true);
-
-    // Phase B eligible: Patterns that can use composite variables (single-variable only)
-    this.compositeEligiblePatterns = this.processedPatterns.filter((p) => p.compositeEligible);
-
-    // All patterns for comprehensive processing
-    this.allPatterns = this.processedPatterns;
-
-    // Pattern categorization completed
   }
 
   /**
@@ -86,7 +55,7 @@ class TwoPhasePatternProcessor {
       {
         activeProperNouns: options.activeProperNouns || [],
         dictionaryManager: options.dictionaryManager,
-        patterns: this.processedPatterns,
+        patterns: this.patterns,
       },
       (source, word, meta) => {
         const t = meta?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
@@ -301,55 +270,6 @@ class TwoPhasePatternProcessor {
     logger.log('- Review breakdown above to identify bottlenecks');
     logger.log('- Reset profiling: twoPhaseProcessor.resetInternalProfiling()');
     logger.log('='.repeat(80) + '\n');
-  }
-
-  /**
-   * Get processing statistics and performance metrics
-   * @returns {Object} Statistics object
-   */
-  getStatistics() {
-    return {
-      patterns: {
-        total: this.processedPatterns.length,
-        variablePatterns: this.variablePatterns.length,
-        compositeEligible: this.compositeEligiblePatterns.length,
-      },
-      analysis: this.analyzer.generateSummary(this.processedPatterns),
-    };
-  }
-
-  /**
-   * Validate configuration and pattern setup
-   * @returns {Object} Validation results
-   */
-  validateSetup() {
-    const issues = [];
-
-    if (this.processedPatterns.length === 0) {
-      issues.push('No patterns provided for processing');
-    }
-
-    if (this.variablePatterns.length === 0) {
-      issues.push('No variable patterns available for Phase A');
-    }
-
-    if (this.compositeEligiblePatterns.length === 0) {
-      issues.push('No composite-eligible patterns available for Phase B');
-    }
-
-    // Validate individual patterns
-    for (const pattern of this.processedPatterns) {
-      const validation = this.analyzer.validatePattern(pattern);
-      if (!validation.valid) {
-        issues.push(`Pattern "${pattern.originalPattern}": ${validation.issues.join(', ')}`);
-      }
-    }
-
-    return {
-      valid: issues.length === 0,
-      issues,
-      warnings: issues.filter((issue) => issue.includes('No ')), // Categorize missing components as warnings
-    };
   }
 }
 

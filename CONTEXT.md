@@ -639,7 +639,7 @@ The direct-placement fast path for `precomputeOriginalSegments` (original Chines
 
 Split out of `SegmentPrecomputer.ts`; self-contained, shares no state or matching logic with `precomputeSegments`/`precomputeOriginalSegments`, the two scan loops ADR-036 protects from unification. Not that pair; the split doesn't reopen ADR-036. Its existing tests (`SegmentPrecomputer.test.ts`, `describe('buildSegmentsFromPositions (fast path)')`) test it black-box through `precomputeOriginalSegments`'s routing and needed no changes — they never imported the function directly, since it wasn't exported before this extraction.
 
-Interface: `buildSegmentsFromPositions(text, semanticArrays) → Segment[]`. Takes `Segment`/`SemanticArrays` as type-only imports from `SegmentPrecomputer.ts` (erased at compile time — no real runtime import cycle, even though `SegmentPrecomputer.ts` imports the function back).
+Interface: `buildSegmentsFromPositions(text, semanticArrays) → Segment[]`. Takes `Segment`/`SemanticArrays` as type-only imports from `src/types/SemanticTypes.d.ts`, where `Segment` moved from `SegmentPrecomputer.ts` on 2026-10-11, so the two modules no longer import each other even at type level.
 
 Entry point: `src/utils/highlighting/PositionBasedSegmentBuilder.ts`, barrel-exported from `src/utils/highlighting/index.ts`. Sole caller: `precomputeOriginalSegments` in `SegmentPrecomputer.ts`, gated by the `allHavePositions` check.
 

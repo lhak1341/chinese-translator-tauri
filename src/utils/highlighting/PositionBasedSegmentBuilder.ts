@@ -9,8 +9,7 @@
  * (the scan loop ADR-036 protects from unification). Not that scan; safe to split out.
  */
 
-import type { SemanticArrays } from '../../types/SemanticTypes';
-import type { Segment } from './SegmentPrecomputer';
+import type { Segment, SemanticArrays } from '../../types/SemanticTypes';
 
 export function buildSegmentsFromPositions(
   text: string,

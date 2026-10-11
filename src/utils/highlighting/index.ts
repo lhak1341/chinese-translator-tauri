@@ -8,11 +8,10 @@
 
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
 export type { SemanticArraySnapshot } from './SemanticArrayBuilder';
-export type { SemanticArrayMetadata, SemanticArrays } from '../../types/SemanticTypes';
+export type { SemanticArrayMetadata, SemanticArrays, Segment } from '../../types/SemanticTypes';
 export { SemanticArrayValidator, semanticArrayValidator } from './SemanticArrayValidator';
 
 // --- Segment pre-computation (character-only mode) ---
-export type { Segment } from './SegmentPrecomputer';
 export { precomputeOriginalSegments, emptySemanticArrays } from './SegmentPrecomputer';
 export { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
 export { segmentFromPositionMetadata } from './PositionMetadataSegmenter';

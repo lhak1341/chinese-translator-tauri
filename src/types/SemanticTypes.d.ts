@@ -41,6 +41,46 @@ export interface SemanticArrays {
 }
 
 /**
+ * Kind of a display segment
+ */
+type SegmentType = 'semantic' | 'space' | 'text';
+
+/**
+ * Base segment structure
+ */
+export interface Segment {
+  /** Segment type */
+  type: SegmentType;
+
+  /** Segment text content */
+  text: string;
+
+  /** Starting position in full text */
+  start: number;
+
+  /** Ending position in full text */
+  end: number;
+
+  /** Semantic unit index (-1 for non-semantic) */
+  unitIndex: number;
+
+  /** Whether segment is clickable */
+  isClickable: boolean;
+
+  /** Original text (for semantic segments) */
+  originalText?: string;
+
+  /** Translated text (for semantic segments) */
+  translatedText?: string;
+
+  /** Translation source (for semantic segments) */
+  source?: string;
+
+  /** Unit metadata (for semantic segments) */
+  metadata?: SemanticArrayMetadata;
+}
+
+/**
  * Progress data structure for streaming translation callbacks
  */
 export interface ProgressData {

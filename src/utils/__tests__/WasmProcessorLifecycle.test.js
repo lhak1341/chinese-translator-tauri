@@ -29,11 +29,6 @@ describe('WasmProcessorLifecycle — initial state', () => {
     const lc = new WasmProcessorLifecycle(makeConfig());
     expect(lc.hasFailed).toBe(false);
   });
-
-  test('pendingInit is null', () => {
-    const lc = new WasmProcessorLifecycle(makeConfig());
-    expect(lc.pendingInit).toBeNull();
-  });
 });
 
 describe('WasmProcessorLifecycle — initialize() success path', () => {

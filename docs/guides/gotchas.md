@@ -238,7 +238,6 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
         return true;
       }),
       hasFailed: false,
-      pendingInit: null,
     };
   }),
 }));

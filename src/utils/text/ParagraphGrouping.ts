@@ -15,9 +15,7 @@
  * // Returns: [[segment1, segment2], [segment3, segment4], ...]
  */
 
-import type { Segment } from '../highlighting/SegmentPrecomputer';
-
-export type { Segment };
+import type { Segment } from '../../types/SemanticTypes';
 
 /**
  * Group segments into paragraphs based on line breaks and indentation

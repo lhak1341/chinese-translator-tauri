@@ -12,7 +12,8 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { groupSegmentsIntoParagraphs, type Segment } from '../text/ParagraphGrouping';
+import { groupSegmentsIntoParagraphs } from '../text/ParagraphGrouping';
+import type { Segment } from '../../types/SemanticTypes';
 import { makeMeta } from '../../test/makeMeta';
 
 // ---------------------------------------------------------------------------

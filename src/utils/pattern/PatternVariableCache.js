@@ -28,7 +28,7 @@ function withNumberVariables(tokens, cache, patterns) {
 }
 
 /**
- * Build the variable cache shared by both PatternProcessor adapters.
+ * Build the variable cache TwoPhasePatternProcessor hands to the WASM matcher.
  *
  * Four lookup stages run in order; each stage can overwrite earlier entries:
  *   1. Already-translated proper noun tokens (from prior phases)
@@ -43,18 +43,14 @@ function withNumberVariables(tokens, cache, patterns) {
  *   A pattern-level prefilter on declared types (buildTypeFilter) was deleted
  *   2026-09-26 — it never engaged, and would have dropped entries once it did.
  *
- * initialCache: seed entries that stages 1–4 may overwrite (used for Phase A results
- * in Semantic and for step-1b pattern-translated tokens in TwoPhase).
- *
  * @param {Array} tokens
  * @param {{ activeProperNouns: string[], dictionaryManager: object, patterns: Array }} options
  * @param {(source: string, word: string, metadata: object) => string|null} resolveType
- * @param {Object} [initialCache]
  * @returns {Object.<string, {translation: string, source: string, type: string|null}>}
  */
-export function buildPatternVariableCache(tokens, options, resolveType, initialCache = {}) {
+export function buildPatternVariableCache(tokens, options, resolveType) {
   const { activeProperNouns = [], dictionaryManager, patterns = [] } = options;
-  const cache = { ...initialCache };
+  const cache = {};
   const actualProperNounDictionaries = activeProperNouns.filter((d) => d !== 'phrases');
 
   // Stage 1: Already-translated proper noun tokens (from prior pipeline phases)

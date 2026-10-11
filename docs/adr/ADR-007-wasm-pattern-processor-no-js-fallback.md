@@ -1,6 +1,6 @@
 # ADR-007: TwoPhasePatternProcessor — No JS Fallback, Hard Failure on WASM Error
 
-**Status**: Accepted; the JS-path clause is superseded by ADR-101
+**Status**: Accepted; the JS-path clause is superseded by ADR-101 (whose 2026-10-11 addendum also removes the JS pattern analysis)
 **Date**: 2026-05-16
 **Decision Makers**: Development Team
 **Affected Components**: `TwoPhasePatternProcessor.js`, `WasmPatternProcessor.js`, `TranslationEngine.js`

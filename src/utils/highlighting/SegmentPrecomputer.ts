@@ -12,7 +12,7 @@
 import { getFirstGrapheme } from '../GraphemeHelper.js';
 import { compareByTokenIndex } from './TextPositionMapper';
 import { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
-import type { SemanticArrayMetadata, SemanticArrays } from '../../types/SemanticTypes';
+import type { Segment, SemanticArrayMetadata, SemanticArrays } from '../../types/SemanticTypes';
 
 /**
  * Empty SemanticArrays — the shared fallback shape for `semanticArrayBuilder?.getArrays() || ...`
@@ -21,46 +21,6 @@ import type { SemanticArrayMetadata, SemanticArrays } from '../../types/Semantic
  */
 export function emptySemanticArrays(): SemanticArrays {
   return { original: [], translated: [], metadata: [] };
-}
-
-/**
- * Segment types
- */
-type SegmentType = 'semantic' | 'space' | 'text';
-
-/**
- * Base segment structure
- */
-export interface Segment {
-  /** Segment type */
-  type: SegmentType;
-
-  /** Segment text content */
-  text: string;
-
-  /** Starting position in full text */
-  start: number;
-
-  /** Ending position in full text */
-  end: number;
-
-  /** Semantic unit index (-1 for non-semantic) */
-  unitIndex: number;
-
-  /** Whether segment is clickable */
-  isClickable: boolean;
-
-  /** Original text (for semantic segments) */
-  originalText?: string;
-
-  /** Translated text (for semantic segments) */
-  translatedText?: string;
-
-  /** Translation source (for semantic segments) */
-  source?: string;
-
-  /** Unit metadata (for semantic segments) */
-  metadata?: SemanticArrayMetadata;
 }
 
 /**

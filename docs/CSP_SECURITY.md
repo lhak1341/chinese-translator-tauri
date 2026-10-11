@@ -1,7 +1,7 @@
 # Content Security Policy (CSP) and WASM Security
 
 **Status**: Production-ready with mitigations in place
-**Last Updated**: 2026-02-01 (Added SHA-256 hash verification)
+**Last Updated**: 2026-10-11 (stale hash-verification, fallback and path claims corrected; the hash check was removed 2026-10-06, ADR-080)
 **Risk Level**: Low (properly mitigated)
 
 ---
@@ -149,13 +149,13 @@ catch (error) {
 
 **Fallback Behavior**:
 
-- **Number Processor**: Translates numbers character-by-character (slower but functional)
+- **Number conversion**: pure JS (Phase 3), no WASM involved
 - **Pattern Processor**: No fallback; Phase 1 (patterns) is skipped and an error toast tells the user (ADR-101)
 
 **Why This Matters**:
 
 - Security concerns don't break the application
-- If WASM integrity checks fail, app remains usable
+- If WASM fails to load or initialize, the app remains usable (Phase 1 is skipped)
 - No hard dependency on WASM (defense in depth)
 
 ---
@@ -180,7 +180,7 @@ await wasmRetryManager.retryWithBackoff(
 **Why This Matters**:
 
 - Distinguishes transient failures (network hiccups) from security failures
-- Non-retryable errors (integrity check failures) fail immediately
+- Non-retryable errors (a failed instance-method check) fail immediately
 - Prevents denial-of-service via repeated failed initialization
 
 ---
@@ -210,14 +210,14 @@ $ grep -r "WebAssembly.instantiateStreaming" src/
 
 ### Attack Vector Analysis
 
-| Attack Scenario            | Feasibility                  | Mitigations                                           | Residual Risk |
-| -------------------------- | ---------------------------- | ----------------------------------------------------- | ------------- |
-| **Remote WASM injection**  | ❌ Not possible              | Local-only loading                                    | None          |
-| **User-controlled WASM**   | ❌ Not possible              | No dynamic loading                                    | None          |
-| **Tampered bundled WASM**  | ⚠️ Requires OS compromise    | SHA-256 verification, integrity checks, OS file perms | Very Low      |
-| **Corrupted WASM builds**  | ⚠️ Build system failure      | SHA-256 verification, build-time hash generation      | Very Low      |
-| **Malicious WASM updates** | ⚠️ Requires build compromise | Hash manifest in version control, code review         | Very Low      |
-| **XSS → WASM exploit**     | ❌ Not possible              | No user data in WASM loading                          | None          |
+| Attack Scenario            | Feasibility                  | Mitigations                                                               | Residual Risk |
+| -------------------------- | ---------------------------- | ------------------------------------------------------------------------- | ------------- |
+| **Remote WASM injection**  | ❌ Not possible              | Local-only loading                                                        | None          |
+| **User-controlled WASM**   | ❌ Not possible              | No dynamic loading                                                        | None          |
+| **Tampered bundled WASM**  | ⚠️ Requires OS compromise    | Tauri code signing, OS file perms                                         | Very Low      |
+| **Corrupted WASM builds**  | ⚠️ Build system failure      | Corrupt `.wasm` fails instantiate; glue mismatch fails the instance check | Very Low      |
+| **Malicious WASM updates** | ⚠️ Requires build compromise | Code review, code signing                                                 | Very Low      |
+| **XSS → WASM exploit**     | ❌ Not possible              | No user data in WASM loading                                              | None          |
 
 ### Overall Risk Level: **Low**
 
@@ -225,7 +225,7 @@ $ grep -r "WebAssembly.instantiateStreaming" src/
 
 - Primary attack vector (remote WASM loading) is completely eliminated
 - Secondary vectors require compromising the build process or OS file system
-- Multiple layers of defense (integrity checks, graceful degradation, verification)
+- Several layers of defense (code signing, instance verification, OS file permissions, failure skips Phase 1)
 - No user-controlled input flows to WASM loading logic
 
 ---
@@ -246,8 +246,8 @@ $ grep -r "WebAssembly.instantiateStreaming" src/
 **Our Justification**:
 
 1. **No remote WASM** = Attacker cannot inject malicious modules
-2. **Integrity checks** = Tampered local modules are detected
-3. **Graceful fallback** = Security failures don't break the app
+2. **Code signing and OS file permissions** = Tampering with the bundle is not something a hash shipped inside it could detect (ADR-080)
+3. **Failure isolation** = A WASM failure skips Phase 1 and the app keeps translating (ADR-101)
 4. **Tauri sandbox** = Additional OS-level isolation from browser
 
 **Industry Precedent**:
@@ -296,8 +296,7 @@ The SHA-256 manifest check was deleted; see mitigation #2 above and ADR-080.
 
 ### Internal Documentation
 
-- **WASM Number Processor**: `src/utils/WasmNumberProcessor.js` (lines 15-35)
-- **WASM Pattern Processor**: `src/utils/WasmPatternProcessor.js` (lines 18-40)
+- **WASM Pattern Processor**: `src/utils/wasm/WasmPatternProcessor.js` (CSP notice in the file header)
 - **Instance verification**: `src/utils/wasm/wasmInstanceCheck.js`
 - **Tauri Configuration**: `src-tauri/tauri.conf.json:23`
 
@@ -317,10 +316,10 @@ The SHA-256 manifest check was deleted; see mitigation #2 above and ADR-080.
 **Answer**: **Yes**, with the mitigations in place:
 
 1. ✅ WASM loaded only from bundled files (not remotely)
-2. ✅ SHA-256 binary integrity verification (CODE REVIEW FIX 2026-02-01)
-3. ✅ Module structure verification before use
+2. ℹ️ No binary hash check (removed 2026-10-06, ADR-080); tampering with the bundle is covered by code signing
+3. ✅ A corrupt or mismatched binary fails init (`WebAssembly.instantiate`, then the instance method check)
 4. ✅ Instance method validation after creation
-5. ✅ Graceful degradation on failure
+5. ✅ A failure skips Phase 1 and the app keeps translating
 6. ✅ Retry logic with security-aware failure handling
 7. ✅ No user-controlled WASM loading
 
@@ -330,5 +329,5 @@ The SHA-256 manifest check was deleted; see mitigation #2 above and ADR-080.
 
 ---
 
-**Reviewed**: 2026-02-01 (Added SHA-256 hash verification)
+**Reviewed**: 2026-02-01. **Corrected**: 2026-10-11 (claims that no longer match the code; not a new security review)
 **Next Review**: After wasm-bindgen major version update or CSP standard changes

@@ -1,6 +1,6 @@
 // TwoPhasePatternProcessor is WASM-only — processTokens() throws when WASM is unavailable.
-// Tests cover: construction, pattern categorization, semantic token extraction,
-// setup validation, and the WASM gate contract.
+// Tests cover: construction, the WASM gate contract, the bounds filter on results, and the
+// internal-profiling switch.
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
@@ -26,61 +26,14 @@ const VARIABLE_PATTERN = {
   template: 'của X',
   allowAsPatternVariable: true,
 };
-const COMPOSITE_PATTERN = {
-  originalPattern: 'X是Y',
-  template: 'Y là X',
-  allowAsPatternVariable: false,
-};
-const LITERAL_PATTERN = {
-  originalPattern: '手套',
-  template: 'găng tay',
-  allowAsPatternVariable: false,
-};
 
 describe('TwoPhasePatternProcessor — constructor', () => {
   test('creates instance without throwing', () => {
     expect(() => new TwoPhasePatternProcessor([VARIABLE_PATTERN])).not.toThrow();
   });
 
-  test('processes patterns through PatternAnalyzer on construction', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    // analyzePatterns adds compositeEligible, hasVariables, etc.
-    expect(proc.processedPatterns).toHaveLength(2);
-    expect(proc.processedPatterns[0]).toHaveProperty('hasVariables');
-    expect(proc.processedPatterns[0]).toHaveProperty('compositeEligible');
-  });
-
   test('accepts empty pattern array', () => {
-    const proc = new TwoPhasePatternProcessor([]);
-    expect(proc.processedPatterns).toHaveLength(0);
-  });
-});
-
-describe('TwoPhasePatternProcessor — categorizePatterns()', () => {
-  test('variablePatterns contains only allowAsPatternVariable: true patterns', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    expect(proc.variablePatterns).toHaveLength(1);
-    expect(proc.variablePatterns[0].originalPattern).toBe('X的');
-  });
-
-  test('compositeEligiblePatterns contains X-only patterns', () => {
-    // X的 has X but no Y → compositeEligible: true
-    // X是Y has X and Y → compositeEligible: false
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    expect(proc.compositeEligiblePatterns.every((p) => p.compositeEligible)).toBe(true);
-  });
-
-  test('allPatterns contains every processed pattern', () => {
-    const patterns = [VARIABLE_PATTERN, COMPOSITE_PATTERN, LITERAL_PATTERN];
-    const proc = new TwoPhasePatternProcessor(patterns);
-    expect(proc.allPatterns).toHaveLength(3);
-  });
-
-  test('empty input produces empty category arrays', () => {
-    const proc = new TwoPhasePatternProcessor([]);
-    expect(proc.variablePatterns).toHaveLength(0);
-    expect(proc.compositeEligiblePatterns).toHaveLength(0);
-    expect(proc.allPatterns).toHaveLength(0);
+    expect(() => new TwoPhasePatternProcessor([])).not.toThrow();
   });
 });
 
@@ -104,54 +57,38 @@ describe('TwoPhasePatternProcessor — processTokens() WASM gate', () => {
   });
 });
 
-describe('TwoPhasePatternProcessor — validateSetup()', () => {
-  test('valid setup with variable and composite patterns', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    const { valid, issues } = proc.validateSetup();
-    // VARIABLE_PATTERN has allowAsPatternVariable: true → variablePatterns non-empty
-    // VARIABLE_PATTERN has X-only → compositeEligiblePatterns non-empty
-    expect(valid).toBe(true);
-    expect(issues).toHaveLength(0);
-  });
+describe('TwoPhasePatternProcessor — processTokens() bounds filter', () => {
+  const tokens = [
+    { value: '你', type: 'chinese_char', translated: null },
+    { value: '好', type: 'chinese_char', translated: null },
+  ];
+  const options = {
+    activeProperNouns: [],
+    dictionaryManager: { translate: () => null, findAllMatches: () => [] },
+  };
+  const inBounds = { startIndex: 0, endIndex: 1, translation: 'xin chào' };
+  const pastEnd = { startIndex: 5, endIndex: 6, translation: 'ngoài' };
+  const reversed = { startIndex: 1, endIndex: 0, translation: 'ngược' };
 
-  test('no patterns → reports issue', () => {
-    const proc = new TwoPhasePatternProcessor([]);
-    const { valid, issues } = proc.validateSetup();
-    expect(valid).toBe(false);
-    expect(issues.some((i) => i.includes('No patterns'))).toBe(true);
-  });
+  test('drops results whose indices fall outside the token array, keeps the rest', async () => {
+    vi.mocked(isWasmPatternProcessorReady).mockReturnValue(true);
+    vi.mocked(processTokensWasm).mockResolvedValue({
+      success: true,
+      results: [pastEnd, inBounds, reversed],
+    });
 
-  test('no variable patterns → reports issue', () => {
-    // LITERAL_PATTERN has no variables → allowAsPatternVariable: false → variablePatterns empty
-    const proc = new TwoPhasePatternProcessor([LITERAL_PATTERN]);
-    const { valid, issues } = proc.validateSetup();
-    expect(valid).toBe(false);
-    expect(issues.some((i) => i.includes('variable patterns'))).toBe(true);
-  });
-
-  test('returns { valid, issues, warnings } shape', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    const result = proc.validateSetup();
-    expect(result).toHaveProperty('valid');
-    expect(result).toHaveProperty('issues');
-    expect(result).toHaveProperty('warnings');
-  });
-});
-
-describe('TwoPhasePatternProcessor — getStatistics()', () => {
-  test('returns patterns counts', () => {
-    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN, COMPOSITE_PATTERN]);
-    const stats = proc.getStatistics();
-    expect(stats.patterns.total).toBe(2);
-    expect(typeof stats.patterns.variablePatterns).toBe('number');
-    expect(typeof stats.patterns.compositeEligible).toBe('number');
-    expect(stats).not.toHaveProperty('options');
-  });
-
-  test('includes analysis summary', () => {
     const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN]);
-    const stats = proc.getStatistics();
-    expect(stats.analysis).toBeDefined();
+    const result = await proc.processTokens(tokens, options);
+
+    expect(result).toEqual([inBounds]);
+  });
+
+  test('throws when WASM reports failure', async () => {
+    vi.mocked(isWasmPatternProcessorReady).mockReturnValue(true);
+    vi.mocked(processTokensWasm).mockResolvedValue({ success: false, error: 'boom' });
+
+    const proc = new TwoPhasePatternProcessor([VARIABLE_PATTERN]);
+    await expect(proc.processTokens(tokens, options)).rejects.toThrow('boom');
   });
 });
 

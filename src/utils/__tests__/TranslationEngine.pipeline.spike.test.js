@@ -1,7 +1,7 @@
 /**
  * Spike: can TranslationEngine be instantiated and translateSinglePass called in jsdom?
  *
- * WASM will fail to load (no binary in test env) — both processors gracefully degrade.
+ * WASM will fail to load (no binary in test env) — the pattern processor gracefully degrades.
  * If this file passes, a real pipeline test suite is viable.
  */
 import { describe, test, expect, beforeAll } from 'vitest';

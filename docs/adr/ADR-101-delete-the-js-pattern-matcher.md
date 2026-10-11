@@ -29,3 +29,9 @@ How often the JS path ran in production. There is no telemetry, and none was add
 - ADR-007's "do not add `WasmPatternBridge`" stands, but the seam at `TwoPhasePatternProcessor` now has two test adapters (the real binary and a throwing fake).
 - ADR-096's "keep the tier" decision stands; its fallback paragraph is superseded here.
 - `PatternVariableCache.buildPatternVariableCache` now has one production caller (`TwoPhasePatternProcessor`); its `initialCache` parameter has none outside its own test.
+
+## Addendum 2026-10-11: the JS pattern analysis went too
+
+`TwoPhasePatternProcessor` still ran `PatternAnalyzer.analyzePatterns` in its constructor, which stamped `hasVariables`, `hasXVariable`, `hasYVariable`, `isMultiVariable`, `compositeEligible` and `variableCount` on every pattern. The only readers were `categorizePatterns`, `getStatistics` and `validateSetup`, all inside the same file and its tests; no production code called the last two. It was analysis for the JS matcher's composite stage, left behind when the matcher went.
+
+Deleted: `PatternAnalyzer.js`, `categorizePatterns` (and `variablePatterns`, `compositeEligiblePatterns`, `allPatterns`), `getStatistics`, `validateSetup`, their tests, the unused pattern-structure types in `PatternProcessingTypes.d.ts` (`SemanticPattern`, `PatternMatchResult`, `PhaseAResult` and the types only they used), `buildPatternVariableCache`'s `initialCache` parameter, `DictionaryManagerConfig` and `TranslationEngineInitOptions.dictionaryManager` (nothing read it; the engine hard-codes the cache settings). The class keeps its name: Rust still runs two phases (`two_phase.rs`). It now does five things: gate on WASM readiness, extract semantic tokens, build the variable cache, make the one WASM call, bounds-filter the results. The bounds filter has a test through `processTokens`. The internal-profiling methods stay (ADR-021).

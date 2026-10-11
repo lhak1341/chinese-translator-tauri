@@ -248,21 +248,4 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
 
     expect(result['部分'].translation).toBe('bộ phận');
   });
-
-  test('stage 1 initialCache entries preserved and overwritable by stage 2', () => {
-    const trie = makeTrie([['部', 'bộ_stage2', { allowAsPatternVariable: true }]]);
-    const tokens = [{ value: '部' }];
-    const initialCache = { 部: { translation: 'bộ_initial', source: 'initial', type: null } };
-
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType,
-      initialCache
-    );
-
-    // Stage 2 overwrites initialCache entry
-    expect(result['部'].translation).toBe('bộ_stage2');
-    expect(result['部'].source).toBe('phrases_pattern_variable');
-  });
 });

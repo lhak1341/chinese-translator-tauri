@@ -7,8 +7,7 @@
 
 import { describe, test, expect } from 'vitest';
 import { precomputeOriginalSegments } from '../highlighting/SegmentPrecomputer';
-import type { SemanticArrays } from '../../types/SemanticTypes';
-import type { Segment } from '../highlighting/SegmentPrecomputer';
+import type { Segment, SemanticArrays } from '../../types/SemanticTypes';
 import { makeMeta } from '../../test/makeMeta';
 
 // ---------------------------------------------------------------------------
