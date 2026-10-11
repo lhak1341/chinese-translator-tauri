@@ -3,13 +3,12 @@
  * test-fixtures/pattern-variable-parity.json is the single source of truth; the Rust mirror
  * check lives in wasm-core/src/pattern_processor/variable.rs.
  *
- * Asserted here through every JS consumer, not just the predicate: the validator
- * (extractPatternVariables) and the JS fallback matcher (SemanticPatternProcessor.parsePattern)
- * each used to carry their own letter test, and the fallback's never counted `#` at all.
+ * Asserted here through the JS consumers, not just the predicate: the validator
+ * (extractPatternVariables) used to carry its own letter test. PatternStore reads the predicate
+ * directly. The JS matcher that once parsed through it is gone (ADR-101).
  */
 import { describe, test, expect } from 'vitest';
 import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
-import { SemanticPatternProcessor } from '../pattern/SemanticPatternProcessor.js';
 import { extractPatternVariables } from '../dictionary/PatternEntryRules';
 import fixture from '../../../test-fixtures/pattern-variable-parity.json';
 
@@ -27,11 +26,5 @@ describe('pattern variable recognition — shared fixture parity', () => {
 
   test.each(fixture.cases)('validator: $name', ({ text, variables }) => {
     expect(extractPatternVariables(text)).toEqual(new Set(variables.map((i) => text[i])));
-  });
-
-  test.each(fixture.cases)('fallback matcher parse: $name', ({ text, variables }) => {
-    const parsed = new SemanticPatternProcessor().parsePattern(text, text);
-    const positions = parsed.tokens.filter((t) => t.type === 'variable').map((t) => t.position);
-    expect(positions).toEqual(variables);
   });
 });

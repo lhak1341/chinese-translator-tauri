@@ -14,7 +14,6 @@ class TextChunk {
     this.startedBy = startedBy; // What precedes this chunk (for capitalization rules)
     this.translated = null; // Will hold the translated result
     this.translatedPunctuation = null; // Will hold the translated punctuation
-    this.punctuationTranslated = false; // True once the punctuation dictionary was applied to it; later passes only redo spacing
   }
 
   toString() {

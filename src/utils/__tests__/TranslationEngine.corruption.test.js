@@ -58,6 +58,44 @@ describe('a corrupted semantic array builder', () => {
     expect(toast.error.mock.calls[0][0]).toMatch(/Translation quality degraded/);
   });
 
+  describe('a phase that throws after changing the token count', () => {
+    // Each phase's catch block notices the length change, tells the user once and abandons the
+    // translation. The stubs drop a token and throw, standing in for a phase that corrupted the array.
+    const corrupt = (target, name) => {
+      const original = target[name];
+      // The number processor is synchronous: a rejected promise would never reach the catch block.
+      target[name] = vi.fn((tokens) => {
+        tokens.pop();
+        throw new Error('boom');
+      });
+      return () => {
+        target[name] = original;
+      };
+    };
+
+    test.each([
+      ['patterns', () => corrupt(engine, 'applyPatterns')],
+      ['properNouns', () => corrupt(engine, 'applyDictionaryTranslation')],
+      ['numbers', () => corrupt(engine.numberProcessor, 'processTokens')],
+      ['phrases', () => corrupt(engine, 'createOptimalPhraseGroups')],
+      ['characters', () => corrupt(engine, 'processRemainingTokens')],
+    ])('%s: one critical-error toast, then the translation is abandoned', async (_phase, stub) => {
+      const restore = stub();
+      try {
+        await expect(runSinglePass(engine, [tok('你', 0), tok('好', 1)], {})).rejects.toThrow(
+          /Token array corruption detected/
+        );
+      } finally {
+        restore();
+      }
+
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error.mock.calls[0][0]).toBe(
+        'Translation engine encountered a critical error. Please reload the page.'
+      );
+    });
+  });
+
   test('says nothing while the builder is healthy', async () => {
     await runSinglePass(engine, [tok('你', 0)], {});
 

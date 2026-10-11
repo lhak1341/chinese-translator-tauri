@@ -7,16 +7,9 @@ import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
 import type { ThrottledStreamingState } from '../../types/UITypes';
 import type { SegmentClickHandler } from '../../types/ClickableTypes';
+import type { WordSegment } from '../../utils/highlighting';
 import { logger } from '../../utils/logger';
 import styles from '../../styles/TranslatorDisplayPanels.module.css';
-
-/**
- * Prebuilt segment for optimized rendering
- */
-interface PrebuiltSegment {
-  text: string;
-  unitIndex: number;
-}
 
 /**
  * Props for TranslatorDisplayPanels component
@@ -28,7 +21,7 @@ interface TranslatorDisplayPanelsProps {
   semanticArrays: SemanticArrays;
   characterOnlySemanticArrays: SemanticArrays;
   partialSemanticArrays: SemanticArrays | null;
-  prebuiltSegments: PrebuiltSegment[];
+  prebuiltSegments: WordSegment[];
   highlightedUnitIndex: number | null;
   highlightedCharacterOnlyUnitIndex: number | null;
   throttledStreamingState: ThrottledStreamingState;
@@ -178,7 +171,7 @@ export default function TranslatorDisplayPanels({
                   <ClickableTranslationOptimized
                     translatedText={translatedText}
                     semanticArrays={semanticArrays}
-                    prebuiltSegments={prebuiltSegments as any}
+                    prebuiltSegments={prebuiltSegments}
                     onSegmentClick={handleSemanticSegmentClick}
                     highlightedTranslationUnitIndex={highlightedUnitIndex ?? undefined}
                   />

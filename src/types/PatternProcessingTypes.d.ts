@@ -177,8 +177,6 @@ export interface PhaseAResult extends PatternMatchResult {
  * Pattern processing options
  */
 export interface PatternProcessingOptions {
-  /** Prioritized patterns to apply first (read by SemanticPatternProcessor) */
-  prioritizedPatterns?: PatternMatchResult[];
   /** Active proper noun dictionaries (read by TwoPhasePatternProcessor) */
   activeProperNouns?: string[];
   /** Dictionary manager instance, DictionaryManager type (read by TwoPhasePatternProcessor) */
@@ -202,10 +200,9 @@ export interface PatternProcessorResult {
 }
 
 /**
- * Contract both PatternProcessor adapters satisfy.
- * Selection between WASM (TwoPhasePatternProcessor) and JS (SemanticPatternProcessor)
- * happens once in applyPatterns(); both return the same shape so applyHierarchicalResults()
- * applies either without branching.
+ * Contract the pattern processor satisfies (TwoPhasePatternProcessor over the WASM matcher; the
+ * JS matcher that was a second adapter is gone, ADR-101). applyHierarchicalResults() reads the
+ * result shape.
  */
 export interface PatternProcessorAdapter {
   processTokens(

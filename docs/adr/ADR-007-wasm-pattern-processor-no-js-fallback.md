@@ -1,6 +1,6 @@
 # ADR-007: TwoPhasePatternProcessor — No JS Fallback, Hard Failure on WASM Error
 
-**Status**: Accepted
+**Status**: Accepted; the JS-path clause is superseded by ADR-101
 **Date**: 2026-05-16
 **Decision Makers**: Development Team
 **Affected Components**: `TwoPhasePatternProcessor.js`, `WasmPatternProcessor.js`, `TranslationEngine.js`
@@ -93,3 +93,7 @@ No `WasmPatternBridge` is extracted. No JS fallback is restored inside `TwoPhase
 `applyPatterns()` no longer checks `hasWasmPatternProcessorFailed()` after a successful `processTokens()` (the toast, `_wasmInitWarningShown` and the engine's import of both readiness checks are gone): `processTokens()` throws up front unless the lifecycle is ready, and a failure reaches the failure counter through that throw. The counter now covers the WASM path only; a JS-path failure feeds a second tracker that only warns. The decision above is unchanged.
 
 Two more changes the same day make "the JS path takes over" hold when WASM never worked. `PatternFailureTracker` measures its window from the first failure of a run of failures, not from the last success: with no success ever (WASM failed to initialize), the third failure used to `reset` instead of `disable`, so Phase 1 was skipped for every chunk and the JS path never took over. And `TranslationEngine.initialize` sets `enableTwoPhasePatterns = false` right after `initializePatterns` when patterns are loaded and `SemanticPatternProcessor.wasmAvailable` is false, with a `logger.warn` and no toast (the JS path gives the same output, slower), so the first chunks do not pay for three failures.
+
+## Addendum — 2026-10-11
+
+ADR-101 deletes the JS matcher. "Subsequent calls use `SemanticPatternProcessor`" and "the JS path takes over" no longer hold: after the third failure, or when WASM never initialized, Phase 1 is skipped and a `toast.error` says so. `SemanticPatternProcessor` is now `PatternStore`. Everything else here stands: no JS fallback inside `TwoPhasePatternProcessor`, no `WasmPatternBridge`, throw on `{ success: false }`.

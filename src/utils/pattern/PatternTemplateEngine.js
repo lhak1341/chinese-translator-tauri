@@ -47,8 +47,7 @@ export class PatternTemplateEngine {
    * number variable), or X/Y/Z not immediately flanked by a lowercase letter.
    *
    * The one JS definition: the validator (PatternEntryRules), this class's own
-   * parsers and the JS fallback matcher (SemanticPatternProcessor.parsePattern)
-   * all call it. Rust's twin is `is_variable_at` (wasm-core pattern_processor/
+   * parsers and PatternStore's missing-variable check all call it. Rust's twin is `is_variable_at` (wasm-core pattern_processor/
    * variable.rs); test-fixtures/pattern-variable-parity.json pins both.
    *
    * @param {string} str

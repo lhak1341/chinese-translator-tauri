@@ -12,7 +12,8 @@
  * These types enable JSDoc integration for full IDE support without migrating performance-critical code.
  */
 
-import type { SemanticArrays, SemanticArrayMetadata } from './SemanticTypes';
+import type { SemanticArrays } from './SemanticTypes';
+import type { WordSegment } from '../utils/highlighting';
 
 // =============================================================================
 // Core Direction Types
@@ -25,56 +26,6 @@ export type ClickDirection =
   | 'original-to-translation' // Click on original text to highlight translation
   | 'translation-to-original' // Click on translation to highlight original
   | 'character-only-to-original'; // Special mode for character-only translation
-
-// =============================================================================
-// Segment Types
-// =============================================================================
-
-/**
- * Base segment interface for text rendering
- */
-export interface BaseSegment {
-  /** Raw text content of this segment */
-  text: string;
-  /** Start position in full text */
-  start: number;
-  /** End position in full text */
-  end: number;
-  /** Whether this segment is clickable */
-  isClickable: boolean;
-  /** Unique key for React rendering */
-  key?: string;
-  /** Segment type identifier */
-  type?: 'semantic' | 'text' | 'space';
-}
-
-/**
- * Clickable semantic segment with full translation metadata
- */
-export interface ClickableSegment extends BaseSegment {
-  /** Whether this segment is clickable (always true) */
-  isClickable: true;
-  /** Index in semantic arrays */
-  unitIndex: number;
-  /** Original Chinese text */
-  originalText: string;
-  /** Translated Vietnamese text */
-  translatedText: string;
-  /** Translation source (pattern, phrase, character, etc.) */
-  source: string;
-  /** Full semantic metadata */
-  metadata?: SemanticArrayMetadata;
-}
-
-/**
- * Prebuilt segment with additional rendering metadata
- */
-export interface PrebuiltSegment extends ClickableSegment {
-  /** Whether this segment is currently highlighted */
-  isHighlighted?: boolean;
-  /** Computed styles for rendering optimization */
-  computedStyles?: React.CSSProperties;
-}
 
 // =============================================================================
 // Click Handler Types
@@ -150,28 +101,12 @@ export interface ClickableTranslationOptimizedProps {
   translatedText?: string;
   /** Semantic arrays with translation metadata */
   semanticArrays?: SemanticArrays;
-  /** Prebuilt segments for instant rendering (recommended) */
-  prebuiltSegments?: PrebuiltSegment[];
+  /** Prebuilt segments for instant rendering (recommended): what `matchWordSegments` produced */
+  prebuiltSegments?: WordSegment[];
   /** Click handler for segment interactions */
   onSegmentClick?: SegmentClickHandler;
   /** Currently highlighted unit index */
   highlightedTranslationUnitIndex?: number;
-}
-
-// =============================================================================
-// Internal Component Props (for memoized sub-components)
-// =============================================================================
-
-/**
- * Props for memoized SegmentComponent (used in optimized components)
- */
-export interface SegmentComponentProps {
-  /** Segment data to render */
-  segment: PrebuiltSegment;
-  /** Click handler — receives the segment's unitIndex, matches useSegmentClickHandler's return type */
-  onClick: (unitIndex: number) => void;
-  /** Whether this segment is currently highlighted */
-  isHighlighted: boolean;
 }
 
 // Export empty object to make this a module

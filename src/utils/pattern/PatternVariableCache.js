@@ -1,12 +1,9 @@
 /**
- * PatternVariableCache — shared dictionary lookup algorithm for both PatternProcessor adapters.
+ * PatternVariableCache — the dictionary lookup algorithm behind the pattern variable cache.
  *
- * Both SemanticPatternProcessor (JS) and TwoPhasePatternProcessor (WASM) need an identical
- * word→{translation,type} map built from dictionary state before their matchers run.
- * Previously both files duplicated this algorithm; changes had to be mirrored manually.
- *
- * This module is the single source of truth for the four lookup stages. Adapters supply
- * only their type-resolution strategy via resolveType.
+ * TwoPhasePatternProcessor needs a word→{translation,type} map built from dictionary state
+ * before the WASM matcher runs. This module owns the four lookup stages; the caller supplies
+ * only its type-resolution strategy via resolveType.
  */
 
 import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
@@ -17,8 +14,8 @@ const MAX_PHRASE_TOKENS = 6;
 /**
  * Last stage: numeral spans for `#` patterns, when any pattern uses `#`. After the
  * dictionary stages, and never overwriting, so a dictionary entry for the same text wins.
- * Both matchers let a `number` entry fill only `#` (matcher.rs::is_variable_type_allowed,
- * SemanticPatternProcessor's type check), so the entries cannot leak into X/Y/Z.
+ * The matcher lets a `number` entry fill only `#` (matcher.rs::is_variable_type_allowed), so the
+ * entries cannot leak into X/Y/Z.
  *
  * @param {Array} tokens
  * @param {Object} cache

@@ -8,10 +8,9 @@ import { QuoteProcessor, QUOTE_TYPES } from './QuoteProcessor';
  * Phase 5 post-processing bugs have a single locality and methods are testable with a
  * TextChunk[] fixture without constructing a full TextChunker.
  *
- * JS/WASM divergence: fixAngleQuotePositioning handles only the JS chunker's empty-chunk
- * representation of 《 (creates a separate empty chunk with punctuation="«"). WASM accumulates
- * 《 directly into the preceding chunk's punctuation field — applySmartCapitalization in
- * TranslationEngine handles that path via the multi-char includes("：") check.
+ * fixAngleQuotePositioning handles the chunker's empty-chunk representation of 《 (a separate
+ * empty chunk with punctuation="«"); applySmartCapitalization handles a 《 carried in the
+ * preceding chunk's punctuation field via the multi-char includes("：") check.
  */
 export class ChunkPostProcessor {
   constructor() {
@@ -190,11 +189,12 @@ export class ChunkPostProcessor {
   }
 
   /**
-   * Punctuation translation: the dictionary is applied to a chunk's punctuation once, then the
-   * comma spacing is decided. Running it again over the same chunks (the final pass over every
-   * chunk, after the batches) redoes only the spacing: `chunk.punctuationTranslated` records that
-   * the dictionary already ran, because applying it to its own output changes the result for an
-   * entry like ……→… (a second run gave …) or a chain like 「→“ with “→".
+   * Punctuation translation: a chunk's `translatedPunctuation` is the dictionary applied to its
+   * source `punctuation`, then the comma spacing decided. It always starts from the source, never
+   * from a previous `translatedPunctuation`, so running it again over the same chunks (the final
+   * pass over every chunk, after the batches) gives the same result: applying the dictionary to
+   * its own output would change an entry like ……→… (a second run gave …) or a chain like 「→“
+   * with “→".
    * @param {TextChunk[]} chunks - Array of chunks to translate
    * @param {Object} punctuationDict - Punctuation translation dictionary
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk in text order, for neighbour lookups
@@ -207,17 +207,11 @@ export class ChunkPostProcessor {
 
     for (const chunk of chunks) {
       if (chunk.punctuation) {
-        if (!chunk.punctuationTranslated) {
-          // A translatedPunctuation already set by a caller (with spacing) is translated in place,
-          // keeping its spacing; otherwise the source punctuation is translated.
-          const hasPreset = chunk.translatedPunctuation && chunk.translatedPunctuation !== 'null';
-          chunk.translatedPunctuation = this._translateWithDictionary(
-            hasPreset ? chunk.translatedPunctuation : chunk.punctuation,
-            punctuationDict,
-            maxKeyLength
-          );
-          chunk.punctuationTranslated = true;
-        }
+        chunk.translatedPunctuation = this._translateWithDictionary(
+          chunk.punctuation,
+          punctuationDict,
+          maxKeyLength
+        );
 
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
         // BUT NOT if the next chunk starts with a quote

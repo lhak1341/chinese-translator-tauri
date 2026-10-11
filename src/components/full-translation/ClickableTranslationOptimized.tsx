@@ -3,14 +3,26 @@
  * Uses pre-computed segments and memoization for maximum performance
  */
 import React, { useMemo, useCallback } from 'react';
-import type {
-  ClickableTranslationOptimizedProps,
-  SegmentComponentProps,
-} from '../../types/ClickableTypes';
+import type { ClickableTranslationOptimizedProps } from '../../types/ClickableTypes';
 import styles from '../../styles/ClickableTranslationOptimized.module.css';
 import { sanitizeString } from '../../utils/configValidation';
 import { isUnitHighlighted } from '../../utils/highlighting';
+import type { WordSegment } from '../../utils/highlighting';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
+
+/**
+ * What `matchWordSegments` produced, plus the two fields this component adds to render it.
+ * Only the `semantic` variant is clickable and carries a `unitIndex`; the spacing and remaining
+ * runs between units are plain text.
+ */
+type RenderSegment = WordSegment & { key: string; isHighlighted: boolean };
+
+interface SegmentComponentProps {
+  segment: RenderSegment;
+  /** Receives the segment's unitIndex, matches useSegmentClickHandler's return type */
+  onClick: (unitIndex: number) => void;
+  isHighlighted: boolean;
+}
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
@@ -19,10 +31,10 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
     // Using segment object as dependency causes handleClick to recreate on every highlight
     // change (100+ closures per click). Instead, depend only on primitive values.
     const isClickable = segment.isClickable;
-    const unitIndex = segment.unitIndex;
+    const unitIndex = segment.isClickable ? segment.unitIndex : undefined;
 
     const handleClick = useCallback(() => {
-      if (isClickable) {
+      if (isClickable && unitIndex !== undefined) {
         onClick(unitIndex);
       }
     }, [isClickable, unitIndex, onClick]);
@@ -41,7 +53,7 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
     return (
       <span
         key={segment.key}
-        data-unit-index={segment.unitIndex}
+        data-unit-index={unitIndex}
         onClick={handleClick}
         className={className}
         title={
@@ -69,16 +81,19 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
   const precomputedSegments = prebuiltSegments;
 
   // Create render segments only when highlight changes
-  const renderSegments = useMemo(() => {
+  const renderSegments = useMemo((): RenderSegment[] => {
     return precomputedSegments.map((segment, index) => ({
       ...segment,
-      key: `segment-${index}-${segment.unitIndex || 'na'}`,
-      text: segment.translatedText || segment.text,
+      key: `segment-${index}-${(segment.isClickable && segment.unitIndex) || 'na'}`,
+      text: (segment.type === 'semantic' && segment.translatedText) || segment.text,
       // CRITICAL-4 FIX: Explicit null/undefined guards before comparison
       // Prevents silent failures if state corruption occurs
       // CODE REVIEW FIX: Support both single index and array of indices for highlighting
       // Matches ClickableTranslationSemantic behavior for consistency across dual-path architecture
-      isHighlighted: isUnitHighlighted(segment.unitIndex, highlightedTranslationUnitIndex),
+      isHighlighted: isUnitHighlighted(
+        segment.isClickable ? segment.unitIndex : -1,
+        highlightedTranslationUnitIndex
+      ),
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 
@@ -89,8 +104,8 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
   const paragraphs = useMemo(() => {
     if (renderSegments.length === 0) return [];
 
-    const result: any[][] = [];
-    let currentParagraph: any[] = [];
+    const result: RenderSegment[][] = [];
+    let currentParagraph: RenderSegment[] = [];
 
     for (let i = 0; i < renderSegments.length; i++) {
       const segment = renderSegments[i];
@@ -152,7 +167,7 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
                 : '0',
           }}
         >
-          {paragraphSegments.map((segment: any) => (
+          {paragraphSegments.map((segment) => (
             <SegmentComponent
               key={segment.key}
               segment={segment}

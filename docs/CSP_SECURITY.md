@@ -150,7 +150,7 @@ catch (error) {
 **Fallback Behavior**:
 
 - **Number Processor**: Translates numbers character-by-character (slower but functional)
-- **Pattern Processor**: Uses JavaScript `SemanticPatternProcessor` (10-50x slower but functional)
+- **Pattern Processor**: No fallback; Phase 1 (patterns) is skipped and an error toast tells the user (ADR-101)
 
 **Why This Matters**:
 

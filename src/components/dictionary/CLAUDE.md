@@ -65,7 +65,7 @@ What an entry can carry — the VAR toggle, a semantic type, X/Y variable types 
 Canonical values, in `SEMANTIC_TYPE_LIST` order: `'character'`, `'creature'`, `'location'`, `'organization'`, `'concept'`, `'object'` (UI abbreviations: CHA/CRE/LOC/ORG/CON/OBJ). That order is also the Add form's digit keys (`SemanticTypePicker`: 1-6, 0 None, then 7/8 `$X`/`$Y`) — inserting a type renumbers them. Dictionary JSON stores these strings directly — a stale value (e.g. old `'person'`/`'place'`) displays no badge and fails filter matching silently. Bulk-migrate with `scripts/migrate-semantic-types.py`.
 
 - `SEMANTIC_TYPE_ABBREVIATIONS` and `SEMANTIC_TYPE_LIST` (from `src/constants/SemanticTypes.ts`) are the canonical exports for toggle cells in `EnhancedVirtualizedDictionaryTable.tsx` — do NOT redeclare local lists.
-- `classifyVariableType` in `SemanticPatternProcessor.js` returns canonical values when `metadata.semanticType` is set, but falls back to internal discriminators (`'proper_noun'`, `'character_unit'`, `'unknown'`) that are NOT canonical — `'proper_noun'` is special-cased to `null` (always include); `'character_unit'` and `'unknown'` fail `allowedVariableTypes` constraints intentionally.
+- `classifyVariableType` in `VariableTypeClassifier.ts` returns canonical values when `metadata.semanticType` is set, but falls back to internal discriminators (`'proper_noun'`, `'character_unit'`, `'unknown'`) that are NOT canonical — `'proper_noun'` is special-cased to `null` (always include); `'character_unit'` and `'unknown'` fail `allowedVariableTypes` constraints intentionally.
 
 ## `$X`/`$Y` Variable-Derived Semantic Types (Patterns Only)
 

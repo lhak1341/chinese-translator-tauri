@@ -18,7 +18,7 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import type { PrebuiltSegment } from '../../types/ClickableTypes';
+import type { WordSegment } from '../../utils/highlighting';
 import ClickableTranslationOptimized from '../full-translation/ClickableTranslationOptimized';
 import { makeMeta } from '../../test/makeMeta';
 
@@ -26,9 +26,12 @@ import { makeMeta } from '../../test/makeMeta';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSegment(overrides: Record<string, unknown> = {}): PrebuiltSegment {
+type SemanticSegment = Extract<WordSegment, { type: 'semantic' }>;
+
+/** A real `semantic` WordSegment, what matchWordSegments produces for a clickable unit. */
+function makeSegment(overrides: Partial<SemanticSegment> = {}): WordSegment {
   return {
-    type: 'semantic' as const,
+    type: 'semantic',
     text: 'bạn',
     translatedText: 'bạn',
     originalText: '你',
@@ -38,10 +41,13 @@ function makeSegment(overrides: Record<string, unknown> = {}): PrebuiltSegment {
     isClickable: true,
     source: 'character',
     metadata: makeMeta({ source: 'character', tokenIndex: 0 }),
-    isHighlighted: false,
-    key: 'seg-0',
     ...overrides,
-  } as PrebuiltSegment;
+  };
+}
+
+/** A real `spacing` WordSegment: plain text between units, no unitIndex, not clickable. */
+function makeSpacing(text: string): WordSegment {
+  return { type: 'spacing', text, start: 0, end: text.length, isClickable: false };
 }
 
 function makeProps(overrides: Record<string, unknown> = {}) {
@@ -109,7 +115,6 @@ describe('ClickableTranslationOptimized — basic rendering', () => {
         translatedText: 'tốt',
         start: 4,
         end: 7,
-        key: 'seg-1',
       }),
     ];
     const { container } = render(
@@ -163,14 +168,13 @@ describe('ClickableTranslationOptimized — highlight state', () => {
 
   test('array-based highlightedTranslationUnitIndex highlights multiple segments', () => {
     const segs = [
-      makeSegment({ unitIndex: 0, key: 'seg-0' }),
+      makeSegment({ unitIndex: 0 }),
       makeSegment({
         unitIndex: 1,
         text: 'tốt',
         translatedText: 'tốt',
         start: 4,
         end: 7,
-        key: 'seg-1',
       }),
     ];
     const { container } = render(
@@ -240,15 +244,7 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
   test('newline in segment text creates multiple paragraph divs', () => {
     // This component breaks on every \n (not just \n\n or indented lines).
     // Vietnamese translated text uses single newlines between paragraphs.
-    const segs = [
-      makeSegment({
-        text: 'bạn\ntốt',
-        translatedText: 'bạn\ntốt',
-        isClickable: false,
-        unitIndex: -1,
-        key: 'seg-0',
-      }),
-    ] as unknown as PrebuiltSegment[];
+    const segs = [makeSpacing('bạn\ntốt')];
     const { container } = render(
       <ClickableTranslationOptimized
         translatedText="bạn\ntốt"
@@ -280,17 +276,10 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
     // produce 3 paragraph divs: [P1], [], [P2]. The empty paragraph renders
     // a blank line via .paragraph { min-height: 1lh } in CSS.
     const segs = [
-      makeSegment({ unitIndex: 0, text: 'P1', translatedText: 'P1', key: 'seg-0' }),
-      makeSegment({
-        type: 'spacing',
-        unitIndex: -1,
-        text: '\n\n',
-        translatedText: undefined,
-        isClickable: false,
-        key: 'seg-spacing',
-      }),
-      makeSegment({ unitIndex: 1, text: 'P2', translatedText: 'P2', key: 'seg-2' }),
-    ] as unknown as PrebuiltSegment[];
+      makeSegment({ unitIndex: 0, text: 'P1', translatedText: 'P1' }),
+      makeSpacing('\n\n'),
+      makeSegment({ unitIndex: 1, text: 'P2', translatedText: 'P2' }),
+    ];
     const { container } = render(
       <ClickableTranslationOptimized
         translatedText={'P1\n\nP2'}
@@ -315,9 +304,7 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
 describe('ClickableTranslationOptimized — non-clickable segments', () => {
   test('non-clickable segment span has no onClick (does not call handler on click)', () => {
     const handler = vi.fn();
-    const segs = [
-      makeSegment({ isClickable: false, unitIndex: -1, key: 'seg-nc' }),
-    ] as unknown as PrebuiltSegment[];
+    const segs = [makeSpacing('bạn')];
     const { container } = render(
       <ClickableTranslationOptimized
         translatedText="bạn"
@@ -364,7 +351,7 @@ describe('ClickableTranslationOptimized — array bounds checking', () => {
     // relative to the current semanticArrays — this is the gap useSegmentClickHandler's
     // bounds guard closes (previously bypassed by this component's hand-built payload).
     const handler = vi.fn();
-    const segs = [makeSegment({ unitIndex: 5, key: 'seg-oob' })] as unknown as PrebuiltSegment[];
+    const segs = [makeSegment({ unitIndex: 5 })];
     const { container } = render(
       <ClickableTranslationOptimized
         translatedText="bạn"

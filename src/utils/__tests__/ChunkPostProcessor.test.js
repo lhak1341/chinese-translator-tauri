@@ -67,11 +67,10 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
     expect(chunks[0].translatedContent).toBe(',');
   });
 
-  test('translatedPunctuation already set → translate chars within it, preserve spacing', () => {
-    const chunks = [makeChunk({ content: 'a', punctuation: '，', translatedPunctuation: '， ' })];
+  test('a preset translatedPunctuation is ignored: the result comes from punctuation', () => {
+    const chunks = [makeChunk({ content: 'a', punctuation: '，', translatedPunctuation: 'stale' })];
     cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
-    // Existing spacing preserved; char translated in-place
-    expect(chunks[0].translatedPunctuation).toBe(', ');
+    expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
   test('comma + hasNextChunk with content → space appended after comma', () => {
@@ -144,8 +143,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({
         content: '说',
         translated: 'nói',
-        punctuation: '，',
-        translatedPunctuation: ',' + QUOTE_TYPES.ANGLE_CLOSE_DOUBLE, // ,»
+        punctuation: '，' + QUOTE_TYPES.ANGLE_CLOSE_DOUBLE, // ，»
       }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
@@ -168,8 +166,6 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
-    // Set up comma+bracket in translatedPunctuation directly
-    chunks[0].translatedPunctuation = ',[';
     chunks[0].punctuation = '，[';
     cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
     expect(chunks[0].translatedPunctuation).toBe(', [');

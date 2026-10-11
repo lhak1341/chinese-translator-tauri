@@ -8,12 +8,9 @@
  * - Hierarchical composition detection
  * - Enhanced variable resolution using Phase A results
  *
- * Performance:
- * - Small pattern sets (<10): ~1.5x faster than JavaScript
- * - Medium pattern sets (10-50): 5-10x faster than JavaScript
- * - Large pattern sets (50-100+): 10-50x faster than JavaScript
+ * Performance: 0.07 ms per call at p50 (ADR-096).
  *
- * Fallback: If WASM fails to load, uses JavaScript SemanticPatternProcessor
+ * No fallback: if WASM fails to load, Phase 1 is skipped and the user is told (ADR-101).
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * CSP SECURITY NOTICE

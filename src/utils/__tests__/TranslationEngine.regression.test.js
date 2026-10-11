@@ -65,7 +65,7 @@ describe('TranslationEngine Regression Tests', () => {
       );
 
       const batch = makeBatch();
-      await engine.processChunksInParallel(batch, {}, 0);
+      await engine.processChunksInParallel(batch, {}, [0, 3, 5]);
 
       // chunkOffset is computed upfront, synchronously, in chunk order — regardless of
       // the scrambled resolution order set up above.
@@ -86,11 +86,42 @@ describe('TranslationEngine Regression Tests', () => {
       expect(engine.semanticArrayBuilder).toBe(originalBuilder);
     });
 
-    it('offsets the first chunk by batchStart', async () => {
+    it('uses the token offsets it is handed, one per chunk', async () => {
       engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
-      await engine.processChunksInParallel(makeBatch(), {}, 10);
+      await engine.processChunksInParallel(makeBatch(), {}, [10, 13, 15]);
       const calledOffsets = engine.translateDirectly.mock.calls.map(([, opts]) => opts.chunkOffset);
       expect(calledOffsets).toEqual([10, 13, 15]);
+    });
+
+    it("does not tokenize: counting is the caller's job", async () => {
+      engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
+      await engine.processChunksInParallel(makeBatch(), {}, [0, 3, 5]);
+      expect(engine.tokenizer.tokenize).not.toHaveBeenCalled();
+    });
+
+    it("translateWithProgressiveBatches hands every batch its chunks' global token offsets", async () => {
+      // Six chunks run as two batches (the first holds MIN_BATCH_SIZE = 3), so the second
+      // batch's offsets only come out right if the count carries across the batch boundary.
+      engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
+      const processChunks = vi.spyOn(engine, 'processChunksInParallel');
+
+      await engine.translateWithProgressiveBatches(
+        '一，二二，三三三，四四四四，五五五五五，六',
+        {}
+      );
+
+      expect(processChunks.mock.calls.length).toBeGreaterThanOrEqual(2);
+      const offsetByContent = Object.fromEntries(
+        engine.translateDirectly.mock.calls.map(([content, opts]) => [content, opts.chunkOffset])
+      );
+      expect(offsetByContent).toEqual({
+        一: 0,
+        二二: 1,
+        三三三: 3,
+        四四四四: 6,
+        五五五五五: 10,
+        六: 15,
+      });
     });
   });
 
@@ -119,7 +150,7 @@ describe('TranslationEngine Regression Tests', () => {
       });
       engine.maxInputTokens = 5;
       const error = await engine
-        .processChunksInParallel([{ content: '说说说说说说说说', startIndex: 0 }], {}, 0)
+        .processChunksInParallel([{ content: '说说说说说说说说', startIndex: 0 }], {}, [0])
         .catch((caught) => caught);
       expect(error.message).toMatch(/Parallel chunk processing failed/);
       expect(error.cause.message).toMatch(/Input too large/);

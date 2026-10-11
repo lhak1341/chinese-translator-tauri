@@ -118,7 +118,6 @@
  *
  * SUCCESSFUL EXTRACTIONS (2026):
  * - TokenHelpers.js (6 pure functions) - No state modification
- * - PatternPriorityCalculator.js - Pure calculation function
  * - ProperNounCapitalizationMap.ts - Pure map builder, no engine state
  *
  * See: docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
@@ -136,7 +135,7 @@ import {
   getTextFromTokens,
   getTextPositionForTokenIndex,
 } from './TokenHelpers.js';
-import { SemanticPatternProcessor } from './pattern/SemanticPatternProcessor.js';
+import { PatternStore } from './pattern/PatternStore.js';
 import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
@@ -233,7 +232,7 @@ export class TranslationEngine {
       cacheEnabled: true,
       lookupCacheSize: 800,
     });
-    this.semanticPatternProcessor = new SemanticPatternProcessor();
+    this.patternStore = new PatternStore();
     this.textChunker = new TextChunker();
     this.chunkPostProcessor = new ChunkPostProcessor();
     this.numberProcessor = new NumberProcessor();
@@ -271,16 +270,10 @@ export class TranslationEngine {
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
 
-    // Tracks failures of the WASM pattern path — failure count, time window, disable threshold
+    // Tracks failures of the WASM pattern matcher — failure count, time window, disable threshold
     this.patternFailureTracker = new PatternFailureTracker({
       failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
       disableThreshold: PATTERN_FAILURE_DETECTION.MAX_FAILURES,
-    });
-    // The JS path has nothing to switch off, so its tracker only decides when to warn: once per
-    // run of failures, again after a success. A JS failure must not feed the WASM counter above.
-    this.jsPatternFailureTracker = new PatternFailureTracker({
-      failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
-      disableThreshold: Infinity,
     });
 
     // The most tokens one translateDirectly call accepts. A field, not a constant, so a test can lower it.
@@ -323,11 +316,6 @@ export class TranslationEngine {
    * After calling destroy(), the engine instance cannot be reused - create a new instance.
    */
   destroy() {
-    // Clear pattern processor variable cache
-    if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
-      this.semanticPatternProcessor.variableCache.clear();
-    }
-
     // Dispose the dictionary manager, rather than only clearing its cache.
     //
     // `clearCache()` empties the translation cache and nothing else, so every trie and the
@@ -462,16 +450,17 @@ export class TranslationEngine {
 
       // Initialize semantic pattern processor
       if (dictionaries.patterns) {
-        await this.semanticPatternProcessor.initializePatterns(dictionaries.patterns);
+        await this.patternStore.initializePatterns(dictionaries.patterns);
 
-        // The WASM path cannot run, so say so now: left on, every chunk would throw "not
+        // The WASM matcher cannot run, so say so now: left on, every chunk would throw "not
         // available", skipping Phase 1 until the failure counter gave up. Only ever turns it off.
-        if (
-          this.semanticPatternProcessor.patterns.length > 0 &&
-          !this.semanticPatternProcessor.wasmAvailable
-        ) {
+        if (this.patternStore.patterns.length > 0 && !this.patternStore.wasmAvailable) {
           this.settings.enableTwoPhasePatterns = false;
-          logger.warn('WASM pattern processor unavailable; using the JavaScript pattern path');
+          logger.error('WASM pattern processor unavailable; Phase 1 (patterns) is skipped');
+          toast.error(
+            'WASM pattern matching is unavailable, so patterns are skipped. Reload dictionaries (Cmd+R) to retry.',
+            { duration: 10000 }
+          );
         }
       }
 
@@ -854,11 +843,10 @@ export class TranslationEngine {
   // ============================================================================
   // SECTION 8: PHASE 1 - PATTERN PROCESSING
   // ============================================================================
-  // Purpose: Apply semantic patterns (legacy + two-phase hierarchical)
-  // Dependencies: SemanticPatternProcessor OR TwoPhasePatternProcessor
+  // Purpose: Apply semantic patterns (hierarchical two-phase, WASM matcher)
+  // Dependencies: PatternStore, TwoPhasePatternProcessor
   // Extraction Potential: NONE - First phase, sets token state for all others
   // Critical: Pattern-consumed tokens block all subsequent phases
-  // Note: Supports both legacy patterns and hierarchical two-phase system
   // ============================================================================
 
   /**
@@ -900,114 +888,73 @@ export class TranslationEngine {
    * // - translationSource: "pattern"
    *
    * @see translateSinglePass - Calls this method as Phase 1
-   * @see SemanticPatternProcessor - Implements pattern matching logic
+   * @see PatternStore - Holds the parsed patterns and the WASM processor's lifetime
    * @see TwoPhaseHierarchicalProcessor - Implements hierarchical pattern system
    * @see WasmPatternProcessor - WASM acceleration module
    *
    * @performance
-   * - Small texts (<500 chars): ~1-5ms
-   * - Large texts (>2000 chars with WASM): 10-50x faster than JavaScript
-   * - Pattern count impact: ~0.1-0.5ms per pattern
+   * - ADR-096: 0.07 ms per call at p50 on the WASM matcher
    *
    * @critical
    * Must run FIRST in 5-phase pipeline (highest priority).
    * Consumed tokens are blocked from all subsequent phases.
    * A pattern failure is not fatal: Phase 1 is skipped for that call. After
-   * PATTERN_FAILURE_DETECTION.MAX_FAILURES WASM failures within the window the WASM path is
-   * switched off and later calls use SemanticPatternProcessor (ADR-007).
+   * PATTERN_FAILURE_DETECTION.MAX_FAILURES WASM failures within the window the matcher is
+   * switched off and Phase 1 is skipped until the dictionaries reload (ADR-101).
    *
    * @architectural
    * Cannot be extracted because pattern-consumed tokens affect all subsequent phases.
    * Token state changes must be synchronized with phase execution order.
    */
   async applyPatterns(tokens, options) {
-    if (!this.semanticPatternProcessor.isInitialized) {
+    if (!this.patternStore.isInitialized) {
       return;
     }
 
-    // Which path ran decides whose failure counter a throw feeds
-    let usedWasm = false;
+    // Off after repeated failures or when WASM never initialized: Phase 1 is skipped (ADR-101)
+    if (!this.settings.enableTwoPhasePatterns || this.patternStore.patterns.length === 0) {
+      return;
+    }
 
     try {
-      // Use hierarchical two-phase processing if enabled, otherwise use legacy processing
-      // Re-enabled to debug hierarchical path
-      if (
-        this.settings.enableTwoPhasePatterns &&
-        this.semanticPatternProcessor.patterns?.length > 0
-      ) {
-        usedWasm = true;
-        // Apply hierarchical pattern processing here in Phase 1 (before phrases)
-        // Create or reuse TwoPhasePatternProcessor instance
-        if (!this.twoPhaseProcessor) {
-          this.twoPhaseProcessor = new TwoPhasePatternProcessor(
-            this.semanticPatternProcessor.patterns
-          );
-        }
-
-        // The processor reads exactly these two keys (to build its variable cache). Passing the
-        // translation options through copied options it never looked at.
-        const enhancedOptions = {
-          activeProperNouns: this.activeProperNouns,
-          dictionaryManager: this.dictionaryManager,
-        };
-
-        const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
-          tokens,
-          enhancedOptions
-        );
-
-        this.applyHierarchicalResults(tokens, hierarchicalResults, options);
-
-        const { recovered, previousCount } = this.patternFailureTracker.reportSuccess();
-        if (recovered) {
-          logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
-        }
-
-        return;
+      // Create or reuse TwoPhasePatternProcessor instance
+      if (!this.twoPhaseProcessor) {
+        this.twoPhaseProcessor = new TwoPhasePatternProcessor(this.patternStore.patterns);
       }
 
-      // Build variable cache by looking up tokens in proper-noun and phrase dictionaries.
-      // This is the fallback path (runs as Phase 1, before Phase 2), so tokens have no
-      // proper-noun translations yet — the cache is populated via dictionary lookups, not token state.
-      const patternVariableDictionaries = [...this.activeProperNouns, 'phrases'];
-      this.semanticPatternProcessor.buildVariableCache(
+      // The processor reads exactly these two keys (to build its variable cache). Passing the
+      // translation options through copied options it never looked at.
+      const enhancedOptions = {
+        activeProperNouns: this.activeProperNouns,
+        dictionaryManager: this.dictionaryManager,
+      };
+
+      const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
         tokens,
-        patternVariableDictionaries,
-        this.dictionaryManager
+        enhancedOptions
       );
 
-      // Process tokens using unified semantic approach with prioritized patterns. The processor
-      // reads only `prioritizedPatterns` from its options.
-      const jsResults = await this.semanticPatternProcessor.processTokens(tokens, {
-        prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-      });
-      this.applyHierarchicalResults(tokens, jsResults, options);
-      this.jsPatternFailureTracker.reportSuccess();
+      this.applyHierarchicalResults(tokens, hierarchicalResults, options);
+
+      const { recovered, previousCount } = this.patternFailureTracker.reportSuccess();
+      if (recovered) {
+        logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
+      }
     } catch (error) {
       // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
-
-      if (!usedWasm) {
-        if (this.jsPatternFailureTracker.reportFailure().action === 'warn') {
-          toast.warning(
-            'Pattern matching failed. Translation quality may be reduced. Try reloading dictionaries.',
-            { duration: 8000 }
-          );
-        }
-        return;
-      }
 
       const { action, count } = this.patternFailureTracker.reportFailure();
 
       if (action === 'disable') {
         this.settings.enableTwoPhasePatterns = false;
         toast.error(
-          'WASM pattern matching was turned off after repeated failures; patterns continue on the slower JS path. Reload dictionaries (Cmd+R) to turn it back on.',
+          'WASM pattern matching was turned off after repeated failures, so patterns are skipped. Reload dictionaries (Cmd+R) to turn it back on.',
           { duration: 10000 }
         );
         logger.error(
-          `🚨 WASM pattern processing disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes — falling back to SemanticPatternProcessor until the engine is rebuilt`
+          `🚨 WASM pattern processing disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes — Phase 1 is skipped until the engine is rebuilt`
         );
       } else if (action === 'reset') {
         logger.warn(
@@ -1024,25 +971,6 @@ export class TranslationEngine {
         );
       }
     }
-  }
-
-  /**
-   * Extract prioritized patterns from tokens
-   * @param {Token[]} tokens - Array of tokens
-   * @returns {Array} Array of prioritized pattern matches
-   */
-  extractPrioritizedPatterns(tokens) {
-    const prioritizedPatterns = [];
-
-    for (let i = 0; i < tokens.length; i++) {
-      if (tokens[i].prioritizedPattern) {
-        prioritizedPatterns.push(tokens[i].prioritizedPattern);
-        // Clear the prioritized pattern to prevent re-processing
-        tokens[i].prioritizedPattern = null;
-      }
-    }
-
-    return prioritizedPatterns;
   }
 
   /**
@@ -1895,7 +1823,7 @@ export class TranslationEngine {
   // SECTION 12: PARALLEL PROCESSING
   // ============================================================================
   // Purpose: Process a batch's chunks concurrently within progressive translation
-  // Dependencies: translateDirectly, tokenizer (for chunkOffset computation)
+  // Dependencies: translateDirectly
   // Critical: assigns semantic indices by chunk-completion order — see
   //   compareByTokenIndex (src/utils/highlighting/TextPositionMapper.ts) for the
   //   downstream correction this depends on
@@ -1917,34 +1845,17 @@ export class TranslationEngine {
    *
    * @param {Array} batch - Array of chunks to process
    * @param {Object} options - Translation options
-   * @param {number} batchStart - Starting index for chunk offset calculation
+   * @param {number[]} chunkTokenOffsets - Per chunk, aligned with `batch`: the TOKEN count of all
+   *   text before it (see translateWithProgressiveBatches)
    * @returns {Promise<{ batchNumber: number, processingTime: number, avgTimePerChunk: number }>}
    *   Resolves when all chunks are processed, with the batch's timing for the caller's callbacks
    */
-  async processChunksInParallel(batch, options, batchStart) {
+  async processChunksInParallel(batch, options, chunkTokenOffsets) {
     const startTime = performance.now();
 
     // Chunks in a batch always run in parallel; there is no sequential fallback.
 
     try {
-      // MEDIUM FIX: Calculate token counts for each chunk upfront
-      // chunk.content is a string; tokenize it first to get raw token count.
-      // getSemanticTokens() expects TextToken[], not a string — calling it with a string
-      // returns [] (every char fails the type check), making all chunkTokenCounts=0 and
-      // chunkTokenOffsets all equal to batchStart. That collapses cross-chunk token indices
-      // to local-chunk-only indices, causing same-translated-text sort to be wrong.
-      const chunkTokenCounts = batch.map((chunk) => {
-        return this.tokenizer.tokenize(chunk.content).length;
-      });
-
-      // Calculate cumulative token offset for each chunk
-      let cumulativeTokenOffset = batchStart; // batchStart should be cumulative token count from previous batches
-      const chunkTokenOffsets = batch.map((_, index) => {
-        const offset = cumulativeTokenOffset;
-        cumulativeTokenOffset += chunkTokenCounts[index];
-        return offset;
-      });
-
       // Process all chunks in parallel
       await Promise.all(
         batch.map(async (chunk, index) => {
@@ -1962,7 +1873,6 @@ export class TranslationEngine {
             // The chunk's content starts after any leading punctuation, so token positions
             // are local to it; `originalStart` is an offset into the whole text.
             chunkCharOffset: chunk.startIndex,
-            chunkIndex: batchStart + index,
             isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };
 
@@ -2160,9 +2070,18 @@ export class TranslationEngine {
     let processedChunks = 0;
     let batchIndex = 0;
 
-    // MEDIUM FIX: Track cumulative token count for accurate batchStart calculation
-    // processedChunks tracks chunk indices (0, 1, 2...); we need token counts for chunkOffset
+    // Where each chunk starts in token space: the TOKEN count of every chunk before it (not the
+    // chunk index). Computed once, here, so a batch only slices it. Tokenizing the chunk is the
+    // only way to count: `getSemanticTokens()` expects TextToken[], and given a string it returns
+    // [], which would zero every offset and collapse cross-chunk token indices to chunk-local ones
+    // (same-translated-text disambiguation then sorts wrong). The raw count matches the raw index
+    // `addUnit` records.
     let cumulativeTokenCount = 0;
+    const chunkTokenOffsets = translatableChunks.map((chunk) => {
+      const offset = cumulativeTokenCount;
+      cumulativeTokenCount += this.tokenizer.tokenize(chunk.content).length;
+      return offset;
+    });
 
     while (processedChunks < translatableChunks.length) {
       // CODE REVIEW FIX (2026-02-01): Check abort signal between batches
@@ -2189,15 +2108,11 @@ export class TranslationEngine {
       const batchEnd = Math.min(batchStart + currentBatchSize, translatableChunks.length);
       const currentBatch = translatableChunks.slice(batchStart, batchEnd);
 
-      // MEDIUM FIX: Calculate token offset for this batch
-      const batchTokenOffset = cumulativeTokenCount;
-
       // Translate current batch (with parallel processing)
-      // MEDIUM FIX: Pass token offset, not chunk index
       const batchTiming = await this.processChunksInParallel(
         currentBatch,
         options,
-        batchTokenOffset
+        chunkTokenOffsets.slice(batchStart, batchEnd)
       );
       const batchNumber = batchIndex + 1; // 1-based, as the UI shows it
 
@@ -2216,14 +2131,6 @@ export class TranslationEngine {
       // This single setTimeout(0) is applied unconditionally since each batch is already a
       // natural yield point.
       await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // MEDIUM FIX: Update cumulative token count for next batch
-      // chunk.content is a string — must tokenize before counting (see processChunksInParallel
-      // comment). Use raw token count to match the raw-index startIndex used in addUnit calls.
-      const batchTokenCount = currentBatch.reduce((sum, chunk) => {
-        return sum + this.tokenizer.tokenize(chunk.content).length;
-      }, 0);
-      cumulativeTokenCount += batchTokenCount;
 
       // Only the current batch is processed here, never all chunks again (no O(n²) rework).
       // Capitalization happens once, at the final level.
@@ -2691,9 +2598,7 @@ export class TranslationEngine {
           logger.error(`⚠️ ${errorMsg}`);
 
           // Notify user with actionable recovery steps
-          toast.error('Translation engine encountered a critical error. Please reload the page.', {
-            duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
-          });
+          this.notifyCriticalFailure();
 
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
@@ -2746,9 +2651,7 @@ export class TranslationEngine {
           const errorMsg = `Phase 2 corrupted token array: ${tokensLengthBeforePhase2} → ${tokens.length} tokens`;
           logger.error(`⚠️ ${errorMsg}`);
 
-          toast.error('Translation engine encountered a critical error. Please reload the page.', {
-            duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
-          });
+          this.notifyCriticalFailure();
 
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
@@ -2807,9 +2710,7 @@ export class TranslationEngine {
           logger.error(`⚠️ ${errorMsg}`);
 
           // Notify user with actionable recovery steps
-          toast.error('Translation engine encountered a critical error. Please reload the page.', {
-            duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
-          });
+          this.notifyCriticalFailure();
 
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
@@ -2862,9 +2763,7 @@ export class TranslationEngine {
           logger.error(`⚠️ ${errorMsg}`);
 
           // Notify user with actionable recovery steps
-          toast.error('Translation engine encountered a critical error. Please reload the page.', {
-            duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
-          });
+          this.notifyCriticalFailure();
 
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
@@ -2936,9 +2835,7 @@ export class TranslationEngine {
           logger.error(`⚠️ ${errorMsg}`);
 
           // Notify user with actionable recovery steps
-          toast.error('Translation engine encountered a critical error. Please reload the page.', {
-            duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
-          });
+          this.notifyCriticalFailure();
 
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
@@ -3001,6 +2898,16 @@ export class TranslationEngine {
           });
         }
       }
+    });
+  }
+
+  /**
+   * Tell the user a phase corrupted the token array and the translation was abandoned. The five
+   * phase `catch` blocks in translateSinglePass call it; the message lives here once.
+   */
+  notifyCriticalFailure() {
+    toast.error('Translation engine encountered a critical error. Please reload the page.', {
+      duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
     });
   }
 

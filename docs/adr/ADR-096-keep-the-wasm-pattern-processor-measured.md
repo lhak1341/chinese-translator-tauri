@@ -46,3 +46,7 @@ Per call, the Rust processor does in 0.07 ms what the JS path does in 2.8 ms, an
 ## Consequence
 
 A review that proposes deleting the WASM pattern processor should first decide what happens to composition, and beat the table above on the same kind of input. The JS fallback is not equivalent output, only a safety net.
+
+## Addendum — 2026-10-11
+
+ADR-101 deletes the JS fallback this ADR measured against. The measurement stands as the reason the WASM tier is kept; "the JS fallback is a safety net" is replaced by "when WASM cannot run, Phase 1 is skipped and the user is told".
