@@ -5,11 +5,11 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tauri::{Emitter, Manager, State};
+use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 // Import lookup index engine
 use crate::lru_cache::LruCache;
@@ -142,117 +142,6 @@ fn collision_message(new_path: &PathBuf, new_dictionary_id: &str, label: &str) -
     }
 }
 
-// CODE REVIEW FIX (2026-01-30): Count mutex poisoning events to detect cache corruption.
-// The frontend learns of one through the `dictionary-cache-critical-error` event; there is
-// no command to poll it (deleted 2026-10-03: nothing called it).
-static POISONING_EVENT_COUNT: AtomicU64 = AtomicU64::new(0);
-
-// CODE REVIEW FIX (2026-02-01): Rate limiting for poisoning notifications
-// Prevents notification spam when cache is accessed frequently after poisoning
-static LAST_POISONING_NOTIFICATION: AtomicU64 = AtomicU64::new(0);
-const NOTIFICATION_COOLDOWN_MS: u64 = 60_000; // 1 minute between notifications
-
-// CODE REVIEW FIX (CRITICAL-2): Store AppHandle for immediate event emission
-// Initialized during app setup, used to emit poisoning events immediately
-use once_cell::sync::OnceCell;
-static APP_HANDLE: OnceCell<tauri::AppHandle> = OnceCell::new();
-
-/// CODE REVIEW FIX (CRITICAL-2): Initialize AppHandle for event emission
-/// Called during app setup to enable immediate poisoning notifications
-pub fn init_app_handle(handle: tauri::AppHandle) {
-    let _ = APP_HANDLE.set(handle);
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
-fn record_mutex_poisoning() {
-    POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
-    emit_poisoning_event();
-}
-
-/// CODE REVIEW FIX (CRITICAL-2): Emit mutex poisoning event immediately
-/// Notifies frontend as soon as poisoning is detected, not just on health check
-/// CODE REVIEW FIX (2026-02-01): Added stderr fallback for early startup failures
-/// CODE REVIEW FIX (2026-02-01): Rate limiting to prevent notification spam
-///
-/// Problem: After poisoning, every cache access (100+ per translation) emits an event,
-/// causing performance degradation and UI notification spam.
-///
-/// Solution: Only emit notifications once per minute. Still alerts immediately on first
-/// poisoning, but prevents repeated notifications during degraded operation.
-fn emit_poisoning_event() {
-    let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
-
-    let now_ms = now_ms();
-
-    let last_notify = LAST_POISONING_NOTIFICATION.load(Ordering::SeqCst);
-
-    // Rate limiting: Only notify once per cooldown period
-    // This prevents 100+ notifications per second during degraded operation
-    if last_notify > 0 && now_ms.saturating_sub(last_notify) < NOTIFICATION_COOLDOWN_MS {
-        // Skip notification - still within cooldown period
-        return;
-    }
-
-    // Update last notification time (atomic compare-and-swap to handle race conditions)
-    // If another thread already updated the timestamp, we skip (they sent the notification)
-    if LAST_POISONING_NOTIFICATION
-        .compare_exchange(last_notify, now_ms, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return; // Another thread already sent notification
-    }
-
-    // Emit notification to frontend
-    if let Some(app) = APP_HANDLE.get() {
-        // Determine restart urgency based on event count
-        let auto_restart_seconds = if event_count > 100 {
-            60  // Critical: restart in 1 minute
-        } else if event_count > 10 {
-            300 // Warning: restart in 5 minutes
-        } else {
-            0   // Informational: restart when convenient
-        };
-
-        // Derive RFC3339 timestamp from the same now_ms already used for rate-limiting,
-        // avoiding a second clock call via chrono::Utc::now().
-        let timestamp = chrono::DateTime::from_timestamp_millis(now_ms as i64)
-            .map(|dt| dt.to_rfc3339())
-            .unwrap_or_else(|| now_ms.to_string());
-        let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
-            "type": "mutex_poisoning",
-            "event_count": event_count,
-            "severity": if event_count > 100 { "critical" } else { "warning" },
-            "message": format!(
-                "Dictionary cache corruption detected ({} events). Application restart recommended.",
-                event_count
-            ),
-            "recommendation": if event_count > 100 {
-                format!("Critical: Auto-restart recommended in {} seconds to prevent data loss.", auto_restart_seconds)
-            } else {
-                "Save your work and restart the application to ensure data integrity.".to_string()
-            },
-            "timestamp": timestamp,
-            "last_notification_ms": now_ms,
-            "cooldown_ms": NOTIFICATION_COOLDOWN_MS,
-            "auto_restart_recommended_in_seconds": auto_restart_seconds
-        }));
-    } else {
-        // Fallback: Log to stderr when AppHandle not yet initialized during early startup
-        eprintln!("═══════════════════════════════════════════════════════════════════════════");
-        eprintln!("CRITICAL: Dictionary cache corruption detected (mutex poisoning)");
-        eprintln!("Event count: {}", event_count);
-        eprintln!("AppHandle not yet initialized - unable to emit frontend notification");
-        eprintln!("ACTION REQUIRED: Restart the application to ensure data integrity");
-        eprintln!("═══════════════════════════════════════════════════════════════════════════");
-    }
-}
-
 // Dictionary cache with LRU eviction to prevent unbounded memory growth
 // Max size: 5 dictionaries (~270MB assuming 27K entries × 2KB/entry)
 const MAX_CACHE_ENTRIES: usize = 5;
@@ -270,7 +159,7 @@ pub struct DictionaryCache {
 impl DictionaryCache {
     pub fn new() -> Self {
         Self {
-            lru: LruCache::new("Dictionary", MAX_CACHE_ENTRIES, record_mutex_poisoning),
+            lru: LruCache::new("Dictionary", MAX_CACHE_ENTRIES, crate::poison_report::record_mutex_poisoning),
             generation: AtomicU64::new(0),
         }
     }
@@ -348,7 +237,7 @@ pub struct TrieCache {
 impl TrieCache {
     pub fn new() -> Self {
         Self {
-            lru: LruCache::new("Trie", MAX_TRIE_CACHE_ENTRIES, record_mutex_poisoning),
+            lru: LruCache::new("Trie", MAX_TRIE_CACHE_ENTRIES, crate::poison_report::record_mutex_poisoning),
         }
     }
 

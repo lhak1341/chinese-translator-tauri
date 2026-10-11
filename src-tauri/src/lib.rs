@@ -3,6 +3,7 @@ mod book_commands;
 mod chapter_outline_commands;
 mod dictionary_commands;
 mod lru_cache;
+mod poison_report;
 pub mod book_loader;
 pub mod chapter_outline;
 pub mod lookup_index_engine;
@@ -37,7 +38,7 @@ pub fn run() {
         .manage(BookCache::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
         .setup(|app| {
-            dictionary_commands::init_app_handle(app.handle().clone());
+            poison_report::init_app_handle(app.handle().clone());
             webview_diagnostics::record_launch(app);
             Ok(())
         })

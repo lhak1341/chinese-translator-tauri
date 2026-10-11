@@ -26,5 +26,5 @@ Add `src-tauri/src/lru_cache.rs`: a generic `LruCache<K, V>` holding each value 
 ## Consequence
 
 - `DictionaryCache`/`TrieCache` tests that read `access_order` (six) were deleted; their invariants moved to `lru_cache.rs`, which also tests eviction order, a `get` protecting an entry, and a poisoned lock being reported once.
-- The event count behind `emit_poisoning_event`'s escalation (`> 10`, `> 100`) now counts poisonings, not operations after one. Escalation thresholds fire later than before for the same incident.
+- The event count behind `emit_poisoning_event`'s escalation (`> 10`, `> 100`) now counts poisonings, not operations after one. Escalation thresholds fire later than before for the same incident. (The thresholds and the `auto_restart_recommended_in_seconds` field were deleted with `emit_poisoning_event`, which moved to `poison_report.rs` as `PoisonGate::record`: nothing consumed them.)
 - Do not re-propose splitting `dictionary_commands.rs` by concern on this ADR's account; it does not reopen ADR-031.

@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1791555304.514171,
-    "ast_hash": "75fff6c37df4e9560adb02dbc84a7ef1",
+    "mtime": 1791707113.1976807,
+    "ast_hash": "22ac583ee120f3136e68b0d71605c40a",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -55,8 +55,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1791612845.7552698,
-    "ast_hash": "98db7d11bf58417af2444ae208e2ce2b",
+    "mtime": 1791707164.2166865,
+    "ast_hash": "a3cc691b7eb05cfb880baa8f5c55c1ad",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -680,9 +680,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useCachePoisoningGuard.ts": {
-    "mtime": 1781899354.9268012,
-    "ast_hash": "1b2dd06cb3e02948a143e779a2836000",
-    "semantic_hash": "1b2dd06cb3e02948a143e779a2836000"
+    "mtime": 1791707272.2366097,
+    "ast_hash": "add15b902cbf5ebd3932fb67943b94f5",
+    "semantic_hash": ""
   },
   "src/hooks/useTranslatorEngine.js": {
     "mtime": 1791099359.0865614,
@@ -1040,8 +1040,8 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1791688469.056481,
-    "ast_hash": "2e95651c4e506433fc1d8958bcd2314c",
+    "mtime": 1791706119.3473222,
+    "ast_hash": "5540fcceb096c23a5880d82287c6c40c",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1055,8 +1055,8 @@
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
-    "mtime": 1791611081.2470667,
-    "ast_hash": "f893c1b8f1c9ec7b95fa03f064908a2a",
+    "mtime": 1791707272.2380652,
+    "ast_hash": "229a0a1ee2ca8ad8791f3e3ab0f60e04",
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
@@ -1070,8 +1070,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791705843.5839047,
-    "ast_hash": "9c41a6b905622be96a61fbc7a0e15a99",
+    "mtime": 1791706119.3478608,
+    "ast_hash": "83de5ad3bfcedfc7198f3d53ebae4ebc",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1490,8 +1490,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791705843.584472,
-    "ast_hash": "c01e2ce447a0fb2c27afd9091cae1bd5",
+    "mtime": 1791707278.0981925,
+    "ast_hash": "b53b6c8b7b12c6073c41e2be99e0f6d9",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1525,8 +1525,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/book_commands.rs": {
-    "mtime": 1791610735.980724,
-    "ast_hash": "a5d06206022b7e92ac8be9307720cb12",
+    "mtime": 1791707257.739992,
+    "ast_hash": "1354f56f9c4ee7b348aaccd379ead842",
     "semantic_hash": ""
   },
   "src-tauri/src/book_loader.rs": {
@@ -2130,8 +2130,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-068-one-lru-module-under-both-dictionary-caches.md": {
-    "mtime": 1791007295.1014674,
-    "ast_hash": "08889cce663b2d7c8f1dc1aa48eee61f",
+    "mtime": 1791707272.2383294,
+    "ast_hash": "fb2a1d94818d76ba224b306367056348",
     "semantic_hash": ""
   },
   "src/utils/dictionary/sortDictionaryEntries.ts": {
@@ -2442,6 +2442,11 @@
   "docs/adr/ADR-102-keep-utils-toast-as-the-notification-seam.md": {
     "mtime": 1791702992.136985,
     "ast_hash": "564b478d861aadebd34377be842102e6",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/poison_report.rs": {
+    "mtime": 1791707247.3584979,
+    "ast_hash": "a29f3267c9ee1c1f0a8e96b7ccde5d65",
     "semantic_hash": ""
   }
 }

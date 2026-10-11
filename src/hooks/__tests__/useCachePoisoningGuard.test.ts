@@ -22,7 +22,6 @@ function makeListenFn(trigger?: { fire: (payload: unknown) => void }) {
 
 const basePayload = {
   event_count: 3,
-  severity: 'warning' as const,
   message: 'Cache corrupted (3 events).',
   recommendation: 'Save and restart.',
 };
@@ -83,15 +82,14 @@ describe('useCachePoisoningGuard', () => {
     await act(async () => {
       trigger.fire({
         event_count: 101,
-        severity: 'critical',
         message: 'Critical: 101 events.',
-        recommendation: 'Critical: Auto-restart in 30 seconds.',
+        recommendation: 'Save and restart.',
       });
     });
 
     expect(result.current.poisoning).toEqual({
       count: 101,
-      recommendation: 'Critical: Auto-restart in 30 seconds.',
+      recommendation: 'Save and restart.',
     });
   });
 

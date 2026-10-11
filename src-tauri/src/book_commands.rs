@@ -46,17 +46,27 @@ struct CachedBook {
     content: Arc<BookContent>,
 }
 
-/// Holds the one decoded book. Follows the dictionary cache's poisoning discipline:
-/// a poisoned mutex is recovered and used rather than propagated as an error, because a
-/// panic in an unrelated command must not make the Reader permanently unusable.
+/// Holds the one decoded book. A poisoned mutex is recovered and used rather than
+/// propagated as an error, because a panic in an unrelated command must not make the Reader
+/// permanently unusable. Unlike `LruCache` it keeps its contents: the book is an
+/// `Arc<BookContent>` replaced whole and never edited in place, so a panic while the lock
+/// was held (a bad range in `slice`) cannot have left it half-written. The poisoning is
+/// reported once through `on_poison` and cleared, so later accesses neither report again
+/// nor print.
 pub struct BookCache {
     current: Mutex<Option<CachedBook>>,
+    on_poison: fn(),
 }
 
 impl BookCache {
     pub fn new() -> Self {
+        Self::with_poison_hook(crate::poison_report::record_mutex_poisoning)
+    }
+
+    pub fn with_poison_hook(on_poison: fn()) -> Self {
         Self {
             current: Mutex::new(None),
+            on_poison,
         }
     }
 
@@ -64,10 +74,10 @@ impl BookCache {
         match self.current.lock() {
             Ok(mut guard) => f(&mut guard),
             Err(poisoned) => {
-                eprintln!(
-                    "WARNING: Book cache mutex poisoned - continuing with degraded reliability"
-                );
+                (self.on_poison)();
+                eprintln!("WARNING: Book cache mutex poisoned - keeping the open book and continuing");
                 let mut guard = poisoned.into_inner();
+                self.current.clear_poison();
                 f(&mut guard)
             }
         }
@@ -634,6 +644,36 @@ pub(crate) mod tests {
             *current = Some(CachedBook { fingerprint: fingerprint.clone(), content: Arc::new(content) });
         });
         (cache, fingerprint)
+    }
+
+    static BOOK_POISON_REPORTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    #[test]
+    fn a_poisoned_book_lock_is_reported_once_and_keeps_the_open_book() {
+        use std::sync::atomic::Ordering;
+        let (cache, fingerprint) = cache_with_open_book("一\r\n二\r\n");
+        let cache = Arc::new(BookCache {
+            current: Mutex::new(cache.current.into_inner().unwrap()),
+            on_poison: || {
+                BOOK_POISON_REPORTS.fetch_add(1, Ordering::SeqCst);
+            },
+        });
+
+        let poisoner = Arc::clone(&cache);
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoner.current.lock().unwrap();
+            panic!("poison the lock");
+        })
+        .join();
+        assert!(cache.current.is_poisoned());
+
+        let handle = open_book_handle(&cache, &fingerprint).expect("book survives");
+        assert_eq!(handle.line_slices(), vec!["一", "二"]);
+        assert_eq!(BOOK_POISON_REPORTS.load(Ordering::SeqCst), 1);
+
+        open_book_handle(&cache, &fingerprint).expect("still open");
+        assert_eq!(BOOK_POISON_REPORTS.load(Ordering::SeqCst), 1);
+        assert!(!cache.current.is_poisoned());
     }
 
     #[test]

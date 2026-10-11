@@ -6,7 +6,6 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 
 interface CachePoisoningPayload {
   event_count: number;
-  severity: 'warning' | 'critical';
   message: string;
   recommendation: string;
 }
