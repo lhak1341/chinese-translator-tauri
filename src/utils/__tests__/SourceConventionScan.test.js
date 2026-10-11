@@ -25,6 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { productionSources, stripComments } from '../../test/sourceScan';
 
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -83,18 +84,12 @@ const DETECTORS = [
   },
 ];
 
-/** Line and block comments carry violating snippets as prose examples; strip before scanning. */
-function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
-
-const files = readdirSync(srcDir, { recursive: true, encoding: 'utf8' })
-  .filter((rel) => /\.(js|jsx|ts|tsx)$/.test(rel))
-  .filter((rel) => !/\.(test|spec)\.[jt]sx?$/.test(rel))
-  .filter((rel) => !rel.endsWith('.d.ts'))
-  // Generated wasm-bindgen glue, gitignored build output — not hand-written source.
-  .filter((rel) => !rel.startsWith('wasm/') && !rel.startsWith('wasm-core/'))
-  .map((rel) => rel.split(path.sep).join('/'));
+// Scans everything but tests, declarations and generated wasm-bindgen glue (gitignored build
+// output): skipping only node_modules keeps helpers under __tests__, test/ and __devtools__ in scope.
+const files = productionSources(srcDir, {
+  skipDirs: ['node_modules'],
+  skipPaths: ['wasm/', 'wasm-core/'],
+}).map((full) => path.relative(srcDir, full).split(path.sep).join('/'));
 
 describe('source convention scan', () => {
   it('walks a populated source tree (liveness)', () => {

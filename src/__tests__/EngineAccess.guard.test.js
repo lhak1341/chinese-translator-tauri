@@ -10,9 +10,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { productionSources, stripComments } from '../test/sourceScan';
 
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -25,29 +26,10 @@ const ALLOWED = {
   'components/Translator.jsx': /engineAccess\.run\(\s*'translator'/,
 };
 
-function productionSources(dir) {
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (['__tests__', 'test', 'node_modules', '__devtools__'].includes(entry.name)) continue;
-      out.push(...productionSources(full));
-    } else if (/\.(js|jsx|ts|tsx)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-/** Code lines only: a doc comment showing `engine.translateWithSegments(...)` is not a call. */
-function codeLines(source) {
-  return source.split('\n').filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line));
-}
-
 describe('EngineAccess — every translate call goes through it', () => {
   const files = productionSources(srcDir).map((full) => ({
     rel: path.relative(srcDir, full).split(path.sep).join('/'),
-    code: codeLines(readFileSync(full, 'utf8')).join('\n'),
+    code: stripComments(readFileSync(full, 'utf8')),
   }));
 
   it('the scan fires on a bypass and ignores a comment (liveness)', () => {
@@ -56,9 +38,14 @@ describe('EngineAccess — every translate call goes through it', () => {
     expect(
       BYPASS.test('engineAccess.run(owner, (engine) => engine.translateWithSegments(t))')
     ).toBe(false);
+    // A doc comment showing `engine.translateWithSegments(...)` is not a call.
     expect(
-      codeLines(' * engine.translateWithSegments(x)\n// engine.translateWithSegments(y)')
-    ).toEqual([]);
+      TRANSLATE_CALL.test(
+        stripComments(
+          '/**\n * engine.translateWithSegments(x)\n */\n// engine.translateWithSegments(y)'
+        )
+      )
+    ).toBe(false);
   });
 
   it('finds production files to scan', () => {

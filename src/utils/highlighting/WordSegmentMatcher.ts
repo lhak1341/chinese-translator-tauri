@@ -79,8 +79,8 @@ const QUOTE_PATTERN = /[“‘”’"']/;
  *    sees candidates claimed by not-yet-visited-in-position-order words too, which a
  *    naive left-to-right re-search from the running cursor cannot see.)
  *
- * outputText is normalized to NFC up front (matching SegmentPrecomputer.ts's own
- * text = normalizeVietnameseText(text)! pattern) so position/length math and the final
+ * outputText is normalized to NFC up front (as PositionMetadataSegmenter.ts does with its
+ * text) so position/length math and the final
  * substring slices always read the same string — an NFD outputText would otherwise
  * misalign every slice after the first NFD word. The sole caller (TranslationEngine.js)
  * already normalizes before calling; this is defense-in-depth, not a live bug fix.

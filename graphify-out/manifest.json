@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/PositionMetadataSegmenter.ts": {
-    "mtime": 1791705830.5786676,
-    "ast_hash": "514000e19da05aadee53efdf1479f716",
+    "mtime": 1791731839.310963,
+    "ast_hash": "4441db0af97b17dbcbe5f7895bccd2d6",
     "semantic_hash": ""
   },
   "src/utils/highlighting/SegmentPrecomputer.ts": {
@@ -370,8 +370,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/index.ts": {
-    "mtime": 1791709591.5245795,
-    "ast_hash": "88cc6ed5e01b52aae599f7d753ef6fe8",
+    "mtime": 1791711073.1146336,
+    "ast_hash": "3ceb859604c9c94578ac432934d08029",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmCascadeRegistry.js": {
@@ -488,11 +488,6 @@
     "mtime": 1791709101.3498673,
     "ast_hash": "9ea588e11df0071c65375309aa5d94d6",
     "semantic_hash": ""
-  },
-  "src/utils/text/TextNormalizationHelpers.ts": {
-    "mtime": 1772666306.8270755,
-    "ast_hash": "e2f535669db9f65a34edc71d9bb49366",
-    "semantic_hash": "e2f535669db9f65a34edc71d9bb49366"
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
     "mtime": 1791688382.6063335,
@@ -1075,8 +1070,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791710175.6980863,
-    "ast_hash": "36ef47250aff2b3a56c0890b42c948e7",
+    "mtime": 1791711072.7425756,
+    "ast_hash": "84582e9eda99d87b407219134c3b7bfe",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1335,8 +1330,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/WordSegmentMatcher.ts": {
-    "mtime": 1791689050.737376,
-    "ast_hash": "0a51e6c5e8bca36762f4e79a48e08112",
+    "mtime": 1791731839.3120465,
+    "ast_hash": "8d726a899f282a7f467d30427d352c0a",
     "semantic_hash": ""
   },
   "src/utils/performance/ProgressiveProgressReporter.js": {
@@ -1455,8 +1450,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1791705465.1234655,
-    "ast_hash": "e30d31d1c6b475624469f046f01e46b1",
+    "mtime": 1791731385.1560526,
+    "ast_hash": "03574be4513d58192b258eb2fd3e1fc6",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1485,8 +1480,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791710175.698591,
-    "ast_hash": "c6d044e9f512a804b9280b1b5c9a560f",
+    "mtime": 1791731846.032186,
+    "ast_hash": "e5b36c14e5aa76983371e2f03d4f0200",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {

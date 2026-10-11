@@ -19,6 +19,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from '../../test/sourceScan';
 
 const wasmDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../wasm');
 
@@ -34,10 +35,6 @@ const SHARED_BINARY_WRAPPERS = ['WasmPatternProcessor.js'];
  * containing a literal `import { … } from './WasmX'` line, which the import scan would
  * otherwise read as a real sibling edge.
  */
-function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
-
 const sources = new Map(
   readdirSync(wasmDir)
     .filter((f) => f.endsWith('.js'))

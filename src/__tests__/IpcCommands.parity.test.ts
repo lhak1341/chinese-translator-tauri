@@ -21,6 +21,7 @@ import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CMD } from '../tauriAPI';
+import { stripComments } from '../test/sourceScan';
 
 const RUST_SRC = join(process.cwd(), 'src-tauri', 'src');
 
@@ -56,9 +57,6 @@ function declaredCommands(): string[] {
 }
 
 const wrapped = Object.values(CMD) as string[];
-
-const stripComments = (src: string): string =>
-  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 const camel = (name: string): string =>
   name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());

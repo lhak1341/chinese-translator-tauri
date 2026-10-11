@@ -1,5 +1,4 @@
 import { logger } from '../logger';
-import { normalizeVietnameseText } from '../text/TextNormalizationHelpers';
 import type { Segment, SemanticArrays } from '../../types/SemanticTypes';
 
 /**
@@ -19,7 +18,7 @@ export function segmentFromPositionMetadata(
 ): Segment[] {
   if (!semanticArrays.translated.length) return [];
 
-  const normalizedText = normalizeVietnameseText(text)!;
+  const normalizedText = text.normalize('NFC');
   const directSegments: Segment[] = [];
   let currentPosition = 0;
   const startTime = performance.now();

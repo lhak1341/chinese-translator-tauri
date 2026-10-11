@@ -50,6 +50,20 @@ describe('segmentFromPositionMetadata', () => {
     expect(semantic[1].end).toBe(12);
   });
 
+  it('reads NFC-based positions from NFD input', () => {
+    const nfc = 'chào bạn';
+    const nfd = nfc.normalize('NFD');
+    expect(nfd.length).toBeGreaterThan(nfc.length);
+    const arrays = makeArrays([
+      { translated: 'bạn', original: '你', translatedStart: 5, translatedEnd: 8 },
+    ]);
+    const semantic = segmentFromPositionMetadata(nfd, arrays).filter((s) => s.type === 'semantic');
+    expect(semantic).toHaveLength(1);
+    expect(semantic[0].text).toBe('bạn');
+    expect(semantic[0].start).toBe(5);
+    expect(semantic[0].end).toBe(8);
+  });
+
   it('emits gap text segment between units', () => {
     const text = 'xin chào bạn';
     const arrays = makeArrays([

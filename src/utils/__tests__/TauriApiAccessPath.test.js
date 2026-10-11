@@ -13,9 +13,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { productionSources, stripComments } from '../../test/sourceScan';
 
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -46,21 +47,6 @@ export function adapterImports(source) {
   return hits;
 }
 
-function productionSources(dir) {
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === '__tests__' || entry.name === 'test' || entry.name === 'node_modules')
-        continue;
-      out.push(...productionSources(full));
-    } else if (/\.(js|jsx|ts|tsx)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
 describe('Tauri IPC adapter access path', () => {
   it('the scan recognises the shapes that regressed (so an empty result means something)', () => {
     expect(adapterImports("import tauriAPI from '../../tauriAPI';")).toHaveLength(1);
@@ -72,6 +58,14 @@ describe('Tauri IPC adapter access path', () => {
     expect(adapterImports("import { type A, type B } from '../../tauriAPI';")).toHaveLength(0);
     expect(adapterImports("import './tauriAPI';")).toHaveLength(0);
     expect(adapterImports("type A = typeof import('../tauriAPI').default;")).toHaveLength(0);
+    // A commented-out import is not an import.
+    expect(
+      adapterImports(
+        stripComments(
+          "// import tauriAPI from '../tauriAPI';\n/* import tauriAPI from '../tauriAPI'; */"
+        )
+      )
+    ).toHaveLength(0);
   });
 
   it('no production file imports the adapter for a value', () => {
@@ -79,7 +73,10 @@ describe('Tauri IPC adapter access path', () => {
     expect(files.length).toBeGreaterThan(100);
 
     const offenders = files
-      .map((file) => [path.relative(srcDir, file), adapterImports(readFileSync(file, 'utf8'))])
+      .map((file) => [
+        path.relative(srcDir, file),
+        adapterImports(stripComments(readFileSync(file, 'utf8'))),
+      ])
       .filter(([, hits]) => hits.length > 0)
       // The adapter's own module and its declared type derive from each other.
       .filter(([rel]) => rel !== 'tauriAPI.ts');
