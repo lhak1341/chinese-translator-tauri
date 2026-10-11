@@ -11,7 +11,7 @@
  */
 
 use super::index::PatternIndex;
-use super::matcher::{find_best_pattern_match_iter, is_variable_type_allowed, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
+use super::matcher::{find_best_pattern_match_iter, is_variable_type_allowed, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, span_cap, DEFAULT_MAX_VARIABLE_SPAN, NUMBER_VARIABLE};
 use super::pattern::{SemanticPattern, TokenType};
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -113,6 +113,25 @@ impl PatternProcessingResult {
     }
 }
 
+/// Two index spaces meet in this file. `PatternProcessingResult::start_index` / `end_index` are
+/// ORIGINAL indices (`SemanticToken::original_index`: the position in the caller's token array,
+/// which still holds whitespace and punctuation), because that is what the JS side indexes with.
+/// A position in `semantic_tokens` runs behind them by the number of non-semantic tokens before
+/// it. Anything that slices or walks `semantic_tokens` with a result's index must convert first,
+/// with these two (the tokens' `original_index` values ascend; `process_tokens` checks that).
+///
+/// The first position whose token sits at or after `original_index` — for a candidate's start,
+/// the position of its first token.
+fn position_of(semantic_tokens: &[SemanticToken], original_index: usize) -> usize {
+    semantic_tokens.partition_point(|t| t.original_index < original_index)
+}
+
+/// The first position whose token sits after `original_index` — for a candidate's end, the
+/// position of the token that follows it.
+fn position_after(semantic_tokens: &[SemanticToken], original_index: usize) -> usize {
+    semantic_tokens.partition_point(|t| t.original_index <= original_index)
+}
+
 /// Lookup from "first literal character" to the variable-starting patterns needing it.
 ///
 /// `test_pattern_match` fast-rejects patterns whose FIRST token is a literal by comparing
@@ -133,6 +152,9 @@ impl PatternProcessingResult {
 struct VariableLiteralIndex {
     /// first literal char -> indices into the variable-pattern slice, ascending
     by_first_literal: HashMap<char, Vec<u32>>,
+    /// Same, for patterns whose leading variable is `#`: its literal can sit up to
+    /// `NUMBER_VARIABLE_SPAN` tokens away, so these are looked up in a wider window.
+    by_first_literal_wide: HashMap<char, Vec<u32>>,
     /// Indices that must always be tried, ascending
     always: Vec<u32>,
 }
@@ -140,6 +162,7 @@ struct VariableLiteralIndex {
 impl VariableLiteralIndex {
     fn build(patterns: &[SemanticPattern]) -> Self {
         let mut by_first_literal: HashMap<char, Vec<u32>> = HashMap::new();
+        let mut by_first_literal_wide: HashMap<char, Vec<u32>> = HashMap::new();
         let mut always = Vec::new();
 
         for (i, pattern) in patterns.iter().enumerate() {
@@ -150,9 +173,13 @@ impl VariableLiteralIndex {
                 .position(|t| t.token_type == TokenType::Literal);
 
             match first_literal {
-                // Exactly one leading variable, then a literal we can key on.
+                // Exactly one leading variable, then a literal we can key on. A leading `#` goes
+                // in its own map: its literal can sit `NUMBER_VARIABLE_SPAN` tokens away, past
+                // the window the others are looked up in, and a pattern missed there is silent.
                 Some(li) if li == 1 => {
+                    let wide = pattern.tokens[0].name.as_deref() == Some(NUMBER_VARIABLE);
                     match pattern.tokens[li].value.as_ref().and_then(|v| v.chars().next()) {
+                        Some(c) if wide => by_first_literal_wide.entry(c).or_default().push(idx),
                         Some(c) => by_first_literal.entry(c).or_default().push(idx),
                         None => always.push(idx),
                     }
@@ -161,7 +188,7 @@ impl VariableLiteralIndex {
             }
         }
 
-        Self { by_first_literal, always }
+        Self { by_first_literal, by_first_literal_wide, always }
     }
 
     /// Collect indices of patterns that could match at `position`, in ascending index order.
@@ -196,6 +223,25 @@ impl VariableLiteralIndex {
                 seen_chars.push(c);
                 if let Some(bucket) = self.by_first_literal.get(&c) {
                     out.extend_from_slice(bucket);
+                }
+            }
+
+            if !self.by_first_literal_wide.is_empty() {
+                let wide_end = position
+                    .saturating_add(span_cap(NUMBER_VARIABLE, max_var_span))
+                    .min(semantic_tokens.len() - 1);
+                seen_chars.clear();
+                for token in &semantic_tokens[position + 1..=wide_end] {
+                    let Some(c) = token.value.chars().next() else {
+                        continue;
+                    };
+                    if seen_chars.contains(&c) {
+                        continue;
+                    }
+                    seen_chars.push(c);
+                    if let Some(bucket) = self.by_first_literal_wide.get(&c) {
+                        out.extend_from_slice(bucket);
+                    }
                 }
             }
         }
@@ -271,6 +317,11 @@ impl TwoPhasePatternProcessor {
         semantic_tokens: &mut [SemanticToken],
         variable_cache: &HashMap<String, VariableCacheEntry>,
     ) -> Vec<PatternProcessingResult> {
+        debug_assert!(
+            semantic_tokens.windows(2).all(|w| w[0].original_index < w[1].original_index),
+            "semantic tokens must carry ascending original indices"
+        );
+
         // Phase A: Variable patterns only
         let phase_a_results = self.process_phase_a(semantic_tokens, variable_cache);
 
@@ -448,6 +499,9 @@ impl TwoPhasePatternProcessor {
     ) -> usize {
         let candidate_type = candidate.semantic_type.as_deref();
         let mut max_bonus: usize = 0;
+        // The candidate's indices are original indices; the estimators walk `semantic_tokens`.
+        let start_pos = position_of(semantic_tokens, candidate.start_index);
+        let after_pos = position_after(semantic_tokens, candidate.end_index);
 
         for pattern in &self.all_patterns {
             for (var_idx, tok) in pattern.tokens.iter().enumerate() {
@@ -474,7 +528,7 @@ impl TwoPhasePatternProcessor {
                     .iter()
                     .any(|t| t.token_type == TokenType::Literal);
                 let trailing = self.estimate_trailing_bonus(
-                    pattern, var_idx, semantic_tokens, candidate.end_index + 1, variable_cache,
+                    pattern, var_idx, semantic_tokens, after_pos, variable_cache,
                 );
                 let trailing_ok = !trailing_required || trailing > 0;
 
@@ -482,8 +536,8 @@ impl TwoPhasePatternProcessor {
                     && pattern.tokens[..var_idx]
                         .iter()
                         .any(|t| t.token_type == TokenType::Literal);
-                let leading = if leading_required && candidate.start_index > 0 {
-                    self.estimate_leading_bonus(pattern, var_idx, semantic_tokens, candidate.start_index)
+                let leading = if leading_required && start_pos > 0 {
+                    self.estimate_leading_bonus(pattern, var_idx, semantic_tokens, start_pos)
                 } else {
                     0
                 };
@@ -544,7 +598,7 @@ impl TwoPhasePatternProcessor {
 
         let var_chars = next_var.map_or(0, |var_name| {
             let rest: Vec<char> = available.chars().skip(lit_chars).collect();
-            (1..=rest.len().min(DEFAULT_MAX_VARIABLE_SPAN))
+            (1..=rest.len().min(span_cap(var_name, DEFAULT_MAX_VARIABLE_SPAN)))
                 .rev()
                 .find(|&span| {
                     let key: String = rest[..span].iter().collect();
@@ -603,12 +657,12 @@ impl TwoPhasePatternProcessor {
                 }),
             };
 
-            for i in result.start_index..=result.end_index {
-                if i < semantic_tokens.len() {
-                    semantic_tokens[i].protected_by_phase_a = Some(true);
-                    // CRITICAL FIX: Store reference to Phase A result for override detection
-                    semantic_tokens[i].phase_a_result = Some(phase_a_ref.clone());
-                }
+            let from = position_of(semantic_tokens, result.start_index);
+            let to = position_after(semantic_tokens, result.end_index);
+            for token in &mut semantic_tokens[from..to] {
+                token.protected_by_phase_a = Some(true);
+                // CRITICAL FIX: Store reference to Phase A result for override detection
+                token.phase_a_result = Some(phase_a_ref.clone());
             }
         }
     }
@@ -717,7 +771,7 @@ impl TwoPhasePatternProcessor {
                 if let Some(processing_result) =
                     PatternProcessingResult::from_match_result(match_result, "phaseB".to_string())
                 {
-                    position = processing_result.end_index + 1;
+                    position = position_after(semantic_tokens, processing_result.end_index);
                     results.push(processing_result);
                     continue;
                 }
@@ -1070,6 +1124,115 @@ mod tests {
         // Check categorization
         assert_eq!(processor.variable_patterns.len(), 1); // Only "X的Y" has allowAsPatternVariable
         assert_eq!(processor.all_patterns.len(), 3);
+    }
+
+    /// Pattern results carry original token indices; `semantic_tokens` positions run behind them
+    /// by the number of non-semantic tokens before. Tokens here get gapped `original_index`
+    /// values to stand for those tokens.
+    mod original_index_space {
+        use super::*;
+
+        fn candidate(start_index: usize, end_index: usize) -> PatternProcessingResult {
+            PatternProcessingResult {
+                original_text: String::new(),
+                translation: String::new(),
+                pattern: None,
+                variables: None,
+                start_index,
+                end_index,
+                source: "phaseA".to_string(),
+                translation_source: None,
+                semantic_type: None,
+                phase_a: None,
+                phase_b: None,
+            }
+        }
+
+        #[test]
+        fn position_helpers_map_original_indices_to_positions() {
+            // Original indices 2, 3, 7, 8: two non-semantic tokens in front, a gap of three between.
+            let tokens = vec![tok("甲", 2), tok("乙", 3), tok("丙", 7), tok("丁", 8)];
+            assert_eq!(position_of(&tokens, 0), 0, "before the first token");
+            assert_eq!(position_of(&tokens, 2), 0);
+            assert_eq!(position_of(&tokens, 3), 1);
+            assert_eq!(position_of(&tokens, 5), 2, "inside a gap: the next token");
+            assert_eq!(position_of(&tokens, 8), 3);
+            assert_eq!(position_of(&tokens, 99), 4, "past the last token");
+            assert_eq!(position_after(&tokens, 0), 0);
+            assert_eq!(position_after(&tokens, 2), 1);
+            assert_eq!(position_after(&tokens, 3), 2, "the token after a candidate ending at 3");
+            assert_eq!(position_after(&tokens, 5), 2, "inside a gap");
+            assert_eq!(position_after(&tokens, 8), 4);
+            assert_eq!(position_of(&[], 3), 0);
+            assert_eq!(position_after(&[], 3), 0);
+        }
+
+        #[test]
+        fn leading_bonus_reads_the_tokens_before_the_candidate_not_before_its_original_index() {
+            // Phase B pattern "甲X": the bonus needs "甲" right before the candidate.
+            let pattern = parse_pattern("甲X".to_string(), "t X".to_string(), None, false, None);
+            let processor = TwoPhasePatternProcessor::new(vec![pattern]);
+            let cache = HashMap::new();
+
+            let plain = vec![tok("甲", 0), tok("乙", 1), tok("丙", 2)];
+            let gapped = vec![tok("甲", 3), tok("乙", 4), tok("丙", 5)];
+
+            let without_gap = processor.compute_composite_bonus(&candidate(1, 2), &plain, &cache);
+            let with_gap = processor.compute_composite_bonus(&candidate(4, 5), &gapped, &cache);
+            assert_eq!(without_gap, 1);
+            assert_eq!(with_gap, without_gap);
+        }
+
+        #[test]
+        fn trailing_bonus_reads_the_tokens_after_the_candidate_not_after_its_original_index() {
+            // Phase B pattern "X丁": the bonus needs "丁" right after the candidate.
+            let pattern = parse_pattern("X丁".to_string(), "X t".to_string(), None, false, None);
+            let processor = TwoPhasePatternProcessor::new(vec![pattern]);
+            let cache = HashMap::new();
+
+            let plain = vec![tok("乙", 0), tok("丙", 1), tok("丁", 2)];
+            let gapped = vec![tok("乙", 4), tok("丙", 5), tok("丁", 6)];
+
+            let without_gap = processor.compute_composite_bonus(&candidate(0, 1), &plain, &cache);
+            let with_gap = processor.compute_composite_bonus(&candidate(4, 5), &gapped, &cache);
+            assert_eq!(without_gap, 1);
+            assert_eq!(with_gap, without_gap);
+        }
+
+        #[test]
+        fn trailing_bonus_scores_a_following_number_variable_up_to_eight_characters() {
+            // "X第#章": after the candidate comes the literal 第, then `#` bound to a
+            // 7-character numeral. The estimator must read `#` with the same span the matcher
+            // does (`span_cap`), or the candidate scores 1 where the match is worth 8.
+            let pattern = parse_pattern("X第#章".to_string(), "X t #".to_string(), None, false, None);
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+            let mut cache = HashMap::new();
+            cache.insert(
+                "一千二百三十四".to_string(),
+                VariableCacheEntry {
+                    translation: "N".to_string(),
+                    source: "test".to_string(),
+                    var_type: Some("number".to_string()),
+                },
+            );
+            let tokens: Vec<SemanticToken> = "候选第一千二百三十四章"
+                .chars()
+                .enumerate()
+                .map(|(i, c)| tok(&c.to_string(), i))
+                .collect();
+
+            let bonus = processor.estimate_trailing_bonus(&pattern, 0, &tokens, 2, &cache);
+            assert_eq!(bonus, 1 + 7, "the literal 第 plus the 7-character numeral");
+        }
+
+        #[test]
+        fn phase_a_protection_lands_on_the_candidates_own_tokens() {
+            let mut tokens = vec![tok("空", 0), tok("甲", 5), tok("乙", 6), tok("丙", 7)];
+            TwoPhasePatternProcessor::mark_tokens_as_protected(&mut tokens, &[candidate(5, 6)]);
+            let protected: Vec<bool> =
+                tokens.iter().map(|t| t.protected_by_phase_a.unwrap_or(false)).collect();
+            assert_eq!(protected, vec![false, true, true, false]);
+        }
     }
 
     /// Equivalence proof for `VariableLiteralIndex`, run against the real production

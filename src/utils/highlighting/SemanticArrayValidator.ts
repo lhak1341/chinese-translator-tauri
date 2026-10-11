@@ -1,5 +1,6 @@
 import { logger } from '../logger';
-import type { SemanticArrayMetadata, SemanticArraySnapshot } from './SemanticArrayBuilder';
+import type { SemanticArrayMetadata } from '../../types/SemanticTypes';
+import type { SemanticArraySnapshot } from './SemanticArrayBuilder';
 
 export class SemanticArrayValidator {
   hasValidPositions(meta: SemanticArrayMetadata): boolean {

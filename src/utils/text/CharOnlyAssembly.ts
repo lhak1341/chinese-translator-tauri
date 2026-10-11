@@ -46,11 +46,7 @@ export function assembleCharOnlyResult(
         token.value,
         token.translated,
         token.translationSource || 'characters',
-        i, // tokenIndex, so the position back-fill can find the unit
-        'characters',
-        // applyMatchToTokens sets token.translationSource = match.dictionary (never token.dictionary),
-        // so for a translated token here it IS the dictionary name.
-        token.translationSource || null
+        i // tokenIndex, so the position back-fill can find the unit
       );
     }
 

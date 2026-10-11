@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import { useHighlightingState } from './useHighlightingState';
-import type { UseHighlightingStateResult } from './useHighlightingState';
 import {
   findCharacterOnlyMatch,
+  resolveHighlights,
   scheduleHighlightScroll,
   scrollToHighlightedElement,
   HIGHLIGHT_SCROLL_DELAY_MS,
 } from '../utils/highlighting';
-import type { SemanticArrays } from '../utils/highlighting';
+import type { LitUnit, ResolvedHighlights, SemanticArrays } from '../utils/highlighting';
 import type { SegmentClickHandler } from '../types/ClickableTypes';
 import { logger } from '../utils/logger';
 
@@ -21,26 +20,25 @@ interface UseHighlightInteractionOptions {
 }
 
 interface UseHighlightInteractionResult {
-  highlighting: UseHighlightingStateResult['highlighting'];
+  highlighting: ResolvedHighlights;
   handleSemanticSegmentClick: SegmentClickHandler;
-  clearHighlighting: UseHighlightingStateResult['clearHighlighting'];
-  validateSemanticArraySize: UseHighlightingStateResult['validateSemanticArraySize'];
+  clearHighlighting: () => void;
 }
 
 /**
- * Owns click-to-highlight: the highlighting reducer, both triggers into it, and the scroll
- * that follows each. See CONTEXT.md's "Click-to-Highlight Lifecycle" for the full story.
+ * Owns click-to-highlight: the lit unit, the three click directions, and the scroll that follows
+ * each. See CONTEXT.md's "Click-to-Highlight Lifecycle" for the full story.
  *
- * Trigger 1 — `handleSemanticSegmentClick`: a click in any of the three panels. Three
- * directions: translation-to-original (HIGHLIGHT_BOTH), original-to-translation, and
- * character-only-to-original. The last reuses `findCharacterOnlyMatch` (direction-generic)
- * with source and target swapped. A click scrolls the Original / Translation panels after
- * HIGHLIGHT_SCROLL_DELAY_MS; the pending timer and its mounted flag live here.
+ * State is one lit unit (`LitUnit`: an index into the current `semanticArrays`, and whether the
+ * click came from the Character Only panel). `resolveHighlights` derives the indices the three
+ * panels show from it, so the Character Only side is never stored and cannot go stale.
  *
- * Trigger 2 — the bridge effect: fires on ANY change to unitIndex / translationUnitIndex
- * (not just clicks), maps the Full Translation (priority) or Original highlight to
- * Character Only unit(s), and a second effect scrolls the Character Only panel to the
- * result. Skipped while `isCharacterOnlyClick`, so a Character Only click is not mapped back.
+ * `handleSemanticSegmentClick`: a click in any of the three panels. translation-to-original and
+ * original-to-translation light the clicked unit; character-only-to-original reuses
+ * `findCharacterOnlyMatch` (direction-generic) with source and target swapped to find the unit
+ * to light. A click scrolls the Original / Translation panels after HIGHLIGHT_SCROLL_DELAY_MS; the
+ * pending timer and its mounted flag live here. An effect scrolls the Character Only panel to
+ * whatever the resolver mapped to, after the same delay.
  */
 export function useHighlightInteraction({
   semanticArrays,
@@ -49,17 +47,14 @@ export function useHighlightInteraction({
   translationTextRef,
   characterOnlyTextRef,
 }: UseHighlightInteractionOptions): UseHighlightInteractionResult {
-  const {
-    highlighting,
-    highlightTranslation,
-    highlightBoth,
-    highlightFromCharacterOnly,
-    setCharacterOnlyIndex,
-    clearHighlighting,
-    validateSemanticArraySize,
-  } = useHighlightingState(semanticArrays);
-  const { unitIndex, translationUnitIndex, characterOnlyUnitIndex, isCharacterOnlyClick } =
-    highlighting;
+  const [lit, setLit] = useState<LitUnit | null>(null);
+  const highlighting = useMemo(
+    () => resolveHighlights(lit, semanticArrays, characterOnlySemanticArrays),
+    [lit, semanticArrays, characterOnlySemanticArrays]
+  );
+  const { characterOnlyUnitIndex } = highlighting;
+
+  const clearHighlighting = useCallback(() => setLit(null), []);
 
   // Pending click-scroll timer, and whether the owner is still mounted when it fires.
   const highlightScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +76,13 @@ export function useHighlightInteraction({
       if (segmentInfo.direction === 'translation-to-original') {
         // HIGHLIGHT_BOTH keeps Full Translation highlighted while Original is highlighted
         // too; Character Only follows through the bridge effect.
-        highlightBoth(segmentInfo.unitIndex);
+        if (semanticArrays) {
+          setLit({
+            index: segmentInfo.unitIndex,
+            arrays: semanticArrays,
+            fromCharacterOnly: false,
+          });
+        }
         scheduleHighlightScroll(
           highlightScrollTimeoutRef,
           isMountedRef,
@@ -90,7 +91,13 @@ export function useHighlightInteraction({
           HIGHLIGHT_SCROLL_DELAY_MS
         );
       } else if (segmentInfo.direction === 'original-to-translation') {
-        highlightTranslation(segmentInfo.unitIndex);
+        if (semanticArrays) {
+          setLit({
+            index: segmentInfo.unitIndex,
+            arrays: semanticArrays,
+            fromCharacterOnly: false,
+          });
+        }
         scheduleHighlightScroll(
           highlightScrollTimeoutRef,
           isMountedRef,
@@ -111,8 +118,8 @@ export function useHighlightInteraction({
 
           if (matchIndices) {
             const targetIndex = matchIndices[0];
-            // Highlights Original and Full Translation, and sets isCharacterOnlyClick
-            highlightFromCharacterOnly(targetIndex);
+            // Lights Original and Full Translation; the Character Only panel stays unlit
+            setLit({ index: targetIndex, arrays: semanticArrays, fromCharacterOnly: true });
             scheduleHighlightScroll(
               highlightScrollTimeoutRef,
               isMountedRef,
@@ -127,77 +134,15 @@ export function useHighlightInteraction({
             logger.warn(
               `⚠️ No match found for character-only unit ${segmentInfo.unitIndex} in Chinese Text — clearing highlight`
             );
-            highlightFromCharacterOnly(-1);
+            setLit(null);
           }
         }
       }
     },
-    [
-      semanticArrays,
-      characterOnlySemanticArrays,
-      highlightBoth,
-      highlightTranslation,
-      highlightFromCharacterOnly,
-      originalTextRef,
-      translationTextRef,
-    ]
+    [semanticArrays, characterOnlySemanticArrays, originalTextRef, translationTextRef]
   );
 
-  // Bridge match effect: maps Full Translation / Original highlight → Character Only unit(s).
-  useEffect(() => {
-    if (!semanticArrays || !characterOnlySemanticArrays) {
-      return;
-    }
-
-    if (isCharacterOnlyClick) {
-      logger.log(
-        '🚫 Skipping Chinese Text → Character Only mapping (Character Only click in progress)'
-      );
-      return;
-    }
-
-    // Full Translation highlight takes priority over Original.
-    let activeIndex = -1;
-    if (translationUnitIndex !== -1 && semanticArrays.original) {
-      if (translationUnitIndex >= semanticArrays.original.length) {
-        logger.error('❌ Index out of bounds in bridge useEffect:', {
-          index: translationUnitIndex,
-          arrayLength: semanticArrays.original.length,
-          source: 'Full Translation highlight',
-        });
-        setCharacterOnlyIndex(-1);
-        return;
-      }
-      activeIndex = translationUnitIndex;
-    } else if (unitIndex !== -1 && semanticArrays.original) {
-      if (unitIndex >= semanticArrays.original.length) {
-        logger.error('❌ Index out of bounds in bridge useEffect:', {
-          index: unitIndex,
-          arrayLength: semanticArrays.original.length,
-          source: 'Original Text highlight',
-        });
-        setCharacterOnlyIndex(-1);
-        return;
-      }
-      activeIndex = unitIndex;
-    }
-
-    const matchIndices =
-      activeIndex !== -1
-        ? findCharacterOnlyMatch(activeIndex, semanticArrays, characterOnlySemanticArrays)
-        : null;
-
-    setCharacterOnlyIndex(matchIndices ?? -1);
-  }, [
-    unitIndex,
-    translationUnitIndex,
-    semanticArrays,
-    characterOnlySemanticArrays,
-    isCharacterOnlyClick,
-    setCharacterOnlyIndex,
-  ]);
-
-  // Bridge scroll effect: after the Character Only index is set, scroll that panel to it.
+  // After the Character Only index resolves, scroll that panel to it.
   useEffect(() => {
     if (characterOnlyUnitIndex === -1) return;
 
@@ -215,5 +160,5 @@ export function useHighlightInteraction({
     return () => clearTimeout(timeoutId);
   }, [characterOnlyUnitIndex, characterOnlyTextRef]);
 
-  return { highlighting, handleSemanticSegmentClick, clearHighlighting, validateSemanticArraySize };
+  return { highlighting, handleSemanticSegmentClick, clearHighlighting };
 }

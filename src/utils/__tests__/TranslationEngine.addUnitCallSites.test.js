@@ -19,6 +19,12 @@ import { getSourcePriority } from '../TranslationSourcePriority.js';
 const ENGINE_PATH = path.resolve(__dirname, '../TranslationEngine.js');
 const UNRECOGNISED = 999;
 const SOURCE_ARG_INDEX = 2; // addUnit(originalText, translated, translationSource, ...)
+const MAX_ADD_UNIT_ARGS = 4; // addUnit(originalText, translated, source, tokenIndex)
+const ADD_UNIT_CALLERS = [
+  '../TranslationEngine.js',
+  '../NumberProcessor.js',
+  '../text/CharOnlyAssembly.ts',
+];
 
 /** Collects string literals from `a`, `a || 'b'`, `a ?? 'b'`, and nested combinations. */
 function literalsIn(node) {
@@ -67,5 +73,42 @@ describe('addUnit() translationSource literals', () => {
     expect(
       bad.map(({ literal, line }) => `TranslationEngine.js:${line} passes '${literal}'`)
     ).toEqual([]);
+  });
+});
+
+describe('addUnit() argument count', () => {
+  // JS ignores extra arguments silently, so a re-added `phase`/`dictionary` pair would be dead
+  // weight with no failing test (ADR-094 removed both).
+  const callsWithTooManyArgs = ADD_UNIT_CALLERS.flatMap((relative) => {
+    const file = path.resolve(__dirname, relative);
+    const sourceFile = ts.createSourceFile(
+      file,
+      readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true
+    );
+    const found = [];
+    let calls = 0;
+    const visit = (node) => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'addUnit'
+      ) {
+        calls++;
+        if (node.arguments.length > MAX_ADD_UNIT_ARGS) {
+          const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+          found.push(`${path.basename(file)}:${line} passes ${node.arguments.length} arguments`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    expect(calls).toBeGreaterThan(0); // the walker still finds the call sites
+    return found;
+  });
+
+  test('no production call site passes more than four arguments', () => {
+    expect(callsWithTooManyArgs).toEqual([]);
   });
 });

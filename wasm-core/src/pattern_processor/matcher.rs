@@ -248,6 +248,22 @@ pub const NUMBER_VARIABLE: &str = "#";
 /// Variable-cache type of numeral entries (built by JS `PatternVariableCache.js`).
 pub const NUMBER_VARIABLE_TYPE: &str = "number";
 
+/// Longest token span a `#` variable is tried with. A numeral such as 一千二百三十四 is 7 tokens,
+/// past [`DEFAULT_MAX_VARIABLE_SPAN`], so `#` gets its own bound: the longest numeral the JS cache
+/// supplies (`MAX_NUMERAL_SPAN` in `NumberVariable.js`; `NumberVariableSpan.sourceScan.test.js`
+/// keeps the two equal). Letter variables have no keys that long, so they keep the default and
+/// the candidate index keeps its narrow window for them.
+pub const NUMBER_VARIABLE_SPAN: usize = 8;
+
+/// The span `var_name` is tried with, given the caller's cap for ordinary variables.
+pub fn span_cap(var_name: &str, max_var_span: usize) -> usize {
+    if var_name == NUMBER_VARIABLE {
+        std::cmp::max(max_var_span, NUMBER_VARIABLE_SPAN)
+    } else {
+        max_var_span
+    }
+}
+
 /// Whether a resolved value of `var_type` may fill `var_name` in `pattern`.
 ///
 /// Number-typed values are reserved for `#`: without this guard every numeral
@@ -572,7 +588,10 @@ impl<'a> PatternMatcher<'a> {
         // self.max_var_span is DEFAULT_MAX_VARIABLE_SPAN (6) for Phase A, but Phase B
         // overrides it to cover Phase A composite results injected into the enhanced cache
         // (e.g. "菲利克斯的猜测" = 7 tokens would be missed by the 6-token cap).
-        let max_span = std::cmp::min(semantic_tokens.len() - current_position, self.max_var_span);
+        let max_span = std::cmp::min(
+            semantic_tokens.len() - current_position,
+            span_cap(var_name, self.max_var_span),
+        );
 
         // Pre-allocate string buffer. Chinese chars are 3 bytes each in UTF-8;
         // using max_span * 2 (from the old "2 bytes per char" estimate) caused

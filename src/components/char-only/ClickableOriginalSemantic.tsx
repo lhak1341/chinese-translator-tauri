@@ -15,7 +15,6 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,
   semanticArrays,
   highlightedUnitIndex = -1,
-  highlightedTranslationUnitIndex = -1,
   onSegmentClick,
 }) => {
   const handleUnitClick = useSegmentClickHandler(
@@ -48,8 +47,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     paragraphs,
     getTitle: (segment: any) =>
       `"${sanitizeString(segment.originalText || '', 100)}" → "${sanitizeString(segment.translatedText || '', 100)}" (${segment.source})`,
-    isHighlighted: (segment: any) =>
-      isUnitHighlighted(segment.unitIndex, highlightedUnitIndex, highlightedTranslationUnitIndex),
+    isHighlighted: (segment: any) => isUnitHighlighted(segment.unitIndex, highlightedUnitIndex),
     onUnitClick: handleUnitClick,
     getNonClickableClassName: () => styles.nonClickableText,
     renderFallback: () =>

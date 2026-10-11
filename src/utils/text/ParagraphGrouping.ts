@@ -15,21 +15,9 @@
  * // Returns: [[segment1, segment2], [segment3, segment4], ...]
  */
 
-/**
- * Segment structure (shared between clickable components)
- */
-export interface Segment {
-  type: 'semantic' | 'text' | 'space';
-  text: string;
-  start: number;
-  end: number;
-  unitIndex: number;
-  originalText?: string;
-  translatedText?: string;
-  source?: string;
-  metadata?: any;
-  isClickable: boolean;
-}
+import type { Segment } from '../highlighting/SegmentPrecomputer';
+
+export type { Segment };
 
 /**
  * Group segments into paragraphs based on line breaks and indentation

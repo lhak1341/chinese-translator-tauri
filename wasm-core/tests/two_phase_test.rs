@@ -1425,3 +1425,219 @@ fn test_literal_number_pattern_beats_number_variable_pattern() {
     assert_eq!(run_patterns(patterns(), "第一层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ nhất"]);
     assert_eq!(run_patterns(patterns(), "第三层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ ba"]);
 }
+
+// A `#` variable can take a numeral longer than a letter variable can take any value: the cache
+// holds numerals up to 8 characters (`NumberVariable.js`'s MAX_NUMERAL_SPAN), and a heading such
+// as 第一千二百三十四章 has a 7-character one. With the letter variable's cap of 6 it never matched
+// on the WASM path while the JS fallback matched it.
+
+fn numeral_cache(numeral: &str) -> HashMap<String, VariableCacheEntry> {
+    let mut cache = HashMap::new();
+    cache.insert(numeral.to_string(), cache_entry("N", "number"));
+    cache
+}
+
+#[test]
+fn test_number_variable_binds_numerals_of_six_to_eight_characters() {
+    for numeral in ["一千二百三十", "一千二百三十四", "一万二千三百四十"] {
+        let text = format!("第{numeral}章");
+        let end = text.chars().count() - 1;
+        let results = run_patterns(vec![("第#章", "chương thứ #", None)], &text, &numeral_cache(numeral));
+        assert_eq!(
+            results,
+            vec![format!("[0-{end}] chương thứ N")],
+            "numeral {numeral} ({} chars)",
+            numeral.chars().count()
+        );
+    }
+}
+
+#[test]
+fn test_number_variable_stops_at_eight_characters() {
+    let numeral = "一万二千三百四十五"; // 9 characters
+    let results = run_patterns(
+        vec![("第#章", "chương thứ #", None)],
+        &format!("第{numeral}章"),
+        &numeral_cache(numeral),
+    );
+    assert!(results.is_empty(), "got {:?}", results);
+}
+
+#[test]
+fn test_letter_variable_still_stops_at_six_characters() {
+    let mut cache = HashMap::new();
+    cache.insert("甲乙丙丁戊己".to_string(), cache_entry("six", "location"));
+    cache.insert("甲乙丙丁戊己庚".to_string(), cache_entry("seven", "location"));
+    // Seven characters is out of reach for X, so the six-character entry cannot bind either:
+    // the literal 章 does not follow it.
+    let results = run_patterns(vec![("第X章", "chương X", None)], "第甲乙丙丁戊己庚章", &cache);
+    assert!(results.is_empty(), "got {:?}", results);
+    let results = run_patterns(vec![("第X章", "chương X", None)], "第甲乙丙丁戊己章", &cache);
+    assert_eq!(results, vec!["[0-7] chương six"]);
+}
+
+#[test]
+fn test_leading_number_variable_is_found_through_the_candidate_index() {
+    // `#大X之一` starts with a variable, so it is reached through the first-literal index, whose
+    // window must cover a seven-character numeral before the literal 大.
+    let mut cache = numeral_cache("一千二百三十四");
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let results = run_patterns(
+        vec![("#大X之一", "một trong # đại X", None)],
+        "一千二百三十四大禁地之一",
+        &cache,
+    );
+    assert_eq!(results, vec!["[0-11] một trong N đại cấm địa"]);
+}
+
+// Pattern results carry ORIGINAL token indices (`SemanticToken::original_index`, the position in
+// the caller's token array, where whitespace and punctuation tokens still sit). `semantic_tokens`
+// holds only the semantic tokens, so its positions run behind those indices by the number of
+// non-semantic tokens before them. The tests below give tokens gapped `original_index` values to
+// stand for such tokens; the scoring and the Phase B loop used to read a result's index as a
+// position in `semantic_tokens`.
+
+#[test]
+fn test_scoring_phase_a_candidates_far_into_a_gapped_array_does_not_panic() {
+    // 300 filler tokens with a non-semantic token between each, then two candidates: the
+    // second's original index (606) is past the 306 semantic tokens, so slicing
+    // `semantic_tokens[..606]` for the leading bonus panicked.
+    let candidate_a = parse_pattern("候选甲".to_string(), "A".to_string(), None, true, None);
+    let candidate_b = parse_pattern("候选乙".to_string(), "B".to_string(), None, true, None);
+    let wrapper = parse_pattern("在X中".to_string(), "trong X".to_string(), None, false, None);
+
+    let mut tokens: Vec<SemanticToken> = (0..300).map(|i| create_token("空", i * 2)).collect();
+    tokens.push(create_token("候", 600));
+    tokens.push(create_token("选", 602));
+    tokens.push(create_token("甲", 604));
+    tokens.push(create_token("候", 606));
+    tokens.push(create_token("选", 608));
+    tokens.push(create_token("乙", 610));
+
+    let processor = TwoPhasePatternProcessor::new(vec![candidate_a, candidate_b, wrapper]);
+    let results = processor.process_tokens(&mut tokens, &HashMap::new());
+
+    let spans: Vec<(usize, usize, String)> = results
+        .iter()
+        .map(|r| (r.start_index, r.end_index, r.translation.clone()))
+        .collect();
+    assert_eq!(spans, vec![(600, 604, "A".to_string()), (606, 610, "B".to_string())]);
+}
+
+#[test]
+fn test_composite_bonus_is_the_same_with_non_semantic_tokens_ahead() {
+    // test_phase_a_composite_bonus_wins_over_larger_own_span, with five non-semantic tokens in
+    // front of the sentence: the winner must not change because of tokens before it.
+    let mut literal_type = HashMap::new();
+    literal_type.insert("X".to_string(), vec!["character".to_string()]);
+    let pattern_literal = parse_pattern(
+        "刍吾的速度".to_string(),
+        "tốc độ của sinh vật".to_string(),
+        None,
+        true,
+        Some("concept".to_string()),
+    );
+    let pattern_wrapper = parse_pattern(
+        "这只X".to_string(),
+        "con X này".to_string(),
+        Some(literal_type.clone()),
+        true,
+        Some("$X".to_string()),
+    );
+    let pattern_phase_b = parse_pattern(
+        "X的速度".to_string(),
+        "tốc độ của X".to_string(),
+        Some(literal_type),
+        false,
+        None,
+    );
+    let gap = 5;
+    let mut tokens: Vec<SemanticToken> = ["这", "只", "刍", "吾", "的", "速", "度"]
+        .iter()
+        .enumerate()
+        .map(|(i, v)| create_token(v, i + gap))
+        .collect();
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "刍吾".to_string(),
+        VariableCacheEntry {
+            translation: "sinh vật".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let processor =
+        TwoPhasePatternProcessor::new(vec![pattern_literal, pattern_wrapper, pattern_phase_b]);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(results.len(), 1, "got {:?}", results.iter().map(|r| &r.translation).collect::<Vec<_>>());
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!((results[0].start_index, results[0].end_index), (gap, gap + 6));
+    assert_eq!(results[0].phase_a.as_ref().unwrap().original_text, "这只刍吾");
+}
+
+#[test]
+fn test_phase_b_finds_the_next_match_after_a_gap() {
+    // Semantic tokens 空 候 选 甲 乙 sit at original indices 0 5 6 7 8. After "候选" (original
+    // 5-6) the loop must move to the semantic token 甲, not to position 7 (past the array).
+    let first = parse_pattern("候选".to_string(), "ứng viên".to_string(), None, false, None);
+    let second = parse_pattern("甲乙".to_string(), "giáp ất".to_string(), None, false, None);
+    let mut tokens = vec![
+        create_token("空", 0),
+        create_token("候", 5),
+        create_token("选", 6),
+        create_token("甲", 7),
+        create_token("乙", 8),
+    ];
+
+    let processor = TwoPhasePatternProcessor::new(vec![first, second]);
+    let results = processor.process_tokens(&mut tokens, &HashMap::new());
+
+    let spans: Vec<(usize, usize, String)> = results
+        .iter()
+        .map(|r| (r.start_index, r.end_index, r.translation.clone()))
+        .collect();
+    assert_eq!(
+        spans,
+        vec![(5, 6, "ứng viên".to_string()), (7, 8, "giáp ất".to_string())]
+    );
+}
+
+#[test]
+fn test_phase_a_scores_a_long_numeral_for_the_candidate_that_composes_with_it() {
+    // Wrapper "X第#章" (Phase B only), tokens 候选第一千二百三十四章. Two Phase A candidates
+    // share 选: "候选" (2 characters) and "选第一千" (4). "候选" can be the wrapper's X, and
+    // after the literal 第 the wrapper's `#` takes a 7-character numeral, so its composite
+    // bonus is 1 + 7 and it scores 10 against 4. If the bonus estimator stopped at the letter
+    // variables' span of 6 it would score 3, the longer candidate would win, and the heading
+    // would never compose.
+    let candidate = parse_pattern("候选".to_string(), "ứng viên".to_string(), None, true, None);
+    let longer = parse_pattern("选第一千".to_string(), "chọn thứ nghìn".to_string(), None, true, None);
+    let wrapper = parse_pattern("X第#章".to_string(), "X chương thứ #".to_string(), None, false, None);
+
+    let mut tokens: Vec<SemanticToken> = "候选第一千二百三十四章"
+        .chars()
+        .enumerate()
+        .map(|(i, c)| create_token(&c.to_string(), i))
+        .collect();
+    let mut cache = HashMap::new();
+    cache.insert("一千二百三十四".to_string(), cache_entry("N", "number"));
+
+    let processor = TwoPhasePatternProcessor::new(vec![candidate, longer, wrapper]);
+    let results = processor.process_tokens(&mut tokens, &cache);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "got {:?}",
+        results
+            .iter()
+            .map(|r| format!("[{}-{}] {} \"{}\"", r.start_index, r.end_index, r.source, r.translation))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!((results[0].start_index, results[0].end_index), (0, 10));
+    assert_eq!(results[0].translation, "ứng viên chương thứ N");
+    assert_eq!(results[0].phase_a.as_ref().unwrap().original_text, "候选");
+}

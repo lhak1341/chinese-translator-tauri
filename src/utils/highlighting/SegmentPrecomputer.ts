@@ -12,20 +12,7 @@
 import { getFirstGrapheme } from '../GraphemeHelper.js';
 import { compareByTokenIndex } from './TextPositionMapper';
 import { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
-
-/**
- * Semantic arrays from translation engine
- */
-export interface SemanticArrays {
-  /** Translated text units */
-  translated: string[];
-
-  /** Original text units */
-  original: string[];
-
-  /** Metadata for each unit */
-  metadata: any[];
-}
+import type { SemanticArrayMetadata, SemanticArrays } from '../../types/SemanticTypes';
 
 /**
  * Empty SemanticArrays — the shared fallback shape for `semanticArrayBuilder?.getArrays() || ...`
@@ -73,7 +60,7 @@ export interface Segment {
   source?: string;
 
   /** Unit metadata (for semantic segments) */
-  metadata?: any;
+  metadata?: SemanticArrayMetadata;
 }
 
 /**
@@ -135,7 +122,7 @@ export function precomputeOriginalSegments(
       index: number;
       unit: string;
       translated: string;
-      metadata: any;
+      metadata: SemanticArrayMetadata;
     } | null = null;
     let bestStartPos = -1;
 

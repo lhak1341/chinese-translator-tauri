@@ -88,8 +88,6 @@ export function assembleFullText(
     );
   }
 
-  // Metadata gaps get the shared explicit-missing default (isMissing: true), the same fill the
-  // progress callbacks use.
   return {
     translatedText,
     semanticArrays: snapshotSemanticArrays(builder.getArrays()),

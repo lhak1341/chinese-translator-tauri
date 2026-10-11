@@ -7,17 +7,22 @@
  */
 
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
-export type { SemanticArrayMetadata, SemanticArraySnapshot } from './SemanticArrayBuilder';
+export type { SemanticArraySnapshot } from './SemanticArrayBuilder';
+export type { SemanticArrayMetadata, SemanticArrays } from '../../types/SemanticTypes';
 export { SemanticArrayValidator, semanticArrayValidator } from './SemanticArrayValidator';
 
 // --- Segment pre-computation (character-only mode) ---
-export type { SemanticArrays, Segment } from './SegmentPrecomputer';
+export type { Segment } from './SegmentPrecomputer';
 export { precomputeOriginalSegments, emptySemanticArrays } from './SegmentPrecomputer';
 export { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
 export { segmentFromPositionMetadata } from './PositionMetadataSegmenter';
 
 // --- Character-Only bridge scoring ---
 export { findCharacterOnlyMatch } from './CharacterOnlyBridge';
+
+// --- Which units are lit, from one lit unit ---
+export { resolveHighlights } from './HighlightResolver';
+export type { LitUnit, ResolvedHighlights } from './HighlightResolver';
 
 // --- Shared Clickable* highlight predicate ---
 export { isUnitHighlighted } from './UnitHighlightPredicate';
@@ -30,6 +35,7 @@ export { compareByTokenIndex, resolveTokenIndex } from './TextPositionMapper';
 
 // --- Overflow guard constants (shared with TranslationEngine and Translator) ---
 export { MAX_SAFE_SEGMENTS, HIGHLIGHT_SCROLL_DELAY_MS } from './semanticArrayConstants';
+export { validateSemanticArraySize } from './SemanticArraySizeGuard';
 
 // --- Word-position matching (progressive translation) ---
 export type { WordSegment, WordSegmentSemanticArrays } from './WordSegmentMatcher';

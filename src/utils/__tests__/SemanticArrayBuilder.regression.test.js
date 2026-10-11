@@ -90,4 +90,39 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       expect(builder.getArrays().translated).toEqual(['thuyết']);
     });
   });
+  describe('getArrays keeps the three arrays one length', () => {
+    // The progress callbacks hand these arrays on as they are, with no gap-filling: a short
+    // `metadata` would reach the UI as undefined entries.
+    const lengths = (arrays) => [
+      arrays.original.length,
+      arrays.translated.length,
+      arrays.metadata.length,
+    ];
+
+    it.each([true, false])('after several units (copy = %s)', (copy) => {
+      const builder = new SemanticArrayBuilder();
+      for (let i = 0; i < 5; i++) builder.addUnit(`原${i}`, `dịch${i}`, 'characters', i);
+
+      expect(lengths(builder.getArrays(copy))).toEqual([5, 5, 5]);
+    });
+
+    it('when empty, and again after reset()', () => {
+      const builder = new SemanticArrayBuilder();
+      expect(lengths(builder.getArrays())).toEqual([0, 0, 0]);
+
+      builder.addUnit('你', 'bạn', 'characters', 0);
+      builder.reset();
+
+      expect(lengths(builder.getArrays())).toEqual([0, 0, 0]);
+    });
+
+    it('on a corrupted builder: the unit that corrupted it is in all three, later ones in none', () => {
+      const builder = new SemanticArrayBuilder();
+      builder.addUnit('你', undefined, 'characters', 0);
+      builder.addUnit('好', 'tốt', 'characters', 1);
+
+      expect(builder.isCorrupted).toBe(true);
+      expect(lengths(builder.getArrays())).toEqual([1, 1, 1]);
+    });
+  });
 });

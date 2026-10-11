@@ -1,15 +1,16 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSegmentClickHandler } from '../useSegmentClickHandler';
+import { makeMeta } from '../../test/makeMeta';
 
 // Stable fixture — must NOT be created inside renderHook callback (new object = dep change = infinite loop).
 const ARRAYS = {
   original: ['原0', '原1', '原2'],
   translated: ['tr0', 'tr1', 'tr2'],
   metadata: [
-    { source: 'characters', tokenIndex: 0 },
-    { source: 'phrases', tokenIndex: 1 },
-    { source: 'pattern', tokenIndex: 2 },
+    makeMeta({ source: 'characters', tokenIndex: 0 }),
+    makeMeta({ source: 'phrases', tokenIndex: 1 }),
+    makeMeta({ source: 'pattern', tokenIndex: 2 }),
   ],
 };
 

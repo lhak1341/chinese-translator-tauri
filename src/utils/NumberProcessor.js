@@ -4,7 +4,7 @@
  * Replaces ~90 lines of scattered number conversion with unified approach
  */
 
-import { consumedSource } from './TranslationSourcePriority.js';
+import { claimSpan } from './TokenClaim.js';
 
 export class NumberProcessor {
   constructor() {
@@ -254,15 +254,7 @@ export class NumberProcessor {
    */
   applyConversionResult(tokens, startIndex, matchResult, options = {}) {
     // Set result on first token
-    tokens[startIndex].translated = matchResult.result;
-    tokens[startIndex].translationSource = 'number_conversion';
-
-    // Mark consumed tokens
-    for (let i = startIndex + 1; i <= matchResult.endIndex; i++) {
-      tokens[i].translated = null;
-      tokens[i].translationSource = consumedSource('number_conversion');
-      tokens[i].groupLeader = startIndex;
-    }
+    claimSpan(tokens, startIndex, matchResult.endIndex, 'number_conversion', matchResult.result);
 
     // Add to semantic array builder if provided
     if (options.semanticArrayBuilder) {
@@ -272,9 +264,7 @@ export class NumberProcessor {
         matchResult.originalText,
         matchResult.result,
         'number_conversion',
-        globalTokenIndex,
-        'number_conversion',
-        null
+        globalTokenIndex
       );
     }
   }

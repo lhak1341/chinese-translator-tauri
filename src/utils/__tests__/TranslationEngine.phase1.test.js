@@ -40,7 +40,7 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
           这些书籍: 'PHRASE_BOOKS',
           书籍: { translation: 'sách vở', allowAsPatternVariable: true },
         },
-        patterns: { 这些X: 'những X này' },
+        patterns: { 这些X: 'những X này', '第#章': 'chương thứ #' },
         properNouns: { 这些朋友: 'PROPER_FRIENDS', 朋友: 'bạn bè' },
         conversion: {},
       },
@@ -82,5 +82,16 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
       expect(follower.translationSource).toBe('hierarchical_patterns_consumed');
       expect(follower.groupLeader).toBe(0);
     }
+  });
+  // A `#` variable takes a numeral of up to 8 characters on both pattern paths. The Rust matcher
+  // capped every variable at 6, so a heading with a 7-character numeral fell to characters.
+  test('a # variable binds a 6-character numeral', async () => {
+    const result = await engine.translateWithSegments('第一千二百三十章', { progressive: true });
+    expect(result.translatedText).toBe('Chương thứ 1,230');
+  });
+
+  test('a # variable binds a 7-character numeral', async () => {
+    const result = await engine.translateWithSegments('第一千二百三十四章', { progressive: true });
+    expect(result.translatedText).toBe('Chương thứ 1,234');
   });
 });

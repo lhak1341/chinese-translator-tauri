@@ -13,6 +13,7 @@
 
 import { describe, test, expect } from 'vitest';
 import { groupSegmentsIntoParagraphs, type Segment } from '../text/ParagraphGrouping';
+import { makeMeta } from '../../test/makeMeta';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -169,13 +170,13 @@ describe('groupSegmentsIntoParagraphs — rule 3: regular newline within paragra
 
 describe('groupSegmentsIntoParagraphs — metadata isolation', () => {
   test('metadata objects are shallow-copied, not shared', () => {
-    const meta = { phase: 'character', confidence: 1 };
+    const meta = makeMeta({ source: 'character', tokenIndex: 1 });
     const result = groupSegmentsIntoParagraphs([seg('A\nB', { metadata: meta })]);
     const segA = result[0].find((s) => s.text === 'A')!;
     const segB = result[0].find((s) => s.text === 'B' || s.text === '\n' || s.text === 'A');
     // Mutating the original metadata should not affect copies in segments
-    meta.confidence = 99;
-    expect(segA.metadata?.confidence).toBe(1);
+    meta.tokenIndex = 99;
+    expect(segA.metadata?.tokenIndex).toBe(1);
   });
 
   test('segment without metadata produces undefined metadata in copies', () => {

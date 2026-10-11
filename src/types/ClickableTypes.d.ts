@@ -12,7 +12,7 @@
  * These types enable JSDoc integration for full IDE support without migrating performance-critical code.
  */
 
-import type { SemanticArrays, SemanticMetadata } from './SemanticTypes';
+import type { SemanticArrays, SemanticArrayMetadata } from './SemanticTypes';
 
 // =============================================================================
 // Core Direction Types
@@ -63,7 +63,7 @@ export interface ClickableSegment extends BaseSegment {
   /** Translation source (pattern, phrase, character, etc.) */
   source: string;
   /** Full semantic metadata */
-  metadata?: SemanticMetadata;
+  metadata?: SemanticArrayMetadata;
 }
 
 /**
@@ -110,10 +110,8 @@ export interface ClickableOriginalSemanticProps {
   originalText?: string;
   /** Semantic arrays with translation metadata */
   semanticArrays?: SemanticArrays;
-  /** Currently highlighted unit index (from clicking original) */
+  /** Currently highlighted unit index (the unit lit by a click in any panel) */
   highlightedUnitIndex?: number;
-  /** Currently highlighted unit index (from clicking translation) */
-  highlightedTranslationUnitIndex?: number;
   /** Click handler for segment interactions */
   onSegmentClick?: SegmentClickHandler;
 }

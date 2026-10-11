@@ -21,6 +21,7 @@ import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useSelectionMapper } from '../hooks/useSelectionMapper';
 import { mapTranslatorSelection } from '../utils/highlighting/SelectionMapping';
+import { validateSemanticArraySize } from '../utils/highlighting';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
@@ -41,7 +42,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 // Complexity: 2,566 lines - intentionally coupled for timing guarantees
 //
 // Structure:
-//   - State Management (highlightingReducer, position mapping)
+//   - State Management (position mapping)
 //   - Translation Operations (main translate, character-only translate)
 //   - Highlighting & Interaction (click handlers, mode bridges)
 //   - Dictionary Operations (quick add, reload, configuration)
@@ -51,14 +52,6 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 /**
  * @import { SegmentClickPayload } from '../types/ClickableTypes'
  */
-
-// ============================================================================
-// SECTION 1: STATE MANAGEMENT UTILITIES
-// ============================================================================
-// Purpose: Reducers and pure state transformation functions
-// Extraction Status: ✅ ALL EXTRACTED
-// - highlightingReducer → src/reducers/highlightingReducer.js (68 lines)
-// ============================================================================
 
 // ============================================================================
 // SECTION 2: MAIN TRANSLATOR COMPONENT
@@ -75,7 +68,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   - Scroll position management requires DOM ref coordination
 //
 // Hook Call-Order Dependencies (why reordering hook calls below can silently break things):
-//   - useHighlightInteraction (owns useHighlightingState) requires useTranslationResults to
+//   - useHighlightInteraction (owns the lit unit) requires useTranslationResults to
 //     run first, and the three panel refs declared above it
 //   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightInteraction
 //   - executionCtx (plain object literal — see useAutoTranslateTrigger.ts's own dev-only
@@ -129,19 +122,17 @@ const Translator = ({ isActive }) => {
   const originalTextRef = useRef(null);
   const translationTextRef = useRef(null);
   const characterOnlyTextRef = useRef(null);
-  const { highlighting, handleSemanticSegmentClick, clearHighlighting, validateSemanticArraySize } =
-    useHighlightInteraction({
-      semanticArrays,
-      characterOnlySemanticArrays,
-      originalTextRef,
-      translationTextRef,
-      characterOnlyTextRef,
-    });
+  const { highlighting, handleSemanticSegmentClick, clearHighlighting } = useHighlightInteraction({
+    semanticArrays,
+    characterOnlySemanticArrays,
+    originalTextRef,
+    translationTextRef,
+    characterOnlyTextRef,
+  });
 
   // Destructure for easier access (maintains backward compatibility with existing code)
   const {
-    unitIndex: highlightedUnitIndex,
-    translationUnitIndex: highlightedTranslationUnitIndex,
+    litIndex: highlightedUnitIndex,
     characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
   } = highlighting;
   const [isTranslating, setIsTranslating] = useState(false);
@@ -804,7 +795,6 @@ const Translator = ({ isActive }) => {
         partialSemanticArrays={partialSemanticArrays}
         prebuiltSegments={prebuiltSegments}
         highlightedUnitIndex={highlightedUnitIndex}
-        highlightedTranslationUnitIndex={highlightedTranslationUnitIndex}
         highlightedCharacterOnlyUnitIndex={highlightedCharacterOnlyUnitIndex}
         throttledStreamingState={throttledStreamingState}
         handleSemanticSegmentClick={handleSemanticSegmentClick}

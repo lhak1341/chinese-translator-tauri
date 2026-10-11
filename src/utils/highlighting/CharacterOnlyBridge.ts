@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { compareByTokenIndex } from './TextPositionMapper';
-import type { SemanticArrays } from './SegmentPrecomputer';
+import type { SemanticArrays } from '../../types/SemanticTypes';
 
 /**
  * MAX_MATCHES limits memory and scoring runtime during occurrence scanning.
@@ -36,7 +36,7 @@ interface MatchCandidate {
  *    the first occurrence, not a smarter guess.
  *
  * @returns Array of Character-Only unit indices to highlight, or null if
- *   no match was found (caller should dispatch SET_CHARACTER_ONLY_INDEX with -1).
+ *   no match was found (the caller lights nothing).
  */
 export function findCharacterOnlyMatch(
   sourceIndex: number,
@@ -90,7 +90,7 @@ export function findCharacterOnlyMatch(
   // textual adjacency. Sort by tokenIndex first so "before"/"after" reflect real neighbors
   // in the Chinese text, matching the tokenIndex-aware occurrenceInSource logic below.
   const sortedByPosition = sourceArrays.original
-    .map((text, i) => ({ i, text, tokenIndex: (sourceArrays.metadata as any[])?.[i]?.tokenIndex }))
+    .map((text, i) => ({ i, text, tokenIndex: sourceArrays.metadata?.[i]?.tokenIndex }))
     .sort((a, b) => compareByTokenIndex(a.tokenIndex, b.tokenIndex));
   const posInSorted = sortedByPosition.findIndex((entry) => entry.i === sourceIndex);
 
@@ -109,12 +109,11 @@ export function findCharacterOnlyMatch(
   // sourceIndex. Uses tokenIndex (monotonically increasing with raw Chinese text
   // position) to handle cross-chunk scrambled array order; falls back to array
   // index when tokenIndex is unavailable.
-  const clickedTokenIndex: number =
-    (sourceArrays.metadata as any[])?.[sourceIndex]?.tokenIndex ?? -1;
+  const clickedTokenIndex: number = sourceArrays.metadata?.[sourceIndex]?.tokenIndex ?? -1;
   let occurrenceInSource = 0;
   for (let i = 0; i < sourceArrays.original.length; i++) {
     if (i === sourceIndex) continue;
-    const meta = (sourceArrays.metadata as any[])?.[i];
+    const meta = sourceArrays.metadata?.[i];
     const appearsBeforeInText =
       clickedTokenIndex >= 0 && meta?.tokenIndex >= 0
         ? meta.tokenIndex < clickedTokenIndex

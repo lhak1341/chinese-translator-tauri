@@ -14,7 +14,7 @@ export function isUnitHighlighted(
 ): boolean {
   for (const value of highlightValues) {
     if (value === null || value === undefined) continue;
-    // -1 is the codebase-wide "cleared" sentinel (see useHighlightingState.ts) — never
+    // -1 is the codebase-wide "cleared" sentinel (see HighlightResolver.ts) — never
     // treat it as a match, even if unitIndex itself were somehow -1.
     if (Array.isArray(value)) {
       if (value.includes(unitIndex) && unitIndex !== -1) return true;

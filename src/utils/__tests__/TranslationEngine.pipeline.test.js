@@ -384,7 +384,7 @@ describe('TranslationEngine.translateSinglePass — phrases over a whole chunk',
     await runSinglePass(engine, tokens, { chunkOffset: 7 });
     const phraseUnits = engine.semanticArrayBuilder
       .getArrays()
-      .metadata.filter((unit) => unit.dictionary === 'phrases');
+      .metadata.filter((unit) => ['中国人', '国人', '中国'].includes(unit.originalText));
     expect(phraseUnits.map((unit) => [unit.originalText, unit.tokenIndex])).toEqual([
       ['中国人', 9],
       ['国人', 14],

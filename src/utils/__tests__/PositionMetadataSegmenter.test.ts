@@ -6,6 +6,8 @@ vi.mock('../logger', () => ({
 }));
 
 import { logger } from '../logger';
+import { makeMeta } from '../../test/makeMeta';
+import type { SemanticArrayMetadata } from '../../types/SemanticTypes';
 
 function makeArrays(
   units: Array<{
@@ -19,7 +21,9 @@ function makeArrays(
   return {
     translated: units.map((u) => u.translated),
     original: units.map((u) => u.original),
-    metadata: units.map(({ translated: _t, original: _o, ...rest }) => rest),
+    metadata: units.map(({ translated: _t, original: _o, ...rest }) =>
+      makeMeta(rest as Partial<SemanticArrayMetadata>)
+    ),
   };
 }
 

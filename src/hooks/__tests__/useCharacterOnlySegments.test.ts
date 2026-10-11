@@ -16,15 +16,16 @@ vi.mock('../../utils/highlighting/PositionMetadataSegmenter', () => ({
 }));
 
 import { segmentFromPositionMetadata } from '../../utils/highlighting/PositionMetadataSegmenter';
+import { makeMeta } from '../../test/makeMeta';
 const mockSync = segmentFromPositionMetadata as ReturnType<typeof vi.fn>;
 
 const ARRAYS = {
   original: ['原0', '原1', '原2'],
   translated: ['tr0', 'tr1', 'tr2'],
   metadata: [
-    { source: 'characters', tokenIndex: 0 },
-    { source: 'characters', tokenIndex: 1 },
-    { source: 'characters', tokenIndex: 2 },
+    makeMeta({ source: 'characters', tokenIndex: 0 }),
+    makeMeta({ source: 'characters', tokenIndex: 1 }),
+    makeMeta({ source: 'characters', tokenIndex: 2 }),
   ],
 };
 const EMPTY_ARRAYS = { original: [], translated: [], metadata: [] };

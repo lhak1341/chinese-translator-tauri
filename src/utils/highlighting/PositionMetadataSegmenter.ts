@@ -1,6 +1,7 @@
 import { logger } from '../logger';
 import { normalizeVietnameseText } from '../text/TextNormalizationHelpers';
-import type { SemanticArrays, Segment } from './SegmentPrecomputer';
+import type { SemanticArrays } from '../../types/SemanticTypes';
+import type { Segment } from './SegmentPrecomputer';
 
 /**
  * Synchronously compute clickable segments for the character-only rendering path.

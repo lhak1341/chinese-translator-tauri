@@ -5,19 +5,20 @@ import { useHighlightInteraction } from '../useHighlightInteraction';
 import { HIGHLIGHT_SCROLL_DELAY_MS } from '../../utils/highlighting';
 import type { SemanticArrays } from '../../utils/highlighting';
 import { logger } from '../../utils/logger';
+import { makeMeta } from '../../test/makeMeta';
 
-// Real useHighlightingState and real findCharacterOnlyMatch: the behaviour under test is how
-// a click, the reducer, the bridge effect and the scrolls fit together.
+// Real resolveHighlights and real findCharacterOnlyMatch: the behaviour under test is how a click,
+// the lit unit, the Character Only mapping and the scrolls fit together.
 
 vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-// Stable fixtures — a new object per render changes the dep reference and loops the effects.
+// Stable fixtures — a new object per render is a new arrays reference, which clears the highlight.
 const arrays = (original: string[]): SemanticArrays => ({
   original,
   translated: original.map((_, i) => `tr${i}`),
-  metadata: original.map((_, i) => ({ source: 'characters', tokenIndex: i })),
+  metadata: original.map((_, i) => makeMeta({ source: 'characters', tokenIndex: i })),
 });
 
 // Original units are variable-length; Character Only units are one character each.
@@ -87,9 +88,8 @@ describe('translation-to-original click', () => {
       })
     );
 
-    expect(result.current.highlighting).toMatchObject({
-      unitIndex: 1,
-      translationUnitIndex: 1,
+    expect(result.current.highlighting).toEqual({
+      litIndex: 1,
       characterOnlyUnitIndex: [1, 2],
     });
 
@@ -111,7 +111,7 @@ describe('original-to-translation click', () => {
       })
     );
 
-    expect(result.current.highlighting.translationUnitIndex).toBe(2);
+    expect(result.current.highlighting.litIndex).toBe(2);
     await settle();
     expect(translation.scrolled(2)).toBe(1);
     expect(original.scrolled(2)).toBe(0);
@@ -129,15 +129,11 @@ describe('character-only-to-original click', () => {
       })
     );
 
-    expect(result.current.highlighting).toMatchObject({
-      unitIndex: 2,
-      translationUnitIndex: 2,
-      isCharacterOnlyClick: true,
-    });
+    expect(result.current.highlighting).toEqual({ litIndex: 2, characterOnlyUnitIndex: -1 });
     await settle();
     expect(original.scrolled(2)).toBe(1);
     expect(translation.scrolled(2)).toBe(1);
-    // isCharacterOnlyClick keeps the bridge from re-mapping and scrolling the clicked panel
+    // a Character Only click leaves that panel unlit, so it is neither mapped back nor scrolled
     expect(characterOnly.scrolled(3)).toBe(0);
   });
 
@@ -161,7 +157,7 @@ describe('character-only-to-original click', () => {
     );
 
     expect(logger.warn).toHaveBeenCalledOnce();
-    expect(result.current.highlighting).toMatchObject({ unitIndex: -1, translationUnitIndex: -1 });
+    expect(result.current.highlighting.litIndex).toBe(-1);
     await settle();
     expect(original.scrolled(0)).toBe(0); // the no-match click schedules no scroll
     expect(translation.scrolled(0)).toBe(0);
@@ -177,7 +173,7 @@ describe('character-only-to-original click', () => {
       })
     );
 
-    expect(result.current.highlighting).toMatchObject({ unitIndex: -1, translationUnitIndex: -1 });
+    expect(result.current.highlighting.litIndex).toBe(-1);
     expect(logger.warn).not.toHaveBeenCalled();
   });
 });
@@ -267,5 +263,67 @@ describe('bridge', () => {
 
     expect(result.current.highlighting.characterOnlyUnitIndex).toBe(-1);
     expect(characterOnly.scrolled(0)).toBe(0);
+  });
+});
+
+describe('stale highlights and clearing', () => {
+  test('a new semantic arrays reference clears the highlight in the same render', async () => {
+    const original = makePanel(SEMANTIC.original.length);
+    const translation = makePanel(SEMANTIC.original.length);
+    const characterOnly = makePanel(CHAR_ONLY.original.length);
+    const refs = {
+      originalTextRef: original.ref,
+      translationTextRef: translation.ref,
+      characterOnlyTextRef: characterOnly.ref,
+    };
+    const { result, rerender } = renderHook(
+      ({ semanticArrays }) =>
+        useHighlightInteraction({
+          semanticArrays,
+          characterOnlySemanticArrays: CHAR_ONLY,
+          ...refs,
+        }),
+      { initialProps: { semanticArrays: SEMANTIC as SemanticArrays } }
+    );
+    act(() =>
+      result.current.handleSemanticSegmentClick({
+        direction: 'translation-to-original',
+        unitIndex: 1,
+      })
+    );
+    expect(result.current.highlighting.litIndex).toBe(1);
+
+    rerender({ semanticArrays: arrays(['你', '好吗', '世']) });
+
+    expect(result.current.highlighting).toEqual({ litIndex: -1, characterOnlyUnitIndex: -1 });
+  });
+
+  test('clearHighlighting lights nothing', async () => {
+    const { result } = setup();
+    act(() =>
+      result.current.handleSemanticSegmentClick({
+        direction: 'translation-to-original',
+        unitIndex: 1,
+      })
+    );
+    act(() => result.current.clearHighlighting());
+    expect(result.current.highlighting).toEqual({ litIndex: -1, characterOnlyUnitIndex: -1 });
+  });
+
+  test('an unrelated re-render does not scroll the Character Only panel again', async () => {
+    const { result, rerender, characterOnly } = setup();
+    act(() =>
+      result.current.handleSemanticSegmentClick({
+        direction: 'translation-to-original',
+        unitIndex: 1,
+      })
+    );
+    await settle();
+    expect(characterOnly.scrolled(1)).toBe(1);
+
+    rerender();
+    await settle();
+
+    expect(characterOnly.scrolled(1)).toBe(1);
   });
 });

@@ -69,7 +69,6 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     partialSemanticArrays: null,
     prebuiltSegments: [],
     highlightedUnitIndex: 1,
-    highlightedTranslationUnitIndex: 2,
     highlightedCharacterOnlyUnitIndex: 3,
     throttledStreamingState: makeStreamingState(),
     handleSemanticSegmentClick: vi.fn(),
@@ -95,7 +94,6 @@ describe('TranslatorDisplayPanels wiring', () => {
     const props = originalSemanticMock.mock.calls[0][0];
     expect(props.originalText).toBe('INPUT_MARKER');
     expect(props.highlightedUnitIndex).toBe(1);
-    expect(props.highlightedTranslationUnitIndex).toBe(2);
   });
 
   test('routes characterOnlyText/characterOnlySemanticArrays/highlightedCharacterOnlyUnitIndex to ClickableTranslationSemantic, not the other panels', () => {
@@ -107,13 +105,13 @@ describe('TranslatorDisplayPanels wiring', () => {
     expect(props.highlightedTranslationUnitIndex).toBe(3);
   });
 
-  test('routes translatedText/semanticArrays/highlightedTranslationUnitIndex to ClickableTranslationOptimized, not the char-only index', () => {
+  test('routes translatedText/semanticArrays/highlightedTranslationUnitIndex to ClickableTranslationOptimized, from the same lit unit as the Original panel, not the char-only index', () => {
     render(<TranslatorDisplayPanels {...makeProps()} />);
 
     expect(translationOptimizedMock).toHaveBeenCalledTimes(1);
     const props = translationOptimizedMock.mock.calls[0][0];
     expect(props.translatedText).toBe('TRANSLATED_MARKER');
-    expect(props.highlightedTranslationUnitIndex).toBe(2);
+    expect(props.highlightedTranslationUnitIndex).toBe(1);
   });
 
   test('same handleSemanticSegmentClick reaches all three clickable children', () => {

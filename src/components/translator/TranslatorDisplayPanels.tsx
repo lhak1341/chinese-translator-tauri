@@ -30,7 +30,6 @@ interface TranslatorDisplayPanelsProps {
   partialSemanticArrays: SemanticArrays | null;
   prebuiltSegments: PrebuiltSegment[];
   highlightedUnitIndex: number | null;
-  highlightedTranslationUnitIndex: number | null;
   highlightedCharacterOnlyUnitIndex: number | null;
   throttledStreamingState: ThrottledStreamingState;
   handleSemanticSegmentClick: SegmentClickHandler;
@@ -58,7 +57,6 @@ export default function TranslatorDisplayPanels({
   partialSemanticArrays,
   prebuiltSegments,
   highlightedUnitIndex,
-  highlightedTranslationUnitIndex,
   highlightedCharacterOnlyUnitIndex,
   throttledStreamingState,
   handleSemanticSegmentClick,
@@ -97,7 +95,6 @@ export default function TranslatorDisplayPanels({
                       originalText={inputText}
                       semanticArrays={semanticArrays}
                       highlightedUnitIndex={highlightedUnitIndex ?? undefined}
-                      highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
                       onSegmentClick={handleSemanticSegmentClick}
                     />
                   ) : (
@@ -183,7 +180,7 @@ export default function TranslatorDisplayPanels({
                     semanticArrays={semanticArrays}
                     prebuiltSegments={prebuiltSegments as any}
                     onSegmentClick={handleSemanticSegmentClick}
-                    highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
+                    highlightedTranslationUnitIndex={highlightedUnitIndex ?? undefined}
                   />
                 </div>
               ) : (

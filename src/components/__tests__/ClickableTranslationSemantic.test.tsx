@@ -10,6 +10,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import ClickableTranslationSemantic from '../char-only/ClickableTranslationSemantic';
+import { makeMeta } from '../../test/makeMeta';
 
 describe('ClickableTranslationSemantic - Character-only mode (CRITICAL-2 fix)', () => {
   test('should use position metadata instead of indexOf() for duplicate units', () => {
@@ -19,9 +20,9 @@ describe('ClickableTranslationSemantic - Character-only mode (CRITICAL-2 fix)', 
       original: ['好', '的', '好'],
       translated: ['tốt', 'của', 'tốt'],
       metadata: [
-        { translatedStart: 0, translatedEnd: 3, source: 'dictionary' }, // First "tốt"
-        { translatedStart: 4, translatedEnd: 7, source: 'dictionary' }, // "của"
-        { translatedStart: 8, translatedEnd: 11, source: 'dictionary' }, // Second "tốt"
+        makeMeta({ translatedStart: 0, translatedEnd: 3, source: 'dictionary' }), // First "tốt"
+        makeMeta({ translatedStart: 4, translatedEnd: 7, source: 'dictionary' }), // "của"
+        makeMeta({ translatedStart: 8, translatedEnd: 11, source: 'dictionary' }), // Second "tốt"
       ],
     };
     const translatedText = 'tốt của tốt';
@@ -57,9 +58,9 @@ describe('ClickableTranslationSemantic - Character-only mode (CRITICAL-2 fix)', 
       original: ['在', '那', '里'],
       translated: ['ở', 'đó', 'trong'],
       metadata: [
-        { translatedStart: -1, translatedEnd: -1, source: 'dictionary' }, // No position
-        { translatedStart: -1, translatedEnd: -1, source: 'dictionary' },
-        { translatedStart: -1, translatedEnd: -1, source: 'dictionary' },
+        makeMeta({ translatedStart: -1, translatedEnd: -1, source: 'dictionary' }), // No position
+        makeMeta({ translatedStart: -1, translatedEnd: -1, source: 'dictionary' }),
+        makeMeta({ translatedStart: -1, translatedEnd: -1, source: 'dictionary' }),
       ],
     };
     const translatedText = 'ở đó trong';
@@ -84,8 +85,8 @@ describe('ClickableTranslationSemantic - Character-only mode (CRITICAL-2 fix)', 
       original: ['你好', '世界'],
       translated: ['Hello', 'World'],
       metadata: [
-        { translatedStart: 0, translatedEnd: 5, source: 'dictionary' }, // "Hello"
-        { translatedStart: 6, translatedEnd: 11, source: 'dictionary' }, // "World" (after space)
+        makeMeta({ translatedStart: 0, translatedEnd: 5, source: 'dictionary' }), // "Hello"
+        makeMeta({ translatedStart: 6, translatedEnd: 11, source: 'dictionary' }), // "World" (after space)
       ],
     };
     const translatedText = 'Hello World'; // Space at position 5
@@ -117,9 +118,9 @@ describe('Array bounds checking (LOW priority fix)', () => {
       original: ['在', '那', '里'],
       translated: ['ở', 'đó', 'trong'],
       metadata: [
-        { translatedStart: 0, translatedEnd: 1, source: 'dictionary' },
-        { translatedStart: 2, translatedEnd: 4, source: 'dictionary' },
-        { translatedStart: 5, translatedEnd: 10, source: 'dictionary' },
+        makeMeta({ translatedStart: 0, translatedEnd: 1, source: 'dictionary' }),
+        makeMeta({ translatedStart: 2, translatedEnd: 4, source: 'dictionary' }),
+        makeMeta({ translatedStart: 5, translatedEnd: 10, source: 'dictionary' }),
       ],
     };
     const translatedText = 'ở đó trong';

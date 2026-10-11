@@ -157,6 +157,13 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-091](./ADR-091-skip-translatetext-extraction.md)                               | Skip extracting translateText                                | Decided                           | Wiring over ~14 component inputs, one call site; round 21 fixed the outcome shape.                                                                   |
 | [ADR-092](./ADR-092-chapter-detection-runs-inline.md)                               | Chapter detection runs inline                                | Decided                           | Measured 26 ms (release, 25.8 MB); a lone spawn_blocking among 26 async commands would be inconsistent.                                              |
 | [ADR-093](./ADR-093-skip-dictionary-tab-action-runner.md)                           | Skip a Dictionary-tab action runner                          | Decided                           | Only undo and redo share a shape; the rest differ in channel, message and loading flag. Gap was tests, now added.                                    |
+| [ADR-094](./ADR-094-delete-write-only-unit-provenance-fields.md)                    | Delete the write-only unit provenance fields                 | Decided                           | No reader of `phase` or `dictionary`; `source` carries the category.                                                                                 |
+| [ADR-095](./ADR-095-highlight-state-is-one-lit-unit.md)                             | Highlight state is one lit unit                              | Decided                           | The Character-Only index is derived by `resolveHighlights`, not stored.                                                                              |
+| [ADR-096](./ADR-096-keep-the-wasm-pattern-processor-measured.md)                    | Keep the WASM pattern processor; measured                    | Decided                           | 0.07 vs 2.8 ms per call at p50; the JS fallback lacks composition.                                                                                   |
+| [ADR-097](./ADR-097-number-variables-have-their-own-span.md)                        | Number variables have their own span                         | Decided                           | `#` tries 8 tokens, letters 6; wide index bucket kept p50 within 5%.                                                                                 |
+| [ADR-098](./ADR-098-pattern-result-indices-are-original-indices.md)                 | Pattern result indices are original indices                  | Decided                           | Convert to semantic positions before slicing; 164 of 248 windows panicked.                                                                           |
+| [ADR-099](./ADR-099-skip-the-chapter-outline-record-helper.md)                      | Skip a chapter-outline record helper                         | Decided                           | One caller per helper; the store holds fields, not a record.                                                                                         |
+| [ADR-100](./ADR-100-delete-the-progressive-metadata-pad.md)                         | Delete the progressive metadata pad                          | Decided                           | The builder keeps its arrays one length; 0 short of 9,560 snapshots.                                                                                 |
 
 ## ADR Format
 
@@ -216,5 +223,6 @@ Write an ADR when making decisions about:
 - **2026-10-07**: ADR-081; ADR-082; ADR-083; ADR-084; ADR-085; ADR-086
 - **2026-10-08**: ADR-087; ADR-088; ADR-089; ADR-090
 - **2026-10-09**: ADR-091
-- **2026-10-10**: ADR-092; ADR-093
+- **2026-10-10**: ADR-092; ADR-093; ADR-094; ADR-095
+- **2026-10-11**: ADR-096; ADR-097; ADR-098; ADR-099; ADR-100
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

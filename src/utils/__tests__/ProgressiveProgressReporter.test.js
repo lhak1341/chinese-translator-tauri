@@ -55,25 +55,6 @@ describe('buildProgressiveProgressUpdate', () => {
     expect(result.payload.semanticArrays.original).toEqual(input.semanticArrays.original);
   });
 
-  test('fills missing metadata entries with the shared frozen default, not per-entry allocation', () => {
-    const input = baseInput({
-      batchIndex: 3,
-      semanticArrays: { original: ['甲', '乙', '丙'], translated: ['A', 'B', 'C'], metadata: [{}] },
-    });
-    const result = buildProgressiveProgressUpdate(input);
-
-    expect(result.payload.semanticArrays.metadata).toHaveLength(3);
-    expect(result.payload.semanticArrays.metadata[1]).toBe(
-      result.payload.semanticArrays.metadata[2]
-    );
-    expect(result.payload.semanticArrays.metadata[1]).toEqual({
-      source: 'progressive',
-      phase: null,
-      dictionary: null,
-      isMissing: true,
-    });
-  });
-
   test('handles a null/undefined semanticArrays input safely', () => {
     const result = buildProgressiveProgressUpdate(
       baseInput({ batchIndex: 3, semanticArrays: null })

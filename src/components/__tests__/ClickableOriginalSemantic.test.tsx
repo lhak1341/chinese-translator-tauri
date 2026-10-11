@@ -2,24 +2,23 @@
  * ClickableOriginalSemantic tests.
  *
  * Previously had no test file at all (found during 2026-07-17c architecture review,
- * candidate #6). Focus: the two-index-OR'd highlight shape unique to this component
- * (highlightedUnitIndex from clicking Original, highlightedTranslationUnitIndex from
- * clicking Full Translation — both should highlight the same original-text unit) via
- * the shared isUnitHighlighted predicate, plus basic rendering and edge cases.
+ * candidate #6). Focus: the highlight index (the unit lit by a click in any panel) via the
+ * shared isUnitHighlighted predicate, plus basic rendering and edge cases.
  */
 import { describe, test, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import ClickableOriginalSemantic from '../char-only/ClickableOriginalSemantic';
+import { makeMeta } from '../../test/makeMeta';
 
 function makeSemanticArrays() {
   return {
     original: ['你', '好', '世', '界'],
     translated: ['Hello', 'Hello', 'World', 'World'],
     metadata: [
-      { originalStart: 0, originalEnd: 1, source: 'dictionary' },
-      { originalStart: 1, originalEnd: 2, source: 'dictionary' },
-      { originalStart: 2, originalEnd: 3, source: 'dictionary' },
-      { originalStart: 3, originalEnd: 4, source: 'dictionary' },
+      makeMeta({ originalStart: 0, originalEnd: 1, source: 'dictionary' }),
+      makeMeta({ originalStart: 1, originalEnd: 2, source: 'dictionary' }),
+      makeMeta({ originalStart: 2, originalEnd: 3, source: 'dictionary' }),
+      makeMeta({ originalStart: 3, originalEnd: 4, source: 'dictionary' }),
     ],
   };
 }
@@ -38,7 +37,7 @@ describe('ClickableOriginalSemantic', () => {
     expect(container.textContent).toBe('你好世界');
   });
 
-  test('highlightedUnitIndex (clicked Original) highlights the matching segment', () => {
+  test('highlightedUnitIndex highlights the matching segment', () => {
     const { container } = render(
       <ClickableOriginalSemantic
         originalText="你好世界"
@@ -53,39 +52,7 @@ describe('ClickableOriginalSemantic', () => {
     expect(segments[0].className).not.toContain('clickableSegmentHighlighted');
   });
 
-  test('highlightedTranslationUnitIndex (clicked Full Translation) highlights the matching segment', () => {
-    const { container } = render(
-      <ClickableOriginalSemantic
-        originalText="你好世界"
-        semanticArrays={makeSemanticArrays()}
-        highlightedTranslationUnitIndex={1}
-        onSegmentClick={vi.fn()}
-      />
-    );
-
-    const segments = container.querySelectorAll('[data-unit-index]');
-    expect(segments[1].className).toContain('clickableSegmentHighlighted');
-    expect(segments[2].className).not.toContain('clickableSegmentHighlighted');
-  });
-
-  test('both index props can independently highlight different segments at once', () => {
-    const { container } = render(
-      <ClickableOriginalSemantic
-        originalText="你好世界"
-        semanticArrays={makeSemanticArrays()}
-        highlightedUnitIndex={0}
-        highlightedTranslationUnitIndex={3}
-        onSegmentClick={vi.fn()}
-      />
-    );
-
-    const segments = container.querySelectorAll('[data-unit-index]');
-    expect(segments[0].className).toContain('clickableSegmentHighlighted');
-    expect(segments[3].className).toContain('clickableSegmentHighlighted');
-    expect(segments[1].className).not.toContain('clickableSegmentHighlighted');
-  });
-
-  test('default -1 index props highlight nothing', () => {
+  test('the default -1 index highlights nothing', () => {
     const { container } = render(
       <ClickableOriginalSemantic
         originalText="你好世界"
@@ -169,7 +136,9 @@ describe('ClickableOriginalSemantic', () => {
     const arrays = {
       original: [dirtyOriginal],
       translated: [longTranslation],
-      metadata: [{ originalStart: 0, originalEnd: dirtyOriginal.length, source: 'dictionary' }],
+      metadata: [
+        makeMeta({ originalStart: 0, originalEnd: dirtyOriginal.length, source: 'dictionary' }),
+      ],
     };
 
     const { container } = render(

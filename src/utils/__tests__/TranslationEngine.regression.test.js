@@ -57,9 +57,7 @@ describe('TranslationEngine Regression Tests', () => {
                 content,
                 `T-${content}`,
                 'character',
-                opts.chunkOffset,
-                'characters',
-                null
+                opts.chunkOffset
               );
               resolve(`T-${content}`);
             }, resolveDelayByOffset[opts.chunkOffset]);

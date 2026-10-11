@@ -13,7 +13,7 @@ export const NUMBER_VARIABLE = '#';
 export const NUMBER_VARIABLE_TYPE = 'number';
 
 // Longest numeral NumberProcessor converts without a 百分之/点 prefix: 七千七百七十七.
-const MAX_NUMERAL_SPAN = 8;
+export const MAX_NUMERAL_SPAN = 8;
 
 /** @type {Record<string, number>} */
 const NUMERAL_VALUES = {

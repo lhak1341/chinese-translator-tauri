@@ -2,28 +2,19 @@
  * Builds the onProgress payload for translateWithProgressiveBatches (architecture
  * review 2026-07-29, candidate #1). Pure function of its inputs — no `this`, no
  * engine state. Owns: the debounce gate (time-since-last-update + every-3rd-batch +
- * last-batch-always), metadata gap-filling with a shared frozen default object, and
- * the deep-clone of semantic arrays.
+ * last-batch-always) and the copy of the semantic arrays.
  *
  * The deep-clone is load-bearing, not decorative: React state updates receive direct
  * references, and the next batch continues mutating the same arrays after React has
  * already scheduled a render from them — without cloning here, the semantic-array
  * consumer can crash on an array-size mismatch against the text length it was
  * rendered against (see the CRITICAL FIX comment this was extracted from).
- *
- * @typedef {{ source: string, phase: string|null, dictionary: string|null, isMissing: boolean }} DefaultMetadataEntry
  */
 
-const DEFAULT_METADATA = Object.freeze({
-  source: 'progressive',
-  phase: null, // null = missing, not unknown
-  dictionary: null, // null = missing, not unknown
-  isMissing: true,
-});
-
 /**
- * Copy the builder's arrays for a callback, filling metadata gaps with the shared default.
- * The arrays are copied, the entries are not: the next batch keeps appending to the builder,
+ * Copy the builder's arrays for a callback. The builder keeps `original`, `translated` and
+ * `metadata` one length (`addUnit` writes the three together, `getArrays` returns all of them
+ * to `length`), so nothing is padded. The arrays are copied, the entries are not: the next batch keeps appending to the builder,
  * so a callback must never receive its live arrays. Shared by onProgress and onBatchComplete.
  *
  * @param {{ original?: Array<*>, translated?: Array<*>, metadata?: Array<*> } | null | undefined} semanticArrays
@@ -31,15 +22,10 @@ const DEFAULT_METADATA = Object.freeze({
  */
 export function snapshotSemanticArrays(semanticArrays) {
   const arrays = semanticArrays || { original: [], translated: [], metadata: [] };
-  const targetLength = arrays.original?.length || 0;
-  const metadata = arrays.metadata ? arrays.metadata.slice() : [];
-  for (let i = metadata.length; i < targetLength; i++) {
-    metadata[i] = DEFAULT_METADATA;
-  }
   return {
     original: arrays.original ? [...arrays.original] : [],
     translated: arrays.translated ? [...arrays.translated] : [],
-    metadata,
+    metadata: arrays.metadata ? arrays.metadata.slice() : [],
   };
 }
 

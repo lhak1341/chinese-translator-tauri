@@ -148,7 +148,7 @@ import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
-import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
+import { claimSpan, claimGroupedSpan } from './TokenClaim.js';
 import { openMatchSource } from './dictionary/MatchSource';
 import { characterMatchFor } from './dictionary/CharacterMatch';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
@@ -157,7 +157,6 @@ import { resolveGlobalConflicts } from './ConflictResolution';
 
 import {
   getSourcePriority as getSourcePriorityFn,
-  consumedSource,
   isConsumedSource,
   validateConsumedTokenContract,
 } from './TranslationSourcePriority.js';
@@ -1055,9 +1054,14 @@ export class TranslationEngine {
   applyHierarchicalResults(tokens, hierarchicalResults, options) {
     for (const result of hierarchicalResults) {
       // Apply translation to the first token of the span
-      tokens[result.startIndex].translated = result.translation;
-      tokens[result.startIndex].translationSource =
-        result.translationSource || 'hierarchical_pattern';
+      claimSpan(
+        tokens,
+        result.startIndex,
+        result.endIndex,
+        result.translationSource || 'hierarchical_pattern',
+        result.translation,
+        this.activeProperNouns ?? []
+      );
       tokens[result.startIndex].patternSemanticType = result.semanticType ?? null;
 
       // Mark the result type for debugging and analysis
@@ -1069,19 +1073,6 @@ export class TranslationEngine {
       // Store pattern information for debugging
       if (result.pattern) {
         tokens[result.startIndex].patternUsed = result.pattern.originalPattern;
-      }
-
-      // Mark consumed tokens (if span is longer than 1 token)
-      // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
-      // Derive consumed source from leader so both JS ('pattern_consumed') and
-      // WASM ('hierarchical_pattern_consumed') paths produce the correct string.
-      const followerSource = consumedSource(result.translationSource || 'hierarchical_pattern');
-      for (let i = result.startIndex + 1; i <= result.endIndex; i++) {
-        if (tokens[i]) {
-          tokens[i].translated = null; // Must be null - postProcess checks !== null
-          tokens[i].translationSource = followerSource;
-          tokens[i].groupLeader = result.startIndex; // needed by postProcess orphan check
-        }
       }
 
       // Add to semantic array builder for bidirectional highlighting
@@ -1098,9 +1089,7 @@ export class TranslationEngine {
         actualOriginalText,
         result.translation,
         result.translationSource || 'hierarchical_pattern',
-        globalTokenIndex,
-        'pattern',
-        null
+        globalTokenIndex
       );
     }
   }
@@ -1233,15 +1222,16 @@ export class TranslationEngine {
         const { startIndex, match, tokenSpan } = resolvedMatch;
 
         // Apply phrase translation
-        tokens[startIndex].isGrouped = true;
-        // CRITICAL FIX: Preserve originalValue before modifying for getTokenSpanForText()
-        if (!tokens[startIndex].originalValue) {
-          tokens[startIndex].originalValue = tokens[startIndex].value;
-        }
-        tokens[startIndex].value = match.word;
+        claimGroupedSpan(
+          tokens,
+          startIndex,
+          tokenSpan,
+          'phrases',
+          match.translation,
+          match.word,
+          this.activeProperNouns ?? []
+        );
         tokens[startIndex].phraseMatch = match;
-        tokens[startIndex].translated = match.translation;
-        tokens[startIndex].translationSource = 'phrases';
 
         // Add to semantic array for bidirectional highlighting
         const globalTokenIndex = startIndex + (options.chunkOffset || 0);
@@ -1249,13 +1239,8 @@ export class TranslationEngine {
           match.word,
           match.translation,
           'phrases',
-          globalTokenIndex,
-          'phrases',
-          match.dictionary
+          globalTokenIndex
         );
-
-        // Mark grouped tokens
-        markPhraseFollowersConsumed(tokens, startIndex, tokenSpan);
       }
     }
   }
@@ -1760,22 +1745,27 @@ export class TranslationEngine {
 
     // Mark the first token with the translation and create semantic group
     if (tokenSpan > 0) {
-      // For proper nouns, preserve original dictionary capitalization exactly
+      // The leader keeps the dictionary's exact translation (a proper noun keeps its capitalization)
+      // and the span's followers are consumed by it; see TokenClaim.ts.
+      claimGroupedSpan(
+        tokens,
+        startIndex,
+        tokenSpan,
+        match.dictionary,
+        match.translation,
+        match.word,
+        this.activeProperNouns ?? []
+      );
       if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
-        tokens[startIndex].translated = match.translation; // Keep original capitalization
         tokens[startIndex].isProperNoun = true;
-      } else {
-        tokens[startIndex].translated = match.translation;
       }
-
-      tokens[startIndex].translationSource = match.dictionary;
 
       const recordMatches = options.recordMatches !== false;
 
       // NEW: Capture semantic relationship for array-based highlighting
       // Calculate global position accounting for chunk offset
       //
-      // IMPORTANT: Semantic array added BEFORE grouping (intentional design):
+      // IMPORTANT: one semantic unit per match, recorded for the leader only (intentional design):
       // - One semantic unit represents the entire match (e.g., "我的朋友" → "bạn của tôi")
       // - Consumed tokens (tokens[i+1], tokens[i+2], ...) don't need separate semantic entries
       // - They have translated=null and are skipped by postProcess() (only first token processed)
@@ -1796,67 +1786,8 @@ export class TranslationEngine {
           match.word, // original text
           match.translation, // translated text
           semanticSource, // source — proper noun dict name or 'phrases'
-          globalTokenIndex, // global token index for proper ordering
-          isProperNounMatch ? 'properNoun' : 'phrases',
-          match.dictionary
+          globalTokenIndex // global token index for proper ordering
         );
-      }
-
-      // Create semantic group for multi-token matches
-      if (tokenSpan > 1) {
-        tokens[startIndex].isGrouped = true;
-        // Store original value before modifying for getTokenSpanForText() calculations
-        tokens[startIndex].originalValue = tokens[startIndex].value;
-        tokens[startIndex].value = match.word; // Update value to grouped text
-
-        // CRITICAL FIX: Update token positions to match grouped text span
-        const lastTokenIndex = startIndex + tokenSpan - 1;
-        if (lastTokenIndex < tokens.length) {
-          tokens[startIndex].end = tokens[lastTokenIndex].end;
-        }
-
-        // Track which tokens are grouped together
-        tokens[startIndex].groupedWith = tokens[startIndex].groupedWith || [];
-        for (let i = 1; i < tokenSpan; i++) {
-          if (startIndex + i < tokens.length) {
-            tokens[startIndex].groupedWith.push(startIndex + i);
-            // Store original value before marking as grouped
-            tokens[startIndex + i].originalValue = tokens[startIndex + i].value;
-
-            // If this token was previously a group leader (e.g. a Phase 1 pattern leader being
-            // overwritten by a Phase 2 proper-noun match), free any orphaned followers outside
-            // the new match span. Phase 1 (applyHierarchicalResults) does NOT populate groupedWith,
-            // so we detect prior leadership via translationSource: non-consumed src + non-null translated.
-            {
-              const priorSrc = tokens[startIndex + i].translationSource;
-              if (
-                tokens[startIndex + i].translated !== null &&
-                priorSrc &&
-                !isConsumedSource(priorSrc)
-              ) {
-                const orphanedSrc = consumedSource(priorSrc);
-                const newMatchEnd = startIndex + tokenSpan;
-                for (let k = newMatchEnd; k < tokens.length; k++) {
-                  if (tokens[k].translationSource === orphanedSrc) {
-                    tokens[k].translated = null;
-                    tokens[k].translationSource = null;
-                    tokens[k].isGrouped = false;
-                    tokens[k].groupLeader = null;
-                  } else {
-                    break; // orphaned followers are always consecutive
-                  }
-                }
-              }
-            }
-
-            // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract.
-            // translationSource must contain "_consumed" so validateConsumedTokenContract detects violations.
-            tokens[startIndex + i].translated = null; // Must be null - postProcess checks !== null
-            tokens[startIndex + i].translationSource = consumedSource(match.dictionary);
-            tokens[startIndex + i].isGrouped = true;
-            tokens[startIndex + i].groupLeader = startIndex;
-          }
-        }
       }
     }
   }

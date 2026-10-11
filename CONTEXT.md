@@ -49,19 +49,22 @@ Owns the single Chinese-text-order comparator: `resolveTokenIndex(tokenIndex)` (
 
 Entry point: `src/utils/highlighting/TextPositionMapper.ts`, re-exported from `src/utils/highlighting/index.ts`.
 
-## PhraseConsumptionMarker
+## TokenClaim
 
-The shared "mark phrase followers as consumed" operation: sets `isGrouped`, `groupLeader`, `translated: null`, `translationSource: 'phrases_consumed'` on each follower token and records the follower indices on the leader's `groupedWith` list.
+The span claim: the one place a phase writes a match onto the token array (architecture review 2026-10-10, round 26, candidate #2). The leader token keeps the translation, every other token of the span is a follower consumed by it (`translated: null`, source `<leader source>_consumed`, `groupLeader` pointing back), per the consumed-token contract in `TranslationSourcePriority.ts`. Two shapes, because `postProcess` and highlighting read them differently:
 
-Interface: `markPhraseFollowersConsumed(tokens, leaderIndex, tokenSpan): void`. Pure mutation of the passed `tokens` array; no `this`, no engine state — testable standalone.
+- `claimSpan(tokens, startIndex, endIndex, source, translated, activeProperNouns?)` — the light shape, for Phase 1 patterns and Phase 3 numbers. No `isGrouped`, no `groupedWith`, the leader's `value` untouched, so pattern-consumed tokens stay in `getTextFromTokens`.
+- `claimGroupedSpan(tokens, startIndex, tokenSpan, source, translated, groupedText, activeProperNouns?)` — the grouped shape, for Phase 2 proper nouns, Phase 4 phrases and Phase 5 characters. Also marks the span `isGrouped`, records `groupedWith` and `originalValue`, and rewrites the leader's `value` and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that leader's followers beyond the new span. A one-token span is a plain leader.
 
-Entry point: `src/utils/pattern/PhraseConsumptionMarker.ts`. Not barrel-exported — all 3 callers live inside `TranslationEngine.js`, which imports it directly (matching how it already imports sibling `pattern/` modules).
+Both log (never throw) a leader with no translation and a source `getSourcePriority` does not rank, which closes the "unknown source ranks 999" gap for the plain-JS callers `tsc` cannot check. The Phase 5 sentinels (`untranslated-chinese`, `preserved-*`) and `NumberLiangFix` write tokens directly and stay outside it. `addUnit` calls stay at the call sites: they differ in `recordMatches`, the builder handle and where the original text comes from.
+
+Interface: pure mutation of the passed `tokens` array; no `this`, no engine state — testable standalone. Entry point: `src/utils/TokenClaim.ts`. Not barrel-exported — callers are `TranslationEngine.js` and `NumberProcessor.js`. Pinned by `TokenClaim.test.ts` and, field by field per phase, `TokenState.characterization.test.js`.
 
 ## UnitHighlightPredicate
 
 The shared "is this unit highlighted" check for the 3 Clickable* components (`ClickableOriginalSemantic`, `ClickableTranslationSemantic`, `ClickableTranslationOptimized`).
 
-Interface: `isUnitHighlighted(unitIndex, ...highlightValues)` — variadic so it covers all three shapes (1 arg for the two single-prop components, 2 args for `ClickableOriginalSemantic`'s OR). Each `highlightValue` can be `number | number[] | null | undefined`. `-1` is treated as the codebase-wide "cleared" sentinel (see `useHighlightingState.ts`) and never matches, even in the pathological case where `unitIndex` itself were `-1`.
+Interface: `isUnitHighlighted(unitIndex, ...highlightValues)` — variadic so it covers all three shapes (a single value for every component today; the variadic form is kept for any caller that needs an OR). Each `highlightValue` can be `number | number[] | null | undefined`. `-1` is treated as the codebase-wide "cleared" sentinel (see `HighlightResolver.ts`) and never matches, even in the pathological case where `unitIndex` itself were `-1`.
 
 Entry point: `src/utils/highlighting/UnitHighlightPredicate.ts`, barrel-exported from `src/utils/highlighting/index.ts`.
 
@@ -324,13 +327,13 @@ The occurrence-scoring algorithm that maps a highlighted unit in the Full Transl
 - **Context window scoring** (up to 20 pts): checks the character immediately before and after each candidate in `targetArrays.original` against a ±2-segment immediate context string (10 pts/match) and a ±CONTEXT_WINDOW distant context string (2 pts/match).
 - **Position-ratio fallback**: used when total score is still -1 (no context signal found); maps `sourceIndex / sourceArrays.length` to the proportionally closest candidate.
 
-Returns `number[] | null`: array of Character-Only unit indices to pass to `SET_CHARACTER_ONLY_INDEX`, or `null` when no match exists. Multi-character source segments return multi-element arrays (one index per character).
+Returns `number[] | null`: array of Character-Only unit indices, or `null` when no match exists. Multi-character source segments return multi-element arrays (one index per character).
 
 Constants `MAX_MATCHES = 100` and `CONTEXT_WINDOW = 50` are exported for tests.
 
-`findCharacterOnlyMatch(sourceIndex, sourceArrays, targetArrays)` is direction-generic — the params don't hardcode which side is "Character-Only." Two call sites, both in `useHighlightInteraction`, use it in opposite directions: its bridge effect (`sourceArrays=semanticArrays, targetArrays=characterOnlySemanticArrays` — Full Translation/Original → Character-Only) and its `handleSemanticSegmentClick` `character-only-to-original` branch (`sourceArrays=characterOnlySemanticArrays, targetArrays=semanticArrays` — reverse). On a total miss (`null`), the reverse-direction caller clears the highlight (`highlightFromCharacterOnly(-1)`) rather than falling back to a position-ratio guess, matching the bridge effect's own null-handling convention.
+`findCharacterOnlyMatch(sourceIndex, sourceArrays, targetArrays)` is direction-generic — the params don't hardcode which side is "Character-Only." Two call sites use it in opposite directions: `resolveHighlights` (`sourceArrays=semanticArrays, targetArrays=characterOnlySemanticArrays` — Full Translation/Original → Character-Only) and `useHighlightInteraction`'s `handleSemanticSegmentClick` `character-only-to-original` branch (`sourceArrays=characterOnlySemanticArrays, targetArrays=semanticArrays` — reverse). On a total miss (`null`), the reverse-direction caller clears the highlight rather than falling back to a position-ratio guess, and `resolveHighlights` leaves the Character-Only panel unlit.
 
-Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called only from the `useHighlightInteraction` hook (`src/hooks/useHighlightInteraction.ts`), which owns the React plumbing for both directions (guards, bounds check, dispatch, 10ms scroll).
+Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from `resolveHighlights` (`src/utils/highlighting/HighlightResolver.ts`, bounds check included) and from the `useHighlightInteraction` hook (`src/hooks/useHighlightInteraction.ts`), which owns the React plumbing (click handler, 10ms scrolls).
 
 ## Click-to-Highlight Lifecycle
 
@@ -340,11 +343,11 @@ The end-to-end path from clicking a segment to a highlight appearing elsewhere. 
 
 **Payload.** `useSegmentClickHandler` (`src/hooks/useSegmentClickHandler.ts`) wraps `onUnitClick` — validates bounds against `semanticArrays`, builds a `SegmentClickPayload` (`unitIndex`, `direction`), and calls the caller's `onSegmentClick`. This is the one seam for adding a new payload field — all 3 `Clickable*` components route through it. The hook still reads `semanticArrays.original[unitIndex]`/`.translated[unitIndex]` (not `metadata`/`source` — those reads were dropped too) but only for a dev-only `logger.log` call, never for the payload itself; don't confuse that dev-log read with payload construction when grepping the hook.
 
-**Dispatch.** `useHighlightInteraction`'s `handleSemanticSegmentClick` (`Translator.jsx` passes it down as a prop) receives the payload and branches on `segmentInfo.direction` (`'translation-to-original'`, `'original-to-translation'`, `'character-only-to-original'` — a fixed 3-way `if/else`, not a lookup table; each branch does meaningfully different work, not just a different label). Each branch calls a named action from `useHighlightingState` (`highlightBoth`, `highlightTranslation`, `highlightFromCharacterOnly` — see that hook's own entry in `src/components/CLAUDE.md`) and schedules an auto-scroll.
+**Dispatch.** `useHighlightInteraction`'s `handleSemanticSegmentClick` (`Translator.jsx` passes it down as a prop) receives the payload and branches on `segmentInfo.direction` (`'translation-to-original'`, `'original-to-translation'`, `'character-only-to-original'` — a fixed 3-way `if/else`, not a lookup table; each branch does meaningfully different work, not just a different label). The first two light the clicked unit; `character-only-to-original` finds the unit to light with `findCharacterOnlyMatch` (source and target swapped) and lights nothing, with a warning, on a miss. Each branch schedules an auto-scroll of the panels it lit.
 
-**State.** `useHighlightingState` (`src/hooks/useHighlightingState.ts`, called by `useHighlightInteraction`) owns the `highlightingReducer` (`src/reducers/highlightingReducer.js`) — `unitIndex`, `translationUnitIndex`, `characterOnlyUnitIndex`, `isCharacterOnlyClick`.
+**State.** One lit unit (ADR-095): `LitUnit` is `{ index, arrays, fromCharacterOnly }` in a `useState` inside `useHighlightInteraction` — an index into the `semanticArrays` it was lit against, and whether the click came from the Character-Only panel. There is no reducer and no stored Character-Only index.
 
-**The second trigger — not reachable by reading the click handler alone.** `useHighlightInteraction`'s bridge effect (the former `useCharacterOnlyBridge`) is a `useEffect` keyed on `[unitIndex, translationUnitIndex, semanticArrays, characterOnlySemanticArrays, isCharacterOnlyClick]`. It fires on ANY change to those reducer fields — whether caused by a click through `handleSemanticSegmentClick`'s `translation-to-original`/`original-to-translation` branches, or by anything else that ever calls `highlightTranslation`/`highlightOriginal`. It re-derives the Character-Only match via `findCharacterOnlyMatch` (see `CharacterOnlyBridge` above) and dispatches `setCharacterOnlyIndex`, independent of the click dispatch above. `isCharacterOnlyClick` guards it off when the click originated FROM the Character-Only panel — that direction is handled directly inside `handleSemanticSegmentClick`'s `character-only-to-original` branch instead (calling `findCharacterOnlyMatch` with source/target swapped — see `CharacterOnlyBridge`'s entry), so the two triggers never both fire for the same click. A second effect scrolls the Character-Only panel to the result; the click handler's own timer scrolls Original/Translation. The two scrolls cover different panels, so they are not one mechanism.
+**Resolution.** `resolveHighlights(lit, semanticArrays, characterOnlyArrays)` (`src/utils/highlighting/HighlightResolver.ts`, memoized in the hook) derives what the panels show: `litIndex` for the Original and Full Translation panels, and `characterOnlyUnitIndex` (`findCharacterOnlyMatch`'s result, an array for multi-word units, `-1` for none) for the Character-Only panel. It returns nothing lit when `lit.arrays` is not the current `semanticArrays` (a new translation brings a new reference, so a stale index cannot apply to it, in the same render), when the index is out of range, and, for the Character-Only side, after a Character-Only click (so that panel is not mapped back). The memo matters: the Character-Only scroll effect depends on the identity of that array, so a fresh array per render would re-scroll on every render. A second effect scrolls the Character-Only panel after the resolved index appears; the click handler's own timer scrolls Original/Translation. The two scrolls cover different panels, so they are not one mechanism.
 
 No ADR conflict here despite the original architecture-review candidate's claim — ADR-003 governs the JS-vs-TypeScript migration strategy, not decomposition; it says nothing about extracting hooks or dispatch tables from `Translator.jsx`, and `CLAUDE.md`'s deleted-symbols list documents ~10 prior extractions from that exact file.
 
@@ -521,7 +524,7 @@ Two exports: `resolveDictionaryPriority(dictionaryName, priorities)` — fiction
 
 **`lazyLoadDictionary` is gone**: it never had a production caller, and its hand-rolled copy of this classification had drifted from `buildTrieFromDictionary`. The engine's only caller filtered inactive proper nouns out before the manager saw them, so nothing was ever pending. Which dictionaries the engine loads is now decided once, by `filterDictionariesForEngine` inside `TranslationEngine.initialize`.
 
-Entry point: `src/utils/dictionary/DictionaryTrieBuilder.ts`. Not barrel-exported — sole caller is `DictionaryManager.js` in the same directory (matches `MatchComparator.ts`/`PhraseConsumptionMarker.ts` convention).
+Entry point: `src/utils/dictionary/DictionaryTrieBuilder.ts`. Not barrel-exported — sole caller is `DictionaryManager.js` in the same directory (matches the `MatchComparator.ts` convention).
 
 ## AppearanceConfig
 
@@ -555,7 +558,7 @@ A fiction (`properNouns-f_X`) or generic (`properNouns-_X`) proper-nouns diction
 
 Pure sort + 3-way category split (Base / Generic / Fiction) for the Configuration screen's dictionary-id list. `sortDictionaries(ids)` puts `'properNouns'` first, then alphabetical. `categorizeDictionaries(ids)` buckets by the naming convention: `properNouns-f_*` → fiction, `properNouns-_*` → generic, everything else (including bare `'properNouns'`) → base.
 
-Entry point: `src/utils/dictionary/DictionaryListOrganizer.ts`. Not barrel-exported — sole caller is `useDictionaryConfigManagement.ts`, matching `MatchComparator.ts`/`PhraseConsumptionMarker.ts`'s single-caller convention.
+Entry point: `src/utils/dictionary/DictionaryListOrganizer.ts`. Not barrel-exported — sole caller is `useDictionaryConfigManagement.ts`, matching `MatchComparator.ts`'s single-caller convention.
 
 ## Dictionary Kind / Dictionary Tier
 
@@ -670,7 +673,7 @@ Entry point: `src/utils/text/AdaptiveBatchSizer.ts`. Not barrel-exported. Sole c
 
 ## ProgressiveProgressReporter
 
-Builds the `onProgress` payload for `translateWithProgressiveBatches`. Owns the debounce gate (time-since-last-update + every-3rd-batch + always-on-last-batch), metadata gap-filling with a shared frozen default object, and the deep-clone of semantic arrays / clickable segments before handing them to the caller's `onProgress`. The deep-clone is load-bearing, not decorative: React state updates receive direct references, and the next batch continues mutating the same arrays after React has already scheduled a render from them — without cloning, the clickable-highlighting UI can crash on an array-size mismatch against the text length it rendered against.
+Builds the `onProgress` payload for `translateWithProgressiveBatches`. Owns the debounce gate (time-since-last-update + every-3rd-batch + always-on-last-batch), the deep-clone of semantic arrays / clickable segments before handing them to the caller's `onProgress`. The deep-clone is load-bearing, not decorative: React state updates receive direct references, and the next batch continues mutating the same arrays after React has already scheduled a render from them — without cloning, the clickable-highlighting UI can crash on an array-size mismatch against the text length it rendered against.
 
 Interface: `buildProgressiveProgressUpdate(input) → { send: true, payload } | { send: false, log }`. Pure function, no engine state.
 
@@ -682,13 +685,13 @@ The running translated text of `translateWithProgressiveBatches`. Owns one step 
 
 Interface: `createProgressiveBatchText({ punctuationDict, chunkPostProcessor }) → { addBatch(batch, allChunks) → { batchText, cumulativeText } }`. Plain module, no engine state, so tests feed it chunks.
 
-The engine's per-batch order is: `addBatch`, `semanticArrayBuilder.updateWithCapitalizedText(batchText)`, snapshot, then both callbacks. `onBatchComplete` fires from the progressive loop, after the add, so `partialText` includes the batch that just finished. Its semantic arrays come from `snapshotSemanticArrays` in `ProgressiveProgressReporter`, the same copy `onProgress` gets: the arrays are copied and metadata gaps are filled, the entries are shared. This text is not the final text: batches are cleaned with `cleanFullText`, and the whole text is finished once, afterwards, by FullTextAssembly.
+The engine's per-batch order is: `addBatch`, `semanticArrayBuilder.updateWithCapitalizedText(batchText)`, snapshot, then both callbacks. `onBatchComplete` fires from the progressive loop, after the add, so `partialText` includes the batch that just finished. Its semantic arrays come from `snapshotSemanticArrays` in `ProgressiveProgressReporter`, the same copy `onProgress` gets: the arrays are copied, the entries are shared. This text is not the final text: batches are cleaned with `cleanFullText`, and the whole text is finished once, afterwards, by FullTextAssembly.
 
 Entry point: `src/utils/text/ProgressiveBatchText.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
 
 ## FullTextAssembly
 
-The Full Translation result, built from every chunk once the batches are done. Owns, in this order: punctuation translation over _all_ chunks (comma-quote spacing reads a chunk's neighbours), `applySmartCapitalization` over all chunks, `reconstructText` then `finishFullText` once (the only NFC step), `matchWordSegments` against the finished text, then `updateWithCapitalizedText` on the builder followed by `setTranslatedCasing` for every unit the segment match placed (units after the first chunk have no recorded position, and `updateWithCapitalizedText` places those by their text's first occurrence, which stamped a later lowercase repeat with an earlier capital until 2026-10-10), and the result arrays with metadata gaps filled by `snapshotSemanticArrays` (`isMissing: true`). Segment matching reads the arrays as the batches left them and is case-insensitive, so it precedes the capitalization update without depending on it.
+The Full Translation result, built from every chunk once the batches are done. Owns, in this order: punctuation translation over _all_ chunks (comma-quote spacing reads a chunk's neighbours), `applySmartCapitalization` over all chunks, `reconstructText` then `finishFullText` once (the only NFC step), `matchWordSegments` against the finished text, then `updateWithCapitalizedText` on the builder followed by `setTranslatedCasing` for every unit the segment match placed (units after the first chunk have no recorded position, and `updateWithCapitalizedText` places those by their text's first occurrence, which stamped a later lowercase repeat with an earlier capital until 2026-10-10), and the result arrays copied by `snapshotSemanticArrays`. Segment matching reads the arrays as the batches left them and is case-insensitive, so it precedes the capitalization update without depending on it.
 
 Interface: `assembleFullText(chunks, { chunkPostProcessor, punctuationDict, properNounTranslations, builder }) → { translatedText, semanticArrays, prebuiltSegments }`. Unlike CharOnlyAssembly it works on the engine's shared `SemanticArrayBuilder`, which the batch phase filled, and mutates it once at the end (`updateWithCapitalizedText`). Everything else is injected, so tests need no engine.
 

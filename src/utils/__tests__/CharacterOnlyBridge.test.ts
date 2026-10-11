@@ -1,15 +1,14 @@
 import { describe, test, expect } from 'vitest';
 import { findCharacterOnlyMatch } from '../highlighting/CharacterOnlyBridge';
-import type { SemanticArrays } from '../highlighting/SegmentPrecomputer';
+import type { SemanticArrays } from '../../types/SemanticTypes';
+import { makeMeta } from '../../test/makeMeta';
 
 // Minimal SemanticArrays builder — only fields the bridge uses
 function makeArrays(original: string[], tokenIndexes?: number[]): SemanticArrays {
   return {
     original,
     translated: original.map(() => ''),
-    metadata: original.map((_, i) => ({
-      tokenIndex: tokenIndexes ? tokenIndexes[i] : i,
-    })),
+    metadata: original.map((_, i) => makeMeta({ tokenIndex: tokenIndexes ? tokenIndexes[i] : i })),
   };
 }
 

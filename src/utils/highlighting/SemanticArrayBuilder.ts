@@ -5,6 +5,7 @@
 
 import { logger } from '../logger';
 import { semanticArrayValidator } from './SemanticArrayValidator';
+import type { SemanticArrayMetadata } from '../../types/SemanticTypes';
 
 // Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
 function validatePosition(
@@ -48,27 +49,6 @@ export interface SemanticArraySnapshot {
   readonly metadata: readonly SemanticArrayMetadata[];
   readonly length: number;
   readonly capacity: number;
-}
-
-/**
- * Consumer map (architecture review 2026-07-30, candidate #5 grilling — corrected from
- * the original "shared dual-consumer contract" framing, which overstated how much of this
- * type both highlighting paths actually touch: verified via direct grep of real readers,
- * most fields are char-only-exclusive, not shared). See src/utils/CLAUDE.md's
- * `buildSegmentsFromPositions`, `addUnit`, and duplicate-word-highlighting gotchas for the
- * specific behavioral failure modes behind originalStart/originalEnd, phase/dictionary, and
- * tokenIndex respectively.
- */
-export interface SemanticArrayMetadata {
-  index: number; // Internal array-position bookkeeping — not consumed by either UI path
-  source: string; // Consumed by: char-only (ClickableOriginalSemantic.tsx, ClickableTranslationSemantic.tsx) AND full-translation (ClickableTranslationOptimized.tsx)
-  tokenIndex: number; // Consumed by: BOTH paths, via compareByTokenIndex tie-breaking (TextPositionMapper.ts)
-  phase: string | null; // Provenance only — zero real readers today (write-only; see addUnit's CLAUDE.md gotcha)
-  dictionary: string | null; // Provenance only — zero real readers today (write-only; see addUnit's CLAUDE.md gotcha)
-  translatedStart: number; // Consumed by: char-only only (PositionMetadataSegmenter.ts, characterOnlySemanticBuilder setup)
-  translatedEnd: number; // Consumed by: char-only only (see translatedStart)
-  originalStart: number; // Character position in original Chinese text (-1 if not set). Set by Full Translation's postProcess for the first chunk only (later chunks pass chunk-local tokenIndex, so setPositionByMatch finds no unit); character-only never sets it. Read by precomputeOriginalSegments → buildSegmentsFromPositions
-  originalEnd: number; // End position in original Chinese text (-1 if not set). Set and read as originalStart is
 }
 
 /**
@@ -141,17 +121,13 @@ export class SemanticArrayBuilder {
    * @param translatedText - Translated text segment
    * @param source - Source dictionary/type
    * @param tokenIndex - Token index (optional)
-   * @param phase - Processing phase (optional)
-   * @param dictionary - Dictionary name (optional)
    * @returns True if unit added successfully, false if builder corrupted
    */
   addUnit(
     originalText: string,
     translatedText: string,
     source: string,
-    tokenIndex: number = -1,
-    phase: string | null = null,
-    dictionary: string | null = null
+    tokenIndex: number = -1
   ): boolean {
     // CRITICAL FIX: Block operations on corrupted builder to prevent cascading failures
     if (this.corrupted) {
@@ -165,13 +141,10 @@ export class SemanticArrayBuilder {
     this.translated[index] = translatedText;
 
     // Optimized metadata: only store essential fields, avoid duplication
-    // MEDIUM FIX: Include phase and dictionary for better debugging/tracking
     this.metadata[index] = {
       index,
       source,
       tokenIndex,
-      phase, // Processing phase (patterns, properNouns, phrases, characters, etc.)
-      dictionary, // Dictionary name for provenance tracking
       translatedStart: -1, // Will be set during postProcess text assembly
       translatedEnd: -1, // Will be set during postProcess text assembly
       originalStart: -1, // Will be set during postProcess when token.start is passed

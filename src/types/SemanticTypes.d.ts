@@ -6,46 +6,21 @@
  */
 
 /**
- * Metadata for a single semantic unit in the translation
+ * Consumer map (architecture review 2026-07-30, candidate #5 grilling — corrected from
+ * the original "shared dual-consumer contract" framing, which overstated how much of this
+ * type both highlighting paths actually touch: verified via direct grep of real readers,
+ * most fields are char-only-exclusive, not shared). See src/utils/CLAUDE.md's
+ * `buildSegmentsFromPositions`, `addUnit`, and duplicate-word-highlighting gotchas for the
+ * specific behavioral failure modes behind originalStart/originalEnd and tokenIndex respectively.
  */
-export interface SemanticMetadata {
-  /** Source of the translation: 'pattern', 'proper-noun', 'phrase', 'character', etc. */
-  source: string;
-
-  /** Translation phase that produced this unit: 1-5 corresponding to 5-phase architecture */
-  phase?: number;
-
-  /** Dictionary that provided the translation */
-  dictionary?: string;
-
-  /** Original token index in the source text */
-  tokenIndex?: number;
-
-  /** Confidence score for the translation (0-1) */
-  confidence?: number;
-
-  /** Pattern information if translated via semantic pattern */
-  pattern?: string;
-
-  /** Variable assignments if this is part of a pattern match */
-  variables?: Record<string, string>;
-
-  /** Whether this unit is protected by Phase A (hierarchical pattern) */
-  protectedByPhaseA?: boolean;
-
-  /** Phase A result if this token was matched in Phase A */
-  phaseAResult?: {
-    originalText: string;
-    pattern?: {
-      originalPattern: string;
-    };
-  };
-
-  /** Position mapping: Start position in translated text (set by setPositionByMatch) */
-  translatedStart?: number;
-
-  /** Position mapping: End position in translated text (set by setPositionByMatch) */
-  translatedEnd?: number;
+export interface SemanticArrayMetadata {
+  index: number; // Internal array-position bookkeeping — not consumed by either UI path
+  source: string; // Consumed by: char-only (ClickableOriginalSemantic.tsx, ClickableTranslationSemantic.tsx) AND full-translation (ClickableTranslationOptimized.tsx)
+  tokenIndex: number; // Consumed by: BOTH paths, via compareByTokenIndex tie-breaking (TextPositionMapper.ts)
+  translatedStart: number; // Consumed by: char-only only (PositionMetadataSegmenter.ts, characterOnlySemanticBuilder setup)
+  translatedEnd: number; // Consumed by: char-only only (see translatedStart)
+  originalStart: number; // Character position in original Chinese text (-1 if not set). Set by Full Translation's postProcess for the first chunk only (later chunks pass chunk-local tokenIndex, so setPositionByMatch finds no unit); character-only never sets it. Read by precomputeOriginalSegments → buildSegmentsFromPositions
+  originalEnd: number; // End position in original Chinese text (-1 if not set). Set and read as originalStart is
 }
 
 /**
@@ -62,7 +37,7 @@ export interface SemanticArrays {
   translated: string[];
 
   /** Array of metadata for each semantic unit */
-  metadata: SemanticMetadata[];
+  metadata: SemanticArrayMetadata[];
 }
 
 /**

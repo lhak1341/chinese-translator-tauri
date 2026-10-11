@@ -7,7 +7,9 @@
 
 import { describe, test, expect } from 'vitest';
 import { precomputeOriginalSegments } from '../highlighting/SegmentPrecomputer';
-import type { SemanticArrays, Segment } from '../highlighting/SegmentPrecomputer';
+import type { SemanticArrays } from '../../types/SemanticTypes';
+import type { Segment } from '../highlighting/SegmentPrecomputer';
+import { makeMeta } from '../../test/makeMeta';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,10 +20,9 @@ function makeSemanticArrays(
   original: string[],
   sources?: string[]
 ): SemanticArrays {
-  const metadata = translated.map((_, i) => ({
-    source: sources ? sources[i] : 'character',
-    tokenIndex: i,
-  }));
+  const metadata = translated.map((_, i) =>
+    makeMeta({ source: sources ? sources[i] : 'character', tokenIndex: i })
+  );
   return { translated, original, metadata };
 }
 
@@ -48,12 +49,14 @@ function makeSemanticArraysWithPositions(
   return {
     translated: entries.map((e) => e.translated),
     original: entries.map((e) => e.original),
-    metadata: entries.map((e, i) => ({
-      source: 'character',
-      tokenIndex: e.tokenIndex ?? i,
-      originalStart: e.originalStart,
-      originalEnd: e.originalEnd,
-    })),
+    metadata: entries.map((e, i) =>
+      makeMeta({
+        source: 'character',
+        tokenIndex: e.tokenIndex ?? i,
+        originalStart: e.originalStart,
+        originalEnd: e.originalEnd,
+      })
+    ),
   };
 }
 
@@ -215,7 +218,7 @@ describe('precomputeOriginalSegments — fast-path gating', () => {
     const sa: SemanticArrays = {
       translated: [...withPos.translated, 'tốt'],
       original: [...withPos.original, '好'],
-      metadata: [...withPos.metadata, { source: 'character', tokenIndex: 1 }],
+      metadata: [...withPos.metadata, makeMeta({ source: 'character', tokenIndex: 1 })],
     };
     const segments = precomputeOriginalSegments('你好', sa);
 

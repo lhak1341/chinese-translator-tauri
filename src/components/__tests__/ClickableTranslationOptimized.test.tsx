@@ -20,6 +20,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import type { PrebuiltSegment } from '../../types/ClickableTypes';
 import ClickableTranslationOptimized from '../full-translation/ClickableTranslationOptimized';
+import { makeMeta } from '../../test/makeMeta';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,7 +37,7 @@ function makeSegment(overrides: Record<string, unknown> = {}): PrebuiltSegment {
     unitIndex: 0,
     isClickable: true,
     source: 'character',
-    metadata: { source: 'character', tokenIndex: 0 },
+    metadata: makeMeta({ source: 'character', tokenIndex: 0 }),
     isHighlighted: false,
     key: 'seg-0',
     ...overrides,
@@ -49,7 +50,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     semanticArrays: {
       translated: ['bạn'],
       original: ['你'],
-      metadata: [{ source: 'character', tokenIndex: 0 }],
+      metadata: [makeMeta({ source: 'character', tokenIndex: 0 })],
     },
     prebuiltSegments: [makeSegment()],
     onSegmentClick: vi.fn(),
@@ -83,7 +84,7 @@ describe('ClickableTranslationOptimized — fallback rendering', () => {
         semanticArrays={{
           translated: ['bạn'],
           original: ['你'],
-          metadata: [{ source: 'character' }],
+          metadata: [makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={[]}
       />
@@ -117,7 +118,7 @@ describe('ClickableTranslationOptimized — basic rendering', () => {
         semanticArrays={{
           translated: ['bạn', 'tốt'],
           original: ['你', '好'],
-          metadata: [{ source: 'character' }, { source: 'character' }],
+          metadata: [makeMeta({ source: 'character' }), makeMeta({ source: 'character' })],
         }}
       />
     );
@@ -178,7 +179,7 @@ describe('ClickableTranslationOptimized — highlight state', () => {
         semanticArrays={{
           translated: ['bạn', 'tốt'],
           original: ['你', '好'],
-          metadata: [{ source: 'character' }, { source: 'character' }],
+          metadata: [makeMeta({ source: 'character' }), makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={segs}
         highlightedTranslationUnitIndex={[0, 1] as any}
@@ -254,7 +255,7 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
         semanticArrays={{
           translated: ['bạn'],
           original: ['你'],
-          metadata: [{ source: 'character' }],
+          metadata: [makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={segs}
         onSegmentClick={vi.fn()}
@@ -296,7 +297,7 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
         semanticArrays={{
           translated: ['P1', 'P2'],
           original: ['段一', '段二'],
-          metadata: [{ source: 'character' }, { source: 'character' }],
+          metadata: [makeMeta({ source: 'character' }), makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={segs}
         onSegmentClick={vi.fn()}
@@ -323,7 +324,7 @@ describe('ClickableTranslationOptimized — non-clickable segments', () => {
         semanticArrays={{
           translated: ['bạn'],
           original: ['你'],
-          metadata: [{ source: 'character' }],
+          metadata: [makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={segs}
         onSegmentClick={handler}
@@ -370,7 +371,7 @@ describe('ClickableTranslationOptimized — array bounds checking', () => {
         semanticArrays={{
           translated: ['bạn'],
           original: ['你'],
-          metadata: [{ source: 'character' }],
+          metadata: [makeMeta({ source: 'character' })],
         }}
         prebuiltSegments={segs}
         onSegmentClick={handler}

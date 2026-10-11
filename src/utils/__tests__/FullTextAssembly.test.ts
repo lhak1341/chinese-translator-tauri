@@ -20,7 +20,7 @@ const chunk = (
 function builderWith(units: Array<[string, string]>): SemanticArrayBuilder {
   const builder = new SemanticArrayBuilder();
   units.forEach(([original, translated], i) =>
-    builder.addUnit(original, translated, 'characters', i, 'characters', 'characters')
+    builder.addUnit(original, translated, 'characters', i)
   );
   return builder;
 }
@@ -104,21 +104,6 @@ describe('assembleFullText', () => {
     const { prebuiltSegments } = assemble(chunks, builderWith([['说', 'thuyết']]));
 
     expect(prebuiltSegments).toEqual([]);
-  });
-
-  it('fills a metadata gap with the explicit-missing default', () => {
-    const builder = builderWith([['说', 'thuyết']]);
-    const real = builder.getArrays.bind(builder);
-    vi.spyOn(builder, 'getArrays').mockImplementation((...args) => {
-      const arrays = real(...args);
-      return { ...arrays, metadata: [] };
-    });
-
-    const { semanticArrays } = assemble([chunk('说', 'thuyết')], builder);
-
-    expect(semanticArrays.metadata).toEqual([
-      { source: 'progressive', phase: null, dictionary: null, isMissing: true },
-    ]);
   });
 
   it('translates punctuation over all chunks before it rebuilds the text', () => {
