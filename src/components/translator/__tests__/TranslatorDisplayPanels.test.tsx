@@ -66,7 +66,6 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     characterOnlyText: 'CHAR_ONLY_MARKER',
     semanticArrays: makeSemanticArrays(),
     characterOnlySemanticArrays: makeSemanticArrays(),
-    partialSemanticArrays: null,
     prebuiltSegments: [],
     highlightedUnitIndex: 1,
     highlightedCharacterOnlyUnitIndex: 3,
@@ -171,13 +170,11 @@ describe('TranslatorDisplayPanels wiring', () => {
     expect(getByText('Translation will appear here')).toBeTruthy();
   });
 
-  test('renders StreamingTranslationDisplay with finalText/partialSemanticArrays when isStreaming is true', () => {
-    const partialSemanticArrays = makeSemanticArrays();
+  test('renders StreamingTranslationDisplay with finalText when isStreaming is true', () => {
     render(
       <TranslatorDisplayPanels
         {...makeProps({
           throttledStreamingState: makeStreamingState({ isStreaming: true }),
-          partialSemanticArrays,
         })}
       />
     );
@@ -185,7 +182,6 @@ describe('TranslatorDisplayPanels wiring', () => {
     expect(streamingDisplayMock).toHaveBeenCalledTimes(1);
     const props = streamingDisplayMock.mock.calls[0][0];
     expect(props.finalText).toBe('TRANSLATED_MARKER');
-    expect(props.partialSemanticArrays).toBe(partialSemanticArrays);
   });
 
   test('does not render StreamingTranslationDisplay when isStreaming is false', () => {

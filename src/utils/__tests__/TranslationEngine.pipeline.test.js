@@ -16,6 +16,7 @@ import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
 import { runSinglePass } from '../../test/runSinglePass';
+import { openMatchSource } from '../dictionary/MatchSource';
 
 const DICTS = {
   characters: {
@@ -100,6 +101,33 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   // ── Phase 4: phrase lookup ─────────────────────────────────────────────────
 
   describe('Phase 4 — phrase lookup', () => {
+    test('runs with the pattern flag off: Phase 4 reads no pattern setting (ADR-006 addendum)', async () => {
+      const before = engine.settings.enableTwoPhasePatterns;
+      engine.settings.enableTwoPhasePatterns = false;
+      try {
+        const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+        await runSinglePass(engine, tokens, {});
+        expect(tokens[0].translated).toBe('không biết');
+        expect(tokens[0].translationSource).toBe('phrases');
+      } finally {
+        engine.settings.enableTwoPhasePatterns = before;
+      }
+    });
+
+    test('a phrase failure is recorded with its own message, not a pattern one', async () => {
+      const findAllMatches = vi
+        .spyOn(engine.dictionaryManager, 'findAllMatches')
+        .mockImplementation(() => {
+          throw new Error('phrase boom');
+        });
+      try {
+        await runSinglePass(engine, [tok('不', 0), tok('知', 1), tok('道', 2)], {});
+        expect(engine.lastPhaseFailures.failures.phrases).toBe('phrase boom');
+      } finally {
+        findAllMatches.mockRestore();
+      }
+    });
+
     test('2-char phrase: leader translated, consumed null', async () => {
       const tokens = [tok('你', 0), tok('好', 1)];
       await runSinglePass(engine, tokens, {});
@@ -205,6 +233,34 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       expect(tokens[2].translated).toBeNull();
       expect(tokens[3].translated).toBeNull();
       expect(tokens[4].translated).toBeNull();
+    });
+
+    test('asks the match source for the active proper-noun dictionaries, in one category', async () => {
+      // ADR-082: a phase's dictionaries share one category. Phase 2 is the only phase that
+      // reads the match source, so every call the spy sees is Phase 2's.
+      const real = await openMatchSource('', {
+        dictionaryManager: engine.dictionaryManager,
+        logWarn: () => {},
+      });
+      const orders = [];
+      const categories = new Set();
+      const spy = {
+        forPhase(order) {
+          orders.push(order);
+          const matchesAt = real.forPhase(order);
+          return (tokens, pos, category) => {
+            categories.add(category);
+            return matchesAt(tokens, pos, category);
+          };
+        },
+      };
+
+      const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
+      await engine.translateSinglePass(tokens, {}, spy);
+
+      expect(orders).toEqual([['properNouns']]);
+      expect([...categories]).toEqual(['properNouns']);
+      expect(tokens[1].translationSource).toBe('properNouns');
     });
   });
 

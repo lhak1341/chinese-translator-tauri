@@ -122,75 +122,34 @@ export interface TranslationEngineInitOptions {
 // ============================================================================
 
 /**
- * Translation mode types
+ * One finished batch of a progressive translation (ADR-105). The engine sends one per batch,
+ * unthrottled; text and counts only, never semantic arrays.
  */
-type TranslationMode =
-  | 'full' // All 5 phases
-  | 'character-only' // Phase 5 only
-  | 'patterns-only' // Phase 1 only
-  | 'proper-nouns-only'; // Phase 2 only
-
-/**
- * Progress callback data structure
- */
-export interface TranslationProgressData {
-  /** Current progress percentage (0-100) */
-  percentage: number;
-  /** Number of chunks processed */
-  processedChunks: number;
-  /** Total chunks to process */
+export interface BatchCompleteEvent {
+  /** The translated text so far, including this batch */
+  partialText: string;
+  /** Chunks translated so far */
+  completedChunks: number;
+  /** Translatable chunks in the whole text */
   totalChunks: number;
-  /** Current partial translation text */
-  currentText: string;
-  /** Partial semantic arrays (streaming translation) */
-  partialSemanticArrays?: SemanticArrays;
-  /** Current batch number */
-  batchNumber?: number;
-  /** Time elapsed in milliseconds */
-  elapsedTime?: number;
-  /** Estimated time remaining in milliseconds */
-  estimatedTimeRemaining?: number;
+  /** 1-based batch number */
+  batchNumber: number;
+  /** Average time per chunk in this batch, ms */
+  avgTimePerChunk: number;
 }
 
 /**
- * Translation operation options
+ * Translation operation options. Only what the engine reads.
  */
 export interface TranslationOptions {
-  /** Translation mode - defaults to 'full' */
-  translationMode?: TranslationMode;
-
-  /** Enable chunk-based progressive translation - default true */
+  /** Chunk-level formatting switch, set per chunk by the batch loop */
   useChunking?: boolean;
 
-  /** Force JavaScript fallback (disable WASM acceleration) */
-  forceJavaScript?: boolean;
+  /** Called once per finished batch */
+  onBatchComplete?: (event: BatchCompleteEvent) => void;
 
-  /** Enable progressive batch processing with streaming results */
-  progressive?: boolean;
-
-  /** Progress callback for streaming translation */
-  onProgress?: (progress: TranslationProgressData) => void;
-
-  /** Disable translation result caching */
-  disableCache?: boolean;
-
-  /** Custom dictionary priorities override */
-  customPriorities?: Partial<DictionaryPriorities>;
-
-  /** Enable/disable specific phases */
-  enabledPhases?: {
-    patterns?: boolean;
-    properNouns?: boolean;
-    numbers?: boolean;
-    phrases?: boolean;
-    characters?: boolean;
-  };
-
-  /** Maximum parallel chunks to process */
-  maxParallelChunks?: number;
-
-  /** Memory cleanup threshold in MB */
-  memoryCleanupThreshold?: number;
+  /** Cancels the run between batches */
+  abortSignal?: AbortSignal;
 }
 
 // ============================================================================

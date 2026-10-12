@@ -70,7 +70,6 @@ interface StreamingTranslationDisplayProps {
   streamingState: StreamingState;
   finalText?: string;
   isComplete: boolean;
-  partialSemanticArrays?: any;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -196,14 +195,7 @@ StreamingTextRenderer.displayName = 'StreamingTextRenderer';
 
 // Main streaming translation display component
 const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
-  ({
-    streamingState,
-    finalText = '',
-    isComplete,
-    partialSemanticArrays,
-    className = '',
-    style = {},
-  }) => {
+  ({ streamingState, finalText = '', isComplete, className = '', style = {} }) => {
     // Determine which text to display
     const displayText = useMemo(() => {
       if (isComplete) return finalText || '';
@@ -248,8 +240,7 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
         {process.env.NODE_ENV === 'development' && showStreamingUI && (
           <div className={styles.debugInfo}>
             <strong>Debug:</strong> Chunks: {streamingState.completedChunks}/
-            {streamingState.totalChunks}, Text: {displayText.length} chars, Semantic:{' '}
-            {partialSemanticArrays?.original?.length || 0} segments
+            {streamingState.totalChunks}, Text: {displayText.length} chars
           </div>
         )}
       </div>

@@ -122,7 +122,7 @@ describe('createReaderEngine — readiness', () => {
     await queued;
 
     expect(oldEngine.translateWithSegments).toHaveBeenCalledTimes(1);
-    expect(newEngine.translateWithSegments).toHaveBeenCalledWith('b', { progressive: true });
+    expect(newEngine.translateWithSegments).toHaveBeenCalledWith('b');
   });
 });
 
@@ -140,7 +140,7 @@ describe('createReaderEngine — result mapping', () => {
 
     const result = await calls.translateChunk('你好');
 
-    expect(engine.translateWithSegments).toHaveBeenCalledWith('你好', { progressive: true });
+    expect(engine.translateWithSegments).toHaveBeenCalledWith('你好');
     expect(result).toEqual({
       translatedText: 'Xin chào',
       semanticArrays: { original: [], translated: [], metadata: [] },

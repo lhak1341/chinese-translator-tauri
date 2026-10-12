@@ -45,8 +45,6 @@
  *
  * 7. Conflict Resolution & Segment Helpers                   [COUPLED]
  *    - translateWithSegments()
- *    - createOptimalPhraseGroups() — Phase 4, physically here (its conflict resolution is
- *      the pure resolveGlobalConflicts() in ConflictResolution.ts)
  *
  * 8. Phase 1 - Pattern Processing                            [COUPLED]
  *    - applyPatterns()
@@ -54,10 +52,11 @@
  *    - Critical: Must run first (highest priority)
  *
  * 9. Phase 4 - Phrase Processing                             [COUPLED]
- *    - The phase's entry, createOptimalPhraseGroups(), sits in section 7, not here
+ *    - processRemainingPhrases() — the phase's entry; its conflict resolution is the pure
+ *      resolveGlobalConflicts() in ConflictResolution.ts
  *
  * 10. Phase 5 - Character Processing                         [COUPLED]
- *     - Also contains Phase 2 (Proper Noun) logic: applyDictionaryTranslation()
+ *     - Also contains Phase 2 (Proper Noun) logic: applyProperNouns()
  *       sits inside this section, not its own. The main Phase 5 method,
  *       processRemainingTokens(), is NOT here — it's physically inside
  *       section 12 (Parallel Processing). Phase content and physical section
@@ -146,7 +145,7 @@ import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
-import { claimSpan, claimGroupedSpan } from './TokenClaim.js';
+import { claimSpan, claimGroupedSpan, isClaimed } from './TokenClaim.js';
 import { openMatchSource } from './dictionary/MatchSource';
 import { characterMatchFor } from './dictionary/CharacterMatch';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
@@ -159,16 +158,11 @@ import {
   validateConsumedTokenContract,
 } from './TranslationSourcePriority.js';
 import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
-import {
-  buildProgressiveProgressUpdate,
-  snapshotSemanticArrays,
-} from './performance/ProgressiveProgressReporter.js';
 import { createProgressiveBatchText } from './text/ProgressiveBatchText';
 import { assembleFullText } from './text/FullTextAssembly';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
 import { assembleWithSpacing } from './text/TextAssembly.js';
-import { UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
 import {
@@ -195,7 +189,6 @@ import {
  * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
  * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
  * @property {boolean} [useChunking]             - Enable adaptive chunking for long texts
- * @property {Function} [onProgress]            - Progress callback (chunk, total) => void
  */
 
 /**
@@ -670,8 +663,7 @@ export class TranslationEngine {
    *
    * @param {string} text - Input Chinese text to translate
    * @param {Object} [options={}] - Translation options
-   * @param {boolean} [options.progressive=false] - Enable progressive batch translation
-   * @param {Function} [options.onProgress] - Progress callback (required for progressive mode)
+   * @param {(event: import('../types/TranslationEngineTypes').BatchCompleteEvent) => void} [options.onBatchComplete] - Called once per batch with the text so far (ADR-105)
    * @param {boolean} [options.parallel=true] - Enable parallel chunk processing
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
@@ -692,11 +684,10 @@ export class TranslationEngine {
    * console.log(result.translatedText);
    *
    * @example
-   * // Progressive translation with streaming updates
+   * // Streaming updates, one per batch
    * const result = await engine.translateWithSegments(longText, {
-   *   progressive: true,
-   *   onProgress: (progress) => {
-   *     console.log(`${progress.percent}%: ${progress.translatedText}`);
+   *   onBatchComplete: ({ partialText, completedChunks, totalChunks }) => {
+   *     console.log(`${completedChunks}/${totalChunks}: ${partialText}`);
    *   }
    * });
    *
@@ -729,9 +720,8 @@ export class TranslationEngine {
     // Progressive batch translation is the sole path — the non-progressive `translate()`
     // dispatcher (with translateWithChunking/translateDirectly at the top level) was deleted
     // 2026-08-17 (architecture review candidate #2 grilling) after tracing zero production
-    // reachability: the only caller of this method (Translator.jsx) always passes
-    // `progressive: true`, and progressiveBatches tolerates a missing `onProgress` via its
-    // own internal guard, so there was never a real reason to take a different path here.
+    // reachability. The `progressive` option that used to select it was never read and is
+    // gone too (ADR-105); a missing `onBatchComplete` just means no streaming updates.
     const progressiveResult = await this.translateWithProgressiveBatches(text, options);
     const translatedText = progressiveResult.translatedText;
     const semanticArrays = progressiveResult.semanticArrays;
@@ -753,90 +743,6 @@ export class TranslationEngine {
     });
 
     return result;
-  }
-
-  /**
-   * Create optimal phrase groups with hierarchical pattern processing (Phase 4 of 5)
-   *
-   * Fourth phase of translation that matches common phrases in the phrase dictionary.
-   * Only processes tokens not translated by Phase 1 (patterns), Phase 2 (proper nouns),
-   * or Phase 3 (numbers). Uses hierarchical two-phase system for better accuracy.
-   *
-   * Process:
-   * 1. Validate token state (detect silent failures in earlier phases)
-   * 2. Find unprocessed ranges (continuous unconsumed tokens)
-   * 3. Look up phrases at each position
-   * 4. Resolve conflicts using phrase priority and length
-   * 5. Apply translations and mark tokens as phrase-consumed
-   *
-   * Phrase matching strategies:
-   * - Sequential matching: Processes left-to-right, applies longest match first
-   * - Parallel matching: Processes ranges in parallel for better performance
-   * - Conflict resolution: Prioritizes longer phrases, then phrase priority metadata
-   *
-   * Optimization:
-   * - O(n) conflict detection with range tracking
-   * - Skip already-processed tokens
-   * - Batch lookup for adjacent unconsumed tokens
-   *
-   * @param {Array<Object>} tokens - Tokenized input text
-   * @param {string} tokens[].original - Original Chinese character
-   * @param {string|null} tokens[].translated - Translated text (null = not yet translated)
-   * @param {string|null} tokens[].translationSource - Source of translation
-   * @param {Object} [options={}] - Translation options
-   * @param {boolean} [options.parallel=false] - Enable parallel phrase processing
-   *
-   * @returns {Promise<void>} Modifies tokens in-place
-   *
-   * @example
-   * // Called internally by translateSinglePass (Phase 4)
-   * await this.createOptimalPhraseGroups(tokens, options);
-   * // Tokens with phrase matches now have:
-   * // - translated: "không biết" (from "不知道")
-   * // - translationSource: "phrase"
-   *
-   * @see translateSinglePass - Calls this method as Phase 4
-   * @see processRemainingPhrases - Phrase processing implementation
-   *
-   * @performance
-   * - Small texts (<1000 chars): ~10-20ms
-   * - Large texts (>5000 chars): ~30-50ms
-   * - Phrase count impact: ~0.1ms per unprocessed token
-   *
-   * @critical
-   * Must run AFTER Phase 1 (patterns), Phase 2 (proper nouns), and Phase 3 (numbers).
-   * Must run BEFORE Phase 5 (characters) to prevent character-by-character splitting.
-   * Phase order is IMMUTABLE - phrases must override character translations.
-   *
-   * @architectural
-   * Cannot be extracted because phrase-consumed tokens affect Phase 5.
-   * Token state validation detects silent failures in earlier phases.
-   * Validates that >80% of tokens aren't unprocessed (indicates phase failure).
-   */
-  async createOptimalPhraseGroups(tokens, options) {
-    if (this.settings.enableTwoPhasePatterns) {
-      return await this.createOptimalPhraseGroupsHierarchical(tokens, options);
-    }
-    // enableTwoPhasePatterns disabled (WASM pattern init failed) — phrases are pure JS, still process them
-    this.processRemainingPhrases(tokens, options);
-  }
-
-  /**
-   * Hierarchical two-phase phrase group creation with composite pattern support
-   * @param {Token[]} tokens - Array of tokens
-   * @param {Object} options - Options
-   */
-  async createOptimalPhraseGroupsHierarchical(tokens, options) {
-    try {
-      // Skip pattern processing since it was already handled in Phase 1
-      // Only process remaining phrases using traditional approach
-      this.processRemainingPhrases(tokens, options);
-    } catch (error) {
-      logger.error('🚨 Phrase processing failed:', error);
-      throw new Error(
-        'Two-phase pattern processing failed and legacy single-phase processing is disabled'
-      );
-    }
   }
 
   // ============================================================================
@@ -1041,11 +947,7 @@ export class TranslationEngine {
 
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
-      const isProcessed =
-        token.translated !== null ||
-        token.translationSource ||
-        token.isGrouped ||
-        (token.groupLeader !== undefined && token.groupLeader !== null);
+      const isProcessed = isClaimed(token);
       const isChinese = token.type === 'chinese_char' || token.type === 'chinese_word';
 
       if (!isProcessed && isChinese) {
@@ -1071,8 +973,10 @@ export class TranslationEngine {
   }
 
   /**
-   * Process remaining phrases that weren't handled by hierarchical patterns: look up a phrase
-   * at every unprocessed token, resolve overlaps globally (longest wins), then apply.
+   * Phase 4: Phrases. Look up a phrase at every unclaimed token, resolve overlaps globally
+   * (longest wins), then apply. Runs whether or not patterns loaded: it reads no pattern
+   * setting (ADR-006 addendum). A failure throws to translateSinglePass's Phase 4 catch,
+   * which records the real message.
    * @param {Array} tokens - Token array
    * @param {Object} options - Processing options
    */
@@ -1089,14 +993,7 @@ export class TranslationEngine {
         const token = tokens[i];
 
         // Double-check token is still unprocessed (may have been grouped in previous iteration)
-        if (
-          token.translated !== null ||
-          token.translationSource ||
-          token.isGrouped ||
-          (token.groupLeader !== undefined && token.groupLeader !== null)
-        ) {
-          continue;
-        }
+        if (isClaimed(token)) continue;
 
         const textPosition = getTextPositionForTokenIndex(tokens, i);
         // The sync lookup: a one-dictionary search, which never takes the WASM tier anyway
@@ -1115,11 +1012,7 @@ export class TranslationEngine {
               const checkIndex = i + j;
               if (checkIndex < tokens.length) {
                 const checkToken = tokens[checkIndex];
-                if (
-                  checkToken.translated !== null ||
-                  checkToken.translationSource ||
-                  checkToken.isGrouped
-                ) {
+                if (isClaimed(checkToken)) {
                   hasProcessedTokens = true;
                   break;
                 }
@@ -1158,7 +1051,6 @@ export class TranslationEngine {
           match.word,
           this.activeProperNouns ?? []
         );
-        tokens[startIndex].phraseMatch = match;
 
         // Add to semantic array for bidirectional highlighting
         const globalTokenIndex = startIndex + (options.chunkOffset || 0);
@@ -1187,151 +1079,61 @@ export class TranslationEngine {
   // ============================================================================
 
   /**
-   * Apply dictionary-based translation to tokens (Phase 2: Proper Nouns)
+   * Phase 2: Proper Nouns. Looks up the tokens no earlier phase claimed in the active
+   * proper-noun dictionaries (`this.activeProperNouns`), one category, `properNouns`
+   * (ADR-082: a phase's dictionaries share one category).
    *
-   * Second phase of translation that looks up proper nouns in novel-specific dictionaries.
-   * Only processes tokens that haven't been translated by Phase 1 (patterns). Proper nouns
-   * have second-highest priority to ensure character names and places are correctly identified
-   * before generic phrases.
+   * Left to right, the longest match at each token wins, with one exception: the
+   * lookahead defers a match when a token inside its span starts a STRICTLY LONGER match
+   * (src/utils/CLAUDE.md, "Phase 2 proper noun lookahead"). The overlap check against
+   * the spans already applied guards a span whose token count disagrees with its text.
    *
-   * Process:
-   * 1. Skip tokens already translated by Phase 1 (patterns)
-   * 2. Look up remaining text in active proper noun dictionaries
-   * 3. Find longest matching proper noun at current position
-   * 4. Apply translation and mark tokens as proper-noun-consumed
-   * 5. Track processed ranges to detect conflicts with Phase 1
+   * A lookup failure is logged and swallowed: the tokens stay unclaimed for later phases.
    *
-   * Dictionary selection:
-   * - Uses activeProperNouns from options or engine configuration
-   * - Searches dictionaries in order (first match wins)
-   * - Lazy loads inactive proper noun dictionaries on-demand
-   *
-   * Conflict resolution:
-   * - Respects Phase 1 results (patterns have higher priority)
-   * - Uses O(n) range-based conflict detection
-   * - Prevents overlapping translations
-   *
-   * @param {Array<Object>} tokens - Tokenized input text
-   * @param {string} tokens[].original - Original Chinese character
-   * @param {string|null} tokens[].translated - Translated text (null = not yet translated)
-   * @param {string|null} tokens[].translationSource - Source of translation
-   * @param {Object} [options={}] - Translation options
-   * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries to search
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order (fallback)
+   * @param {Array<Object>} tokens - Tokenized input text, modified in place
+   * @param {Object} options - Translation options, passed through to applyMatchToTokens
    * @param {import('./dictionary/MatchSource').MatchSource} matchSource - Answers the match lookups
-   *
-   * @returns {Promise<void>} Modifies tokens in-place
-   *
-   * @example
-   * // Called internally by translateSinglePass (Phase 2)
-   * await this.applyDictionaryTranslation(tokens, {
-   *   activeProperNouns: ['properNouns-Novel1.json']
-   * }, matchSource);
-   * // Tokens with proper noun matches now have:
-   * // - translated: "Tiêu Viêm" (character name)
-   * // - translationSource: "properNoun"
+   * @returns {Promise<void>}
    *
    * @see translateSinglePass - Calls this method as Phase 2
-   * @see DictionaryManager.findAllMatches - Performs dictionary lookups
-   * @see applyPatterns - Phase 1 (higher priority)
-   *
-   * @performance
-   * - Proper noun lookup: ~5-20ms depending on dictionary size
-   * - Lazy loading: First access slower, subsequent fast
-   * - Conflict detection: O(n) with range tracking
+   * @see MatchSource.forPhase - The lookup seam
    *
    * @critical
-   * Must run AFTER Phase 1 (patterns) but BEFORE Phase 4 (phrases).
-   * Phase order is IMMUTABLE - proper nouns must override generic phrases.
-   * Only processes unconsumed tokens (translated === null).
-   *
-   * @architectural
-   * Cannot be extracted because proper-noun-consumed tokens affect Phase 4 and 5.
-   * Token state coordination requires synchronous phase execution.
+   * Runs after Phase 1 (patterns) and before Phase 3. Phase order is IMMUTABLE.
    */
-  async applyDictionaryTranslation(tokens, options, matchSource) {
-    const dictionaryOrder =
-      options.dictionaryOrder ?? this.dictionaryManager.getDefaultSearchOrder();
-    const phase = options.phase || 'general';
-
-    // Hot path optimization: Only log if debug level is sufficient
-
+  async applyProperNouns(tokens, options, matchSource) {
+    // Outside the try, as at the old call site: a missing list is a phase failure, not a
+    // swallowed lookup error.
+    const dictionaryOrder = [...this.activeProperNouns];
     try {
-      // The match lookup for this phase's dictionaries, shared by the main scan and the
-      // lookahead-defer scan below. It answers from the Rust index or the JS trie.
+      // The match lookup for the active proper-noun dictionaries, shared by the main scan and
+      // the lookahead-defer scan below. It answers from the Rust index or the JS trie.
       const matchesAt = matchSource.forPhase(dictionaryOrder);
 
-      // CRITICAL FIX: Track processed text ranges for O(n) conflict detection
-      // Instead of checking all tokens (O(n²)), we maintain ranges of processed positions
-      // Each range: { start: number, end: number, source: string }
+      // Text ranges of the matches already applied, for the overlap check
       const processedRanges = [];
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
 
-        // Skip already translated tokens or tokens consumed by other processes
-        // CRITICAL FIX: Allow isPatternPartialReset to be re-processed by later phases
-        if (token.translated !== null || (token.translationSource && !token.isPatternPartialReset))
-          continue;
-
-        // For phrases phase, check if token has a pre-stored phrase match
-        if (phase === 'phrases' && token.phraseMatch) {
-          // Hot path optimization: Only log if debug level is sufficient
-          // Check if any tokens in the phrase span were already consumed by patterns
-          const tokenSpan = getTokenSpanForText(tokens, i, token.phraseMatch.word);
-          let hasConsumedTokens = false;
-
-          for (let j = 0; j < tokenSpan; j++) {
-            if (i + j < tokens.length) {
-              const conflictToken = tokens[i + j];
-              if (conflictToken.translationSource) {
-                hasConsumedTokens = true;
-                break;
-              }
-            }
-          }
-
-          if (!hasConsumedTokens) {
-            // Apply the pre-stored phrase match
-            this.applyMatchToTokens(tokens, i, token.phraseMatch, options);
-
-            // Skip past grouped tokens
-            i += tokenSpan - 1;
-            continue;
-          } else {
-            // Skip this phrase match as some tokens were already consumed
-            // Hot path optimization: Only log if debug level is sufficient
-            // Clear the phraseMatch to prevent future conflicts
-            token.phraseMatch = null;
-          }
-        }
+        // Skip tokens an earlier phase claimed
+        if (isClaimed(token)) continue;
 
         // Only translate Chinese content
         if (token.type !== TokenType.CHINESE_WORD && token.type !== TokenType.CHINESE_CHAR) {
           continue;
         }
 
-        // OPTIMIZATION: Use shared lookup index when available
-        const category =
-          {
-            properNouns: 'properNouns',
-            phrases: 'phrases',
-            characters: 'characters',
-            general: 'phrases',
-          }[phase] || 'phrases';
-        const filteredMatches = matchesAt(tokens, i, category);
+        const filteredMatches = matchesAt(tokens, i, 'properNouns');
 
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
 
-          // Check for conflicts with existing results using position-based detection
+          // Check for overlap with the matches already applied
           let hasConflict = false;
           const matchStart = getTextPositionForTokenIndex(tokens, i);
           const matchEnd = matchStart + bestMatch.word.length;
 
-          // CRITICAL FIX: O(n) conflict detection using processed ranges
-          // Old approach: iterate ALL tokens (O(n²))
-          // New approach: check only processed ranges (O(m) where m = number of matches << n)
           for (const range of processedRanges) {
             // Check for overlap: match overlaps with range if they share any position
             if (!(matchEnd <= range.start || matchStart >= range.end)) {
@@ -1350,12 +1152,8 @@ export class TranslationEngine {
             // same-length matches at a later start position lose to the earlier match.
             let deferToLookahead = false;
             for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
-              if (
-                tokens[j].translated !== null ||
-                (tokens[j].translationSource && !tokens[j].isPatternPartialReset)
-              )
-                continue;
-              const jMatches = matchesAt(tokens, j, category);
+              if (isClaimed(tokens[j])) continue;
+              const jMatches = matchesAt(tokens, j, 'properNouns');
               if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
               }
@@ -1367,13 +1165,7 @@ export class TranslationEngine {
             // Apply translation to the matched tokens
             this.applyMatchToTokens(tokens, i, bestMatch, options);
 
-            // CRITICAL FIX: Add processed range for O(n) conflict detection
-            // Track this match's text range to prevent future overlaps
-            processedRanges.push({
-              start: matchStart,
-              end: matchEnd,
-              source: phase,
-            });
+            processedRanges.push({ start: matchStart, end: matchEnd });
 
             // Skip ahead past the matched tokens
             // BUG FIX: Ensure we never go backwards or stay in same place
@@ -1381,21 +1173,16 @@ export class TranslationEngine {
               i += tokenSpan - 1;
             }
             // If tokenSpan is 0, just continue to next token (i will increment naturally)
-          } else {
           }
         }
       }
     } catch (error) {
-      // CRITICAL ERROR HANDLING: Dictionary lookup failures should not crash translation
-      logger.error(`❌ Error in ${phase} phase dictionary translation:`, error);
-      logger.error(`Phase will be skipped - translation quality may be reduced`);
-
-      // Log error for diagnostics but allow translation to continue
-      // Tokens remain untranslated, will fall back to later phases
-      logger.error(`🚨 ${phase} phase failed: ${error.message} - continuing with remaining phases`);
-
-      // Don't re-throw - allow translation to continue with degraded quality
-      // Better to have partial translation than complete failure
+      // A dictionary lookup failure must not crash the translation: the tokens stay
+      // unclaimed and fall through to later phases, at reduced quality.
+      logger.error('❌ Error in proper noun phase dictionary translation:', error);
+      logger.error(
+        `🚨 Proper noun phase failed: ${error.message} - continuing with remaining phases`
+      );
     }
   }
 
@@ -1906,10 +1693,9 @@ export class TranslationEngine {
    * DictionaryManager warns on a load that breaks it), so a match is always one token long: no
    * span, no overlap, nothing to batch. See ADR-087.
    * @param {Token[]} tokens - Array of tokens
-   * @param {Set} processedTokens - Set of already processed token indices
    * @param {Object} options - Translation options
    */
-  async processRemainingTokens(tokens, processedTokens, options) {
+  async processRemainingTokens(tokens, options) {
     const dictionary = this.dictionaryManager.getDictionary('characters');
     if (!dictionary) return;
 
@@ -1925,21 +1711,12 @@ export class TranslationEngine {
           );
         }
 
-        if (processedTokens.has(i)) continue;
-
-        // Skip guard: a token another phase translated or consumed, unless a pattern partial
-        // reset released it
-        if (
-          tokens[i].translated !== null ||
-          (tokens[i].translationSource && !tokens[i].isPatternPartialReset)
-        ) {
-          continue;
-        }
+        // Skip guard: a token an earlier phase claimed
+        if (isClaimed(tokens[i])) continue;
 
         const match = characterMatchFor(dictionary, tokens[i]);
         if (match) {
           this.applyMatchToTokens(tokens, i, match, options);
-          processedTokens.add(i);
         }
 
         // Time-slice: yield control when processing time exceeds 16ms (60fps threshold)
@@ -1955,71 +1732,32 @@ export class TranslationEngine {
   }
 
   /**
-   * Progressive translation with batch processing (3-5 chunks at a time)
-   *
-   * Translates text in batches to enable streaming UI updates and better memory management.
-   * Processes 3-5 chunks at a time, calling onProgress after each batch completes. This
-   * mode is ideal for long texts where users need visual feedback during translation.
+   * Progressive translation: chunks the text, translates it in adaptive batches, and reports
+   * each finished batch through `options.onBatchComplete`.
    *
    * Process flow:
    * 1. Split text into chunks by punctuation boundaries
-   * 2. Group chunks into batches (3-5 chunks per batch)
-   * 3. Translate each batch sequentially
-   * 4. Call onProgress callback with cumulative results
-   * 5. Maintain position tracking across batches for clickable highlighting
-   * 6. Cleanup old batches to maintain memory efficiency
+   * 2. Translate the chunks in batches sized by AdaptiveBatchSizer
+   * 3. After each batch, call onBatchComplete with the text so far (ADR-105)
+   * 4. Assemble the full result once, in FullTextAssembly
    *
-   * Memory management:
-   * - Keeps only 3 most recent batches in cache
-   * - Debounces progress updates (minimum 100ms between updates)
-   * - Cleans up segments to prevent accumulation
+   * The batch event carries text and counts only, never semantic arrays: the final result is
+   * the only place the arrays leave the engine. Every batch fires the event; the caller owns
+   * any throttling.
    *
    * @param {string} text - Input Chinese text to translate
    * @param {Object} [options={}] - Translation options
-   * @param {Function} options.onProgress - Progress callback (REQUIRED)
-   * @param {Function} options.onProgress.callback - Called after each batch
-   * @param {number} options.onProgress.callback.percent - Completion percentage (0-100)
-   * @param {string} options.onProgress.callback.translatedText - Cumulative translated text
-   * @param {number} options.onProgress.callback.batch - Current batch number
-   * @param {number} options.onProgress.callback.totalBatches - Total number of batches
-   * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
+   * @param {(event: import('../types/TranslationEngineTypes').BatchCompleteEvent) => void} [options.onBatchComplete] - Called after each batch
+   * @param {AbortSignal} [options.abortSignal] - Signal to abort translation (checked between batches)
    *
    * @returns {Promise<Object>} Translation result
    * @returns {string} result.translatedText - Complete translated text
    * @returns {Object} result.semanticArrays - Semantic arrays for highlighting
-   * @returns {Array} result.semanticArrays.original - Original text segments
-   * @returns {Array} result.semanticArrays.translated - Translated text segments
-   * @returns {Array} result.semanticArrays.metadata - Metadata for each segment
    *
-   * @example
-   * // Progressive translation with UI updates
-   * const result = await engine.translateWithProgressiveBatches(longText, {
-   *   onProgress: ({ percent, translatedText, batch, totalBatches }) => {
-   *     console.log(`Batch ${batch}/${totalBatches} (${percent}%)`);
-   *     updateUI(translatedText); // Update UI with partial results
-   *   }
-   * });
-   *
-   * @example
-   * // With abort signal
-   * const controller = new AbortController();
-   * const promise = engine.translateWithProgressiveBatches(text, {
-   *   onProgress: (progress) => console.log(progress.percent + '%'),
-   *   abortSignal: controller.signal
-   * });
-   * // Later: controller.abort() to cancel
-   *
-   * @see translateWithSegments - Entry point that selects progressive or chunked mode
+   * @see translateWithSegments - Entry point
    * @see TextChunker - Handles text splitting by punctuation
    *
-   * @performance
-   * - Batch size: 3-5 chunks (configurable via UI_UPDATE_THRESHOLDS.BATCH_SIZE)
-   * - Progress debouncing: 100ms minimum between updates
-   * - Memory efficient: Only keeps 3 recent batches in cache
-   * - Best for texts >5000 chars where streaming updates improve UX
-   *
    * @critical
-   * Requires onProgress callback - will not provide intermediate updates without it.
    * Each batch processes sequentially to maintain position tracking accuracy.
    */
 
@@ -2027,8 +1765,8 @@ export class TranslationEngine {
   // SECTION 13: PROGRESSIVE BATCH TRANSLATION
   // ============================================================================
   // Purpose: Stream translation results in batches for UI progress updates
-  // Dependencies: AdaptiveBatchSizer, processChunksInParallel,
-  //   ProgressiveProgressReporter, WordSegmentMatcher
+  // Dependencies: AdaptiveBatchSizer, processChunksInParallel, ProgressiveBatchText,
+  //   FullTextAssembly
   // Critical: batchPerformanceHistory is a local, so it resets per translation
   // ============================================================================
 
@@ -2036,14 +1774,11 @@ export class TranslationEngine {
     // Reset semantic builder with capacity estimation for progressive translation
     this.semanticArrayBuilder.reset();
 
-    // The running text both progress callbacks read; see ProgressiveBatchText.ts
+    // The running text the batch event carries; see ProgressiveBatchText.ts
     const progressiveText = createProgressiveBatchText({
       punctuationDict: this.punctuationDict,
       chunkPostProcessor: this.chunkPostProcessor,
     });
-
-    // Progress update debouncing (reduce UI update overhead)
-    let lastProgressUpdate = 0;
 
     // Step 1: Split text into chunks by punctuation boundaries
     const chunks = this.textChunker.chunkText(text);
@@ -2142,51 +1877,19 @@ export class TranslationEngine {
       processedChunks = batchEnd;
       batchIndex++;
 
-      // Streaming callback: the batch's text and arrays are both in place, so partialText
-      // includes the batch that just finished.
+      // Streaming callback: the batch's text is in place, so partialText includes the batch
+      // that just finished. Text and counts only; the caller throttles (ADR-105).
       if (options.onBatchComplete) {
         try {
           options.onBatchComplete({
             partialText: cumulativeText,
             completedChunks: processedChunks,
             totalChunks: translatableChunks.length,
-            progress:
-              Math.round(Math.min(100, (processedChunks / translatableChunks.length) * 100) * 10) /
-              10,
-            partialSemanticArrays: snapshotSemanticArrays(this.semanticArrayBuilder?.getArrays()),
             batchNumber,
-            batchTime: batchTiming.processingTime,
             avgTimePerChunk: batchTiming.avgTimePerChunk,
-            timestamp: Date.now(),
           });
         } catch (callbackError) {
           logger.warn('⚠️ Batch completion callback failed:', callbackError);
-        }
-      }
-
-      // Call progress callback if provided (with debouncing to reduce UI overhead)
-      if (options.onProgress) {
-        const enableStreaming =
-          translatableChunks.length >= UI_UPDATE_THRESHOLDS.STREAMING_MIN_CHUNKS;
-        const isLastBatch = processedChunks >= translatableChunks.length;
-
-        const update = buildProgressiveProgressUpdate({
-          now: performance.now(),
-          lastProgressUpdate,
-          progressUpdateInterval: UI_UPDATE_THRESHOLDS.PROGRESS_DEBOUNCE_MS,
-          isLastBatch,
-          enableStreaming,
-          batchIndex,
-          processedChunks,
-          totalChunks: translatableChunks.length,
-          currentBatchSize,
-          semanticArrays: this.semanticArrayBuilder?.getArrays(),
-          progressText: cumulativeText,
-        });
-
-        if (update.send) {
-          options.onProgress(update.payload);
-          lastProgressUpdate = performance.now();
         }
       }
     }
@@ -2323,9 +2026,9 @@ export class TranslationEngine {
   //
   // Phase Execution Order (NEVER CHANGE):
   //   1. Pattern Processing    (applyPatterns)
-  //   2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
+  //   2. Proper Noun Processing (applyProperNouns)
   //   3. Number Processing     (NumberProcessor.processTokens, via this.numberProcessor)
-  //   4. Phrase Processing     (createOptimalPhraseGroups)
+  //   4. Phrase Processing     (processRemainingPhrases)
   //   5. Character Processing  (processRemainingTokens)
   //
   // Why Sequential: Each phase consumes tokens, preventing double-processing
@@ -2348,9 +2051,9 @@ export class TranslationEngine {
    *
    * Phase Execution Order (NEVER CHANGE):
    * 1. Pattern Processing (applyPatterns) - Highest priority
-   * 2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
+   * 2. Proper Noun Processing (applyProperNouns)
    * 3. Number Processing (NumberProcessor.processTokens, via this.numberProcessor)
-   * 4. Phrase Processing (createOptimalPhraseGroups)
+   * 4. Phrase Processing (processRemainingPhrases)
    * 5. Character Processing (processRemainingTokens) - Lowest priority
    *
    * Why this order cannot change:
@@ -2396,12 +2099,12 @@ export class TranslationEngine {
    *
    * @see translateDirectly - Calls this method after tokenization
    * @see applyPatterns - Phase 1 implementation
-   * @see applyDictionaryTranslation - Phase 2 implementation
+   * @see applyProperNouns - Phase 2 implementation
    * @see NumberProcessor.processTokens - Phase 3 implementation (delegated to a separate
    *      class via this.numberProcessor, not a TranslationEngine method like its phase
    *      siblings — corrected 2026-08-18, architecture review follow-up to candidate #3;
    *      previously cited a non-existent `processNumbersWasm` method)
-   * @see createOptimalPhraseGroups - Phase 4 implementation
+   * @see processRemainingPhrases - Phase 4 implementation
    * @see processRemainingTokens - Phase 5 implementation
    *
    * @sideeffects Mutates the `tokens` array in place — every phase writes
@@ -2608,15 +2311,7 @@ export class TranslationEngine {
         validatePhaseOrder('properNouns');
         await withTimeout(
           this.phaseProfiler.profile('properNouns', async () => {
-            await this.applyDictionaryTranslation(
-              tokens,
-              {
-                ...options,
-                dictionaryOrder: [...this.activeProperNouns],
-                phase: 'properNouns',
-              },
-              matchSource
-            );
+            await this.applyProperNouns(tokens, options, matchSource);
           }),
           PHASE_TIMEOUTS.properNouns,
           'properNouns'
@@ -2727,7 +2422,7 @@ export class TranslationEngine {
         }
         await withTimeout(
           this.phaseProfiler.profile('phrases', async () => {
-            await this.createOptimalPhraseGroups(tokens, options);
+            this.processRemainingPhrases(tokens, options);
           }),
           PHASE_TIMEOUTS.phrases,
           'phrases'
@@ -2760,25 +2455,6 @@ export class TranslationEngine {
         // Continue to next phase (graceful degradation)
       }
 
-      // Track which tokens have been processed to avoid re-processing
-      const processedTokens = new Set();
-
-      // Mark tokens that were already processed by patterns and proper nouns
-      // CRITICAL FIX: Don't mark isPatternPartialReset as processed - allow re-processing
-      // CRITICAL FIX: Grouped tokens with isPatternPartialReset should also be re-processed
-      for (let i = 0; i < tokens.length; i++) {
-        // Allow re-processing if isPatternPartialReset flag is set (even if grouped)
-        const isPartialReset = tokens[i].isPatternPartialReset === true;
-
-        if (
-          tokens[i].translated !== null ||
-          (tokens[i].isGrouped && !isPartialReset) ||
-          (tokens[i].translationSource && !isPartialReset)
-        ) {
-          processedTokens.add(i);
-        }
-      }
-
       // Phase 5: Process remaining tokens for character-level translation (fallback)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase5 = tokens.length;
@@ -2799,7 +2475,7 @@ export class TranslationEngine {
         }
         await withTimeout(
           this.phaseProfiler.profile('characters', async () => {
-            await this.processRemainingTokens(tokens, processedTokens, options);
+            await this.processRemainingTokens(tokens, options);
           }),
           PHASE_TIMEOUTS.characters,
           'characters'

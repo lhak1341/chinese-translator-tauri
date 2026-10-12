@@ -53,9 +53,8 @@ export function createReaderEngine(access: EngineAccess): ReaderEngineCalls {
 
   return {
     translateChunk: enqueue(async (engine, text) => {
-      // Progressive batching is the engine's only supported path through this method; no
-      // progress callbacks, because a chunk is small enough to land whole.
-      const result = await engine.translateWithSegments(text, { progressive: true });
+      // No batch callback: a chunk is small enough to land whole.
+      const result = await engine.translateWithSegments(text);
       return {
         translatedText: result?.translatedText ?? '',
         semanticArrays: result?.semanticArrays ?? null,
@@ -74,7 +73,7 @@ export function createReaderEngine(access: EngineAccess): ReaderEngineCalls {
     }),
 
     translateOutlineBatch: enqueue(async (engine, text) => {
-      const result = await engine.translateWithSegments(text, { progressive: true });
+      const result = await engine.translateWithSegments(text);
       return result?.translatedText ?? '';
     }),
   };

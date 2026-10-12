@@ -2,7 +2,6 @@ import type { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder'
 import { matchWordSegments } from '../highlighting/WordSegmentMatcher';
 import type { WordSegment } from '../highlighting/WordSegmentMatcher';
 import { logger } from '../logger';
-import { snapshotSemanticArrays } from '../performance/ProgressiveProgressReporter';
 import { applySmartCapitalization, finishFullText } from './FormattingPasses';
 import type { FormattingChunk } from './FormattingPasses';
 
@@ -23,9 +22,32 @@ export interface FullTextAssemblyDeps {
   builder: SemanticArrayBuilder;
 }
 
+interface ArraysSnapshot<O, T, M> {
+  original: O[];
+  translated: T[];
+  metadata: M[];
+}
+
+/**
+ * Copy the builder's arrays for the result. The arrays are copied, the entries are not: React
+ * keeps the result, and the builder is reset and refilled by the next translation, so the
+ * result must never hold its live arrays (ADR-100). The builder keeps the three arrays one
+ * length, so nothing is padded.
+ */
+export function snapshotSemanticArrays<O, T, M>(
+  semanticArrays: Partial<ArraysSnapshot<O, T, M>> | null | undefined
+): ArraysSnapshot<O, T, M> {
+  const arrays = semanticArrays || {};
+  return {
+    original: arrays.original ? [...arrays.original] : [],
+    translated: arrays.translated ? [...arrays.translated] : [],
+    metadata: arrays.metadata ? arrays.metadata.slice() : [],
+  };
+}
+
 export interface FullTextAssemblyResult {
   translatedText: string;
-  semanticArrays: ReturnType<typeof snapshotSemanticArrays>;
+  semanticArrays: ReturnType<SemanticArrayBuilder['getArrays']>;
   prebuiltSegments: WordSegment[];
 }
 

@@ -198,7 +198,7 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     // Leading punctuation is its own chunk, so the content chunk's tokens start at 0 locally:
     // originalStart must add the chunk's startIndex or every Chinese run lands one early.
     const text = '“说别';
-    const { semanticArrays } = await engine.translateWithSegments(text, { progressive: true });
+    const { semanticArrays } = await engine.translateWithSegments(text);
     for (const meta of semanticArrays.metadata) {
       expect(text.slice(meta.originalStart, meta.originalEnd)).toBe(
         semanticArrays.original[semanticArrays.metadata.indexOf(meta)]
@@ -207,7 +207,7 @@ describe('TranslationEngine calls the formatting passes in order', () => {
   });
 
   test('capitalizes the start of the text but not after a comma', async () => {
-    const result = await engine.translateWithSegments('说，别', { progressive: true });
+    const result = await engine.translateWithSegments('说，别');
     expect(result.translatedText).toMatch(/^Thuyết/);
     expect(result.translatedText).toMatch(/[,，] biệt/);
   });
@@ -215,7 +215,6 @@ describe('TranslationEngine calls the formatting passes in order', () => {
   test('onBatchComplete reports the text including the batch that just finished', async () => {
     const batches = [];
     await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
-      progressive: true,
       onBatchComplete: (data) => batches.push(data),
     });
 
@@ -229,14 +228,32 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     }
     const last = batches[batches.length - 1];
     expect(last.completedChunks).toBe(last.totalChunks);
-    expect(last.progress).toBe(100);
+  });
+
+  test('the batch event carries text and counts only, never semantic arrays (ADR-105)', async () => {
+    const batches = [];
+    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+      onBatchComplete: (data) => batches.push(data),
+    });
+
+    expect(batches.length).toBeGreaterThan(1);
+    for (const batch of batches) {
+      expect(Object.keys(batch).sort()).toEqual([
+        'avgTimePerChunk',
+        'batchNumber',
+        'completedChunks',
+        'partialText',
+        'totalChunks',
+      ]);
+    }
+    const counts = batches.map((b) => b.completedChunks);
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
   });
 
   test('onBatchComplete numbers batches 1..n', async () => {
     // currentBatchNumber was the 0-based index read with `||`, so batches 0 and 1 both said 1.
     const batches = [];
     await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
-      progressive: true,
       onBatchComplete: (data) => batches.push(data),
     });
 

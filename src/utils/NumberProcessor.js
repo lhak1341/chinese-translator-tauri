@@ -4,7 +4,7 @@
  * Replaces ~90 lines of scattered number conversion with unified approach
  */
 
-import { claimSpan } from './TokenClaim.js';
+import { claimSpan, isClaimed } from './TokenClaim.js';
 
 export class NumberProcessor {
   constructor() {
@@ -153,11 +153,7 @@ export class NumberProcessor {
 
     // Process each token position for number patterns
     for (let i = 0; i < tokens.length; i++) {
-      if (
-        tokens[i].type !== TokenType.CHINESE_CHAR ||
-        tokens[i].translated !== null ||
-        tokens[i].translationSource
-      ) {
+      if (tokens[i].type !== TokenType.CHINESE_CHAR || isClaimed(tokens[i])) {
         continue;
       }
 
@@ -198,7 +194,7 @@ export class NumberProcessor {
       const token = tokens[endIndex];
 
       // Only consider Chinese characters
-      if (token.type !== 'chinese_char' || token.translated !== null || token.translationSource) {
+      if (token.type !== 'chinese_char' || isClaimed(token)) {
         break;
       }
 

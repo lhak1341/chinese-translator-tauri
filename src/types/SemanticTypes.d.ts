@@ -81,35 +81,6 @@ export interface Segment {
 }
 
 /**
- * Progress data structure for streaming translation callbacks
- */
-export interface ProgressData {
-  /** Current translation result (may be partial) */
-  translatedText: string;
-
-  /** Current semantic arrays (may be incomplete) */
-  semanticArrays: SemanticArrays;
-
-  /** Number of chunks processed so far */
-  processedChunks: number;
-
-  /** Total number of chunks to process */
-  totalChunks: number;
-
-  /** Current batch being processed */
-  currentBatch?: number;
-
-  /** Total number of batches */
-  totalBatches?: number;
-
-  /** Estimated completion percentage (0-100) */
-  percentComplete?: number;
-
-  /** Whether translation is complete */
-  isComplete: boolean;
-}
-
-/**
  * Token structure used in translation processing
  */
 export interface Token {

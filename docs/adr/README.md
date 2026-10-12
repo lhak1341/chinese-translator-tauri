@@ -168,6 +168,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-102](./ADR-102-keep-utils-toast-as-the-notification-seam.md)                   | Keep `utils/toast` as the notification seam                  | Decided                           | Two adapters already (context, mock); a port is a wider interface.                                                                                   |
 | [ADR-103](./ADR-103-keep-the-default-toggle-and-name-step-in-the-config-hook.md)    | Keep the default toggle and name step in the config hook     | Decided                           | One ternary and two sites in one file; the hook tests already pin it.                                                                                |
 | [ADR-104](./ADR-104-no-shared-fake-for-one-shot-ipc-in-tests.md)                    | No shared fake for one-shot IPC in tests                     | Decided                           | Stubs are the assertion handles; subsets differ; no state to share.                                                                                  |
+| [ADR-105](./ADR-105-one-batch-event-for-a-progressive-run.md)                       | One batch event for a progressive run                        | Decided                           | Text and counts every batch; the streaming hook is the one throttle.                                                                                 |
 
 ## ADR Format
 
@@ -229,4 +230,5 @@ Write an ADR when making decisions about:
 - **2026-10-09**: ADR-091
 - **2026-10-10**: ADR-092; ADR-093; ADR-094; ADR-095
 - **2026-10-11**: ADR-096; ADR-097; ADR-098; ADR-099; ADR-100; ADR-101; ADR-102; ADR-103; ADR-104
+- **2026-10-12**: ADR-105
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

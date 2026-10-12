@@ -11,7 +11,7 @@ function baseProps() {
     isLoading: false,
     isReloading: false,
     isTranslating: false,
-    progressInfo: null,
+    throttledStreamingState: { isStreaming: false, completedChunks: 0, totalChunks: 0 },
     activeTranslations: 0,
     avgTime: 0,
   };
@@ -40,5 +40,27 @@ describe('TranslatorControls hotkey hints', () => {
     render(<TranslatorControls {...baseProps()} />);
     const hint = screen.getByTitle("Quick-add hotkeys (see each button's tooltip)");
     expect(hint.querySelector('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('TranslatorControls progress pill', () => {
+  test('shows completed/total chunks from the streaming state while streaming', () => {
+    render(
+      <TranslatorControls
+        {...baseProps()}
+        throttledStreamingState={{ isStreaming: true, completedChunks: 4, totalChunks: 12 }}
+      />
+    );
+    expect(screen.getByText('4/12 chunks')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  test('renders no pill when not streaming', () => {
+    render(
+      <TranslatorControls
+        {...baseProps()}
+        throttledStreamingState={{ isStreaming: false, completedChunks: 12, totalChunks: 12 }}
+      />
+    );
+    expect(screen.queryByText(/chunks/)).not.toBeInTheDocument();
   });
 });

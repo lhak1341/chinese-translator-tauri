@@ -16,7 +16,13 @@
  *   and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that
  *   leader's followers outside the new span, or they would be silently dropped.
  *
- * Both check what a JS caller can get wrong without a compiler: a leader with a null translation
+ * `isClaimed` is the read side: whether any phase has claimed a token. Every phase's skip test and
+ * span check uses it. It reads two fields only, because every writer of `isGrouped` or
+ * `groupLeader` (this module) and of `translated` (this module, `NumberLiangFix`, the
+ * character-only sentinels) sets `translationSource` in the same call, and the orphan release
+ * clears all of them together.
+ *
+ * Both claims check what a JS caller can get wrong without a compiler: a leader with a null translation
  * (its characters vanish from the output) and a source `getSourcePriority` does not rank (it
  * sorts below the character fallback). Violations are logged, never thrown.
  */
@@ -35,6 +41,13 @@ export interface ClaimableToken {
 }
 
 const UNRANKED = 999;
+
+/** Whether an earlier phase claimed this token (as a leader or a consumed follower). */
+export function isClaimed(
+  token: Pick<ClaimableToken, 'translated' | 'translationSource'>
+): boolean {
+  return token.translated !== null || Boolean(token.translationSource);
+}
 
 function checkLeader(
   source: string,

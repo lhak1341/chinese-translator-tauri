@@ -20,7 +20,6 @@ interface TranslatorDisplayPanelsProps {
   characterOnlyText: string;
   semanticArrays: SemanticArrays;
   characterOnlySemanticArrays: SemanticArrays;
-  partialSemanticArrays: SemanticArrays | null;
   prebuiltSegments: WordSegment[];
   highlightedUnitIndex: number | null;
   highlightedCharacterOnlyUnitIndex: number | null;
@@ -47,7 +46,6 @@ export default function TranslatorDisplayPanels({
   characterOnlyText,
   semanticArrays,
   characterOnlySemanticArrays,
-  partialSemanticArrays,
   prebuiltSegments,
   highlightedUnitIndex,
   highlightedCharacterOnlyUnitIndex,
@@ -153,7 +151,6 @@ export default function TranslatorDisplayPanels({
                   streamingState={throttledStreamingState}
                   finalText={translatedText}
                   isComplete={false}
-                  partialSemanticArrays={partialSemanticArrays}
                   style={{ height: '100%', padding: '1rem' }}
                 />
               )}

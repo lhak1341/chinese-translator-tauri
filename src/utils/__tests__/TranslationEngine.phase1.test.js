@@ -53,12 +53,12 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
   });
 
   test('a pattern beats a proper noun over the same span', async () => {
-    const result = await engine.translateWithSegments('这些朋友', { progressive: true });
+    const result = await engine.translateWithSegments('这些朋友');
     expect(result.translatedText).toBe('Những bạn bè này');
   });
 
   test('a pattern beats a phrase over the same span', async () => {
-    const result = await engine.translateWithSegments('这些书籍', { progressive: true });
+    const result = await engine.translateWithSegments('这些书籍');
     expect(result.translatedText).toBe('Những sách vở này');
   });
 
@@ -86,12 +86,12 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
   // A `#` variable takes a numeral of up to 8 characters on both pattern paths. The Rust matcher
   // capped every variable at 6, so a heading with a 7-character numeral fell to characters.
   test('a # variable binds a 6-character numeral', async () => {
-    const result = await engine.translateWithSegments('第一千二百三十章', { progressive: true });
+    const result = await engine.translateWithSegments('第一千二百三十章');
     expect(result.translatedText).toBe('Chương thứ 1,230');
   });
 
   test('a # variable binds a 7-character numeral', async () => {
-    const result = await engine.translateWithSegments('第一千二百三十四章', { progressive: true });
+    const result = await engine.translateWithSegments('第一千二百三十四章');
     expect(result.translatedText).toBe('Chương thứ 1,234');
   });
 });

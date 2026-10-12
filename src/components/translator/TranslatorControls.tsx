@@ -16,11 +16,10 @@ const QUICK_ADD_HINTS: readonly [key: string, label: string][] = [
 ];
 
 /**
- * Batch translation progress information
+ * The streaming-state fields the progress pill reads (useStreamingTranslation, ADR-105)
  */
-interface ProgressInfo {
-  currentBatch: number;
-  totalBatches: number;
+interface StreamingProgress {
+  isStreaming: boolean;
   completedChunks: number;
   totalChunks: number;
 }
@@ -35,7 +34,7 @@ interface TranslatorControlsProps {
   isLoading: boolean;
   isReloading: boolean;
   isTranslating: boolean;
-  progressInfo: ProgressInfo | null;
+  throttledStreamingState: StreamingProgress;
   activeTranslations: number;
   avgTime: number;
 }
@@ -52,7 +51,7 @@ export default function TranslatorControls({
   isLoading,
   isReloading,
   isTranslating,
-  progressInfo,
+  throttledStreamingState,
   activeTranslations,
   avgTime,
 }: TranslatorControlsProps): React.ReactElement {
@@ -136,10 +135,10 @@ export default function TranslatorControls({
       </div>
 
       {/* Batch progress pill — conditionally rendered, fades in on mount */}
-      {progressInfo && (
+      {throttledStreamingState.isStreaming && throttledStreamingState.totalChunks > 0 && (
         <div className={styles.progressIndicator} role="status" aria-live="polite">
           <div className={styles.pulseDot} />
-          Batch {progressInfo.currentBatch}/{progressInfo.totalBatches}
+          {throttledStreamingState.completedChunks}/{throttledStreamingState.totalChunks} chunks
         </div>
       )}
 

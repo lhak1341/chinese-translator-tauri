@@ -107,3 +107,7 @@ the `@typedef PatternProcessor` contract defined in `TranslationEngine.js:276`.
 
 - ADR-003: TypeScript Hybrid Architecture (JS adapters intentionally stay JavaScript)
 - ADR-004: 5-Phase Processing Order (Phase 1 context)
+
+## Addendum (2026-10-12, architecture review round 32, candidate #4)
+
+The `createOptimalPhraseGroups` bullet under the Decision is out of date. That method and `createOptimalPhraseGroupsHierarchical` are deleted. Both branches of the `enableTwoPhasePatterns` check called `processRemainingPhrases`, so the flag changed only the error text: a phrase failure was rethrown as "Two-phase pattern processing failed …". `translateSinglePass` now calls `processRemainingPhrases` as Phase 4, which reads no pattern setting. A phrase failure reaches the Phase 4 `catch` with its own message, which is recorded in `lastPhaseFailures`. The intent is unchanged: phrases run whether or not patterns load. `TranslationEngine.pipeline.test.js` now pins it, with the flag off.

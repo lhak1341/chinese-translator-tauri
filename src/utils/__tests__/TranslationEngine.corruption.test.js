@@ -75,9 +75,9 @@ describe('a corrupted semantic array builder', () => {
 
     test.each([
       ['patterns', () => corrupt(engine, 'applyPatterns')],
-      ['properNouns', () => corrupt(engine, 'applyDictionaryTranslation')],
+      ['properNouns', () => corrupt(engine, 'applyProperNouns')],
       ['numbers', () => corrupt(engine.numberProcessor, 'processTokens')],
-      ['phrases', () => corrupt(engine, 'createOptimalPhraseGroups')],
+      ['phrases', () => corrupt(engine, 'processRemainingPhrases')],
       ['characters', () => corrupt(engine, 'processRemainingTokens')],
     ])('%s: one critical-error toast, then the translation is abandoned', async (_phase, stub) => {
       const restore = stub();

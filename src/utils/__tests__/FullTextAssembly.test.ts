@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { assembleFullText, type FullTextChunk } from '../text/FullTextAssembly';
+import {
+  assembleFullText,
+  snapshotSemanticArrays,
+  type FullTextChunk,
+} from '../text/FullTextAssembly';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
 
@@ -133,5 +137,28 @@ describe('assembleFullText', () => {
 
     expect(translatedText).toBe(translatedText.normalize('NFC'));
     expect(translatedText.toLowerCase()).toBe('màu');
+  });
+});
+
+describe('snapshotSemanticArrays', () => {
+  it('copies the three arrays, so the result shares none with its input', () => {
+    const input = { original: ['甲'], translated: ['A'], metadata: [{ tokenIndex: 0 }] };
+    const snapshot = snapshotSemanticArrays(input);
+
+    expect(snapshot).toEqual(input);
+    expect(snapshot.original).not.toBe(input.original);
+    expect(snapshot.translated).not.toBe(input.translated);
+    expect(snapshot.metadata).not.toBe(input.metadata);
+    input.original.push('乙');
+    expect(snapshot.original).toEqual(['甲']);
+  });
+
+  it('gives three empty arrays for a missing input', () => {
+    expect(snapshotSemanticArrays(null)).toEqual({ original: [], translated: [], metadata: [] });
+    expect(snapshotSemanticArrays(undefined)).toEqual({
+      original: [],
+      translated: [],
+      metadata: [],
+    });
   });
 });

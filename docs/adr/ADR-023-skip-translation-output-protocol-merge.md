@@ -43,3 +43,7 @@ Do not merge. Keep `useStreamingTranslation` and `useTranslationResults` as sepa
 ## When to Revisit
 
 If the post-`translateWithSegments` sequence grows a 4th or 5th write (e.g. a new streaming phase, or partial character-only results interleaved with batch updates) such that the ordering invariant becomes non-obvious or produces an actual coordination bug, the merge earns its complexity. The trigger is the first bug report where the root cause is "step N of the transition wrote state in the wrong order relative to step N+1."
+
+## Addendum (2026-10-12)
+
+ADR-105 deleted `DebouncedProgressHandler` along with the `onProgress` callback it served. It was not absorbed into a hook: the streaming hook's existing 100 ms throttle replaced it. The hook split this ADR keeps (`useStreamingTranslation` beside `useTranslationResults`) stands. `setPartialSemanticArrays` is gone too, so the "narrow variant" above would now wrap a single setter.

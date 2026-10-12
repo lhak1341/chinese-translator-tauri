@@ -1,15 +1,11 @@
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useRef } from 'react';
 import { useThrottledValue } from './useThrottledValue';
-
-/**
- * @import { SemanticArrays, ProgressData } from '../types/SemanticTypes'
- */
 
 /**
  * Streaming translation state structure
  * @typedef {Object} StreamingTranslationState
  * @property {string} partialText - Partial translated text
- * @property {number} progress - Progress percentage (0-100)
+ * @property {number} progress - Progress percentage (0-100), derived from the chunk counts
  * @property {boolean} isStreaming - Whether streaming is active
  * @property {number} completedChunks - Number of completed chunks
  * @property {number} totalChunks - Total number of chunks
@@ -28,30 +24,29 @@ const INITIAL_STREAMING = {
   avgTimePerChunk: 0,
 };
 
-const INITIAL_STATE = {
-  progressInfo: /** @type {ProgressData | null} */ (null),
-  streamingTranslation: INITIAL_STREAMING,
-  partialSemanticArrays: /** @type {SemanticArrays | null} */ (null),
-};
+/**
+ * @param {number} completedChunks
+ * @param {number} totalChunks
+ * @returns {number} 0-100, one decimal
+ */
+function progressOf(completedChunks, totalChunks) {
+  if (totalChunks <= 0) return 0;
+  return Math.round(Math.min(100, (completedChunks / totalChunks) * 100) * 10) / 10;
+}
 
 /**
- * @param {typeof INITIAL_STATE} state
+ * @param {StreamingTranslationState} state
  * @param {{ type: string; payload?: any }} action
- * @returns {typeof INITIAL_STATE}
+ * @returns {StreamingTranslationState}
  */
 function streamingReducer(state, action) {
   switch (action.type) {
-    case 'UPDATE_STREAMING':
-      return {
-        ...state,
-        streamingTranslation: { ...state.streamingTranslation, ...action.payload },
-      };
-    case 'SET_PROGRESS_INFO':
-      return { ...state, progressInfo: action.payload };
-    case 'SET_PARTIAL_ARRAYS':
-      return { ...state, partialSemanticArrays: action.payload };
+    case 'UPDATE_STREAMING': {
+      const next = { ...state, ...action.payload };
+      return { ...next, progress: progressOf(next.completedChunks, next.totalChunks) };
+    }
     case 'RESET':
-      return INITIAL_STATE;
+      return INITIAL_STREAMING;
     default:
       return state;
   }
@@ -60,50 +55,43 @@ function streamingReducer(state, action) {
 /**
  * Streaming translation hook.
  *
- * Manages streaming translation state for progressive translation with incremental UI updates.
- * Includes built-in throttling to prevent UI flooding during rapid updates.
- * Uses a single reducer so RESET atomically clears all three state pieces in one dispatch —
- * the invariant is structural rather than enforced by convention across three separate setters.
+ * Holds the state of a progressive translation, fed by the engine's one batch event
+ * (ADR-105). Throttling lives here and only here: the engine sends every batch, and the UI
+ * reads `throttledStreamingState`. `progress` is derived from the chunk counts, never set.
+ *
+ * `latestPartialText()` returns the last text written, unthrottled, so a run that ends early
+ * (Reader preempt, timeout, engine error) can leave its partial text on screen.
  *
  * @param {number} [throttleMs=100] - Throttle delay for streaming state updates (default: 100ms)
  * @returns {{
- *   progressInfo: ProgressData | null,
- *   partialSemanticArrays: SemanticArrays | null,
  *   throttledStreamingState: StreamingTranslationState,
- *   updateStreaming: (data: Partial<StreamingTranslationState>) => void,
- *   setProgressInfo: (info: ProgressData | null) => void,
- *   setPartialSemanticArrays: (arrays: SemanticArrays | null) => void,
+ *   updateStreaming: (data: Partial<Omit<StreamingTranslationState, 'progress'>>) => void,
+ *   latestPartialText: () => string,
  *   resetStreaming: () => void
  * }}
  */
 export function useStreamingTranslation(throttleMs = 100) {
-  const [state, dispatch] = useReducer(streamingReducer, INITIAL_STATE);
+  const [state, dispatch] = useReducer(streamingReducer, INITIAL_STREAMING);
+  const partialTextRef = useRef('');
 
-  const throttledStreamingState = useThrottledValue(state.streamingTranslation, throttleMs);
+  const throttledStreamingState = useThrottledValue(state, throttleMs);
 
   const updateStreaming = useCallback((data) => {
+    if (data.partialText !== undefined) partialTextRef.current = data.partialText;
     dispatch({ type: 'UPDATE_STREAMING', payload: data });
   }, []);
 
-  const setProgressInfo = useCallback((info) => {
-    dispatch({ type: 'SET_PROGRESS_INFO', payload: info });
-  }, []);
-
-  const setPartialSemanticArrays = useCallback((arrays) => {
-    dispatch({ type: 'SET_PARTIAL_ARRAYS', payload: arrays });
-  }, []);
+  const latestPartialText = useCallback(() => partialTextRef.current, []);
 
   const resetStreaming = useCallback(() => {
+    partialTextRef.current = '';
     dispatch({ type: 'RESET' });
   }, []);
 
   return {
-    progressInfo: state.progressInfo,
-    partialSemanticArrays: state.partialSemanticArrays,
     throttledStreamingState,
     updateStreaming,
-    setProgressInfo,
-    setPartialSemanticArrays,
+    latestPartialText,
     resetStreaming,
   };
 }

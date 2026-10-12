@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const errorSpy = vi.hoisted(() => vi.fn());
 vi.mock('../logger', () => ({ logger: { error: errorSpy, warn: vi.fn(), log: vi.fn() } }));
 
-import { claimSpan, claimGroupedSpan, type ClaimableToken } from '../TokenClaim';
+import { claimSpan, claimGroupedSpan, isClaimed, type ClaimableToken } from '../TokenClaim';
 
 function tokens(values: string[]): ClaimableToken[] {
   return values.map((value, i) => ({
@@ -174,5 +174,33 @@ describe('claimGroupedSpan (grouped shape)', () => {
   it('logs the same leader violations as claimSpan', () => {
     claimGroupedSpan(tokens(['a', 'b']), 0, 2, 'phrase', 'x', 'ab');
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not a ranked leader source'));
+  });
+});
+
+describe('isClaimed (the read side)', () => {
+  it('is false for a fresh token, and true once either field is set', () => {
+    const [fresh] = tokens(['a']);
+    expect(isClaimed(fresh)).toBe(false);
+    expect(isClaimed({ translated: 'A', translationSource: null })).toBe(true);
+    expect(isClaimed({ translated: null, translationSource: 'pattern_consumed' })).toBe(true);
+  });
+
+  it('holds for every token of a light span after claimSpan', () => {
+    const t = tokens(['a', 'b', 'c']);
+    claimSpan(t, 0, 2, 'pattern', 'ABC');
+    expect(t.map(isClaimed)).toEqual([true, true, true]);
+  });
+
+  it('holds for every token of a grouped span after claimGroupedSpan', () => {
+    const t = tokens(['a', 'b', 'c', 'd']);
+    claimGroupedSpan(t, 1, 2, 'phrases', 'BC', 'bc');
+    expect(t.map(isClaimed)).toEqual([false, true, true, false]);
+  });
+
+  it('is false again for the orphans a grouped claim releases', () => {
+    const t = tokens(['a', 'b', 'c', 'd']);
+    claimSpan(t, 1, 3, 'pattern', 'BCD');
+    claimGroupedSpan(t, 0, 2, 'properNouns', 'N', 'ab', ['properNouns']);
+    expect(t.map(isClaimed)).toEqual([true, true, false, false]);
   });
 });

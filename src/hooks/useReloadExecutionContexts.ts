@@ -61,7 +61,6 @@ export interface UseForceReloadContextParams {
   cancelAllTranslations: () => { count: number; cleanupComplete: Promise<void> };
   isTranslatingRef: MutableRefObject<boolean>;
   setIsTranslating: (v: boolean) => void;
-  setProgressInfo: (v: unknown) => void;
   setStatusMessage: (msg: string) => void;
   setTranslationError: (msg: string) => void;
   setDictionaryReloading: (active: boolean) => void;
@@ -77,7 +76,6 @@ const FORCE_RELOAD_EXPECTED_KEYS = [
   'cancelAllTranslations',
   'isTranslatingRef',
   'setIsTranslating',
-  'setProgressInfo',
   'setStatusMessage',
   'setTranslationError',
   'setDictionaryReloading',
@@ -111,7 +109,6 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
     cancelAllTranslations,
     isTranslatingRef,
     setIsTranslating,
-    setProgressInfo,
     setStatusMessage,
     setTranslationError,
     setDictionaryReloading,
@@ -131,8 +128,7 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
     }
     isTranslatingRef.current = false;
     setIsTranslating(false);
-    setProgressInfo(null);
-  }, [cancelAllTranslations, isTranslatingRef, setIsTranslating, setProgressInfo]);
+  }, [cancelAllTranslations, isTranslatingRef, setIsTranslating]);
 
   return {
     cancelTranslations,

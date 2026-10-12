@@ -3,7 +3,11 @@ import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { validateTranslationInput } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
-import { createTranslationRunner, translationTimeoutMs } from '../utils/TranslationRunner';
+import {
+  createTranslationRunner,
+  translationTimeoutMs,
+  TranslationCancelledError,
+} from '../utils/TranslationRunner';
 import { EngineAccessRefusedError } from '../utils/EngineAccess';
 import { TOAST_DURATIONS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
@@ -14,7 +18,6 @@ import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useEngine } from './EngineContext';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import { DebouncedProgressHandler } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
@@ -90,14 +93,8 @@ const Translator = ({ isActive }) => {
   const { avgTime, recordTranslation } = usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
-  const {
-    progressInfo,
-    partialSemanticArrays,
-    throttledStreamingState,
-    updateStreaming,
-    setProgressInfo,
-    setPartialSemanticArrays,
-  } = useStreamingTranslation(100); // 100ms throttle
+  const { throttledStreamingState, updateStreaming, latestPartialText } =
+    useStreamingTranslation(100); // 100ms throttle, the only one (ADR-105)
 
   // Quick Add modal hook. The view comes from the binding provider, so while a Reader book is
   // open the Translator's Adds file its fiction entries under that book's dictionary too.
@@ -196,10 +193,6 @@ const Translator = ({ isActive }) => {
       registerCacheInvalidator(null);
       return;
     }
-    debouncedProgressHandler.current.setCallbacks({
-      onProgressUpdate: setProgressInfo,
-      onTranslationUpdate: setStreamingText,
-    });
     registerCacheInvalidator((id) => engineRef.current?.invalidateDictionaryCaches(id));
     if (process.env.NODE_ENV === 'development') {
       installDevConsole(engineRef.current);
@@ -220,10 +213,6 @@ const Translator = ({ isActive }) => {
   // to prevent constant reinitializations during normal operation
 
   // Streaming state now managed by useStreamingTranslation hook
-
-  // UI responsiveness optimizations
-  // Increased from 100ms to 300ms to reduce GPU rendering pressure
-  const debouncedProgressHandler = useRef(new DebouncedProgressHandler(300));
 
   /**
    * Cache health monitoring effect - alerts user when cache performance degrades
@@ -406,7 +395,6 @@ const Translator = ({ isActive }) => {
           async ({ signal, guard }) => {
             updateStreaming({
               partialText: '',
-              progress: 0,
               isStreaming: true,
               completedChunks: 0,
               totalChunks: 0,
@@ -423,32 +411,18 @@ const Translator = ({ isActive }) => {
               (engine) =>
                 engine.translateWithSegments(text, {
                   debug: false,
-                  progressive: true,
                   abortSignal: signal,
-                  onProgress: guard((progressData) => {
-                    // Wrap in startTransition to deprioritize rendering updates
-                    // This prevents GPU buffer corruption during rapid updates
-                    startTransition(() => {
-                      // Use debounced progress handler for smoother UI
-                      debouncedProgressHandler.current.handleProgress(progressData);
-                    });
-                  }),
+                  // The one batch event (ADR-105): every batch, unthrottled; the streaming
+                  // hook throttles. startTransition deprioritizes the render.
                   onBatchComplete: guard((batchData) => {
                     startTransition(() => {
-                      // Update streaming state with batch completion info
                       updateStreaming({
                         partialText: batchData.partialText,
-                        progress: batchData.progress || 0,
-                        completedChunks: batchData.completedChunks || 0,
+                        completedChunks: batchData.completedChunks,
                         totalChunks: batchData.totalChunks,
                         batchNumber: batchData.batchNumber,
                         avgTimePerChunk: batchData.avgTimePerChunk,
                       });
-
-                      // Update partial semantic arrays for incremental highlighting
-                      if (batchData.partialSemanticArrays) {
-                        setPartialSemanticArrays(batchData.partialSemanticArrays);
-                      }
                     });
                   }),
                 }),
@@ -460,25 +434,15 @@ const Translator = ({ isActive }) => {
               }
             );
 
-            // Final update with complete result - flush any pending debounced updates
-            debouncedProgressHandler.current.flushUpdates();
-
             if (segmentResult && segmentResult.semanticArrays) {
               setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
             }
 
-            // Clear progress info when done
-            setProgressInfo(null);
-
-            // Complete streaming and reset state
+            // Complete streaming
             updateStreaming({
               isStreaming: false,
-              progress: 100,
               partialText: segmentResult.translatedText,
             });
-
-            // Clear partial semantic arrays since we have final ones
-            setPartialSemanticArrays(null);
 
             return { status: 'done', text: segmentResult.translatedText };
           },
@@ -486,9 +450,8 @@ const Translator = ({ isActive }) => {
             timeoutMs: translationTimeoutMs(text.length),
             // CODE REVIEW FIX (CRITICAL-3): a reload awaits this through cancelAllTranslations()
             cleanup: async ({ superseded }) => {
-              // A newer run owns the streaming flags and the progress handler now
+              // A newer run owns the streaming flags now
               if (!superseded) {
-                debouncedProgressHandler.current.cleanup();
                 updateStreaming({ isStreaming: false });
                 setActiveTranslations(0);
                 logger.log('🏁 Translation finished');
@@ -499,6 +462,17 @@ const Translator = ({ isActive }) => {
           }
         );
       } catch (error) {
+        // A run that ended early leaves its partial text on screen once the overlay hides:
+        // a Reader preempt, a timeout, an engine error. A plain cancel (a newer run, a reload,
+        // unmount) does not; whatever cancelled it writes its own text (ADR-105).
+        const endedEarly =
+          preemptedByReader ||
+          !(
+            error instanceof TranslationCancelledError || error instanceof EngineAccessRefusedError
+          );
+        const partialText = latestPartialText();
+        if (endedEarly && partialText) setStreamingText(partialText);
+
         if (preemptedByReader) {
           toast.warning(
             'Translation paused: the Reader needed the engine. Translate again to finish.',
@@ -560,7 +534,6 @@ const Translator = ({ isActive }) => {
     cancelAllTranslations,
     isTranslatingRef,
     setIsTranslating,
-    setProgressInfo,
     setStatusMessage,
     setTranslationError,
     setDictionaryReloading,
@@ -761,7 +734,6 @@ const Translator = ({ isActive }) => {
         isLoading={isLoading}
         isReloading={isDictionaryReloading}
         isTranslating={isTranslating}
-        progressInfo={progressInfo}
         activeTranslations={activeTranslations}
         avgTime={avgTime}
         throttledStreamingState={throttledStreamingState}
@@ -773,7 +745,6 @@ const Translator = ({ isActive }) => {
         characterOnlyText={characterOnlyText}
         semanticArrays={semanticArrays}
         characterOnlySemanticArrays={characterOnlySemanticArrays}
-        partialSemanticArrays={partialSemanticArrays}
         prebuiltSegments={prebuiltSegments}
         highlightedUnitIndex={highlightedUnitIndex}
         highlightedCharacterOnlyUnitIndex={highlightedCharacterOnlyUnitIndex}

@@ -24,7 +24,6 @@ function baseForceReloadParams(overrides = {}) {
     cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete: Promise.resolve() })),
     isTranslatingRef: { current: false },
     setIsTranslating: vi.fn(),
-    setProgressInfo: vi.fn(),
     setStatusMessage: vi.fn(),
     setTranslationError: vi.fn(),
     setDictionaryReloading: vi.fn(),
@@ -89,7 +88,6 @@ describe('useForceReloadContext', () => {
 
       expect(params.isTranslatingRef.current).toBe(false);
       expect(params.setIsTranslating).toHaveBeenCalledWith(false);
-      expect(params.setProgressInfo).toHaveBeenCalledWith(null);
     });
 
     test('when count > 0: awaits cleanupComplete before resetting translating state', async () => {

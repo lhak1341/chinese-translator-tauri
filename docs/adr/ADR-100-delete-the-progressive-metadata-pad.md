@@ -24,3 +24,7 @@ Delete the pad: the gap-filling loop, `DEFAULT_METADATA`, `isMissing` and its ty
 ## Consequence
 
 A review that proposes padding the builder's output to a length should first find a way the builder can emit unequal arrays; the new test is where that would show. Not done here: `snapshotSemanticArrays` is JavaScript with `Array<*>` types, so `FullTextAssemblyResult.semanticArrays` is an array of `any` at the Translator boundary, which could be typed as `SemanticArrays`; and `getArrays(copy = false)` and its development-only freeze have no caller outside the builder. Both are separate changes.
+
+## Addendum (2026-10-12)
+
+ADR-105 took the semantic arrays off the batch event, and deleted the progress update and `ProgressiveProgressReporter.js`. `snapshotSemanticArrays` now lives in `FullTextAssembly.ts` and copies only the final result. Typed there, it carries the builder's element types, so the `any` at the Translator boundary noted above is gone. The 9,312 per-batch snapshots measured here no longer happen. `getArrays()` already copies by default, so the remaining snapshot is a second copy (inferred, not measured); removing it is a separate change.
