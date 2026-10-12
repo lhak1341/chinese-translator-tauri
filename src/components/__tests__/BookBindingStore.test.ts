@@ -390,6 +390,31 @@ describe('renaming a dictionary', () => {
     expect(snap().missingFictionDictionary).toBe('properNouns-f_TapDo');
     expect(inUse()).toBeNull();
   });
+
+  // A typed `f_`/`_` is the tier, so a rename could promote a fiction dictionary without
+  // unbinding its books or rebuilding the engine; moving tiers is `moveDictionaryTier`'s.
+  test.each([
+    ['fiction to generic', 'properNouns-f_TapDo', 'properNouns-_TapDo'],
+    ['generic to custom', 'properNouns-_AiCap', 'properNouns-AiCap'],
+    ['custom to fiction', 'properNouns-Foo', 'properNouns-f_Foo'],
+  ])(
+    'a rename that changes the tier (%s) is refused before anything moves',
+    async (_, oldId, newId) => {
+      const store = setup();
+      store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+      await settle();
+      await waitFor(() => expect(inUse()).toBe('properNouns-f_TapDo'));
+
+      const response = await store.renameDictionary(oldId, newId);
+
+      expect(response.success).toBe(false);
+      expect(response.filesMoved).toBe(false);
+      expect(response.error).toContain('keeps the dictionary');
+      expect(renameProperNounsDictionary).not.toHaveBeenCalled();
+      expect(applyRename).not.toHaveBeenCalled();
+      expect(snap().binding).toEqual({ fictionDictionary: 'properNouns-f_TapDo' });
+    }
+  );
 });
 
 describe('moving a dictionary between fiction and generic', () => {

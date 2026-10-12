@@ -750,8 +750,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryForm.ts": {
-    "mtime": 1791023263.5313869,
-    "ast_hash": "afe642aa316436006f8e9d844fb54b8e",
+    "mtime": 1791825341.738885,
+    "ast_hash": "8c9a5128884097e2a2ac8b0f6cc2603a",
     "semantic_hash": ""
   },
   "src/hooks/useInlineFieldEdit.ts": {
@@ -775,8 +775,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1791817199.7168043,
-    "ast_hash": "ffd3800b707b80a5c562dd3faf5dd98a",
+    "mtime": 1791825357.0711746,
+    "ast_hash": "c1dfbfbf4814746791b2d1987191122d",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1060,8 +1060,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1791816190.4471877,
-    "ast_hash": "448aa70f7e3b8b84d662fd9ce5d3af6f",
+    "mtime": 1791824537.3238733,
+    "ast_hash": "ed9fb2a5f6bc9a20da35b599b0afa477",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1410,8 +1410,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-039-skip-usedictionaryentryform-split.md": {
-    "mtime": 1786760381.716048,
-    "ast_hash": "8dfb289197aa0abc05dd5cab913fef5c",
+    "mtime": 1791825357.0890744,
+    "ast_hash": "c25603b67f7fb6f9bf78ae48e59cd016",
     "semantic_hash": ""
   },
   "src/utils/highlighting/PositionBasedSegmentBuilder.ts": {
@@ -1530,8 +1530,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1791375542.5272112,
-    "ast_hash": "6d768b72d9cc3c12b12f5ebf06f04df6",
+    "mtime": 1791824519.1741967,
+    "ast_hash": "a201cb0fd78b2e607c275174aa59c6d2",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -2000,8 +2000,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingStore.ts": {
-    "mtime": 1791004400.647182,
-    "ast_hash": "44fb3ff1794c0373c41ba291f07f30f9",
+    "mtime": 1791820500.3292823,
+    "ast_hash": "486c61cdb38eded4a4e03dd1cdc35f08",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryTabNavigation.ts": {
@@ -2010,8 +2010,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-057-skip-reader-session-module.md": {
-    "mtime": 1790870535.1366496,
-    "ast_hash": "11840e0f3f3dbe40e4ff1b103cc451d7",
+    "mtime": 1791824530.1187649,
+    "ast_hash": "38cf98c2658636db9dc9aa81620e31e0",
     "semantic_hash": ""
   },
   "docs/adr/ADR-058-delete-runtime-wasm-parity-validation.md": {

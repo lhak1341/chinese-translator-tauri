@@ -100,6 +100,17 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   // file — each does a full read + decode on the Rust side, so a duplicate is wasted
   // work, not just a UI oddity.
   const openingFileNameRef = useRef<string | null>(null);
+  // Latest started wins: a shelf click during a slow decode (the launch resume's, typically)
+  // starts a second open, and whichever resolved last used to take the screen and the binding.
+  // Each open takes a number and lands only if no open started after it.
+  const latestOpenRef = useRef(0);
+
+  /** Every way off a book — Back, the encoding prompt, a failed open — lets go of the
+   * fiction slice and stops the next launch resuming it. The caller decides the screen. */
+  const leaveReading = useCallback((): void => {
+    announceClosedBook();
+    rememberReading({ resumeOnLaunch: false });
+  }, [announceClosedBook]);
 
   const openBook = useCallback(
     async (book: LibraryBook, encodingOverride?: string): Promise<void> => {
@@ -110,9 +121,11 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       // settled: Back queued the final position write as the reader unmounted, and a reopen
       // faster than that write would otherwise restore the position before it.
       if (!encodingOverride && open && open.book.fileName === book.fileName) {
+        const openId = ++latestOpenRef.current;
         setEncodingChoice(null);
         try {
           const records = await readSettledRecords();
+          if (openId !== latestOpenRef.current) return;
           const record = records[open.book.fingerprint];
           if (record) {
             // Re-announcing on a reopen is what makes returning to a book you had bound
@@ -125,6 +138,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         } catch (cause) {
           logger.error('Failed to refresh the book record on reopen:', cause);
         }
+        if (openId !== latestOpenRef.current) return;
         rememberReading({ lastBook: open.book.fingerprint, resumeOnLaunch: true });
         setLastBook(open.book.fingerprint);
         setIsReading(true);
@@ -132,6 +146,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
       }
       if (openingFileNameRef.current === book.fileName) return;
       openingFileNameRef.current = book.fileName;
+      const openId = ++latestOpenRef.current;
       setOpenError(null);
       try {
         const result = await window.electronAPI.openBook(
@@ -140,6 +155,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           encodingOverride ?? null
         );
         if (result.status === 'needsEncoding' || !result.book) {
+          if (openId !== latestOpenRef.current) return;
           setEncodingChoice({
             fileName: book.fileName,
             title: book.title,
@@ -149,12 +165,10 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           setOpen(null);
           // No book on screen while the encoding is chosen, so the previous one stops
           // holding the fiction slice; picking an encoding announces the new book.
-          announceClosedBook();
-          rememberReading({ resumeOnLaunch: false });
+          leaveReading();
           setIsReading(true);
           return;
         }
-        setEncodingChoice(null);
         // Refresh (or create) this book's observations now that its true line count and
         // encoding are known — preserves any existing reading position and chapter outline.
         // A failed write leaves the record at "nothing known" rather than blocking the open.
@@ -171,6 +185,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         } catch (cause) {
           logger.error('Failed to record the book as opened:', cause);
         }
+        // The record write lands either way (it is true of the file); the screen does not.
+        if (openId !== latestOpenRef.current) return;
+        setEncodingChoice(null);
         // Outside that try on purpose. If the record write failed, the new book must still
         // take authority: `record` is then `emptyBookRecord`, whose `binding` is `null`
         // ("never answered"), which applies the
@@ -184,13 +201,18 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
+        if (openId !== latestOpenRef.current) return;
+        // A failed switch lands on the shelf, so the book still decoded behind it lets go
+        // too, the same as Back.
+        leaveReading();
         setOpenError(extractErrorMessage(cause));
         setIsReading(false);
       } finally {
-        openingFileNameRef.current = null;
+        // Only this open's own claim: a later open of another file holds the ref now.
+        if (openingFileNameRef.current === book.fileName) openingFileNameRef.current = null;
       }
     },
-    [announceClosedBook, announceOpenBook, configuredPath, open]
+    [announceOpenBook, configuredPath, leaveReading, open]
   );
 
   const chooseEncoding = useCallback(
@@ -233,10 +255,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const backToShelf = useCallback((): void => {
     // The book stays decoded so coming back is instant, but it stops holding the fiction
     // slice of the active dictionaries — reopening it announces it again.
-    announceClosedBook();
-    rememberReading({ resumeOnLaunch: false });
+    leaveReading();
     setIsReading(false);
-  }, [announceClosedBook]);
+  }, [leaveReading]);
 
   /**
    * Launch resume: once the first scan lands, reopen the book that was on screen when the

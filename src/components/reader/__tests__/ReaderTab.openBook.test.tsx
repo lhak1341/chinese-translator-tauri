@@ -479,6 +479,80 @@ describe('ReaderTab openBook', () => {
     await waitFor(() => expect(screen.getByText('notice:disk exploded')).toBeTruthy());
     expect(screen.getByText('open:novel.txt')).toBeTruthy();
   });
+
+  describe('with two books on the shelf', () => {
+    const otherLibraryBook: LibraryBook = { ...libraryBook, fileName: 'other.txt', title: 'other' };
+    const otherBook: OpenBook = { ...openedBook, fingerprint: 'fp-2', fileName: 'other.txt' };
+
+    beforeEach(() => {
+      tauriAPI.scanLibrary.mockResolvedValue({
+        libraryPath: '/lib',
+        books: [libraryBook, otherLibraryBook],
+      });
+      reconcile.reconcileLibraryScan.mockResolvedValue({
+        shelfBooks: [
+          { ...libraryBook, fingerprint: 'fp-1' },
+          { ...otherLibraryBook, fingerprint: 'fp-2' },
+        ],
+        unavailableBooks: [],
+      });
+      bookRecordsBackend.recordBookOpened.mockResolvedValue({
+        position: null,
+        chapterOutline: null,
+        manualChapterPattern: null,
+        binding: null,
+      });
+    });
+
+    it('a failed palette switch leaves reading the way Back does', async () => {
+      tauriAPI.openBook.mockImplementation(async (fileName: string) => {
+        if (fileName === 'other.txt') throw new Error('disk exploded');
+        return { status: 'opened', encoding, book: openedBook };
+      });
+
+      render(<ReaderTab isActive={true} />);
+      fireEvent.click(await screen.findByText('open:novel.txt'));
+      fireEvent.click(await screen.findByText('switch:other.txt'));
+
+      await waitFor(() => expect(screen.getByText('notice:disk exploded')).toBeTruthy());
+      // The shelf is on screen, so the first book no longer holds the fiction slice, and
+      // the next launch does not resume it.
+      expect(announceClosedBook).toHaveBeenCalledTimes(1);
+      expect(appConfig.saveAppConfig).toHaveBeenLastCalledWith({
+        reader: { resumeOnLaunch: false },
+      });
+    });
+
+    it('of two opens in flight, the one started last lands, whichever decodes first', async () => {
+      const resolvers: Record<string, (book: OpenBook) => void> = {};
+      tauriAPI.openBook.mockImplementation(
+        (fileName: string) =>
+          new Promise((resolve) => {
+            resolvers[fileName] = (book) => resolve({ status: 'opened', encoding, book });
+          })
+      );
+
+      render(<ReaderTab isActive={true} />);
+      fireEvent.click(await screen.findByText('open:novel.txt'));
+      fireEvent.click(await screen.findByText('open:other.txt'));
+      await waitFor(() => expect(tauriAPI.openBook).toHaveBeenCalledTimes(2));
+
+      resolvers['other.txt'](otherBook);
+      await screen.findByText('reading:other.txt');
+      resolvers['novel.txt'](openedBook);
+      await waitFor(() =>
+        expect(bookRecordsBackend.recordBookOpened).toHaveBeenCalledWith('fp-1', expect.anything())
+      );
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(screen.getByText('reading:other.txt')).toBeInTheDocument();
+      expect(announceOpenBook).toHaveBeenCalledTimes(1);
+      expect(announceOpenBook).toHaveBeenLastCalledWith(
+        { fingerprint: 'fp-2', fileName: 'other.txt', title: 'novel' },
+        null
+      );
+    });
+  });
 });
 
 describe('ReaderTab remembers the last book across launches', () => {

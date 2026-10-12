@@ -184,6 +184,18 @@ describe('ConfigurationManager handleConfirmRename', () => {
     );
   });
 
+  test('a rename typed into another tier is refused, and nothing moves', async () => {
+    await mount(withPatterns(['properNouns', 'properNouns-f_Old']));
+
+    await openRenameAndConfirm('f_Old', '_Old');
+
+    await waitFor(() =>
+      expect(screen.getByText(/Dictionary rename failed: A rename keeps/)).toBeInTheDocument()
+    );
+    expect(h.api.renameProperNounsDictionary).not.toHaveBeenCalled();
+    expect(Object.keys(h.store.getSnapshot().dictionaries)).toContain('properNouns-f_Old');
+  });
+
   test('rename failure leaves the dictionaries in memory untouched', async () => {
     await mount(['properNouns', 'properNouns-Old']);
     h.api.renameProperNounsDictionary.mockResolvedValueOnce({

@@ -394,10 +394,12 @@ describe('selectDictionary', () => {
   });
 });
 
-// ─── Debounced validation ─────────────────────────────────────────────────────
-// Uses fake timers to control the 300ms debounce in handleSourceChange.
+// ─── Live validation ──────────────────────────────────────────────────────────
+// The flags are derived from what is typed, so they are right on the render after a change.
+// Fake timers stay: until 2026-10-13 a 300ms debounce re-checked the source against the
+// translation it closed over, and the stale-translation test needs a timer to advance.
 
-describe('debounced character validation', () => {
+describe('live validation flags', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('navigator', {
@@ -409,7 +411,7 @@ describe('debounced character validation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('showCharacterValidation true after debounce for multi-char source in characters dict', async () => {
+  it('showCharacterValidation true for multi-char source in characters dict', () => {
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'characters', makeDeps())
     );
@@ -420,14 +422,10 @@ describe('debounced character validation', () => {
       } as React.ChangeEvent<HTMLInputElement>);
     });
 
-    await act(async () => {
-      vi.advanceTimersByTime(300);
-    });
-
     expect(result.current.showCharacterValidation).toBe(true);
   });
 
-  it('showCharacterValidation false for single char in characters dict', async () => {
+  it('showCharacterValidation false for single char in characters dict', () => {
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'characters', makeDeps())
     );
@@ -438,11 +436,26 @@ describe('debounced character validation', () => {
       } as React.ChangeEvent<HTMLInputElement>);
     });
 
+    expect(result.current.showCharacterValidation).toBe(false);
+  });
+
+  it('a translation fixed right after a source edit is not re-checked against the old one', async () => {
+    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'patterns', makeDeps()));
+    act(() => result.current.setTranslation('X của'));
+    act(() => {
+      result.current.handleSourceChange({
+        target: { value: 'X的Y' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+    expect(result.current.showPatternValidation).toBe(true);
+
+    act(() => result.current.setTranslation('Y của X'));
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
 
-    expect(result.current.showCharacterValidation).toBe(false);
+    expect(result.current.isFormValid).toBe(true);
+    expect(result.current.showPatternValidation).toBe(false);
   });
 });
 
@@ -451,6 +464,20 @@ describe('debounced character validation', () => {
 describe('isFormValid', () => {
   beforeEach(stubEmptyClipboard);
   afterEach(() => vi.unstubAllGlobals());
+
+  it('false for a source submit would refuse as too long, so Save matches submit', async () => {
+    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
+    await act(async () => {});
+
+    act(() => {
+      result.current.handleSourceChange({
+        target: { value: '你'.repeat(10001) },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.setTranslation('hello');
+    });
+
+    expect(result.current.isFormValid).toBe(false);
+  });
 
   it('false when source and translation are both empty', async () => {
     const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));

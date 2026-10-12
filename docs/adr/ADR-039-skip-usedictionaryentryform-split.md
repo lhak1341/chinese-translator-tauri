@@ -26,3 +26,7 @@ Do not split `useDictionaryEntryForm`. The wide return object is the natural sha
 ## Consequence
 
 Future architecture reviews should not re-flag `useDictionaryEntryForm`'s return-object size on sight. A split becomes worth reconsidering only with new evidence — e.g. a second real caller needing a narrower slice of the form state, or a concrete testing/isolation difficulty that reading the file doesn't already contradict. Absent that, the hook's job stays "own all dictionary-entry form logic for its one caller," same as `DictionaryCRUDAPI`/`useDictionaryCRUD` (a genuinely different shape — multiple callers, `Pick<>`-able) was NOT the precedent here.
+
+## Addendum (2026-10-13): no debounce, validation derived — decision unchanged
+
+Architecture review 2026-10-12, candidate #3. The "debounced dual validation" the Context lists is gone: the hook derives `showCharacterValidation`, `showPatternValidation` and `isFormValid` from one `checkEntry` result per render, and the debounce (which re-checked against a stale translation) is deleted. The return shape and its one caller are unchanged, so nothing here bears on the split this ADR declined.

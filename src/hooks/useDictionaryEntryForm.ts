@@ -126,14 +126,10 @@ export function useDictionaryEntryForm(
   const [openedDictionary] = useState<string>(selectedDictionary);
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const translationInputRef = useRef<HTMLInputElement>(null);
-  const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
   const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [existingEntry, setExistingEntry] = useState<ExistingEntryData | null>(null);
   const [showExistingEntryNotification, setShowExistingEntryNotification] =
     useState<boolean>(false);
-  const [showCharacterValidation, setShowCharacterValidation] = useState<boolean>(false);
-  const [showPatternValidation, setShowPatternValidation] = useState<boolean>(false);
-  const [isFormValid, setIsFormValid] = useState<boolean>(true);
   const { rules: transformRules, isLoading: rulesLoading } = useTransformRules();
   const [roughGlossReference, setRoughGlossReference] = useState<string>('');
 
@@ -149,15 +145,6 @@ export function useDictionaryEntryForm(
     }
   }, [entry]);
 
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debouncedValidateRef.current) {
-        clearTimeout(debouncedValidateRef.current);
-      }
-    };
-  }, []);
-
   const offersDropdown = quickAddView !== undefined;
   const availableDictionaries = useMemo(
     () =>
@@ -169,30 +156,16 @@ export function useDictionaryEntryForm(
     [offersDropdown, quickAddView, allDictionaryTypes, openedDictionary]
   );
 
-  // Runs every entry rule once and shows the character and pattern flags from the result.
-  const checkAndShow = useCallback(
-    (sourceText: string, translationText: string) => {
-      const check = checkEntry(activeDictionary, sourceText, translationText);
-      setShowCharacterValidation(check.character !== null);
-      setShowPatternValidation(check.pattern !== null);
-      return check;
-    },
-    [activeDictionary]
+  // Every entry rule, run on what is typed now. The live flags and Save's enabled state are
+  // read off it, so none can lag the inputs; Save is disabled exactly when submit would refuse.
+  // The character and pattern flags show while the translation is still empty.
+  const check = useMemo(
+    () => checkEntry(activeDictionary, source, translation),
+    [activeDictionary, source, translation]
   );
-
-  const validateForm = useCallback((): boolean => {
-    const hasSource = source.trim().length > 0;
-    const hasTranslation = translation.trim().length > 0;
-    const check = checkAndShow(source, translation);
-    const isValid =
-      hasSource && hasTranslation && check.character === null && check.pattern === null;
-    setIsFormValid(isValid);
-    return isValid;
-  }, [source, translation, checkAndShow]);
-
-  useEffect(() => {
-    validateForm();
-  }, [source, translation, validateForm]);
+  const showCharacterValidation = check.character !== null;
+  const showPatternValidation = check.pattern !== null;
+  const isFormValid = firstEntryError(check) === null;
 
   // What an Add starts from, trimmed — null when there is nothing to seed from. The form never
   // reads the clipboard: the Add routes resolve the source (`resolveQuickAddSource`), and a
@@ -261,18 +234,16 @@ export function useDictionaryEntryForm(
 
         for (const [dictionaryId, dictionary] of Object.entries(dictionaries)) {
           if (dictionary && typeof dictionary === 'object' && dictionary[trimmedSource]) {
-            const existing = dictionary[trimmedSource] as DictionaryEntryValue;
-            const translationText =
-              typeof existing === 'string'
-                ? existing
-                : (existing as Extract<DictionaryEntryValue, { translation: string }>).translation;
+            const { translation: translationText } = entryFields(
+              dictionary[trimmedSource] as DictionaryEntryValue
+            );
 
             const dictionaryInfo = allDictionaryTypes?.[dictionaryId];
             setExistingEntry({
               dictionaryId,
               dictionaryName: dictionaryInfo?.label || dictionaryId,
               source: trimmedSource,
-              translation: translationText as string,
+              translation: translationText,
               isSelectedDictionary: dictionaryId === selectedId,
             });
             setShowExistingEntryNotification(true);
@@ -305,8 +276,6 @@ export function useDictionaryEntryForm(
     }
     setExistingEntry(null);
     setShowExistingEntryNotification(false);
-    setShowCharacterValidation(false);
-    setShowPatternValidation(false);
   };
 
   const selectDictionary = (dictionaryId: string): void => {
@@ -324,10 +293,6 @@ export function useDictionaryEntryForm(
       setShowExistingEntryNotification(false);
       setExistingEntry(null);
     }
-    if (debouncedValidateRef.current) clearTimeout(debouncedValidateRef.current);
-    debouncedValidateRef.current = setTimeout(() => {
-      checkAndShow(newSource, translation);
-    }, 300);
   };
 
   const handleTranslationFocus = (): void => {
@@ -345,7 +310,7 @@ export function useDictionaryEntryForm(
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<boolean> => {
     e.preventDefault();
 
-    const submitError = firstEntryError(checkAndShow(source, translation));
+    const submitError = firstEntryError(check);
     if (submitError) {
       setError(submitError);
       return false;

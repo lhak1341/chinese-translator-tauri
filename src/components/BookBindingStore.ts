@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import {
   isFictionProperNounsId,
   otherPairedTierId,
+  tierOf,
 } from '../utils/dictionary/DictionaryIdClassifier';
 import {
   activeListChange,
@@ -356,6 +357,18 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
 
     renameDictionary: (oldId, newId) =>
       enqueue(async () => {
+        // The tier is part of the typed name, so a rename could otherwise promote a fiction
+        // dictionary with its books still bound and no rebuild. Moving tiers is
+        // `moveDictionaryTier`'s, which calls `deps.renameDictionary` directly.
+        if (tierOf(oldId) !== tierOf(newId)) {
+          return {
+            success: false,
+            error:
+              "A rename keeps the dictionary's tier (fiction f_, generic _, custom no prefix). " +
+              'To move between fiction and generic, right-click the row.',
+            filesMoved: false,
+          };
+        }
         // Moves both files and brings the in-memory dictionaries along.
         const result = await deps.renameDictionary(oldId, newId);
         if (!result.success) return { success: false, error: result.error, filesMoved: false };

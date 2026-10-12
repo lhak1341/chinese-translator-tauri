@@ -27,3 +27,9 @@ Do not build a `ReaderSession` module. The one concrete defect found in the area
 ## Consequence
 
 A future review should not re-propose a `ReaderSession` module from the field count or the mock count of `ReaderTab.openBook.test.tsx`. Revisit if a transition bug appears that traces to these states disagreeing, or if a second component needs to start or resume a reading session and would want a narrower interface than `ReaderTab`'s.
+
+## Addendum (2026-10-13): the revisit trigger fired, narrowly — decision unchanged
+
+Architecture review 2026-10-12, candidate #2, found two transition bugs by reading `openBook`. A failed open (a palette switch whose decode threw) went to the shelf without `announceClosedBook`, so the binding store kept the previous book open, the Configuration tab stayed locked, and `resumeOnLaunch` stayed true. And two opens in flight (a shelf click during the launch resume's decode) landed in whichever order they resolved. The first is the disagreement this ADR's Consequence names, but between `ReaderTab` and `BookBindingStore`, not among `ReaderTab`'s own fields.
+
+Both were fixed inside `ReaderTab`: one `leaveReading()` (`announceClosedBook` plus `resumeOnLaunch: false`) that Back, the encoding prompt and a failed open all call, and a `latestOpenRef` counter so only the open started last touches the screen or the binding (its `recordBookOpened` write still lands). Neither fix needed a named session state, so a `ReaderSession` module is still not warranted. Pinned in `ReaderTab.openBook.test.tsx`.
