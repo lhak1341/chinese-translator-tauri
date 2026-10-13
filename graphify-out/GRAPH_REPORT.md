@@ -2,18 +2,18 @@
 
 ## Corpus Check
 
-- 459 files · ~412,215 words
+- 459 files · ~412,347 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 4433 nodes · 8943 edges · 346 communities (280 shown, 66 thin omitted)
+- 4433 nodes · 8943 edges · 346 communities (279 shown, 67 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 130 edges (avg confidence: 0.77)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `11904480`
+- Built from commit: `3619cca8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -392,7 +392,7 @@
 
 - **RulesManager two-surface shared field-policy group** — src_components_rules_newrulemodal_newrulemodal, src_components_rules_rulerow_rulerow, src_components_rules_rulefieldvalidation_rulefieldvalidation, src_utils_dictionary_transformruleengine_transformruleengine, src_components_rules_tests_rulefieldparity_rulefieldparity [EXTRACTED 1.00]
 
-## Communities (346 total, 66 thin omitted)
+## Communities (346 total, 67 thin omitted)
 
 ### Community 0 - "dictionary_commands.rs"
 
@@ -547,7 +547,7 @@ Nodes (20): ADR-0012, HotkeyHandler(), tabForShortcutDigit(), HotkeyHandlerOptio
 ### Community 32 - "Code Review Fixes - Implementation Summary"
 
 Cohesion: 0.12
-Nodes (6): DictionaryValue, FlatDictionaryEntry, flattenDictionaryEntries(), DictionaryManager, ADR-0087, buildTrieFromDictionary()
+Nodes (8): DictionaryValue, FlatDictionaryEntry, flattenDictionaryEntries(), DictionaryManager, ADR-0087, buildTrieFromDictionary(), resolveDictionaryPriority(), TrieBuildResult
 
 ### Community 33 - "Pattern Processing Code Review Fixes"
 
@@ -711,8 +711,8 @@ Nodes (23): K, MutexGuard, Q, a_get_protects_an_entry_from_eviction(), a_miss_le
 
 ### Community 68 - "tauriAPI.ts"
 
-Cohesion: 0.14
-Nodes (28): ADR-0060, ConfigurationManager(), TierMenu(), TierMenuProps, KIND_COLUMNS, TextColumn, bareNameOf(), DictionaryKind (+20 more)
+Cohesion: 0.13
+Nodes (30): ADR-0060, ConfigurationManager(), TierMenu(), TierMenuProps, KIND_COLUMNS, TextColumn, bareNameOf(), DictionaryKind (+22 more)
 
 ### Community 69 - "WasmProcessorLifecycle.js"
 
@@ -902,7 +902,7 @@ Nodes (5): ADR-061: Skip a Shelf Row Module, Consequence, Context, Decision, Rea
 ### Community 107 - "TextAssembly.js"
 
 Cohesion: 0.15
-Nodes (18): CLOSED, DictionaryModals, DictionaryModalsOptions, OpenQuickAdd, QuickAddModalState, sharedShortlistMemory, toProperNounsId(), dictionaryTabNavigation (+10 more)
+Nodes (21): CLOSED, DictionaryModals, DictionaryModalsOptions, OpenQuickAdd, QuickAddModalState, sharedShortlistMemory, useDictionaryModals(), toProperNounsId() (+13 more)
 
 ### Community 108 - "PatternFailureTracker"
 
@@ -1076,7 +1076,7 @@ Nodes (8): AtomicU64, DictionaryCache, get_cache_key(), load_dictionary_file(), 
 
 ### Community 142 - "Resolved Bug Postmortems"
 
-Cohesion: 0.24
+Cohesion: 0.25
 Nodes (7): checkVariableStructure(), checkVariableSymmetry(), countVariableOccurrences(), extractPatternVariables(), validatePatternVariables(), PATTERN_VARIABLE_LETTERS, PatternTemplateEngine
 
 ### Community 143 - "WordTransformToolbar.tsx"
@@ -1091,8 +1091,8 @@ Nodes (4): ADR-102: Keep `utils/toast` as the Notification Seam, Consequence, Co
 
 ### Community 145 - "ParallelConfig"
 
-Cohesion: 0.21
-Nodes (17): useDictionaryModals(), callRustConfigWrite(), hasPairedPatterns(), toPatternsId(), createDictionary(), createMissingPatternHalves(), DictionaryPairOps, halvesOf() (+9 more)
+Cohesion: 0.35
+Nodes (11): callRustConfigWrite(), hasPairedPatterns(), toPatternsId(), createDictionary(), createMissingPatternHalves(), DictionaryPairOps, halvesOf(), renameDictionary() (+3 more)
 
 ### Community 146 - "package.json"
 
@@ -1464,11 +1464,6 @@ Nodes (5): ADR-085: EngineAccess — one queue for both tabs, ownership follows 
 Cohesion: 0.33
 Nodes (6): src/**/\*.d.ts, src/**/_.js, src/\**/_.jsx, src/**/\*.ts, src/**/*.tsx, include
 
-### Community 231 - "DictionaryTrie"
-
-Cohesion: 0.18
-Nodes (3): DictionaryTrie, TrieNode, TrieBuildResult
-
 ### Community 232 - "TranslationCache"
 
 Cohesion: 0.27
@@ -1758,7 +1753,7 @@ Nodes (43): SemanticTypePickerProps, NewRuleModal(), RuleRow(), EMPTY_DRAFT, Rul
 
 - **1662 isolated node(s):** `checkJs`, `jsx`, `module`, `moduleResolution`, `target` (+1657 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **66 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **67 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 
@@ -1766,7 +1761,7 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `react` connect `DictionaryTypes.ts` to `Chinese-Vietnamese Translation App`, `DictionaryCache`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `_assertNum`, `ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential`, `Translator.jsx`, `Systematic Refactoring: Pure Utility Extraction`, `UtilityTypes.d.ts`, `Content Security Policy (CSP) and WASM Security`, `Future Improvements Implementation - 2026-02-01`, `eslint-config-prettier`, `Test Coverage Improvements Summary`, `SegmentedParagraphs.tsx`, `WASM Serialization Optimization Implementation Plan`, `Memory Leak Prevention`, `TypeScript/Rust Optimization Progress Report`, `Pattern Processing Code Review Fixes`, `WasmDictionaryAdapter`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useStreamingTranslation.js`, `DictionaryEngine`, `TextAssembly.js`, `useCharacterOnlySegments.ts`, `ADR-018: Unified PerformanceReport State in usePerformanceMonitoring`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `WasmDictionaryManager`, `DictionaryManager.js`, `tauriAPI.ts`, `DictionaryContext.tsx`, `DictionaryEntry.tsx`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `types`, `DictionaryTrieLoader.js`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TranslationCache`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `eslint-plugin-react`?**
   _High betweenness centrality (0.065) - this node is a cross-community bridge._
-- **Why does `Logger` connect `Systematic Refactoring: Pure Utility Extraction` to `Chinese-Vietnamese Translation App`, `DictionaryCache`, `DictionaryManagerTypes.d.ts`, `Translator.jsx`, `Resolved Bug Postmortems`, `useStreamingTranslation.js`, `Content Security Policy (CSP) and WASM Security`, `ParallelConfig`, `Future Improvements Implementation - 2026-02-01`, `WASM Code Review Fixes - 2026-01-28`, `Tauri Backend Security Audit`, `WASM Serialization Optimization Implementation Plan`, `TypeScript/Rust Optimization Progress Report`, `Code Review Fixes - Implementation Summary`, `Pattern Processing Code Review Fixes`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useDictionaryConfigManagement.ts`, `useCharacterOnlySegments.ts`, `useStreamingTranslation.js`, `Code Review Fixes - Translation Process`, `DictionaryEngine`, `useCharacterOnlySegments.ts`, `@eslint/js`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `DictionaryEntry.tsx`, `useColumnMetrics.ts`, `Documentation Index`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `PatternFailureTracker`, `SemanticPatternProcessor.js`, `ADR-061: Skip a Shelf Row Module`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `ADR-042: Adopt `@tanstack/react-virtual`for the Reader, Rather Than Extend`useVirtualScrollRange``, `eslint-plugin-react`?**
+- **Why does `Logger` connect `Systematic Refactoring: Pure Utility Extraction` to `Chinese-Vietnamese Translation App`, `DictionaryCache`, `DictionaryManagerTypes.d.ts`, `Translator.jsx`, `Resolved Bug Postmortems`, `useStreamingTranslation.js`, `Content Security Policy (CSP) and WASM Security`, `ParallelConfig`, `Future Improvements Implementation - 2026-02-01`, `WASM Code Review Fixes - 2026-01-28`, `Tauri Backend Security Audit`, `WASM Serialization Optimization Implementation Plan`, `TypeScript/Rust Optimization Progress Report`, `Code Review Fixes - Implementation Summary`, `Pattern Processing Code Review Fixes`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useDictionaryConfigManagement.ts`, `useCharacterOnlySegments.ts`, `ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init`, `useStreamingTranslation.js`, `Code Review Fixes - Translation Process`, `DictionaryEngine`, `useCharacterOnlySegments.ts`, `@eslint/js`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `DictionaryEntry.tsx`, `useColumnMetrics.ts`, `Documentation Index`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `PatternFailureTracker`, `SemanticPatternProcessor.js`, `ADR-061: Skip a Shelf Row Module`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `ADR-042: Adopt `@tanstack/react-virtual`for the Reader, Rather Than Extend`useVirtualScrollRange``, `eslint-plugin-react`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
 - **Why does `react` connect `CacheTypes.d.ts` to `WASM Serialization Optimization Implementation Plan`?**
   _High betweenness centrality (0.018) - this node is a cross-community bridge._

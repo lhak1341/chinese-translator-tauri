@@ -197,7 +197,7 @@ const Translator = ({ isActive }) => {
     if (process.env.NODE_ENV === 'development') {
       installDevConsole(engineRef.current);
     }
-  }, [enginePhase, registerCacheInvalidator]);
+  }, [enginePhase, registerCacheInvalidator, engineRef]);
 
   useEffect(() => {
     if (enginePhase !== 'error' || !initializationError) return;
@@ -257,46 +257,51 @@ const Translator = ({ isActive }) => {
    * // Automatically called after main translation
    * translateCharacterOnly(inputText);
    */
-  const translateCharacterOnly = useCallback(async (text) => {
-    const charOnlyId = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    logger.debug(
-      '[char-translation]',
-      `CHARACTER ONLY TRANSLATION START: ${charOnlyId} (${text.length} chars)`
-    );
+  const translateCharacterOnly = useCallback(
+    async (text) => {
+      const charOnlyId = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      logger.debug(
+        '[char-translation]',
+        `CHARACTER ONLY TRANSLATION START: ${charOnlyId} (${text.length} chars)`
+      );
 
-    if (!text || !text.trim()) {
-      setCharOnlyResult('', null);
-      return Promise.resolve();
-    }
+      if (!text || !text.trim()) {
+        setCharOnlyResult('', null);
+        return Promise.resolve();
+      }
 
-    // No reload guard here, on purpose: useReloadRetranslate calls this inside the reload window,
-    // before the flag clears. User-driven callers guard themselves (see components/CLAUDE.md).
-    try {
-      if (engineRef.current && engineRef.current.isReady()) {
-        // One call, no `onPreempt`: it is short, so the Reader waits for it.
-        const result = await engineAccess.run('translator', (engine) =>
-          engine.translateWithCharactersOnly(text)
-        );
-        if (result) {
-          logger.log(
-            `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
+      // No reload guard here, on purpose: useReloadRetranslate calls this inside the reload window,
+      // before the flag clears. User-driven callers guard themselves (see components/CLAUDE.md).
+      try {
+        if (engineRef.current && engineRef.current.isReady()) {
+          // One call, no `onPreempt`: it is short, so the Reader waits for it.
+          const result = await engineAccess.run('translator', (engine) =>
+            engine.translateWithCharactersOnly(text)
           );
-          // Use requestAnimationFrame for smooth UI updates during parallel processing
-          requestAnimationFrame(() => {
-            setCharOnlyResult(result.translatedText, result.semanticArrays);
-          });
+          if (result) {
+            logger.log(
+              `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
+            );
+            // Use requestAnimationFrame for smooth UI updates during parallel processing
+            requestAnimationFrame(() => {
+              setCharOnlyResult(result.translatedText, result.semanticArrays);
+            });
+          }
+        }
+      } catch (error) {
+        if (error instanceof EngineAccessRefusedError) {
+          // Not the visible tab: nothing is wrong, the Translator redoes it when shown.
+          logger.warn('Character-only translation skipped:', error.message);
+        } else {
+          logger.error('Character-only translation failed:', error);
         }
       }
-    } catch (error) {
-      if (error instanceof EngineAccessRefusedError) {
-        // Not the visible tab: nothing is wrong, the Translator redoes it when shown.
-        logger.warn('Character-only translation skipped:', error.message);
-      } else {
-        logger.error('Character-only translation failed:', error);
-      }
-    }
-    return Promise.resolve();
-  }, []);
+      return Promise.resolve();
+      // All three are stable (a ref, a useState-held queue, a setState-only useCallback), so the
+      // identity stays constant: useAutoTranslateTrigger lists this in its effect deps.
+    },
+    [engineRef, engineAccess, setCharOnlyResult]
+  );
 
   /**
    * Main translation handler - processes Chinese text through 5-phase translation pipeline
@@ -435,7 +440,7 @@ const Translator = ({ isActive }) => {
             );
 
             if (segmentResult && segmentResult.semanticArrays) {
-              setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
+              setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments ?? []);
             }
 
             // Complete streaming
@@ -498,7 +503,19 @@ const Translator = ({ isActive }) => {
     // isLoading and isDictionaryReloading are read from this render's closure on purpose, not
     // through a ref: useForceReload retranslates inside the reload window through a callback
     // captured before the flag was set, and a live flag would refuse it (see components/CLAUDE.md).
-    [isLoading, isDictionaryReloading]
+    // The rest are stable refs/useCallback([]) values, listed for the linter only.
+    [
+      isLoading,
+      isDictionaryReloading,
+      engineRef,
+      engineAccess,
+      translationRunner,
+      updateStreaming,
+      latestPartialText,
+      setResultArrays,
+      setStreamingText,
+      recordTranslation,
+    ]
   );
 
   const executionCtx = {

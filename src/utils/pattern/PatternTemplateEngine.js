@@ -238,7 +238,7 @@ export class PatternTemplateEngine {
     }
 
     // Validate template against pattern variables
-    const templateResult = this.validateTemplate(template, patternResult.variables || []);
+    const templateResult = this.validateTemplate(template, patternResult.variables ?? []);
     if (!templateResult.valid) {
       return templateResult;
     }

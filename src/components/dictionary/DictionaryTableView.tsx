@@ -314,7 +314,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
       <EntryContextMenu menu={contextMenuApi} />
 
       {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
-      {(moveEntry || showBulkMoveDialog) && (
+      {(moveEntry !== null || showBulkMoveDialog) && (
         <MoveDialog
           entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}
           currentDictionary={moveEntry ? moveEntry.dictionaryId : selectedDictionary}

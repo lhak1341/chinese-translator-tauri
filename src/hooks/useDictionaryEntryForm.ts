@@ -110,7 +110,7 @@ export function useDictionaryEntryForm(
   const [initial] = useState(() => (entry ? entryFields(entry.translation) : null));
   const [translation, setTranslation] = useState<string>(initial?.translation ?? '');
   const [allowAsPatternVariable, setAllowAsPatternVariable] = useState<boolean>(
-    initial?.allowAsPatternVariable || entry?.allowAsPatternVariable || false
+    initial?.allowAsPatternVariable === true || entry?.allowAsPatternVariable === true
   );
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
     initial

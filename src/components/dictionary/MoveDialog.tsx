@@ -29,7 +29,7 @@ export interface MoveDialogProps {
 function hasMetadata(metadata: DictionaryEntryMetadata | undefined): boolean {
   if (!metadata) return false;
   return Boolean(
-    metadata.allowAsPatternVariable ||
+    metadata.allowAsPatternVariable === true ||
     metadata.semanticType ||
     (metadata.allowedVariableTypes && Object.keys(metadata.allowedVariableTypes).length > 0)
   );

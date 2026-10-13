@@ -31,7 +31,7 @@ export function fireCascadeRetire() {
   for (const fn of _handlers) {
     try {
       fn();
-    } catch (_) {
+    } catch {
       // retire callbacks must never propagate — a throw here would mask the original panic
     }
   }

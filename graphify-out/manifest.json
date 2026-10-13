@@ -1,7 +1,7 @@
 {
   "eslint.config.js": {
-    "mtime": 1791307488.6516085,
-    "ast_hash": "34dbfc80aafc0f3776f86c5c9bba39d4",
+    "mtime": 1791910497.3994136,
+    "ast_hash": "07055667c67f2c83649d786c1a3fcac7",
     "semantic_hash": ""
   },
   "vite.config.ts": {
@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791817533.355054,
-    "ast_hash": "633a05e9f312b5fea3ec799cf095096a",
+    "mtime": 1791904544.904832,
+    "ast_hash": "5de262cd16dd0c1b97dbb176280ce9f3",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -365,8 +365,8 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmCascadeRegistry.js": {
-    "mtime": 1791338386.5190828,
-    "ast_hash": "1b426504f923395e1d31ce4edc80f6a8",
+    "mtime": 1791904307.3966434,
+    "ast_hash": "c5cd919c99104d880454c59cbdbfd8ac",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmProcessorLifecycle.js": {
@@ -480,8 +480,8 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
-    "mtime": 1791688382.6063335,
-    "ast_hash": "a84372545e5c82a389cdbd6b09842f6a",
+    "mtime": 1791904544.908638,
+    "ast_hash": "45e688825d997b69d4658d6f8799623b",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
@@ -545,8 +545,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1791816262.0408735,
-    "ast_hash": "0a5fb9ff087c879c1e300d0429e5619c",
+    "mtime": 1791904544.8920739,
+    "ast_hash": "61f2b5d0e0065a40c9f451007563eef4",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -615,8 +615,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
-    "mtime": 1790787341.1460273,
-    "ast_hash": "9edf5f56df821ee066163c4fda9a858c",
+    "mtime": 1791904544.8952947,
+    "ast_hash": "b90d8e0243c858da1d70c538e01a4dba",
     "semantic_hash": ""
   },
   "src/components/dictionary/WordTransformToolbar.tsx": {
@@ -685,8 +685,8 @@
     "semantic_hash": "bbd08351a42e2d09a6723cc3610ca167"
   },
   "src/hooks/useScrollPositionManager.js": {
-    "mtime": 1791376895.485031,
-    "ast_hash": "678c6b7fdaf57e4c79aa62eb5a523576",
+    "mtime": 1791904307.1014783,
+    "ast_hash": "6a5c6162f5f404f8c729ee9618c114ef",
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryCRUD.ts": {
@@ -720,9 +720,9 @@
     "semantic_hash": "05f6fc0837211ccb26ae2ac38faa0d0b"
   },
   "src/hooks/useClipboardTranslation.ts": {
-    "mtime": 1781881392.0827966,
-    "ast_hash": "44b3c48f260dd3a00dc0644050b04837",
-    "semantic_hash": "44b3c48f260dd3a00dc0644050b04837"
+    "mtime": 1791904307.7489796,
+    "ast_hash": "82b201c3df97527681d8fe2a366e2ed1",
+    "semantic_hash": ""
   },
   "src/hooks/useContextMenu.ts": {
     "mtime": 1791307480.230876,
@@ -745,13 +745,13 @@
     "semantic_hash": ""
   },
   "src/hooks/useForceReload.js": {
-    "mtime": 1791375542.530165,
-    "ast_hash": "745b1da79cac9192c895496a26b991a5",
+    "mtime": 1791905451.8540065,
+    "ast_hash": "530d7eb8541ae36c9389d8a070fb6eea",
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryForm.ts": {
-    "mtime": 1791825341.738885,
-    "ast_hash": "8c9a5128884097e2a2ac8b0f6cc2603a",
+    "mtime": 1791905420.6218722,
+    "ast_hash": "dd8decadb5dd77d1806724785a9d9c9f",
     "semantic_hash": ""
   },
   "src/hooks/useInlineFieldEdit.ts": {
@@ -1440,8 +1440,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
-    "mtime": 1791007967.611772,
-    "ast_hash": "67cb491aa35c3b13444d59e7abf08c64",
+    "mtime": 1791905420.6177182,
+    "ast_hash": "bee867e958a7eae5f326b7794ad4325f",
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
@@ -1955,8 +1955,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryTableView.tsx": {
-    "mtime": 1791048421.0595763,
-    "ast_hash": "1cd8040decf72a46ec7fcd00ea9bdfc5",
+    "mtime": 1791905420.6132128,
+    "ast_hash": "bfc5930749d944c43a3178abd78c1956",
     "semantic_hash": ""
   },
   "src/components/EditableCell.tsx": {
@@ -2295,8 +2295,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlyAssembly.ts": {
-    "mtime": 1791647203.3089182,
-    "ast_hash": "f144a17d456ec382afe0b77dbed40b1f",
+    "mtime": 1791904544.9148934,
+    "ast_hash": "512059bd02ea26c16570ba2d88ba4c75",
     "semantic_hash": ""
   },
   "src/utils/text/ProgressiveBatchText.ts": {
@@ -2335,8 +2335,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/FullTextAssembly.ts": {
-    "mtime": 1791816127.3622315,
-    "ast_hash": "6239bbbd2e24b03d6e891053defd01b6",
+    "mtime": 1791904544.9117763,
+    "ast_hash": "757b4e7330d3c4794a35c853bbd7a539",
     "semantic_hash": ""
   },
   "src/hooks/useHighlightInteraction.ts": {
@@ -2360,8 +2360,8 @@
     "semantic_hash": ""
   },
   "src/utils/TokenClaim.ts": {
-    "mtime": 1791817285.3464975,
-    "ast_hash": "dc2f23caf8fa6736ce1492dbd752218c",
+    "mtime": 1791904544.8983998,
+    "ast_hash": "bba80b1de59419e96d9c4434056e8c67",
     "semantic_hash": ""
   },
   "src/utils/highlighting/HighlightResolver.ts": {

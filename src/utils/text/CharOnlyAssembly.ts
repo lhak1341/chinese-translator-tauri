@@ -35,7 +35,7 @@ export function assembleCharOnlyResult(
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    const translatedValue = token.translated != null ? token.translated : token.value;
+    const translatedValue = token.translated ?? token.value;
 
     if (
       token.type === 'chinese_char' &&

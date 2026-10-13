@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 
@@ -20,7 +20,8 @@ import { logger } from '../utils/logger';
  * block, AFTER ctx.restoreScrollPositions(), so isDictionaryReloading stays true
  * until scroll is fully restored.
  *
- * @param {ForceReloadContext} ctx - Stable capability methods (excluded from dep array).
+ * @param {ForceReloadContext} latestCtx - Capability methods, rebuilt every render. Read through
+ *   a ref when a reload starts, so the callback's identity does not follow it.
  * @param {boolean} isDictionaryReloading
  * @param {string} inputText
  * @param {boolean} isLoading
@@ -31,14 +32,18 @@ import { logger } from '../utils/logger';
  * @returns {(options?: {retranslateInput?: boolean}) => Promise<void>}
  */
 export function useForceReload(
-  ctx,
+  latestCtx,
   isDictionaryReloading,
   inputText,
   isLoading,
   reloadAllDictionaries
 ) {
+  const ctxRef = useRef(latestCtx);
+  ctxRef.current = latestCtx;
+
   const handleForceReload = useCallback(
     async (options = {}) => {
+      const ctx = ctxRef.current;
       // Step 8 re-translates the Translator's own input. That is right when the reload was
       // triggered from the Translator, and pure waste when it was triggered from the Reader:
       // every tab stays mounted, so the Translator is holding whatever was last pasted into
@@ -163,7 +168,7 @@ export function useForceReload(
       }
     },
     [isDictionaryReloading, inputText, isLoading, reloadAllDictionaries]
-  ); // ctx excluded — all stable
+  );
 
   return handleForceReload;
 }

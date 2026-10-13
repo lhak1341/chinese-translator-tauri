@@ -418,8 +418,8 @@ function footerMessage(form: EntryForm): string | null {
 
 /** Which pattern-variable rule the source/translation pair breaks, in words. */
 function patternMessage(source: string, translation: string): string {
-  const xCount = (source.match(/X/g) || []).length;
-  const yCount = (source.match(/Y/g) || []).length;
+  const xCount = (source.match(/X/g) ?? []).length;
+  const yCount = (source.match(/Y/g) ?? []).length;
   if (xCount > 1) return `Source can have at most one "X" (found ${xCount}).`;
   if (xCount === 0 && yCount > 0)
     return 'Source has "Y" but no "X" — add "X" first, or remove "Y" for a no-variable pattern.';

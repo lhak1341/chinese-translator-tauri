@@ -128,9 +128,15 @@ export default tseslint.config(
       '@typescript-eslint': tseslint.plugin,
     },
     rules: {
-      // Catches `x || default` silently treating an explicit falsy value (0, '', false)
+      // Catches `x || default` silently treating an explicit falsy value (0, false)
       // as absent — use `x ?? default` when only null/undefined should fall back.
-      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      // Strings are exempt: '' meaning "unset" is the norm here (RuleRow's `rule.label || rule.key`
+      // must fall back on an empty label). A boolean "either is true" test is not a fallback:
+      // write `a === true || b === true`, not `??`.
+      '@typescript-eslint/prefer-nullish-coalescing': [
+        'warn',
+        { ignorePrimitives: { string: true }, ignoreIfStatements: true },
+      ],
     },
   },
   {

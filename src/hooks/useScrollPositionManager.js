@@ -122,8 +122,10 @@ export function useScrollPositionManager(refs, options = {}) {
   );
 
   useEffect(() => {
+    // recoveryRef.current is set once by useRef's initializer and never reassigned
+    const recovery = recoveryRef.current;
     return () => {
-      recoveryRef.current.cancel();
+      recovery.cancel();
     };
   }, []);
 

@@ -37,7 +37,7 @@ interface ArraysSnapshot<O, T, M> {
 export function snapshotSemanticArrays<O, T, M>(
   semanticArrays: Partial<ArraysSnapshot<O, T, M>> | null | undefined
 ): ArraysSnapshot<O, T, M> {
-  const arrays = semanticArrays || {};
+  const arrays = semanticArrays ?? {};
   return {
     original: arrays.original ? [...arrays.original] : [],
     translated: arrays.translated ? [...arrays.translated] : [],

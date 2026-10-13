@@ -403,7 +403,7 @@ export class TranslationEngine {
    */
   async initialize(allDictionaries, options = {}) {
     // Use caller-supplied activeProperNouns (already loaded by Translator.jsx before engine init)
-    this.activeProperNouns = options.activeProperNouns || ['properNouns'];
+    this.activeProperNouns = options.activeProperNouns ?? ['properNouns'];
     // The one place the engine's dictionaries are chosen: inactive proper nouns dropped, active
     // paired patterns merged into `patterns` (ADR-027, ADR-048).
     const dictionaries = filterDictionariesForEngine(allDictionaries, this.activeProperNouns);

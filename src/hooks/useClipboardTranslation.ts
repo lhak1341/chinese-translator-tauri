@@ -68,8 +68,7 @@ export function useClipboardTranslation({
         isClipboardBusy.current = false;
       }, 500);
     }
-    // originalTextRef excluded — ref objects are stable; .current read at call time
-  }, [isDictionaryReloading, setInputText, clearHighlighting]);
+  }, [isDictionaryReloading, setInputText, clearHighlighting, originalTextRef]);
 
   return { isClipboardTranslationRef, resetClipboardFlag, handleTranslateFromClipboard };
 }

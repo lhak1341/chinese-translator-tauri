@@ -122,7 +122,7 @@ export function claimGroupedSpan(
   if (lastIndex < tokens.length) leader.end = tokens[lastIndex].end;
 
   const followerSource = consumedSource(source);
-  leader.groupedWith = leader.groupedWith || [];
+  leader.groupedWith = leader.groupedWith ?? [];
   for (let i = 1; i < tokenSpan; i++) {
     const follower = tokens[startIndex + i];
     if (!follower) continue;
