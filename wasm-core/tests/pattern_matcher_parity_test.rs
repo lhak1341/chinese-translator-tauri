@@ -77,6 +77,7 @@ fn fixture_1_simple_single_variable_match() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -122,6 +123,7 @@ fn fixture_2_overlapping_pattern_priority_resolution() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -130,6 +132,7 @@ fn fixture_2_overlapping_pattern_priority_resolution() {
             translation: "mạnh mẽ".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -185,6 +188,7 @@ fn fixture_3_hierarchical_composition_absorbs_phase_a_protected_span() {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -193,6 +197,7 @@ fn fixture_3_hierarchical_composition_absorbs_phase_a_protected_span() {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 

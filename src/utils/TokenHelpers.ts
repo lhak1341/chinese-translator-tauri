@@ -122,11 +122,13 @@ export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
  *
  * Determines how many tokens (starting from startIndex) are needed to
  * match the given text. Stops when text is fully matched or tokens exhausted.
+ * Non-semantic tokens between matched ones (the space in "墨 子") are inside the span, so
+ * the caller claims them too; counting only the matched tokens left the last one unclaimed.
  *
  * @param tokens - Array of tokens
  * @param startIndex - Starting token index
  * @param text - Text to match
- * @returns Number of tokens that match the text
+ * @returns Number of tokens from startIndex through the last matched token
  *
  * @example
  * const span = getTokenSpanForText(tokens, 5, "在那些");
@@ -144,7 +146,7 @@ export function getTokenSpanForText(tokens: TextToken[], startIndex: number, tex
       const valueToCheck = token.originalValue || token.value;
       if (remainingText.startsWith(valueToCheck)) {
         remainingText = remainingText.slice(valueToCheck.length);
-        span++;
+        span = i - startIndex + 1;
       } else {
         break;
       }

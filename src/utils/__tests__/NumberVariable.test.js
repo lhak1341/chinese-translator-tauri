@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   translateNumeral,
+  ordinalOf,
   addNumberVariables,
   patternsUseNumberVariable,
 } from '../pattern/NumberVariable.js';
@@ -35,6 +36,16 @@ describe('translateNumeral', () => {
   });
 });
 
+describe('ordinalOf', () => {
+  test('1 and 4 read differently in a rank; nothing else does', () => {
+    expect(ordinalOf(translateNumeral('一'))).toBe('nhất');
+    expect(ordinalOf(translateNumeral('四'))).toBe('tư');
+    expect(ordinalOf(translateNumeral('二'))).toBeUndefined();
+    expect(ordinalOf(translateNumeral('十'))).toBeUndefined();
+    expect(ordinalOf(translateNumeral('十四'))).toBeUndefined(); // digits: "14"
+  });
+});
+
 describe('addNumberVariables', () => {
   test('adds every numeral sub-span of a run as a number entry', () => {
     const cache = {};
@@ -48,6 +59,14 @@ describe('addNumberVariables', () => {
     expect(cache['十七'].translation).toBe('17');
     expect(cache['七'].translation).toBe('bảy');
     expect(cache['大']).toBeUndefined();
+  });
+
+  test('a numeral with a different ordinal reading carries it', () => {
+    const cache = {};
+    addNumberVariables([tok('一'), tok('四'), tok('七')], cache);
+    expect(cache['一'].ordinal).toBe('nhất');
+    expect(cache['四'].ordinal).toBe('tư');
+    expect(cache['七']).not.toHaveProperty('ordinal');
   });
 
   test('adds an Arabic-number token as itself', () => {

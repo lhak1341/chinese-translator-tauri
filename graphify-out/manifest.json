@@ -60,8 +60,8 @@
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
-    "mtime": 1788112272.1906455,
-    "ast_hash": "d216fbbc5178b23e6adbd8d014e80401",
+    "mtime": 1791901774.60147,
+    "ast_hash": "c66498b19517a0aa805384039031f7e7",
     "semantic_hash": ""
   },
   "wasm-core/src/lib.rs": {
@@ -95,8 +95,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/matcher.rs": {
-    "mtime": 1791681864.6852677,
-    "ast_hash": "40d9aefe682d22f1780f5ec753351357",
+    "mtime": 1791901752.5637803,
+    "ast_hash": "a11915b4f9ca222ca7519a100adf9767",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/index.rs": {
@@ -110,8 +110,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/two_phase.rs": {
-    "mtime": 1791686656.5725682,
-    "ast_hash": "b7c443ca5be3606aecea204b4ffd69d2",
+    "mtime": 1791901549.8992794,
+    "ast_hash": "137658ff716ad92f50f3e9dbb4944c5c",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/wasm_wrapper.rs": {
@@ -280,8 +280,8 @@
     "semantic_hash": ""
   },
   "src/utils/TokenHelpers.ts": {
-    "mtime": 1791705053.6516578,
-    "ast_hash": "7f265e53f2a3e16228cf40c56c7b335f",
+    "mtime": 1791903387.310238,
+    "ast_hash": "ec0e600724ebef57cf72464d1405ec89",
     "semantic_hash": ""
   },
   "src/utils/NumberProcessor.js": {
@@ -1040,8 +1040,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1791688469.0535073,
-    "ast_hash": "67c3c49a055c4733c3e42b398ac4952f",
+    "mtime": 1791901774.6020875,
+    "ast_hash": "d673e6535efb6597d4d9cae74bf0fa75",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1050,8 +1050,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1791817549.4756103,
-    "ast_hash": "3f2c8c3ca60374863a7970795f1676dc",
+    "mtime": 1791904139.8244689,
+    "ast_hash": "9d577e4b5156d635ae530ea3d209bb52",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1065,8 +1065,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1791688469.0540426,
-    "ast_hash": "2947a7156b2559cd92221dbd9b855642",
+    "mtime": 1791904139.8252103,
+    "ast_hash": "79e4967ddce4a6154f7928a136ba93ff",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1490,8 +1490,8 @@
     "semantic_hash": ""
   },
   "test-fixtures/build-result-parity.json": {
-    "mtime": 1790408718.8640041,
-    "ast_hash": "2e3c5fe4d581d0a7127f86893de8039b",
+    "mtime": 1791901672.120714,
+    "ast_hash": "0b489c4633bb4b53b4f5b0f1a95271f2",
     "semantic_hash": ""
   },
   "src/utils/wasm/CLAUDE.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1791375542.5255213,
-    "ast_hash": "4fcf793b2399f02aa77b964fed2b9ef2",
+    "mtime": 1791825695.7388783,
+    "ast_hash": "246a61b64ff1a9c1fbcc2c0ba7049e40",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1755,8 +1755,8 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/NumberVariable.js": {
-    "mtime": 1791681786.6332529,
-    "ast_hash": "3cd4c637a31514b7e59699c9512f73e6",
+    "mtime": 1791901704.2552059,
+    "ast_hash": "1806c43ca4a86fadf3ee5e7605c75373",
     "semantic_hash": ""
   },
   "src/hooks/useReadingAnchor.ts": {
@@ -2320,8 +2320,8 @@
     "semantic_hash": ""
   },
   "scripts/install-app.sh": {
-    "mtime": 1791542480.5571618,
-    "ast_hash": "fb53e7a8f9a5e3650817471d4effeebb",
+    "mtime": 1791903895.373486,
+    "ast_hash": "874b5c86cb3f33a7bf8edb77cf51dc5e",
     "semantic_hash": ""
   },
   "docs/adr/ADR-091-skip-translatetext-extraction.md": {

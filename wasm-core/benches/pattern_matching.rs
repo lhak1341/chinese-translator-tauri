@@ -46,6 +46,7 @@ fn bench_single_pattern_match(c: &mut Criterion) {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -54,6 +55,7 @@ fn bench_single_pattern_match(c: &mut Criterion) {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -101,6 +103,7 @@ fn bench_pattern_competition(c: &mut Criterion) {
                 translation: "Trương Tam".to_string(),
                 source: "proper-noun".to_string(),
                 var_type: Some("proper-noun".to_string()),
+                ordinal: None,
             },
         );
         variable_cache.insert(
@@ -109,6 +112,7 @@ fn bench_pattern_competition(c: &mut Criterion) {
                 translation: "tay".to_string(),
                 source: "character".to_string(),
                 var_type: Some("character".to_string()),
+                ordinal: None,
             },
         );
 
@@ -163,6 +167,7 @@ fn bench_phase_a_processing(c: &mut Criterion) {
                     translation: format!("chữ {}", i),
                     source: "character".to_string(),
                     var_type: Some("character".to_string()),
+                    ordinal: None,
                 },
             );
         }
@@ -221,6 +226,7 @@ fn bench_two_phase_processing(c: &mut Criterion) {
             translation: "sóng âm chấn đãng".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -259,6 +265,7 @@ fn bench_large_token_array(c: &mut Criterion) {
                     translation: format!("chữ {}", i),
                     source: "character".to_string(),
                     var_type: Some("character".to_string()),
+                    ordinal: None,
                 },
             );
         }

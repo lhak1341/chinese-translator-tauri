@@ -46,6 +46,7 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
             translation: "ba".to_string(),
             source: "character".to_string(),
             var_type: None,
+            ordinal: None,
         },
     );
 
@@ -147,6 +148,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
             translation: "ba".to_string(),
             source: "character".to_string(),
             var_type: None,
+            ordinal: None,
         },
     );
 
@@ -233,6 +235,7 @@ fn dollar_x_resolves_to_variable_type_from_cache() {
             translation: "Trương Tam".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -275,6 +278,7 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
             translation: "Trương Tam".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     cache.insert(
@@ -283,6 +287,7 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
             translation: "Bắc Kinh".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("location".to_string()),
+            ordinal: None,
         },
     );
 
@@ -326,6 +331,7 @@ fn dollar_x_resolves_to_none_when_variable_untyped() {
             translation: "anh ấy".to_string(),
             source: "characters".to_string(),
             var_type: None,
+            ordinal: None,
         },
     );
 
@@ -366,6 +372,7 @@ fn fixed_semantic_type_unchanged() {
             translation: "Trương Tam".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -409,6 +416,7 @@ fn dollar_ref_to_missing_variable_resolves_to_none() {
             translation: "Trương Tam".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -453,6 +461,7 @@ fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
             translation: "Trương Tam".to_string(),
             source: "properNouns".to_string(),
             var_type: Some("proper_noun".to_string()),
+            ordinal: None,
         },
     );
 

@@ -56,6 +56,13 @@
       "template": "hạng#",
       "variables": { "#": "3" },
       "expected": "hạng3"
+    },
+    {
+      "name": "ordinal_marker_takes_the_longer_name",
+      "description": "`#o` is the ordinal reading of the `#` value; the longer name is tried first, so `#o` is not read as `#` followed by a literal `o`. A bare `#` keeps the cardinal.",
+      "template": "hạng #o (#)",
+      "variables": { "#": "một", "#o": "nhất" },
+      "expected": "hạng nhất (một)"
     }
   ]
 }

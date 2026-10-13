@@ -77,6 +77,7 @@ fn test_multi_variable_pattern_match() {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -85,6 +86,7 @@ fn test_multi_variable_pattern_match() {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -129,6 +131,7 @@ fn test_multi_token_variable_resolution() {
             translation: "những ma soái kia".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -166,6 +169,7 @@ fn test_variable_backtracking_with_lookahead() {
             translation: "những kia".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -174,6 +178,7 @@ fn test_variable_backtracking_with_lookahead() {
             translation: "những người kia".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -182,6 +187,7 @@ fn test_variable_backtracking_with_lookahead() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -308,6 +314,7 @@ fn test_trailing_variable_prefers_type_correct_shorter_span() {
             translation: "nữ tử".to_string(),
             source: "character".to_string(),
             var_type: Some("person".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -316,6 +323,7 @@ fn test_trailing_variable_prefers_type_correct_shorter_span() {
             translation: "pháp bàn".to_string(),
             source: "character".to_string(),
             var_type: Some("object".to_string()),
+            ordinal: None,
         },
     );
     // Longer cache hit bleeding past the real object boundary, wrong type.
@@ -325,6 +333,7 @@ fn test_trailing_variable_prefers_type_correct_shorter_span() {
             translation: "pháp bàn trung".to_string(),
             source: "character".to_string(),
             var_type: Some("unknown".to_string()),
+            ordinal: None,
         },
     );
 
@@ -389,6 +398,7 @@ fn test_variable_blocked_by_preceding_punctuation_boundary() {
             translation: "Thiên Gia".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
 
@@ -421,6 +431,7 @@ fn test_variable_without_boundary_still_matches() {
             translation: "Thiên Gia".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
 

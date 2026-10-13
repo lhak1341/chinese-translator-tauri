@@ -51,6 +51,7 @@ fn test_phase_a_processing() {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -59,6 +60,7 @@ fn test_phase_a_processing() {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -102,6 +104,7 @@ fn test_phase_b_processing_without_phase_a() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -159,6 +162,7 @@ fn test_hierarchical_composition_detection() {
             translation: "sóng âm chấn đãng".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -239,6 +243,7 @@ fn test_multiple_phase_a_results() {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -247,6 +252,7 @@ fn test_multiple_phase_a_results() {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -255,6 +261,7 @@ fn test_multiple_phase_a_results() {
             translation: "dáng vẻ".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -317,6 +324,7 @@ fn test_token_protection_by_phase_a() {
             translation: "Trương Tam".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("proper-noun".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -325,6 +333,7 @@ fn test_token_protection_by_phase_a() {
             translation: "tay".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -383,6 +392,7 @@ fn test_phase_b_enhanced_variable_resolution() {
             translation: "sóng âm".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -445,6 +455,7 @@ fn test_result_selection_with_overlaps() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -453,6 +464,7 @@ fn test_result_selection_with_overlaps() {
             translation: "mạnh mẽ".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -510,6 +522,7 @@ fn test_non_overlapping_patterns() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -518,6 +531,7 @@ fn test_non_overlapping_patterns() {
             translation: "đây".to_string(),
             source: "phrase".to_string(),
             var_type: Some("phrase".to_string()),
+            ordinal: None,
         },
     );
 
@@ -596,6 +610,7 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
             translation: "người".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -667,6 +682,7 @@ fn test_phase_a_longest_span_wins_over_leftmost_shorter_match() {
             translation: "truyền kỳ".to_string(),
             source: "phrase".to_string(),
             var_type: Some("concept".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -675,6 +691,7 @@ fn test_phase_a_longest_span_wins_over_leftmost_shorter_match() {
             translation: "vũ khí".to_string(),
             source: "phrase".to_string(),
             var_type: Some("object".to_string()),
+            ordinal: None,
         },
     );
 
@@ -746,6 +763,7 @@ fn test_phase_a_char_count_wins_over_token_span_with_compound_tokens() {
             translation: "truyền kỳ".to_string(),
             source: "phrase".to_string(),
             var_type: Some("concept".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -754,6 +772,7 @@ fn test_phase_a_char_count_wins_over_token_span_with_compound_tokens() {
             translation: "vũ khí".to_string(),
             source: "phrase".to_string(),
             var_type: Some("object".to_string()),
+            ordinal: None,
         },
     );
 
@@ -829,6 +848,7 @@ fn test_phase_b_variable_span_covers_long_phase_a_result() {
             translation: "Felix".to_string(),
             source: "proper_noun".to_string(),
             var_type: Some("person".to_string()),
+            ordinal: None,
         },
     );
 
@@ -963,6 +983,7 @@ fn test_longer_pattern_beats_shorter_phase_a() {
             translation: "hắn".to_string(),
             source: "phrases_pattern_variable".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -1038,6 +1059,7 @@ fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
             translation: "sinh vật".to_string(),
             source: "phrase".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 
@@ -1123,6 +1145,7 @@ fn test_phase_a_priority_tiebreak_lets_inner_wrapper_compose_with_outer_pattern(
             translation: "tiền bối".to_string(),
             source: "character".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -1131,6 +1154,7 @@ fn test_phase_a_priority_tiebreak_lets_inner_wrapper_compose_with_outer_pattern(
             translation: "đan dược".to_string(),
             source: "phrase".to_string(),
             var_type: Some("object".to_string()),
+            ordinal: None,
         },
     );
 
@@ -1234,6 +1258,7 @@ fn test_composite_bonus_requires_both_sides_of_a_two_sided_pattern() {
             translation: "nữ tử".to_string(),
             source: "phrase".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
     variable_cache.insert(
@@ -1242,6 +1267,7 @@ fn test_composite_bonus_requires_both_sides_of_a_two_sided_pattern() {
             translation: "pháp bàn".to_string(),
             source: "proper-noun".to_string(),
             var_type: Some("object".to_string()),
+            ordinal: None,
         },
     );
 
@@ -1323,6 +1349,7 @@ fn test_phase_a_trailing_bonus_counts_following_variable() {
                 translation: translation.to_string(),
                 source: "phrase".to_string(),
                 var_type: Some(var_type.to_string()),
+                ordinal: None,
             },
         );
     }
@@ -1347,6 +1374,7 @@ fn cache_entry(translation: &str, var_type: &str) -> VariableCacheEntry {
         translation: translation.to_string(),
         source: "test".to_string(),
         var_type: Some(var_type.to_string()),
+        ordinal: None,
     }
 }
 
@@ -1424,6 +1452,26 @@ fn test_literal_number_pattern_beats_number_variable_pattern() {
     };
     assert_eq!(run_patterns(patterns(), "第一层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ nhất"]);
     assert_eq!(run_patterns(patterns(), "第三层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ ba"]);
+}
+
+#[test]
+fn test_ordinal_marker_reads_the_ordinal_form_of_a_number() {
+    // `#` keeps the cardinal; `#o` takes the entry's ordinal, or the cardinal when it has none.
+    let mut cache = HashMap::new();
+    cache.insert(
+        "一".to_string(),
+        VariableCacheEntry {
+            translation: "một".to_string(),
+            source: "test".to_string(),
+            var_type: Some("number".to_string()),
+            ordinal: Some("nhất".to_string()),
+        },
+    );
+    cache.insert("三".to_string(), cache_entry("ba", "number"));
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let patterns = || vec![("第#层的X", "X tầng thứ #o (#)", None)];
+    assert_eq!(run_patterns(patterns(), "第一层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ nhất (một)"]);
+    assert_eq!(run_patterns(patterns(), "第三层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ ba (ba)"]);
 }
 
 // A `#` variable can take a numeral longer than a letter variable can take any value: the cache
@@ -1564,6 +1612,7 @@ fn test_composite_bonus_is_the_same_with_non_semantic_tokens_ahead() {
             translation: "sinh vật".to_string(),
             source: "phrase".to_string(),
             var_type: Some("character".to_string()),
+            ordinal: None,
         },
     );
 

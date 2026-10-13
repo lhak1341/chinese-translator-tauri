@@ -8,6 +8,7 @@ import { NumberProcessor } from '../NumberProcessor.js';
  * variable that accepts only cache entries of type NUMBER_VARIABLE_TYPE, and the
  * matcher keeps number entries away from letter variables. This module supplies
  * those entries: every numeral span in the text, added to the variable cache.
+ * A template writes `#o` for the ordinal reading (see ORDINAL_WORDS).
  */
 export const NUMBER_VARIABLE = '#';
 export const NUMBER_VARIABLE_TYPE = 'number';
@@ -47,6 +48,13 @@ const SMALL_NUMBER_WORDS = [
   'mười',
 ];
 
+// Vietnamese reads 1 and 4 differently in a rank (hạng nhất, thứ tư); a template's `#o`
+// takes these. Every other number reads the same as its cardinal.
+const ORDINAL_WORDS = new Map([
+  ['một', 'nhất'],
+  ['bốn', 'tư'],
+]);
+
 /** @type {NumberProcessor | null} */
 let numberProcessor = null;
 
@@ -68,6 +76,16 @@ export function translateNumeral(text) {
   const value = Number(converted.result);
   if (Number.isInteger(value) && value >= 0 && value <= 10) return SMALL_NUMBER_WORDS[value];
   return converted.result;
+}
+
+/**
+ * The ordinal reading of a translated numeral, or undefined when it reads like
+ * the cardinal (or is digits).
+ * @param {string} translation - a `translateNumeral` result
+ * @returns {string|undefined}
+ */
+export function ordinalOf(translation) {
+  return ORDINAL_WORDS.get(translation);
 }
 
 /** @type {WeakMap<object[], boolean>} */
@@ -111,12 +129,18 @@ function isNumeralToken(token) {
  * Existing entries win, so a dictionary entry for the same text is never replaced.
  *
  * @param {Array<{value: string, type?: string, translated?: string|null, translationSource?: string|null}>} tokens
- * @param {Object.<string, {translation: string, source: string, type: string|null}>} cache
+ * @param {Object.<string, {translation: string, source: string, type: string|null, ordinal?: string}>} cache
  */
 export function addNumberVariables(tokens, cache) {
   const add = (/** @type {string} */ text, /** @type {string} */ translation) => {
     if (!(text in cache)) {
-      cache[text] = { translation, source: 'number_pattern_variable', type: NUMBER_VARIABLE_TYPE };
+      const ordinal = ordinalOf(translation);
+      cache[text] = {
+        translation,
+        source: 'number_pattern_variable',
+        type: NUMBER_VARIABLE_TYPE,
+        ...(ordinal && { ordinal }),
+      };
     }
   };
 

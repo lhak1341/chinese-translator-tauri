@@ -71,6 +71,11 @@ pub struct VariableCacheEntry {
     /// Variable type (e.g., "proper-noun", "phrase", "character")
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub var_type: Option<String>,
+
+    /// Ordinal reading of a number entry (`nhất` for 一, `tư` for 四), filled into a
+    /// template's `#o`. Absent when the ordinal reads like the cardinal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordinal: Option<String>,
 }
 
 /// Pattern match result
@@ -244,6 +249,10 @@ pub const DEFAULT_MAX_VARIABLE_SPAN: usize = 6;
 /// The number variable: `#` in a pattern (e.g. "#大X之一") is filled only by
 /// variable-cache entries of type [`NUMBER_VARIABLE_TYPE`].
 pub const NUMBER_VARIABLE: &str = "#";
+
+/// Template-only name for the ordinal reading of the `#` value. `build_result` tries
+/// longer names first, so `#o` wins over `#` where the template says `#o`.
+pub const ORDINAL_NUMBER_VARIABLE: &str = "#o";
 
 /// Variable-cache type of numeral entries (built by JS `PatternVariableCache.js`).
 pub const NUMBER_VARIABLE_TYPE: &str = "number";
@@ -485,7 +494,7 @@ impl<'a> PatternMatcher<'a> {
                     );
 
                     match resolution_result {
-                        Some((translation, token_span, _resolved_text, var_type)) => {
+                        Some((translation, token_span, resolved_text, var_type)) => {
                             // Variable type validation — uses var_type returned directly
                             // from the resolver (Bug 4 fix: no second HashMap lookup).
                             // None var_type is treated as "unknown" to match JS behavior
@@ -504,6 +513,14 @@ impl<'a> PatternMatcher<'a> {
                                 )));
                             }
 
+                            if var_name == NUMBER_VARIABLE {
+                                let ordinal = self
+                                    .variable_cache
+                                    .get(&resolved_text)
+                                    .and_then(|entry| entry.ordinal.clone())
+                                    .unwrap_or_else(|| translation.clone());
+                                variables.insert(ORDINAL_NUMBER_VARIABLE.to_string(), ordinal);
+                            }
                             variables.insert(var_name.clone(), translation);
                             variable_types.insert(var_name.clone(), var_type);
                             current_position += token_span;

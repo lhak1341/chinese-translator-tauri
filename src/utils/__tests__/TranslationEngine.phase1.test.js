@@ -35,13 +35,22 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
     engine = createTranslationEngine();
     await engine.initialize(
       {
-        characters: { 这: '这', 些: '些', 朋: 'bằng', 友: 'hữu', 书: 'sách', 籍: 'tịch' },
+        characters: {
+          这: '这',
+          些: '些',
+          朋: 'bằng',
+          友: 'hữu',
+          书: 'sách',
+          籍: 'tịch',
+          墨: 'mặc',
+          子: 'tử',
+        },
         phrases: {
           这些书籍: 'PHRASE_BOOKS',
           书籍: { translation: 'sách vở', allowAsPatternVariable: true },
         },
-        patterns: { 这些X: 'những X này', '第#章': 'chương thứ #' },
-        properNouns: { 这些朋友: 'PROPER_FRIENDS', 朋友: 'bạn bè' },
+        patterns: { 这些X: 'những X này', '第#章': 'chương thứ #', '第#名': 'hạng #o' },
+        properNouns: { 这些朋友: 'PROPER_FRIENDS', 朋友: 'bạn bè', 墨子: 'Mặc Tử' },
         conversion: {},
       },
       { activeProperNouns: ['properNouns'] }
@@ -93,5 +102,21 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
   test('a # variable binds a 7-character numeral', async () => {
     const result = await engine.translateWithSegments('第一千二百三十四章');
     expect(result.translatedText).toBe('Chương thứ 1,234');
+  });
+
+  // `#o` in a template is the ordinal reading: Vietnamese says "nhất"/"tư" for 1st/4th, not "một"/"bốn".
+  test('#o reads 1 and 4 as ordinals and every other number as its cardinal', async () => {
+    const read = async (text) => (await engine.translateWithSegments(text)).translatedText;
+    expect(await read('第一名')).toBe('Hạng nhất');
+    expect(await read('第四名')).toBe('Hạng tư');
+    expect(await read('第二名')).toBe('Hạng hai');
+    expect(await read('第十四名')).toBe('Hạng 14');
+  });
+
+  // A proper noun matches across the space in "墨 子"; the match must claim the space and 子 too.
+  // It claimed only as many tokens as it matched, so 子 was left for Phase 5: "Mặc Tử tử".
+  test('a proper noun matched across a space consumes every token it spans', async () => {
+    const result = await engine.translateWithSegments('墨 子');
+    expect(result.translatedText).toBe('Mặc Tử');
   });
 });

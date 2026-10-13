@@ -301,6 +301,7 @@
   "299": "ADR-098: Pattern Result Indices Are Original Indices",
   "300": "TextAssembly.js",
   "301": "@testing-library/user-event",
+  "302": "useCharacterOnlySegments.ts",
   "303": "PerformanceThresholds.ts",
   "304": "Integration Roadmap (8 Integration Points)",
   "305": "Integration Sequence (Recommended Order)",
@@ -341,6 +342,7 @@
   "340": "TransformRuleEngine.ts (compareRulePrecedence, applyRule, deriveCapitalizeExceptNForKeyEdit)",
   "341": "PositionMetadataSegmenter.ts",
   "342": "SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)",
+  "343": "eslint-config-prettier",
   "344": "types",
   "345": "@eslint/js"
 }

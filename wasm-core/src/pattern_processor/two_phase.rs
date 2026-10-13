@@ -695,6 +695,7 @@ impl TwoPhasePatternProcessor {
                             .unwrap_or("structural_pattern")
                             .to_string(),
                     ),
+                    ordinal: None,
                 },
             );
         }
@@ -1213,6 +1214,7 @@ mod tests {
                     translation: "N".to_string(),
                     source: "test".to_string(),
                     var_type: Some("number".to_string()),
+                    ordinal: None,
                 },
             );
             let tokens: Vec<SemanticToken> = "候选第一千二百三十四章"
@@ -1293,6 +1295,7 @@ mod tests {
                         translation: format!("[{}]", s),
                         source: "phrases".to_string(),
                         var_type: Some("concept".to_string()),
+                        ordinal: None,
                     });
                 }
             }

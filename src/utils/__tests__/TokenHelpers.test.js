@@ -252,9 +252,21 @@ describe('getTokenSpanForText', () => {
       createToken(TokenType.CHINESE_CHAR, '那', 2),
     ];
 
-    // Span calculation skips non-Chinese tokens and continues
+    // The skipped token is inside the span: a caller claiming `span` tokens from the start
+    // must reach the last matched one ("墨 子" claimed 2 of 3 tokens and left 子 untranslated).
     const span = getTokenSpanForText(tokens, 0, '在那');
-    expect(span).toBe(2); // Skips punctuation, matches both Chinese tokens
+    expect(span).toBe(3);
+  });
+
+  test('should not count non-Chinese tokens after the last matched token', () => {
+    const tokens = [
+      createToken(TokenType.CHINESE_CHAR, '墨', 0),
+      createToken(TokenType.WHITESPACE, ' ', 1),
+      createToken(TokenType.CHINESE_CHAR, '子', 2),
+      createToken(TokenType.WHITESPACE, ' ', 3),
+    ];
+
+    expect(getTokenSpanForText(tokens, 0, '墨子')).toBe(3);
   });
 });
 

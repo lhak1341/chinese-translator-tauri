@@ -2,18 +2,18 @@
 
 ## Corpus Check
 
-- 459 files · ~411,642 words
+- 459 files · ~412,215 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 4431 nodes · 8939 edges · 344 communities (278 shown, 66 thin omitted)
+- 4433 nodes · 8943 edges · 346 communities (280 shown, 66 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 130 edges (avg confidence: 0.77)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `7da9bf30`
+- Built from commit: `11904480`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -314,6 +314,7 @@
 - ADR-098: Pattern Result Indices Are Original Indices
 - TextAssembly.js
 - @testing-library/user-event
+- useCharacterOnlySegments.ts
 - PerformanceThresholds.ts
 - Integration Roadmap (8 Integration Points)
 - Integration Sequence (Recommended Order)
@@ -353,6 +354,7 @@
 - TransformRuleEngine.ts (compareRulePrecedence, applyRule, deriveCapitalizeExceptNForKeyEdit)
 - PositionMetadataSegmenter.ts
 - SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)
+- eslint-config-prettier
 - types
 - @eslint/js
 
@@ -390,7 +392,7 @@
 
 - **RulesManager two-surface shared field-policy group** — src_components_rules_newrulemodal_newrulemodal, src_components_rules_rulerow_rulerow, src_components_rules_rulefieldvalidation_rulefieldvalidation, src_utils_dictionary_transformruleengine_transformruleengine, src_components_rules_tests_rulefieldparity_rulefieldparity [EXTRACTED 1.00]
 
-## Communities (344 total, 66 thin omitted)
+## Communities (346 total, 66 thin omitted)
 
 ### Community 0 - "dictionary_commands.rs"
 
@@ -409,23 +411,23 @@ Nodes (66): NumberProcessor, Case, ConversionPattern, create_conversion_patterns
 
 ### Community 4 - "V8OptimizationUtils.js"
 
-Cohesion: 0.17
-Nodes (20): assertNoConflict(), conflictError(), generateTransformRuleId(), NO_RULES, PendingChange, useTransformRuleEditor(), useTransformRules(), withPending() (+12 more)
+Cohesion: 0.19
+Nodes (18): assertNoConflict(), conflictError(), generateTransformRuleId(), NO_RULES, PendingChange, useTransformRuleEditor(), useTransformRules(), withPending() (+10 more)
 
 ### Community 5 - "PerformanceProfiler"
 
-Cohesion: 0.18
-Nodes (8): EngineContextValue, EngineInitOutcome, EngineAccess, EngineAccessPreemptedError, EngineAccessRefusedError, EngineOwner, EngineRunOptions, Entry
+Cohesion: 0.16
+Nodes (14): EngineContextValue, EngineInitOutcome, useReaderEngine(), ADR-0050, UseWindowedTranslationOptions, EngineAccess, EngineAccessPreemptedError, EngineOwner (+6 more)
 
 ### Community 6 - "_assertNum"
 
-Cohesion: 0.11
-Nodes (41): CAPITALIZATION, MOVE_TO_FRONT, Transform, WordTransformToolbar(), WordTransformToolbarProps, useDictionaryEntryForm(), applyRule(), compareRulePrecedence() (+33 more)
+Cohesion: 0.13
+Nodes (30): CAPITALIZATION, MOVE_TO_FRONT, Transform, WordTransformToolbar(), WordTransformToolbarProps, applyRule(), capitalizeAll(), capitalizeExceptBoundaryN() (+22 more)
 
 ### Community 7 - "DictionaryManagerTypes.d.ts"
 
-Cohesion: 0.08
-Nodes (32): ADR-0006, isActiveProperNounSource(), FixableToken, fixNumberPlusLiang(), PatternFailureTracker, checkLeader(), ClaimableToken, claimGroupedSpan() (+24 more)
+Cohesion: 0.07
+Nodes (29): ADR-0006, DICTIONARY_LOOKUP, MEMORY_MANAGEMENT, PATTERN_FAILURE_DETECTION, PHASE_TIMEOUTS, UI_TIMEOUTS, ConflictCandidate, resolveGlobalConflicts() (+21 more)
 
 ### Community 8 - "TranslationEngineTypes.d.ts"
 
@@ -444,8 +446,8 @@ Nodes (74): AdaptiveBatchSizer, AppConfig, AppearanceConfig, AppearanceSettings 
 
 ### Community 11 - "Systematic Refactoring: Pure Utility Extraction"
 
-Cohesion: 0.11
-Nodes (13): ErrorBoundaryProps, ErrorBoundaryState, DeferredRetranslate, UseDeferredRetranslateOptions, formatMessage(), isDevelopment(), LOG_PREFIXES, Logger (+5 more)
+Cohesion: 0.10
+Nodes (16): ErrorBoundaryProps, ErrorBoundaryState, DeferredRetranslate, UseDeferredRetranslateOptions, formatMessage(), isDevelopment(), LOG_PREFIXES, Logger (+8 more)
 
 ### Community 12 - "TranslationEngine Internals"
 
@@ -454,8 +456,8 @@ Nodes (40): build_comprehensive_lookup_index(), build_index_parallel(), build_in
 
 ### Community 13 - "UtilityTypes.d.ts"
 
-Cohesion: 0.10
-Nodes (25): EnhancedVirtualizedDictionaryTable(), numberFormat, SemanticTypeFilterChips(), EMPTY_DRAFT, RulesManager, FilterDimensionRow(), FilterDimensionRowProps, FilterPanel() (+17 more)
+Cohesion: 0.14
+Nodes (17): EnhancedVirtualizedDictionaryTable(), EnhancedVirtualizedDictionaryTableProps, numberFormat, FilterDimensionRow(), FilterDimensionRowProps, FilterPanel(), FilterPanelProps, SearchFilterHeader() (+9 more)
 
 ### Community 14 - "Future Optimization Work - Deferred Integrations"
 
@@ -464,38 +466,38 @@ Nodes (29): 1a. Add `list_fiction_pattern_dictionaries`, 1b. Add `create_structu
 
 ### Community 15 - "TranslationEngine"
 
-Cohesion: 0.08
-Nodes (6): AssertTrue, EngineInterfaceMembersExistOnTheClass, emptySemanticArrays(), createProgressiveBatchText(), buildProperNounCapitalizationMap(), TranslationEngine
+Cohesion: 0.07
+Nodes (11): AssertTrue, EngineInterfaceMembersExistOnTheClass, CharacterLookup, CharacterMatch, characterMatchFor(), ADR-0087, isActiveProperNounSource(), emptySemanticArrays() (+3 more)
 
 ### Community 16 - "Content Security Policy (CSP) and WASM Security"
 
-Cohesion: 0.21
-Nodes (15): ClickableOriginalSemantic(), ClickableTranslationSemantic(), renderSegmentedContent(), ClickableTranslationOptimized(), RenderSegment, SegmentComponent, SegmentComponentProps, useCharacterOnlySegments() (+7 more)
+Cohesion: 0.27
+Nodes (12): ClickableOriginalSemantic(), ClickableTranslationSemantic(), renderSegmentedContent(), ClickableTranslationOptimized(), RenderSegment, SegmentComponent, SegmentComponentProps, useSegmentClickHandler() (+4 more)
 
 ### Community 17 - "Tauri Backend Security Audit"
 
-Cohesion: 0.06
-Nodes (26): ADR-0007, ADR-0037, PatternStore, ADR-0101, isPatternMatchInBounds(), fireCascadeRetire(), _handlers, registerCascadeHandler() (+18 more)
+Cohesion: 0.18
+Nodes (14): fireCascadeRetire(), _handlers, registerCascadeHandler(), initializeWasmPatternProcessor(), ADR-0080, ADR-0096, ADR-0101, lifecycle (+6 more)
 
 ### Community 18 - "Future Improvements Implementation - 2026-02-01"
 
-Cohesion: 0.12
-Nodes (21): ADR-0027, ADR-0048, ADR-0062, useDictionaryConfigManagement(), useAppConfig(), AppConfig, configFile, DEFAULT_APP_CONFIG (+13 more)
+Cohesion: 0.11
+Nodes (22): useAppConfig(), ENGINE_PRIORITIES, useTranslatorEngine(), AppConfig, configFile, DEFAULT_APP_CONFIG, ENGINE_DEFAULTS, EngineConfig (+14 more)
 
 ### Community 19 - "WASM Code Review Fixes - 2026-01-28"
 
-Cohesion: 0.13
-Nodes (4): ExtendedCacheStats, LRUCache, LRUCacheStats, LRUNode
+Cohesion: 0.09
+Nodes (5): ExtendedCacheStats, LRUCache, LRUCacheStats, LRUNode, TranslationCache
 
 ### Community 20 - "Test Coverage Improvements Summary"
 
-Cohesion: 0.19
-Nodes (14): RulesManagerHandle, TAB_PRESENTATION, TabbedInterface(), TABS, tabDomIds(), TabPanel(), TabPanelProps, useVisibleTab() (+6 more)
+Cohesion: 0.16
+Nodes (17): EngineContext, EngineProvider(), RulesManagerHandle, TAB_PRESENTATION, TabbedInterface(), TABS, tabDomIds(), TabPanel() (+9 more)
 
 ### Community 21 - "WASM Serialization Optimization Implementation Plan"
 
-Cohesion: 0.13
-Nodes (24): DICTIONARY_TYPES, FullEntryData, hasMetadata(), MoveDialog(), MoveDialogProps, SemanticTypePickerProps, PatternSemanticTypeRef, SemanticType (+16 more)
+Cohesion: 0.15
+Nodes (19): useDictionary(), DictionaryManager(), DictionaryManagerProps, SelectionState, ADR-0005, dictionaryOptionLabel(), FullEntryData, hasMetadata() (+11 more)
 
 ### Community 22 - "WASM Dictionary Trie - Final Summary & Decision"
 
@@ -509,8 +511,8 @@ Nodes (35): collision_message(), create_fiction_dictionary_pair(), create_proper
 
 ### Community 25 - "Memory Leak Prevention"
 
-Cohesion: 0.05
-Nodes (41): ADR-0024, useAppearanceVersion(), ColumnMetrics, useColumnMetrics(), PanelSyncHandle, SyncPanel, usePanelSync(), UsePanelSyncOptions (+33 more)
+Cohesion: 0.16
+Nodes (20): PanelSyncHandle, SyncPanel, usePanelSync(), UsePanelSyncOptions, ReaderPanelGeometry, useReaderPanel(), UseReaderPanelOptions, FollowerGeometryProps (+12 more)
 
 ### Community 26 - "PerformanceMonitoringTypes.d.ts"
 
@@ -519,8 +521,8 @@ Nodes (7): Background for the Implementer, Final Verification, How pattern-withi
 
 ### Community 27 - "Code Review Fixes - 2026-02-01 (Second Review)"
 
-Cohesion: 0.12
-Nodes (16): BatchCompleteEvent, DictionaryPriorities, PatternProcessingSettings, ProperNounSource, TranslationConsumedSource, TranslationEngineInitOptions, TranslationLeaderSource, TranslationOptions (+8 more)
+Cohesion: 0.09
+Nodes (17): BatchCompleteEvent, DictionaryPriorities, PatternProcessingSettings, ProperNounSource, TranslationConsumedSource, TranslationEngine, TranslationEngineInitOptions, TranslationLeaderSource (+9 more)
 
 ### Community 28 - "Development Guide"
 
@@ -539,13 +541,18 @@ Nodes (13): a_report_after_the_cooldown_notifies_with_the_running_count(), init_
 
 ### Community 31 - "TypeScript/Rust Optimization Progress Report"
 
-Cohesion: 0.10
-Nodes (33): ADR-0012, HotkeyHandler(), CommandPalette(), CommandPaletteProps, tabForShortcutDigit(), HotkeyHandlerOptions, useHotkeyHandler(), EMPTY_SOURCE (+25 more)
+Cohesion: 0.15
+Nodes (20): ADR-0012, HotkeyHandler(), tabForShortcutDigit(), HotkeyHandlerOptions, useHotkeyHandler(), useReaderCommands(), mapSelectionRange(), resolveQuickAddSource() (+12 more)
+
+### Community 32 - "Code Review Fixes - Implementation Summary"
+
+Cohesion: 0.12
+Nodes (6): DictionaryValue, FlatDictionaryEntry, flattenDictionaryEntries(), DictionaryManager, ADR-0087, buildTrieFromDictionary()
 
 ### Community 33 - "Pattern Processing Code Review Fixes"
 
-Cohesion: 0.11
-Nodes (29): EntrySemanticCell(), EntryTypeCells(), EntryVarCell(), PatchEntry, digitOf(), moveFocusByArrow(), RequiredSemanticTypeRow(), SemanticTypePicker() (+21 more)
+Cohesion: 0.12
+Nodes (25): EntrySemanticCell(), EntryTypeCells(), EntryVarCell(), PatchEntry, digitOf(), moveFocusByArrow(), RequiredSemanticTypeRow(), SemanticTypePicker() (+17 more)
 
 ### Community 34 - "Clickable Highlighting - Code Review Fixes Summary"
 
@@ -554,18 +561,18 @@ Nodes (21): Attack Scenarios (If Exploited), Attack Vector Analysis, Comparison 
 
 ### Community 35 - "TranslationEngine.js"
 
-Cohesion: 0.29
-Nodes (13): CHAPTER_PATTERN_IDS, parseRecords(), isChapterPatternId(), isChapterPatternIdOrNull(), isFiniteNonNegative(), isFiniteOrNull(), isFraction(), validateBookBinding() (+5 more)
+Cohesion: 0.26
+Nodes (14): CHAPTER_PATTERN_IDS, ReadingPosition, parseRecords(), isChapterPatternId(), isChapterPatternIdOrNull(), isFiniteNonNegative(), isFiniteOrNull(), isFraction() (+6 more)
 
 ### Community 36 - "Dictionary Trie Integration Session Summary"
 
-Cohesion: 0.05
-Nodes (68): ADR-0014, CommitFailure, describeFreshFailure(), describeOperationError(), describeReplayFailure(), Feedback, withHalfApplied(), DictionaryRename (+60 more)
+Cohesion: 0.06
+Nodes (61): ADR-0014, CommitFailure, describeFreshFailure(), describeOperationError(), describeReplayFailure(), Feedback, withHalfApplied(), DictionaryRename (+53 more)
 
 ### Community 37 - "System Architecture"
 
-Cohesion: 0.07
-Nodes (41): DictionaryContext, DictionaryProvider(), DictionaryProviderProps, invokeEngineInvalidator(), ADR-0005, ADR-0053, ADR-0055, createDictionaryStore() (+33 more)
+Cohesion: 0.11
+Nodes (25): DictionaryContext, DictionaryContextValue, DictionaryProvider(), DictionaryProviderProps, invokeEngineInvalidator(), ADR-0005, ADR-0053, ADR-0055 (+17 more)
 
 ### Community 38 - "memory_management.rs"
 
@@ -585,7 +592,7 @@ Nodes (40): a_bare_arabic_line_amid_prose_is_not_mistaken_for_a_header(), a_book
 ### Community 41 - "EnhancedVirtualizedDictionaryTable.tsx"
 
 Cohesion: 0.06
-Nodes (35): eslint, eslint-config-prettier, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals (+27 more)
+Nodes (35): eslint, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals, husky (+27 more)
 
 ### Community 42 - "DictionaryManager"
 
@@ -594,23 +601,23 @@ Nodes (30): compilerOptions, allowJs, baseUrl, checkJs, forceConsistentCasingInF
 
 ### Community 43 - "Implementation Log"
 
-Cohesion: 0.20
-Nodes (17): BandGeometry, ChunkPlanOptions, clamp(), clampRange(), computeBands(), isBlankLine(), isParagraphBreak(), isParagraphComplete() (+9 more)
+Cohesion: 0.21
+Nodes (16): BandGeometry, ChunkPlanOptions, clamp(), clampRange(), computeBands(), isParagraphBreak(), isParagraphComplete(), makeChunk() (+8 more)
 
 ### Community 44 - "Code Review Fixes - Translation Process"
 
-Cohesion: 0.11
-Nodes (12): PositionCandidate, NOTE: Does NOT write metadata[i].translatedText — SemanticArrayMetadata omits th, SemanticArrayBuilder, SemanticArraySnapshot, SemanticArraysResult, validatePosition(), SemanticArrayValidator, assembleCharOnlyResult() (+4 more)
+Cohesion: 0.13
+Nodes (10): PositionCandidate, NOTE: Does NOT write metadata[i].translatedText — SemanticArrayMetadata omits th, SemanticArrayBuilder, SemanticArraysResult, validatePosition(), assembleCharOnlyResult(), CharOnlyAssemblyResult, StampedToken (+2 more)
 
 ### Community 45 - "DictionaryEngine"
 
-Cohesion: 0.12
-Nodes (25): BookReaderProps, EncodingPromptProps, EncodingChoiceState, identityOf(), NO_BOOKS, OpenState, ReaderTab(), ReaderTabProps (+17 more)
+Cohesion: 0.06
+Nodes (61): ADR-0090, BookReaderProps, BookshelfProps, EncodingPromptProps, EncodingChoiceState, identityOf(), NO_BOOKS, OpenState (+53 more)
 
 ### Community 46 - ".translateWithProgressiveBatches"
 
-Cohesion: 0.21
-Nodes (7): PANELS, tryRestoreScrollPositions(), useScrollPositionManager(), AttemptFn, RecoveryOptions, ScrollPositionRecovery, ScrollPositions
+Cohesion: 0.29
+Nodes (4): AttemptFn, RecoveryOptions, ScrollPositionRecovery, ScrollPositions
 
 ### Community 47 - "CSP Hardening Migration - Complete Summary"
 
@@ -624,8 +631,8 @@ Nodes (5): artifact, GENERATED, newestMtime(), newestSource, root
 
 ### Community 50 - "ADR-004: 5-Phase Processing Order Immutability"
 
-Cohesion: 0.09
-Nodes (31): ADR-0049, EngineContext, EngineProvider(), useEngine(), BookReader(), ReaderEngineErrorBanner(), BookLineWindow, ADR-0050 (+23 more)
+Cohesion: 0.19
+Nodes (14): ADR-0049, useSelectionMapper(), mappers, mapReaderSelection(), mapSelectedUnits(), mapTranslatorSelection(), readerKey(), ReaderOriginalRow (+6 more)
 
 ### Community 51 - "Task 1: Add Semantic column to Patterns dictionary table"
 
@@ -639,8 +646,8 @@ Nodes (16): Development Process Lessons, Error Handling Patterns, Lesson 1: Veri
 
 ### Community 53 - "UITypes.d.ts"
 
-Cohesion: 0.12
-Nodes (17): BookshelfProps, Library, LibraryBook, PerformanceMonitor, loadBookRecords(), transformRecords(), byShelfTitle(), defaultScanShelfDeps (+9 more)
+Cohesion: 0.24
+Nodes (3): ADR-0069, globalPerformanceMonitor, PerformanceMonitor
 
 ### Community 54 - "WasmDictionaryManager"
 
@@ -669,8 +676,8 @@ Nodes (35): 2026-01-31 - Session 1 (Infrastructure + Analysis), Architectural Co
 
 ### Community 59 - "DictionaryTypes.ts"
 
-Cohesion: 0.17
-Nodes (19): react, entryPatcher(), EntryContextMenu(), EntryContextMenuProps, ControlledEditableCell(), EditableCell(), renderEditableCell(), RenderProps (+11 more)
+Cohesion: 0.14
+Nodes (21): node, react, react-dom, EntryContextMenu(), EntryContextMenuProps, ControlledEditableCell(), EditableCell(), renderEditableCell() (+13 more)
 
 ### Community 60 - "wasm_boundary.rs"
 
@@ -704,8 +711,8 @@ Nodes (23): K, MutexGuard, Q, a_get_protects_an_entry_from_eviction(), a_miss_le
 
 ### Community 68 - "tauriAPI.ts"
 
-Cohesion: 0.15
-Nodes (23): ConfigurationManager(), TierMenu(), TierMenuProps, DictionaryValue, FlatDictionaryEntry, flattenDictionaryEntries(), bareNameOf(), isPairedPatternsId() (+15 more)
+Cohesion: 0.14
+Nodes (28): ADR-0060, ConfigurationManager(), TierMenu(), TierMenuProps, KIND_COLUMNS, TextColumn, bareNameOf(), DictionaryKind (+20 more)
 
 ### Community 69 - "WasmProcessorLifecycle.js"
 
@@ -719,8 +726,8 @@ Nodes (24): clipboard-manager:allow-read-text, clipboard-manager:default, core:d
 
 ### Community 71 - "DictionaryContext.tsx"
 
-Cohesion: 0.11
-Nodes (33): ADR-0045, useBookBinding(), BindingBanner(), BindingBannerProps, BindingDialog(), BindingDialogProps, ChapterPanel(), ChapterPanelProps (+25 more)
+Cohesion: 0.13
+Nodes (25): BindingBanner(), BindingBannerProps, BindingDialog(), BindingDialogProps, ChapterPanel(), ChapterPanelProps, BindingOffer, UseBindingOfferOptions (+17 more)
 
 ### Community 72 - "text_assembly.rs"
 
@@ -729,8 +736,8 @@ Nodes (5): ADR-075: Delete the Persisted Trie Cache, Consequences, Context, Deci
 
 ### Community 73 - "SemanticTypes.ts"
 
-Cohesion: 0.16
-Nodes (8): punctuationProcessor, SpacingToken, PunctuationProcessor, SpecialPattern, QUOTE_CATEGORIES, QUOTE_TYPES, QuoteProcessor, TokenType
+Cohesion: 0.11
+Nodes (9): punctuationProcessor, SpacingToken, ChunkPostProcessor, PunctuationProcessor, SpecialPattern, QUOTE_CATEGORIES, QUOTE_TYPES, QuoteProcessor (+1 more)
 
 ### Community 74 - "Code Review: Pure Computation Migration to wasm-core"
 
@@ -746,11 +753,6 @@ Nodes (5): Addendum (2026-09-09) — Gap Closed, ADR-037: Delete Orphaned WASM B
 
 Cohesion: 0.29
 Nodes (6): ADR-052: Dictionary Edit Commits — One Queue, TypeScript Write-Back, Alternatives considered, Consequence, Context, Decision, Reasoning
-
-### Community 77 - "wasmOperationTimeout.js"
-
-Cohesion: 0.13
-Nodes (21): ADR-0060, KIND_COLUMNS, TextColumn, DictionaryKind, DictionaryTier, isFictionPatternsId(), isPatternsDict(), isPhrasesDict() (+13 more)
 
 ### Community 78 - "WasmRegexUtilsWrapper"
 
@@ -775,7 +777,7 @@ Nodes (17): Dictionary JSON Format: Two Tiers, Dictionary Type Classification, `
 ### Community 82 - "ChunkPostProcessor"
 
 Cohesion: 0.20
-Nodes (14): LinePiece, fillSegmentGapsCached(), ReaderSegment, EMPTY_PANEL_ROWS, Panel, PanelRowsSnapshot, partlyLandedRow(), ProjectedChunk (+6 more)
+Nodes (14): useWindowedTranslation(), LinePiece, fillSegmentGaps(), fillSegmentGapsCached(), ReaderSegment, Panel, PanelRowsSnapshot, partlyLandedRow() (+6 more)
 
 ### Community 83 - "useDictionary"
 
@@ -804,8 +806,8 @@ Nodes (5): ADR-017: Skip WasmMemoryPool Analytics Separation, Consequence, Conte
 
 ### Community 88 - "ADR-002: Dual-Path Clickable Highlighting Architecture"
 
-Cohesion: 0.13
-Nodes (23): AppearanceManager(), FIELD_GROUPS, FieldConfig, FieldGroup, FontControlGroupProps, FontControlRowProps, useAppearanceSettings(), appearanceFile (+15 more)
+Cohesion: 0.07
+Nodes (40): App(), AppContent(), NOTE: WASM singleton cleanup intentionally NOT called from App unmount., AppearanceManager(), FIELD_GROUPS, FieldConfig, FieldGroup, FontControlGroupProps (+32 more)
 
 ### Community 89 - "Implementation Details ✅"
 
@@ -814,8 +816,8 @@ Nodes (5): ADR-088: Skip Moving the Cache-Invalidator Registration Into EnginePr
 
 ### Community 90 - "SelectionMapping.ts"
 
-Cohesion: 0.13
-Nodes (14): addNumberVariables(), isNumeralToken(), isUntranslated(), NUMERAL_CHARS, NUMERAL_VALUES, patternsUseNumberVariable(), SMALL_NUMBER_WORDS, translateNumeral() (+6 more)
+Cohesion: 0.24
+Nodes (13): addNumberVariables(), isNumeralToken(), isUntranslated(), NUMERAL_CHARS, NUMERAL_VALUES, ORDINAL_WORDS, ordinalOf(), patternsUseNumberVariable() (+5 more)
 
 ### Community 91 - "DictionaryMatchLookup.js"
 
@@ -839,8 +841,8 @@ Nodes (5): ADR-094: Delete the Write-Only Unit Provenance Fields, Consequence, C
 
 ### Community 95 - "RegexUtils"
 
-Cohesion: 0.15
-Nodes (7): Intl, SegmentData, Segmenter, SegmenterConstructor, SegmenterOptions, Segments, fillSegmentGaps()
+Cohesion: 0.17
+Nodes (6): Intl, SegmentData, Segmenter, SegmenterConstructor, SegmenterOptions, Segments
 
 ### Community 96 - "TranslationProfiler"
 
@@ -854,8 +856,8 @@ Nodes (15): PatternMetadata, PatternToken, PatternUsage, Default, HashMap, Optio
 
 ### Community 98 - "TokenHelpers.ts"
 
-Cohesion: 0.08
-Nodes (34): ADR-0003, ADR-0069, ADR-0105, Translator(), UI_TIMEOUTS, assertTranslationExecutionCtxShape, TranslationExecutionContext, useAutoTranslateTrigger() (+26 more)
+Cohesion: 0.05
+Nodes (48): ADR-0003, ADR-0105, Translator(), TOAST_DURATIONS, TOAST_IDS, ToastDuration, ToastId, assertTranslationExecutionCtxShape (+40 more)
 
 ### Community 99 - "ConflictResolution.ts"
 
@@ -899,8 +901,8 @@ Nodes (5): ADR-061: Skip a Shelf Row Module, Consequence, Context, Decision, Rea
 
 ### Community 107 - "TextAssembly.js"
 
-Cohesion: 0.23
-Nodes (13): QuickAddModalState, dictionaryTabNavigation, DictionaryTabNavigationInputs, FIXED_DICTIONARIES, byTier(), firstByTier(), quickAddMissMessage(), quickAddShortlist (+5 more)
+Cohesion: 0.15
+Nodes (18): CLOSED, DictionaryModals, DictionaryModalsOptions, OpenQuickAdd, QuickAddModalState, sharedShortlistMemory, toProperNounsId(), dictionaryTabNavigation (+10 more)
 
 ### Community 108 - "PatternFailureTracker"
 
@@ -914,8 +916,8 @@ Nodes (25): lucide-react, dependencies, lucide-react, react, react-dom, react-re
 
 ### Community 110 - "QuickAddTarget.ts"
 
-Cohesion: 0.10
-Nodes (30): ADR-0043, ChapterOutlineState, ADR-0050, useChapterOutline(), UseChapterOutlineOptions, ChapterOverride, useChapters(), UseChaptersOptions (+22 more)
+Cohesion: 0.12
+Nodes (26): ADR-0043, ChapterOutlineState, ADR-0050, useChapterOutline(), UseChapterOutlineOptions, useChapters(), UseChaptersOptions, assembleBatch() (+18 more)
 
 ### Community 111 - "SemanticPatternProcessor"
 
@@ -995,7 +997,7 @@ Nodes (5): ADR-054: Skip a Book Record Field Schema, Consequence, Context, Decis
 ### Community 126 - "eslint-plugin-react"
 
 Cohesion: 0.17
-Nodes (14): ADR-0090, callTauriCommand(), CMD, LookupIndexResult, NOTE: This is the application's public API (Tauri IPC wrapper), NOT a debug API., requireValidDictionaryIds(), tauriAPI, BookFingerprint (+6 more)
+Nodes (18): CommandPalette(), CommandPaletteProps, EMPTY_SOURCE, ReaderCommands, UseReaderCommandsOptions, QuickAddSource, ACTION_ROWS, BuildPaletteCommandsInput (+10 more)
 
 ### Community 127 - "Security Mitigations"
 
@@ -1004,13 +1006,13 @@ Nodes (5): ADR-079: Delete the WASM Assembler, Chunker and Tokenizer Tiers, Cons
 
 ### Community 128 - "Chinese-Vietnamese Translation App"
 
-Cohesion: 0.20
-Nodes (15): AppearanceResult, BatchDictionaryResponse, BatchDictionaryResult, BookRecordsResult, ConfigurationResult, DictionaryCreateResult, DictionaryOperationResult, ElectronAPI (+7 more)
+Cohesion: 0.11
+Nodes (28): DictionaryEntryProps, DictionaryStoreDeps, ImportOutcome, RuleMatchesModalProps, ContextMenuEntry, UseEntryEditAndMoveParams, UseEntryEditAndMoveResult, DictionaryContextInterface (+20 more)
 
 ### Community 129 - "DictionaryCache"
 
-Cohesion: 0.20
-Nodes (10): TranslatorDisplayPanelsProps, ClickableOriginalSemanticProps, ClickableTranslationOptimizedProps, ClickableTranslationSemanticProps, ClickDirection, SegmentClickHandler, SegmentClickPayload, CharacterOnlyResult (+2 more)
+Cohesion: 0.18
+Nodes (11): TranslatorDisplayPanelsProps, ClickableOriginalSemanticProps, ClickableTranslationOptimizedProps, ClickableTranslationSemanticProps, ClickDirection, SegmentClickHandler, SegmentClickPayload, CharacterOnlyResult (+3 more)
 
 ### Community 130 - "Design"
 
@@ -1044,8 +1046,8 @@ Nodes (9): Addendum (2026-10-10, architecture review round 24, candidate #1), Ad
 
 ### Community 136 - "ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential"
 
-Cohesion: 0.33
-Nodes (5): AdaptiveBatchSizerInput, AdaptiveBatchSizerLogEntry, AdaptiveBatchSizerResult, BatchPerformanceEntry, calculateNextBatchSize()
+Cohesion: 0.19
+Nodes (17): ADR-0045, useBookBinding(), useEngine(), BookReader(), BindingButton(), BindingNotices(), BookBindingDialog(), BookBindingDialogProps (+9 more)
 
 ### Community 137 - "ADR-005: Eager Dictionary Loading via DictionaryContext"
 
@@ -1074,7 +1076,7 @@ Nodes (8): AtomicU64, DictionaryCache, get_cache_key(), load_dictionary_file(), 
 
 ### Community 142 - "Resolved Bug Postmortems"
 
-Cohesion: 0.26
+Cohesion: 0.24
 Nodes (7): checkVariableStructure(), checkVariableSymmetry(), countVariableOccurrences(), extractPatternVariables(), validatePatternVariables(), PATTERN_VARIABLE_LETTERS, PatternTemplateEngine
 
 ### Community 143 - "WordTransformToolbar.tsx"
@@ -1089,8 +1091,8 @@ Nodes (4): ADR-102: Keep `utils/toast` as the Notification Seam, Consequence, Co
 
 ### Community 145 - "ParallelConfig"
 
-Cohesion: 0.31
-Nodes (12): callRustConfigWrite(), hasPairedPatterns(), PAIRED_TIERS, toPatternsId(), createDictionary(), createMissingPatternHalves(), DictionaryPairOps, halvesOf() (+4 more)
+Cohesion: 0.21
+Nodes (17): useDictionaryModals(), callRustConfigWrite(), hasPairedPatterns(), toPatternsId(), createDictionary(), createMissingPatternHalves(), DictionaryPairOps, halvesOf() (+9 more)
 
 ### Community 146 - "package.json"
 
@@ -1139,8 +1141,8 @@ Nodes (5): Archive, Decisions, Documentation Index, Guides, Reference
 
 ### Community 155 - "DictionaryTypes.ts"
 
-Cohesion: 0.10
-Nodes (14): ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init, Consequences, Context, Decision, Reason, ADR-042: Adopt `@tanstack/react-virtual` for the Reader, Rather Than Extend `useVirtualScrollRange`, Alternatives Rejected, Consequences (+6 more)
+Cohesion: 0.33
+Nodes (5): ADR-042: Adopt `@tanstack/react-virtual` for the Reader, Rather Than Extend `useVirtualScrollRange`, Alternatives Rejected, Consequences, Context, Decision
 
 ### Community 156 - "WasmProcessorLifecycle"
 
@@ -1177,6 +1179,11 @@ Nodes (8): Book Records, Chapters, Reader Commands, Reader Engine Calls, Reader 
 Cohesion: 0.33
 Nodes (5): ADR-071: Backend Modules Exist Where There Is a Protocol; One-Shot IPC Stays on `window.electronAPI`, Consequence, Context, Decision, Reasoning
 
+### Community 166 - "useDictionaryConfigManagement.ts"
+
+Cohesion: 0.22
+Nodes (12): FixableToken, fixNumberPlusLiang(), checkLeader(), ClaimableToken, claimGroupedSpan(), claimSpan(), consumedSource(), ContractToken (+4 more)
+
 ### Community 168 - "High-Priority Issues 🟠"
 
 Cohesion: 0.18
@@ -1199,13 +1206,13 @@ Nodes (8): AppConfiguration, AppearanceSettings, DictionaryInfo, DictionaryTypeD
 
 ### Community 173 - "@eslint/js"
 
-Cohesion: 0.24
-Nodes (12): useReaderEngine(), ADR-0050, UseWindowedTranslationOptions, bridgeGlossSegments(), createReaderEngine(), EngineCall, ReaderEngineCalls, chunkText() (+4 more)
+Cohesion: 0.15
+Nodes (8): ADR-0007, ADR-0037, ADR-0101, TwoPhasePatternProcessor, isPatternSource(), PATTERN_SOURCES, isPatternMatchInBounds(), isWasmPatternProcessorReady()
 
 ### Community 174 - "TextAssembly.js"
 
-Cohesion: 0.12
-Nodes (18): App(), AppContent(), NOTE: WASM singleton cleanup intentionally NOT called from App unmount., pendingToastCalls, setGlobalToast(), Toast, ToastContainer(), ToastContext (+10 more)
+Cohesion: 0.22
+Nodes (11): ADR-0024, useAppearanceVersion(), ColumnMetrics, useColumnMetrics(), useReadingAnchor(), UseReadingAnchorOptions, setReadingPosition(), registerPendingPositionFlush() (+3 more)
 
 ### Community 175 - "TabbedInterface.tsx"
 
@@ -1219,8 +1226,8 @@ Nodes (6): ADR-028: Eager Creation of Structural Pattern Dictionary on Fiction C
 
 ### Community 177 - "ADR-018: Unified PerformanceReport State in usePerformanceMonitoring"
 
-Cohesion: 0.23
-Nodes (15): Bookshelf(), formatBinding(), formatChapterCount(), formatProgress(), formatSize(), loadShelfLayout(), NO_BOOKS, NO_UNAVAILABLE (+7 more)
+Cohesion: 0.24
+Nodes (14): Bookshelf(), formatBinding(), formatChapterCount(), formatProgress(), formatSize(), loadShelfLayout(), NO_BOOKS, NO_UNAVAILABLE (+6 more)
 
 ### Community 178 - "AI Readiness Evaluation: chinese-translator-tauri"
 
@@ -1359,8 +1366,8 @@ Nodes (6): Chinese-Vietnamese Translator — Dev Memory, Comprehensive architect
 
 ### Community 207 - "DictionaryEntry.tsx"
 
-Cohesion: 0.09
-Nodes (44): DictionaryContextValue, ImportOutcome, DictionaryTableView(), DictionaryTableViewProps, getHeaderColumns(), HeaderColumn, DictionaryTypeDefinition, DuplicateDictionaryTableView() (+36 more)
+Cohesion: 0.12
+Nodes (33): DictionaryTableView(), DictionaryTableViewProps, getHeaderColumns(), HeaderColumn, DuplicateDictionaryTableView(), DuplicateDictionaryTableViewProps, entryPatcher(), CheckboxCell() (+25 more)
 
 ### Community 208 - "ADR-024: Do Not Move Style Objects into useAppearanceSettings"
 
@@ -1409,8 +1416,8 @@ Nodes (7): ADR-033: Delete Broken Pattern-Matcher Parity Tooling; Defer Building
 
 ### Community 221 - "PatternFailureTracker"
 
-Cohesion: 0.17
-Nodes (6): ActiveRun, RunContext, RunOptions, TranslationCancelledError, TranslationRunner, TranslationTimeoutError
+Cohesion: 0.18
+Nodes (5): ADR-0080, verifyWasmInstance(), retireWasmPatternProcessorOnSharedPanic(), ADR-0009, WasmProcessorLifecycle
 
 ### Community 222 - "eslint-plugin-unused-imports"
 
@@ -1424,13 +1431,13 @@ Nodes (8): Addendum (2026-08-25): Extending the decision to `segmentFromPosition
 
 ### Community 224 - "SemanticPatternProcessor.js"
 
-Cohesion: 0.24
-Nodes (3): orderChunksByDistance(), FillEngineCalls, WindowFiller
+Cohesion: 0.16
+Nodes (10): bridgeGlossSegments(), EMPTY_PANEL_ROWS, chunkText(), orderChunksByDistance(), FillEngineCalls, FillEvent, fillPlan(), ADR-0050 (+2 more)
 
 ### Community 225 - "ADR-061: Skip a Shelf Row Module"
 
-Cohesion: 0.15
-Nodes (14): ADR-0036, DICTIONARY_LOOKUP, MEMORY_MANAGEMENT, PATTERN_FAILURE_DETECTION, PHASE_TIMEOUTS, POSITION_TRACKING, getFirstGrapheme(), MatchCandidate (+6 more)
+Cohesion: 0.20
+Nodes (11): ADR-0036, POSITION_TRACKING, getFirstGrapheme(), MatchCandidate, buildSegmentsFromPositions(), precomputeOriginalSegments(), compareByTokenIndex(), resolveTokenIndex() (+3 more)
 
 ### Community 226 - "ReadonlyOptimizationUtils.js"
 
@@ -1461,6 +1468,11 @@ Nodes (6): src/**/\*.d.ts, src/**/_.js, src/\**/_.jsx, src/**/\*.ts, src/**/*.ts
 
 Cohesion: 0.18
 Nodes (3): DictionaryTrie, TrieNode, TrieBuildResult
+
+### Community 232 - "TranslationCache"
+
+Cohesion: 0.27
+Nodes (11): ADR-0027, ADR-0048, ADR-0062, useDictionaryConfigManagement(), transformAppConfig(), dictionaryNameProblem(), toProperNounsDictionaryId(), CategorizedDictionaries (+3 more)
 
 ### Community 233 - "WasmStringProcessor"
 
@@ -1494,13 +1506,18 @@ Nodes (5): ADR-045: Skip a Shared Chapter-Structure Override Control, Consequenc
 
 ### Community 239 - "DictionaryPairs.ts"
 
-Cohesion: 0.13
-Nodes (10): ModalErrorBoundary, ModalErrorBoundaryProps, ModalErrorBoundaryState, CLOSED, DictionaryModals, DictionaryModalsOptions, OpenQuickAdd, sharedShortlistMemory (+2 more)
+Cohesion: 0.22
+Nodes (3): ModalErrorBoundary, ModalErrorBoundaryProps, ModalErrorBoundaryState
 
 ### Community 240 - "ADR-049: Keep the Selection-Mapper Registry"
 
 Cohesion: 0.29
 Nodes (6): Addendum (2026-10-10), ADR-049: Keep the Selection-Mapper Registry, Consequence, Context, Decision, Reasoning
+
+### Community 241 - "ADR-042: Adopt `@tanstack/react-virtual` for the Reader, Rather Than Extend `useVirtualScrollRange`"
+
+Cohesion: 0.22
+Nodes (10): AnchorVirtualizer, computeAnchor(), DETACHED_INPUTS, isAnchorInPlace(), ReadingAnchorDeps, RestoreTarget, tryRestorePosition(), VirtualItem (+2 more)
 
 ### Community 243 - "typescript"
 
@@ -1554,8 +1571,8 @@ Nodes (4): ADR-066: Skip an Active-Dictionary Snapshot Module, Consequence, Cont
 
 ### Community 253 - "TranslatorControls.tsx"
 
-Cohesion: 0.40
-Nodes (4): ADR-069: Delete the Baseline Regression Detector, Consequences, Context, Decision
+Cohesion: 0.24
+Nodes (8): isClaimed(), getSemanticTokens(), getTextFromTokens(), getTextPositionForTokenIndex(), getTokenSpanForText(), isSemanticTokenType(), LegacyTextToken, TextToken
 
 ### Community 255 - "ADR-091: Skip Extracting translateText from Translator.jsx"
 
@@ -1584,8 +1601,8 @@ Nodes (4): lib, DOM, DOM.Iterable, ES2020
 
 ### Community 262 - "ReaderPanel.tsx"
 
-Cohesion: 0.33
-Nodes (5): ADR-097: Number Variables Have Their Own Span, Consequence, Context, Decision, Reasoning
+Cohesion: 0.10
+Nodes (13): ADR-069: Delete the Baseline Regression Detector, Consequences, Context, Decision, ADR-097: Number Variables Have Their Own Span, Consequence, Context, Decision (+5 more)
 
 ### Community 264 - "useCharacterOnlySegments.ts"
 
@@ -1619,8 +1636,8 @@ Nodes (4): ADR-105: One Batch Event for a Progressive Run, Consequence, Context,
 
 ### Community 271 - "useStreamingTranslation.js"
 
-Cohesion: 0.09
-Nodes (25): ADR-0100, matchWordSegments(), applyCharOnlySupplements(), applySmartCapitalization(), capitalizeFirstLetter(), cleanFullText(), cleanupFormatting(), CleanupOptions (+17 more)
+Cohesion: 0.10
+Nodes (23): ADR-0100, applyCharOnlySupplements(), applySmartCapitalization(), capitalizeFirstLetter(), cleanFullText(), cleanupFormatting(), CleanupOptions, finishCharOnlyText() (+15 more)
 
 ### Community 272 - "12. Implementation Summary (2026-02-07)"
 
@@ -1634,8 +1651,8 @@ Nodes (5): Code Quality Improvements, Consistency, Documentation, Error Handling
 
 ### Community 274 - "eslint-config-prettier"
 
-Cohesion: 0.40
-Nodes (4): CharacterLookup, CharacterMatch, characterMatchFor(), ADR-0087
+Cohesion: 0.39
+Nodes (6): INITIAL_STREAMING, ADR-0105, progressOf(), streamingReducer(), useStreamingTranslation(), useThrottledValue()
 
 ### Community 275 - "ADR-064: Skip Splitting the Binding Context"
 
@@ -1712,20 +1729,10 @@ Nodes (3): Future Improvements, Long Term, Short Term
 Cohesion: 0.67
 Nodes (3): Manual Verification Completed, Testing Required, Verification Checklist
 
-### Community 296 - "useCharacterOnlySegments.ts"
-
-Cohesion: 0.40
-Nodes (4): ADR-103: Keep the Default-Dictionary Toggle and the Name Step in the Config Hook, Consequence, Context, Decision
-
-### Community 297 - "ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init"
-
-Cohesion: 0.50
-Nodes (4): ConflictCandidate, resolveGlobalConflicts(), ADR-0083, typePriority()
-
 ### Community 298 - "useStreamingTranslation.js"
 
 Cohesion: 0.12
-Nodes (23): useDictionary(), DictionaryEntry(), DictionaryEntryProps, EntryForm, footerMessage(), patternMessage(), shortlistKeyTarget(), shortlistLabel() (+15 more)
+Nodes (26): DictionaryEntry(), EntryForm, footerMessage(), patternMessage(), shortlistKeyTarget(), shortlistLabel(), markVariables(), VariableHighlightInput() (+18 more)
 
 ### Community 299 - "ADR-098: Pattern Result Indices Are Original Indices"
 
@@ -1734,13 +1741,18 @@ Nodes (5): ADR-098: Pattern Result Indices Are Original Indices, Consequence, Co
 
 ### Community 300 - "TextAssembly.js"
 
-Cohesion: 0.60
-Nodes (4): assembleWithSpacing(), isChinese(), ADR-0079, needsSpace()
+Cohesion: 0.40
+Nodes (5): ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init, Consequences, Context, Decision, Reason
+
+### Community 301 - "@testing-library/user-event"
+
+Cohesion: 0.40
+Nodes (4): ADR-104: No Shared Fake for One-Shot IPC in Tests, Consequence, Context, Decision
 
 ### Community 344 - "types"
 
-Cohesion: 0.22
-Nodes (19): node, react-dom, NewRuleModal(), deriveCapitalizeExceptNForKeyEdit(), previewRuleGuess(), commitRuleDraft(), commitRuleField(), draftAsRule() (+11 more)
+Cohesion: 0.10
+Nodes (43): SemanticTypePickerProps, NewRuleModal(), RuleRow(), EMPTY_DRAFT, RulesManager, PATTERN_SEMANTIC_TYPE_REFS, PatternSemanticTypeRef, SEMANTIC_TYPES (+35 more)
 
 ## Knowledge Gaps
 
@@ -1752,11 +1764,11 @@ Nodes (19): node, react-dom, NewRuleModal(), deriveCapitalizeExceptNForKeyEdit()
 
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `DictionaryTypes.ts` to `DictionaryCache`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `_assertNum`, `Translator.jsx`, `Systematic Refactoring: Pure Utility Extraction`, `UtilityTypes.d.ts`, `Content Security Policy (CSP) and WASM Security`, `Future Improvements Implementation - 2026-02-01`, `Test Coverage Improvements Summary`, `SegmentedParagraphs.tsx`, `WASM Serialization Optimization Implementation Plan`, `Memory Leak Prevention`, `TypeScript/Rust Optimization Progress Report`, `Pattern Processing Code Review Fixes`, `WasmDictionaryAdapter`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useStreamingTranslation.js`, `DictionaryEngine`, `TextAssembly.js`, `@eslint/js`, `.translateWithProgressiveBatches`, `ADR-018: Unified PerformanceReport State in usePerformanceMonitoring`, `ADR-004: 5-Phase Processing Order Immutability`, `WasmDictionaryManager`, `DictionaryManager.js`, `tauriAPI.ts`, `DictionaryContext.tsx`, `DictionaryEntry.tsx`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `types`, `DictionaryTrieLoader.js`, `TokenHelpers.ts`, `ConflictResolution.ts`, `QuickAddTarget.ts`, `DictionaryPairs.ts`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Why does `Logger` connect `Systematic Refactoring: Pure Utility Extraction` to `DictionaryCache`, `DictionaryManagerTypes.d.ts`, `Translator.jsx`, `useStreamingTranslation.js`, `Content Security Policy (CSP) and WASM Security`, `ParallelConfig`, `Tauri Backend Security Audit`, `WASM Serialization Optimization Implementation Plan`, `Memory Leak Prevention`, `TypeScript/Rust Optimization Progress Report`, `Pattern Processing Code Review Fixes`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useStreamingTranslation.js`, `Code Review Fixes - Translation Process`, `DictionaryEngine`, `TextAssembly.js`, `.translateWithProgressiveBatches`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `tauriAPI.ts`, `DictionaryEntry.tsx`, `ChunkPostProcessor`, `Documentation Index`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `PatternFailureTracker`, `ADR-061: Skip a Shelf Row Module`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `eslint-plugin-react`?**
+- **Why does `react` connect `DictionaryTypes.ts` to `Chinese-Vietnamese Translation App`, `DictionaryCache`, `V8OptimizationUtils.js`, `PerformanceProfiler`, `_assertNum`, `ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential`, `Translator.jsx`, `Systematic Refactoring: Pure Utility Extraction`, `UtilityTypes.d.ts`, `Content Security Policy (CSP) and WASM Security`, `Future Improvements Implementation - 2026-02-01`, `eslint-config-prettier`, `Test Coverage Improvements Summary`, `SegmentedParagraphs.tsx`, `WASM Serialization Optimization Implementation Plan`, `Memory Leak Prevention`, `TypeScript/Rust Optimization Progress Report`, `Pattern Processing Code Review Fixes`, `WasmDictionaryAdapter`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useStreamingTranslation.js`, `DictionaryEngine`, `TextAssembly.js`, `useCharacterOnlySegments.ts`, `ADR-018: Unified PerformanceReport State in usePerformanceMonitoring`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `WasmDictionaryManager`, `DictionaryManager.js`, `tauriAPI.ts`, `DictionaryContext.tsx`, `DictionaryEntry.tsx`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `types`, `DictionaryTrieLoader.js`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TranslationCache`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `eslint-plugin-react`?**
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+- **Why does `Logger` connect `Systematic Refactoring: Pure Utility Extraction` to `Chinese-Vietnamese Translation App`, `DictionaryCache`, `DictionaryManagerTypes.d.ts`, `Translator.jsx`, `Resolved Bug Postmortems`, `useStreamingTranslation.js`, `Content Security Policy (CSP) and WASM Security`, `ParallelConfig`, `Future Improvements Implementation - 2026-02-01`, `WASM Code Review Fixes - 2026-01-28`, `Tauri Backend Security Audit`, `WASM Serialization Optimization Implementation Plan`, `TypeScript/Rust Optimization Progress Report`, `Code Review Fixes - Implementation Summary`, `Pattern Processing Code Review Fixes`, `Dictionary Trie Integration Session Summary`, `System Architecture`, `useDictionaryConfigManagement.ts`, `useCharacterOnlySegments.ts`, `useStreamingTranslation.js`, `Code Review Fixes - Translation Process`, `DictionaryEngine`, `useCharacterOnlySegments.ts`, `@eslint/js`, `ADR-004: 5-Phase Processing Order Immutability`, `UITypes.d.ts`, `DictionaryEntry.tsx`, `useColumnMetrics.ts`, `Documentation Index`, `ADR-002: Dual-Path Clickable Highlighting Architecture`, `PatternFailureTracker`, `SemanticPatternProcessor.js`, `ADR-061: Skip a Shelf Row Module`, `TokenHelpers.ts`, `ConflictResolution.ts`, `TextAssembly.js`, `QuickAddTarget.ts`, `DictionaryPairs.ts`, `ADR-042: Adopt `@tanstack/react-virtual`for the Reader, Rather Than Extend`useVirtualScrollRange``, `eslint-plugin-react`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
-- **Why does `react` connect `CacheTypes.d.ts` to `useStreamingTranslation.js`?**
+- **Why does `react` connect `CacheTypes.d.ts` to `WASM Serialization Optimization Implementation Plan`?**
   _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **What connects `checkJs`, `jsx`, `module` to the rest of the system?**
   _1662 weakly-connected nodes found - possible documentation gaps or missing edges._
