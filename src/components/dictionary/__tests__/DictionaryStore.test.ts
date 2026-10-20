@@ -38,19 +38,17 @@ beforeEach(async () => {
   });
   store = createDictionaryStore(fake.deps);
   await store.loadAll();
-  fake.deps.invalidate.mockClear();
   fake.deps.load.mockClear();
 });
 
 describe('the startup load', () => {
-  test('lists and loads every dictionary without invalidating the engine', async () => {
+  test('lists and loads every dictionary', async () => {
     const fresh = createDictionaryStore(fake.deps);
     const result = await fresh.loadAll();
 
     expect(Object.keys(fresh.getSnapshot().dictionaryTypes).sort()).toEqual([A, B]);
     expect(fresh.getSnapshot().dictionaries[A]).toEqual({ 张三: entry('Trương Tam') });
     expect(result).toMatchObject({ stillFailedIds: [], total: 2 });
-    expect(fake.deps.invalidate).not.toHaveBeenCalled();
   });
 
   test('an edit made before it finishes waits for it, and plans against what it loaded', async () => {
@@ -94,12 +92,6 @@ describe('import', () => {
       赵六: entry('imported too'),
       王五: entry('Vương Ngũ'),
     });
-  });
-
-  test('invalidates the engine for every dictionary', async () => {
-    await store.importAll();
-
-    expect(fake.deps.invalidate.mock.calls.map(([id]) => id).sort()).toEqual([A, B]);
   });
 
   test('onApplied runs inside the turn, after memory holds the import and before an edit queued behind it plans', async () => {
@@ -156,7 +148,6 @@ describe('import', () => {
 
     expect(outcome).toEqual({ status: 'failed', error: 'No file selected' });
     expect(fake.deps.load).not.toHaveBeenCalled();
-    expect(fake.deps.invalidate).not.toHaveBeenCalled();
   });
 
   test('a rejected import is reported, not thrown, and the queue keeps running', async () => {
@@ -177,7 +168,7 @@ describe('import', () => {
 describe('a full reload', () => {
   test('lists a dictionary that appeared on disk', async () => {
     fake.files['properNouns-C'] = {};
-    await store.loadAll({ invalidate: true });
+    await store.loadAll();
 
     expect('properNouns-C' in store.getSnapshot().dictionaryTypes).toBe(true);
     expect(memory()['properNouns-C']).toEqual({});
@@ -218,12 +209,11 @@ describe('reload of one dictionary', () => {
     expect(memory()[A]['王五']).toEqual(entry('Vương Ngũ'));
   });
 
-  test('replaces memory with the file and invalidates the engine for it', async () => {
+  test('replaces memory with the file', async () => {
     fake.files[A] = { 张三: entry('changed on disk') };
     await store.reload(A);
 
     expect(memory()[A]).toEqual({ 张三: entry('changed on disk') });
-    expect(fake.deps.invalidate.mock.calls.map(([id]) => id)).toEqual([A]);
   });
 
   test('a failed read drops the in-memory copy and marks it unread, and edits to it are refused', async () => {
@@ -232,7 +222,6 @@ describe('reload of one dictionary', () => {
 
     expect(A in memory()).toBe(false);
     expect(store.getSnapshot().unreadDictionaryIds).toEqual([A]);
-    expect(fake.deps.invalidate).not.toHaveBeenCalled();
     const result = await store.commit((d) => planAdd(d, A, '王五', entry('x')));
     expect(result).toEqual({
       status: 'invalid',
@@ -285,11 +274,8 @@ describe('rename', () => {
     expect(Object.keys(store.getSnapshot().dictionaryTypes).sort()).toEqual(
       ['properNouns-A2', B].sort()
     );
-    // Once for the rename, once for the edit queued behind it.
-    expect(fake.deps.invalidate.mock.calls.map(([id]) => id)).toEqual([
-      'properNouns-A2',
-      'properNouns-A2',
-    ]);
+    // The edit queued behind the rename saved under the new id.
+    expect(fake.files['properNouns-A2']['王五']).toEqual(entry('Vương Ngũ'));
   });
 });
 

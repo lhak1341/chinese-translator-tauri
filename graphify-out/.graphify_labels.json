@@ -257,7 +257,6 @@
   "255": "ADR-091: Skip Extracting translateText from Translator.jsx",
   "256": "9. Recommendations",
   "257": "tauriAPI.ts",
-  "258": "vitest",
   "259": "DictionaryManager Types",
   "260": "Keyboard Shortcuts",
   "261": "📍 Code Locations Map",
@@ -265,7 +264,6 @@
   "263": "Chinese-Vietnamese Translator — Dev Memory",
   "264": "useCharacterOnlySegments.ts",
   "265": "ESLint Tooling",
-  "266": "@vitest/ui",
   "267": "ADR-026: Do Not Move useDictionaryCRUD to src/hooks/",
   "268": "ADR-016: Skip StreamingContext Record Wrapper for useStreamingTranslation",
   "269": "DictionaryLabels.ts",
@@ -295,11 +293,9 @@
   "293": "src/components/rules — Gotchas",
   "294": "ADR-023: Do Not Merge useStreamingTranslation + useTranslationResults into useTranslationOutput",
   "295": "husky",
-  "296": "useCharacterOnlySegments.ts",
   "297": "ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init",
   "298": "useStreamingTranslation.js",
   "299": "ADR-098: Pattern Result Indices Are Original Indices",
-  "300": "TextAssembly.js",
   "301": "@testing-library/user-event",
   "302": "useCharacterOnlySegments.ts",
   "303": "PerformanceThresholds.ts",
@@ -342,7 +338,5 @@
   "340": "TransformRuleEngine.ts (compareRulePrecedence, applyRule, deriveCapitalizeExceptNForKeyEdit)",
   "341": "PositionMetadataSegmenter.ts",
   "342": "SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)",
-  "343": "eslint-config-prettier",
-  "344": "types",
-  "345": "@eslint/js"
+  "344": "types"
 }

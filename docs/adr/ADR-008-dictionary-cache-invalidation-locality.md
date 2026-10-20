@@ -84,3 +84,7 @@ It does NOT cover **post-mutation invalidation** — the lightweight cache flush
 - Implemented via `registerCacheInvalidator` callback registered into `DictionaryContext` by `Translator.jsx` when `enginePhase === 'ready'`
 - Calls `engine.invalidateDictionaryCaches(dictionaryId)` (targeted, single-dict) at CRUD success time
 - The previous implementation used `window.translationEngine` (dev-only global) → silently no-op in production
+
+## Addendum (2026-10-20)
+
+The post-mutation invalidation this ADR's scope note describes (`registerCacheInvalidator`, `invalidateDictionaryCaches`) is deleted (ADR-106). It cleared a lookup memo in front of tries that never change after load, so it changed no output. The locality decision holds and now covers every invalidation: an engine's caches are cleared only by rebuilding it, from the reload path.

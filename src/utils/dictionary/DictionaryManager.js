@@ -285,15 +285,6 @@ export class DictionaryManager {
   }
 
   /**
-   * Invalidate cache entries for a specific dictionary
-   * Called when dictionary is reloaded or modified
-   * @param {string} dictionaryName - Dictionary name to invalidate
-   */
-  invalidateCache(dictionaryName) {
-    this.cache.invalidateDictionary(dictionaryName);
-  }
-
-  /**
    * Clear all translation caches
    */
   clearCache() {

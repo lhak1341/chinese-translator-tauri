@@ -23,7 +23,6 @@ function entry(translation: string) {
 
 let disk: Dictionaries;
 let save: ReturnType<typeof vi.fn>;
-let invalidate: ReturnType<typeof vi.fn>;
 let committer: DictionaryStore;
 let unreadable: Set<string>;
 
@@ -44,8 +43,7 @@ beforeEach(async () => {
   disk = fake.files;
   unreadable = fake.unreadable;
   save = vi.fn(diskSave);
-  invalidate = vi.fn().mockResolvedValue(undefined);
-  committer = createDictionaryStore({ ...fake.deps, save, invalidate });
+  committer = createDictionaryStore({ ...fake.deps, save });
   await committer.loadAll();
 });
 
@@ -77,13 +75,12 @@ describe('EditCommitter, through the Dictionary Store', () => {
     });
   });
 
-  test('commits to memory and disk, then invalidates each touched dictionary', async () => {
+  test('commits to memory and disk', async () => {
     const result = await committer.commit((d) => planMove(d, A, B, ['李四']));
 
     expect(result.status).toBe('ok');
     expect(memory()[B]['李四']).toEqual(entry('Lý Tứ'));
     expect(disk).toEqual(memory());
-    expect(invalidate.mock.calls.map(([id]) => id)).toEqual([A, B]);
   });
 
   test('an invalid plan touches nothing', async () => {
@@ -131,7 +128,6 @@ describe('EditCommitter, through the Dictionary Store', () => {
     expect(memory()).toEqual(before);
     expect(disk).toEqual(before);
     expect(onCommitted).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
   });
 
   test('a throwing save counts as a failed save', async () => {

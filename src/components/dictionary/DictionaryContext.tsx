@@ -10,7 +10,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useSyncExternalStore,
 } from 'react';
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
@@ -35,8 +34,6 @@ import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassif
 interface DictionaryContextValue extends DictionaryContextInterface {
   /** Change selected dictionary (sync — all dicts already loaded) */
   setSelectedDictionary: (dictionaryId: string) => void;
-  /** Register the engine's cache invalidation function. Called by Translator.jsx when engine is ready; pass null to clear on teardown. */
-  registerCacheInvalidator: (fn: ((dictionaryId: string) => Promise<void>) | null) => void;
 }
 
 /**
@@ -48,46 +45,6 @@ interface DictionaryProviderProps {
 
 // Create the context for dictionary management
 const DictionaryContext = createContext<DictionaryContextValue | undefined>(undefined);
-
-/**
- * Clears the in-memory translation engine caches after a dictionary mutation so
- * subsequent translations use the updated entries rather than stale cached results.
- * Calls the invalidator registered by Translator.jsx; no-op until the engine is ready.
- *
- * `hasRegisteredOnceRef` distinguishes two cases where `invalidatorRef.current` is null:
- * before the engine's first `'ready'` (nothing was ever cached, safe to stay silent) vs.
- * a reinit window after the engine was previously ready (a stale cache genuinely exists,
- * and dropping the invalidation here silently would leave it stale with no signal).
- */
-async function invokeEngineInvalidator(
-  invalidatorRef: React.RefObject<((dictionaryId: string) => Promise<void>) | null>,
-  hasRegisteredOnceRef: React.RefObject<boolean>,
-  dictionaryId: string
-): Promise<void> {
-  if (!invalidatorRef.current) {
-    if (hasRegisteredOnceRef.current) {
-      toast.warning(
-        'Dictionary saved, but the engine is still starting — translations may use stale results until it finishes.',
-        {
-          duration: TOAST_DURATIONS.CACHE_WARNING,
-          id: TOAST_IDS.CACHE_INVALIDATION_SKIPPED,
-        }
-      );
-      logger.warn('Cache invalidation skipped: engine not ready (reinit window)');
-    }
-    return;
-  }
-  try {
-    await invalidatorRef.current(dictionaryId);
-    logger.log('✅ Dictionary caches cleared');
-  } catch (cacheError) {
-    toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-      duration: TOAST_DURATIONS.LOAD_FAILURE,
-      id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-    });
-    logger.warn('Cache invalidation failed (non-critical):', cacheError);
-  }
-}
 
 /**
  * DictionaryProvider Component
@@ -103,28 +60,16 @@ async function invokeEngineInvalidator(
 export function DictionaryProvider({ children }: DictionaryProviderProps): React.ReactElement {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Registered by Translator.jsx when engine is ready; cleared on engine teardown
-  const engineInvalidatorRef = useRef<((dictionaryId: string) => Promise<void>) | null>(null);
-  // True from the first non-null registration onward — distinguishes "never ready yet"
-  // (silent, nothing cached) from "was ready, now mid-reinit" (real stale cache, warn).
-  const hasRegisteredOnceRef = useRef<boolean>(false);
-  const registerCacheInvalidator = useCallback(
-    (fn: ((dictionaryId: string) => Promise<void>) | null) => {
-      engineInvalidatorRef.current = fn;
-      if (fn) hasRegisteredOnceRef.current = true;
-    },
-    []
-  );
 
   // The one writer of the in-memory dictionaries; its queue orders every write (ADR-055).
+  // The running engine never sees a write: an edit reaches translations only when the engine
+  // is rebuilt from the store's dictionaries (ADR-106).
   const [store] = useState(() =>
     createDictionaryStore({
       listDictionaries: () => getDictionaryTypes() as Promise<DictionaryTypesCollection>,
       load: loadAllDictionaries,
       save: (dictionaryId, entries) => window.electronAPI.saveDictionary(dictionaryId, entries),
       importFiles: () => window.electronAPI.importDictionaries(),
-      invalidate: (dictionaryId) =>
-        invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
     })
   );
   const { dictionaries, unreadDictionaryIds, dictionaryTypes } = useSyncExternalStore(
@@ -255,7 +200,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       importDictionaries,
       selectedDictionary,
       setSelectedDictionary,
-      registerCacheInvalidator,
     }),
     [
       dictionaries,
@@ -282,7 +226,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       reloadAllDictionaries,
       importDictionaries,
       selectedDictionary,
-      registerCacheInvalidator,
     ]
   );
 

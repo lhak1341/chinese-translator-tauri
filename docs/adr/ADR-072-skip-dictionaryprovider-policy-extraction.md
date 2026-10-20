@@ -22,3 +22,7 @@ Leave both in the provider.
 ## Consequence
 
 Future architecture reviews should not re-propose extracting either piece. Revisit if a second consumer of the startup-load policy or the invalidation rule appears outside the provider.
+
+## Addendum (2026-10-20)
+
+The invalidation rule this ADR kept in the provider is deleted (ADR-106): an edit cannot make an engine cache stale, because the engine's tries are fixed at load. `DictionaryContext.cacheInvalidationSeam.test.tsx` went with it. The startup-load half of this decision is unchanged.

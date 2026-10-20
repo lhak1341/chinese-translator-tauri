@@ -90,10 +90,7 @@
  *       • Phase 5: Characters
  *     - Critical: Phase order is IMMUTABLE
  *
- * 16. Cache Management                                       [EXTENSION]
- *     - invalidateDictionaryCaches() — targeted, after a dictionary edit
- *
- * 17. Utility Methods & Factory                              [SAFE]
+ * 16. Utility Methods & Factory                              [SAFE]
  *     - createTranslationEngine()
  *
  * =============================================================================
@@ -301,7 +298,6 @@ export class TranslationEngine {
    * }, []);
    *
    * @see shutdownSmartMemoryManagement - Stops memory monitoring
-   * @see invalidateDictionaryCaches - Targeted cache cleanup without full destruction
    *
    * @critical
    * Must be called to prevent memory leaks in long-running applications.
@@ -2582,53 +2578,10 @@ export class TranslationEngine {
   isReady() {
     return this.isInitialized && this.dictionaryManager.isReady();
   }
-
-  // ============================================================================
-  // SECTION 16: CACHE MANAGEMENT
-  // ============================================================================
-  // Purpose: Targeted cache invalidation after a dictionary edit (a full invalidation is an
-  //   engine rebuild — see EngineContext's reinitialize)
-  // Dependencies: DictionaryManager, SemanticArrayBuilder, pattern processor caches
-  // ============================================================================
-
-  /**
-   * MEDIUM-PRIORITY FIX: Targeted cache invalidation for dictionary operations
-   * Invalidate only caches affected by dictionary add/update/delete operations
-   *
-   * Called when:
-   * - Dictionary entries are added/updated/deleted
-   * - Undo/redo dictionary operations
-   *
-   * Clears:
-   * - DictionaryManager's lookup cache for `dictionaryName`
-   *
-   * Does NOT clear (not affected by single dictionary entry changes):
-   * - Proper noun casing map (built at initialize(); nothing rebuilds it)
-   * - Semantic array builder cache (capitalization updates)
-   * - Pattern processor variable cache (pattern structure unchanged)
-   * - Translation segments (position mappings)
-   *
-   * @param {string} dictionaryName - Dictionary that was modified
-   */
-  async invalidateDictionaryCaches(dictionaryName) {
-    try {
-      // 1. Dictionary Manager Cache (specific dictionary only)
-      if (this.dictionaryManager) {
-        this.dictionaryManager.invalidateCache(dictionaryName);
-      }
-
-      // The proper noun casing map is kept: it is built once at initialize() from the
-      // dictionaries the engine loaded, nothing rebuilds it, and the engine has not seen this
-      // edit until a reload. Emptying it would stop casing restoration for the whole session.
-    } catch (error) {
-      logger.error('❌ Error invalidating dictionary caches:', error);
-      throw error;
-    }
-  }
 }
 
 // ============================================================================
-// SECTION 17: UTILITY METHODS & FACTORY
+// SECTION 16: UTILITY METHODS & FACTORY
 // ============================================================================
 // Purpose: Public factory — use this, do not call `new TranslationEngine()` directly
 // ============================================================================

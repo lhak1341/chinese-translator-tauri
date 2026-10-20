@@ -33,7 +33,6 @@ export function fakeDictionaryDisk(initial: Dictionaries) {
       files[id] = structuredClone(data);
       return { success: true };
     }),
-    invalidate: vi.fn(async (_id: string) => undefined),
     // An import rewrites the files; a test that wants that sets `files` inside its own mock.
     importFiles: vi.fn(async (): Promise<DictionaryOperationResult> => ({
       success: true,

@@ -25,3 +25,7 @@ No bug, no failing test and no second consumer. The only gain is that correctnes
 ## Consequence
 
 A future review that sees a view registering the engine's invalidator should not re-propose the move from that alone. Revisit if tabs ever become lazily mounted, or if a second place needs to register an invalidator. At that point register from `EngineProvider`, where `enginePhase` and `engineRef` are in scope, and keep `hasRegisteredOnceRef`'s three states.
+
+## Addendum (2026-10-20)
+
+The registration this ADR kept in `Translator.jsx` is deleted, along with the whole invalidator (ADR-106). The "revisit" condition no longer applies: there is nothing to register.

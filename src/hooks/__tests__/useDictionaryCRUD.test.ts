@@ -8,8 +8,8 @@
  * Invariants kept from the pre-commit-queue hook:
  *
  *   I1 (history-on-success): `record` fires only after every save succeeded.
- *   I3 (error-propagates-clean): on a failed save the method throws, nothing is recorded, the
- *      engine is not invalidated, and memory is back as it was.
+ *   I3 (error-propagates-clean): on a failed save the method throws, nothing is recorded, and
+ *      memory is back as it was.
  *   I4 (single-toast-on-error): add/update/patch/delete/bulkDelete toast at most once per
  *      failure. moveEntry/bulkMoveEntries toast never on failure — MoveDialog.tsx owns their
  *      error display (dictionary/CLAUDE.md's CRUD Audit Checklist item 4).
@@ -65,13 +65,11 @@ const phraseEntry: DictionaryEntryValue = {
 
 let memory: Record<string, DictionaryData>;
 let save: ReturnType<typeof vi.fn>;
-let invalidate: ReturnType<typeof vi.fn>;
 let record: ReturnType<typeof vi.fn>;
 
 function makeHook(initial: Record<string, DictionaryData>) {
   memory = structuredClone(initial);
   save = vi.fn().mockResolvedValue({ success: true });
-  invalidate = vi.fn().mockResolvedValue(undefined);
   record = vi.fn();
   const deps = {
     read: () => memory,
@@ -79,7 +77,6 @@ function makeHook(initial: Record<string, DictionaryData>) {
       memory = { ...memory, ...updates };
     },
     save,
-    invalidate,
   };
   // No queue: each test awaits one call at a time.
   const committer: EditCommitter = {
@@ -101,14 +98,14 @@ beforeEach(() => {
 // ─── addEntry ─────────────────────────────────────────────────────────────────
 
 describe('addEntry', () => {
-  it('commits, records and invalidates on success (I1)', async () => {
+  it('commits, saves and records on success (I1)', async () => {
     const result = makeHook({ [DICT_ID]: {} });
     await act(async () => {
       await result.current.addEntry(DICT_ID, SOURCE, TRANSLATION);
     });
     expect(memory[DICT_ID][SOURCE]).toEqual(phraseEntry);
     expect(record).toHaveBeenCalledTimes(1);
-    expect(invalidate).toHaveBeenCalledWith(DICT_ID);
+    expect(save).toHaveBeenCalledWith(DICT_ID, memory[DICT_ID]);
     expect(toast.success).toHaveBeenCalledWith('Entry added successfully');
   });
 
@@ -139,7 +136,6 @@ describe('addEntry', () => {
       );
     });
     expect(record).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
     expect(memory[DICT_ID]).toEqual({});
   });
 
@@ -229,7 +225,7 @@ describe('patchEntry', () => {
     });
     expect(memory[PROPER_ID][SOURCE]).toEqual({ ...stored, semanticType: 'organization' });
     expect(record).toHaveBeenCalledTimes(1);
-    expect(invalidate).toHaveBeenCalledWith(PROPER_ID);
+    expect(save).toHaveBeenCalledWith(PROPER_ID, memory[PROPER_ID]);
   });
 
   it('reads the current value, not a caller snapshot, when given an updater', async () => {
@@ -463,7 +459,7 @@ describe('bulkDeleteEntries', () => {
 // ─── moveEntry / bulkMoveEntries ─────────────────────────────────────────────
 
 describe('moveEntry', () => {
-  it('moves, records one edit and invalidates both dictionaries (I1)', async () => {
+  it('moves, saves both dictionaries and records one edit (I1)', async () => {
     const result = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
     await act(async () => {
       await result.current.moveEntry(PN_A, PN_B, SOURCE, 'B');
@@ -471,7 +467,7 @@ describe('moveEntry', () => {
     expect(memory[PN_A]).toEqual({});
     expect(memory[PN_B]).toEqual({ [SOURCE]: phraseEntry });
     expect(record).toHaveBeenCalledTimes(1);
-    expect(invalidate.mock.calls.map(([id]) => id)).toEqual([PN_A, PN_B]);
+    expect(save.mock.calls.map(([id]) => id)).toEqual([PN_A, PN_B]);
   });
 
   it.each([
@@ -502,7 +498,6 @@ describe('moveEntry', () => {
     });
     expect(toastCount()).toBe(0);
     expect(record).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
   });
 });
 

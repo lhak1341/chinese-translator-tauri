@@ -44,9 +44,7 @@ window.performanceDashboard.getHealthReport();
 
 ### Cache Invalidation
 
-**Problem**: Dictionary edits don't clear caches → stale translations served after add/update/delete operations.
-
-**Targeted, after an edit**: `DictionaryContext` calls the invalidator `Translator.jsx` registers (`registerCacheInvalidator`) after each mutating operation — add, update, delete, move, undo/redo — which runs `TranslationEngine.invalidateDictionaryCaches(dictionaryId)`: the dictionary manager's lookup caches, the proper-noun translation cache, and a WASM re-sync of that one dictionary.
+**After an edit: none.** An engine's lookups are fixed at `initialize` (the tries copy every entry, nothing writes them afterwards), so no engine cache can go stale from a dictionary edit, and the edit is invisible to translations until a rebuild (ADR-106). The per-dictionary invalidation that ran after every edit until 2026-10-20 cleared a memo in front of unchanged tries and changed no output — see `deleted-symbols.md`.
 
 **Everything, on a reload**: a full invalidation is an engine rebuild (`reinitialize`, from Cmd+R or a binding change), which bumps `engineVersion` — the signal every holder of translated output (the Reader's chunk cache, its outline titles) listens to.
 

@@ -10,7 +10,7 @@
  *
  * toast.success('Operation completed', { duration: TOAST_DURATIONS.SUCCESS });
  * toast.error('Failed to save', { duration: TOAST_DURATIONS.ERROR });
- * toast.warning('Cache degraded', { duration: TOAST_DURATIONS.CACHE_WARNING });
+ * toast.warning('Cache degraded', { duration: TOAST_DURATIONS.WARNING });
  * ```
  */
 
@@ -22,7 +22,6 @@
  * - ERROR: Medium duration for errors requiring attention (5s)
  * - WARNING: Medium duration for warnings (4s)
  * - CRITICAL: Long duration for blocking issues requiring immediate action (10s)
- * - CACHE_WARNING: Extended duration for performance warnings with instructions (8s)
  * - MOVE_ERROR: Extended duration for complex operations with rollback info (7s)
  * - LOAD_FAILURE: Medium-long duration for resource loading failures (5s)
  * - PERSISTENT: Never auto-dismiss (0 = requires manual dismiss)
@@ -39,9 +38,6 @@ export const TOAST_DURATIONS = {
 
   /** Critical errors - 10 seconds (blocking issues, initialization failures) */
   CRITICAL: 10000,
-
-  /** Cache/performance warnings - 8 seconds (includes recovery instructions) */
-  CACHE_WARNING: 8000,
 
   /** Move/complex operation errors - 7 seconds (includes rollback info) */
   MOVE_ERROR: 7000,
@@ -65,7 +61,7 @@ export const TOAST_DURATIONS = {
  * import { TOAST_IDS } from '@/constants/toastConfig';
  *
  * toast.warning('Cache degraded...', {
- *   duration: TOAST_DURATIONS.CACHE_WARNING,
+ *   duration: TOAST_DURATIONS.WARNING,
  *   id: TOAST_IDS.CACHE_DEGRADATION
  * });
  * ```
@@ -73,12 +69,6 @@ export const TOAST_DURATIONS = {
 export const TOAST_IDS = {
   /** Cache performance degradation warning */
   CACHE_DEGRADATION: 'cache-degradation',
-
-  /** Cache invalidation failure (repeated across operations) */
-  CACHE_INVALIDATION_FAILED: 'cache-invalidation-failed',
-
-  /** Cache invalidation skipped — engine not ready (reinit window) */
-  CACHE_INVALIDATION_SKIPPED: 'cache-invalidation-skipped',
 
   /** WASM number processor fallback */
   WASM_NUMBER_FALLBACK: 'wasm-number-fallback',

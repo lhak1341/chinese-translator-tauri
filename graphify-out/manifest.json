@@ -195,8 +195,8 @@
     "semantic_hash": "07f96391f17a5437950141502aad4fed"
   },
   "src/types/DictionaryTypes.ts": {
-    "mtime": 1791039776.64696,
-    "ast_hash": "03e9d8fdb71cc699e6f6dd0c60da4618",
+    "mtime": 1792509211.3034382,
+    "ast_hash": "350da51a65604b00c4ecd1f8d7cadddc",
     "semantic_hash": ""
   },
   "src/types/intl-segmenter.d.ts": {
@@ -215,8 +215,8 @@
     "semantic_hash": ""
   },
   "src/constants/toastConfig.ts": {
-    "mtime": 1791117835.9215014,
-    "ast_hash": "5eae4935d9dff0a172e811fe5572dab5",
+    "mtime": 1792509003.011568,
+    "ast_hash": "8119af38d671d3dd3e8edd97f816647c",
     "semantic_hash": ""
   },
   "src/constants/SemanticTypes.ts": {
@@ -265,8 +265,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1791904544.904832,
-    "ast_hash": "5de262cd16dd0c1b97dbb176280ce9f3",
+    "mtime": 1792508972.5609503,
+    "ast_hash": "dc81db797279e75965a9b0149d3de000",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -400,8 +400,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryManager.js": {
-    "mtime": 1791710427.432947,
-    "ast_hash": "17a7c461d05bf79e8f388d5b1de1b300",
+    "mtime": 1792509124.1037133,
+    "ast_hash": "8378e77cab8823192932170f00569ba1",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryLoadClassifier.ts": {
@@ -415,8 +415,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TranslationCache.js": {
-    "mtime": 1791624131.8919013,
-    "ast_hash": "41551e83f8ee2c5643ed906b219c17d8",
+    "mtime": 1792508985.0299227,
+    "ast_hash": "a0bed9b830bfcbc29f2a1865127b1526",
     "semantic_hash": ""
   },
   "src/utils/dictionary/PersistTimeValidator.ts": {
@@ -545,8 +545,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1791904544.8920739,
-    "ast_hash": "61f2b5d0e0065a40c9f451007563eef4",
+    "mtime": 1792508951.7143288,
+    "ast_hash": "caf1bf4cce101ebea8e38680176903cd",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -625,8 +625,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryContext.tsx": {
-    "mtime": 1791039776.6464179,
-    "ast_hash": "50cff7ec409cd05f6f08d0b082d35e87",
+    "mtime": 1792508942.2491157,
+    "ast_hash": "26823cb5a712707321f72eea934e5258",
     "semantic_hash": ""
   },
   "src/components/dictionary/SemanticTypePicker.tsx": {
@@ -775,8 +775,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1791825357.0711746,
-    "ast_hash": "c1dfbfbf4814746791b2d1987191122d",
+    "mtime": 1792509142.426252,
+    "ast_hash": "1d20a23722b92188c81441fc3308142e",
     "semantic_hash": ""
   },
   "README.md": {
@@ -885,8 +885,8 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1791816160.7288008,
-    "ast_hash": "d69dbfa4b3f3aa6714e2a4df6082e2ba",
+    "mtime": 1792509181.032573,
+    "ast_hash": "fcd102ec4b6d081da4bbb2c7aa2ade67",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -895,9 +895,9 @@
     "semantic_hash": "7695aa4693cd411232f8b13ce4117c4d"
   },
   "docs/adr/ADR-008-dictionary-cache-invalidation-locality.md": {
-    "mtime": 1785198823.1007762,
-    "ast_hash": "01b9d8a45fa69eed6ea1cb70eabe17fc",
-    "semantic_hash": "01b9d8a45fa69eed6ea1cb70eabe17fc"
+    "mtime": 1792509181.033156,
+    "ast_hash": "0b1b6b1336f7eabe0182682fd9c719ec",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-029-fiction-patterns-use-pattern-source-string.md": {
     "mtime": 1782493267.2768753,
@@ -1025,8 +1025,8 @@
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
-    "mtime": 1791567334.997858,
-    "ast_hash": "ec30be4dbb8f62cc77ab3a4cd4878c71",
+    "mtime": 1792509142.4269636,
+    "ast_hash": "9ac81bc267c3c1b16b08d091614c1b5c",
     "semantic_hash": ""
   },
   "docs/guides/development.md": {
@@ -1065,8 +1065,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1791904139.8252103,
-    "ast_hash": "79e4967ddce4a6154f7928a136ba93ff",
+    "mtime": 1792509142.4279947,
+    "ast_hash": "debac8c33c4f9dfe077615ef3afcd3f7",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1791817272.336218,
-    "ast_hash": "678f28a955bef4a9d89bc0c3a6a35f70",
+    "mtime": 1791910702.0736794,
+    "ast_hash": "37f47d6267c71a31b970a25ee0ca01b8",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1465,8 +1465,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1791817556.5016675,
-    "ast_hash": "f5c0e386d6050ad2a491926222686d2e",
+    "mtime": 1792509192.5778725,
+    "ast_hash": "5c5a5c18e673b3326650f030430d3f8d",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/EditCommitter.ts": {
-    "mtime": 1791017534.0844514,
-    "ast_hash": "fd13a92569ef78fae347b145e34a6ea3",
+    "mtime": 1792508906.9066906,
+    "ast_hash": "c8c0a4a92ea5a11779be0fb6c64ee1f5",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryEdit.ts": {
@@ -1915,8 +1915,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-052-dictionary-edit-commits-one-queue-typescript-write-back.md": {
-    "mtime": 1790676661.8735635,
-    "ast_hash": "cbd76dc6f09ea6aa1e8b1ecae81831c1",
+    "mtime": 1792509211.3043263,
+    "ast_hash": "a054796df5891efd91f92e02a4e584c0",
     "semantic_hash": ""
   },
   "docs/adr/ADR-053-unread-dictionaries-are-refused-not-quarantined.md": {
@@ -1970,13 +1970,13 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryStore.ts": {
-    "mtime": 1791039776.6456087,
-    "ast_hash": "dd2610e6ac58e1868c55aceadc2c8ea6",
+    "mtime": 1792508918.3648078,
+    "ast_hash": "4e8d5e5aabd585ecc5e82d11d5433a77",
     "semantic_hash": ""
   },
   "docs/adr/ADR-055-dictionary-store-one-queue-for-every-write.md": {
-    "mtime": 1791048891.7750208,
-    "ast_hash": "d2d263bfde498e95468963643a0b6bb4",
+    "mtime": 1792509211.3039303,
+    "ast_hash": "ac502bf127a18560b6c4115552c00b24",
     "semantic_hash": ""
   },
   "src/utils/reader/WindowFiller.ts": {
@@ -2160,8 +2160,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-072-skip-dictionaryprovider-policy-extraction.md": {
-    "mtime": 1791098101.3307936,
-    "ast_hash": "724298f0a9858ed492baa5d301f8313a",
+    "mtime": 1792509181.0338979,
+    "ast_hash": "05def63d2e1e46835ea9f3d8c8201458",
     "semantic_hash": ""
   },
   "docs/adr/ADR-073-delete-the-wasm-dictionary-lookup-tier.md": {
@@ -2305,8 +2305,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-088-skip-moving-the-cache-invalidator-registration.md": {
-    "mtime": 1791464846.7748559,
-    "ast_hash": "9c2ca05f3b449a5df6a1236082c6f54d",
+    "mtime": 1792509181.0346417,
+    "ast_hash": "c501ed22e915143543cd745734902ca1",
     "semantic_hash": ""
   },
   "docs/adr/ADR-089-the-character-only-pass-leaves-punctuation-alone.md": {
@@ -2432,6 +2432,11 @@
   "docs/adr/ADR-105-one-batch-event-for-a-progressive-run.md": {
     "mtime": 1791816160.0891278,
     "ast_hash": "839809cc8d1201a045075c7132ebbe09",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-106-a-dictionary-edit-reaches-the-engine-only-through-a-rebuild.md": {
+    "mtime": 1792509218.0826764,
+    "ast_hash": "c90aa0677b5835c8d235e891023843ad",
     "semantic_hash": ""
   }
 }

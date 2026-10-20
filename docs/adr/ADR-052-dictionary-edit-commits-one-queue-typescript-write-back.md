@@ -31,3 +31,7 @@ The grilling settled on one **Dictionary Edit** module (see `CONTEXT.md`). Every
 ## Consequence
 
 A review that proposes a Rust batch save, or per-dictionary parallel commits, should find this ADR first. Reconsider (1) if a half-applied move is ever observed on disk. Reconsider (2) if edits start to come from something other than one user's clicks, such as a background import or sync that writes through `commitEdit`.
+
+## Addendum (2026-10-20)
+
+`commitEdit` no longer invalidates the engine after a save (ADR-106): it applies, saves and records.

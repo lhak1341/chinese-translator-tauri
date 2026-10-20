@@ -41,7 +41,6 @@ export interface EditCommitterDeps {
   /** Replaces the given dictionaries in memory, leaving the others alone. */
   write: (updates: Dictionaries) => void;
   save: (dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean }>;
-  invalidate: (dictionaryId: string) => Promise<void>;
   /** True for a dictionary whose file failed to load (CONTEXT.md "Unread dictionary"). It is
    * absent from `read()`, so plans already refuse it; this only names the reason. */
   isUnread?: (dictionaryId: string) => boolean;
@@ -107,7 +106,6 @@ export async function commitEdit(
 
   if (saved.every(Boolean)) {
     onCommitted?.(planned);
-    for (const id of ids) await deps.invalidate(id);
     return { status: 'ok', edit: planned };
   }
 

@@ -87,7 +87,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 // ============================================================================
 
 const Translator = ({ isActive }) => {
-  const { isLoading, loadError, reloadAllDictionaries, registerCacheInvalidator } = useDictionary();
+  const { isLoading, loadError, reloadAllDictionaries } = useDictionary();
 
   // Performance monitoring hook (extracted)
   const { avgTime, recordTranslation } = usePerformanceMonitoring();
@@ -189,15 +189,11 @@ const Translator = ({ isActive }) => {
   }, [cleanupScrollRestoration]);
 
   useEffect(() => {
-    if (enginePhase !== 'ready' || !engineRef.current) {
-      registerCacheInvalidator(null);
-      return;
-    }
-    registerCacheInvalidator((id) => engineRef.current?.invalidateDictionaryCaches(id));
+    if (enginePhase !== 'ready' || !engineRef.current) return;
     if (process.env.NODE_ENV === 'development') {
       installDevConsole(engineRef.current);
     }
-  }, [enginePhase, registerCacheInvalidator, engineRef]);
+  }, [enginePhase, engineRef]);
 
   useEffect(() => {
     if (enginePhase !== 'error' || !initializationError) return;

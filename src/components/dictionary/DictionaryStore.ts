@@ -46,16 +46,11 @@ export interface DictionaryStoreDeps {
   /** The load protocol (`loadAllDictionaries`, ADR-014). */
   load: (dictionaryIds: string[]) => Promise<BatchLoadResult>;
   save: (dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean }>;
-  /** Clears the engine's caches for one dictionary. */
-  invalidate: (dictionaryId: string) => Promise<void>;
   /** Asks for a file and rewrites every dictionary file from it (`importDictionaries`). */
   importFiles: () => Promise<DictionaryOperationResult>;
 }
 
 export interface LoadAllOptions {
-  /** Invalidate the engine for every dictionary. Off for the startup load and force reload,
-   * which build a new engine from the result instead. */
-  invalidate?: boolean;
   /** Runs inside the operation's turn, after memory holds the result — import clears
    * history here, so no undo queued before it can run after it. */
   onApplied?: () => void;
@@ -87,7 +82,7 @@ export interface DictionaryStore extends EditCommitter {
   /**
    * Imports dictionary files and re-reads every dictionary, as one operation: no edit can save
    * between the files being rewritten and memory being replaced, so none saves a stale copy
-   * over the import. The engine is invalidated for each dictionary. `onApplied` runs inside the
+   * over the import. `onApplied` runs inside the
    * turn once memory holds the result (import clears history there). Never rejects.
    */
   importAll: (onApplied?: () => void) => Promise<ImportOutcome>;
@@ -135,8 +130,8 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     return result;
   }
 
-  /** Puts one load's outcome for `id` into memory. Returns whether it read cleanly. */
-  function applyLoad(id: string, { loadedDictionaries, stillFailedIds }: BatchLoadResult): boolean {
+  /** Puts one load's outcome for `id` into memory. */
+  function applyLoad(id: string, { loadedDictionaries, stillFailedIds }: BatchLoadResult): void {
     const data = loadedDictionaries[id];
     if (stillFailedIds.includes(id) || !data) {
       logger.error(`Failed to reload dictionary ${id}; it is unread until it loads`);
@@ -145,13 +140,12 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
         dictionaries: without(snapshot.dictionaries, id),
         unreadDictionaryIds: unread.includes(id) ? unread : [...unread, id],
       });
-      return false;
+      return;
     }
     set({
       dictionaries: { ...snapshot.dictionaries, [id]: sorted(data) },
       unreadDictionaryIds: snapshot.unreadDictionaryIds.filter((u) => u !== id),
     });
-    return true;
   }
 
   const commitDeps = {
@@ -159,12 +153,11 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     write: (updates: Dictionaries) =>
       set({ dictionaries: { ...snapshot.dictionaries, ...updates } }),
     save: deps.save,
-    invalidate: deps.invalidate,
     isUnread: (id: string) => snapshot.unreadDictionaryIds.includes(id),
   };
 
   /** The body of `loadAll`, for an operation that is already in its turn. */
-  async function loadAllNow({ invalidate = false, onApplied }: LoadAllOptions = {}) {
+  async function loadAllNow({ onApplied }: LoadAllOptions = {}) {
     const dictionaryTypes = await deps.listDictionaries();
     const ids = Object.keys(dictionaryTypes);
     const { loadedDictionaries, stillFailedIds, total } = await deps.load(ids);
@@ -174,7 +167,6 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     }
     set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes });
     onApplied?.();
-    if (invalidate) for (const id of Object.keys(dictionaries)) await deps.invalidate(id);
     return { stillFailedIds, total, dictionaries };
   }
 
@@ -208,7 +200,7 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
         }
         if (!result.success) return { status: 'failed', error: result.error };
         try {
-          await loadAllNow({ invalidate: true, onApplied });
+          await loadAllNow({ onApplied });
         } catch (error) {
           logger.error('Failed to reload dictionaries after import:', error);
           return { status: 'reload-failed', message: result.message };
@@ -220,11 +212,10 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     reload(dictionaryId) {
       return enqueue(async () => {
         try {
-          const readCleanly = applyLoad(dictionaryId, await deps.load([dictionaryId]));
+          applyLoad(dictionaryId, await deps.load([dictionaryId]));
           if (!(dictionaryId in snapshot.dictionaryTypes)) {
             set({ dictionaryTypes: await deps.listDictionaries() });
           }
-          if (readCleanly) await deps.invalidate(dictionaryId);
         } catch (error) {
           logger.error(`Error loading dictionary ${dictionaryId}:`, error);
         }
@@ -233,10 +224,9 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
 
     rename(renames, onApplied) {
       return enqueue(async () => {
-        const loaded: string[] = [];
         for (const [from, to] of renames) {
           try {
-            if (applyLoad(to, await deps.load([to]))) loaded.push(to);
+            applyLoad(to, await deps.load([to]));
           } catch (error) {
             logger.error(`Error loading renamed dictionary ${to}:`, error);
           }
@@ -247,7 +237,6 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
         }
         set({ dictionaryTypes: await deps.listDictionaries() });
         onApplied?.();
-        for (const id of loaded) await deps.invalidate(id);
       });
     },
   };

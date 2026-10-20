@@ -3,7 +3,7 @@
  *
  * The lookup memo's interface, crossed directly:
  * - Multi-dictionary key generation and fast-path caching
- * - Invalidation of every entry that searched a dictionary
+ * - A cached miss (`null`) versus a lookup never cached
  * - clear(), setEnabled(), dispose() idempotency
  */
 
@@ -65,72 +65,15 @@ describe('TranslationCache — multi-dictionary lookup', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Dictionary index and invalidation (CRITICAL-3 fix)
+// Misses and eviction
 // ---------------------------------------------------------------------------
 
-describe('TranslationCache — invalidateDictionary', () => {
-  let cache;
-  beforeEach(() => {
-    cache = makeCache();
-  });
-
-  test('invalidateDictionary removes lookup entries containing that dictionary', () => {
-    cache.setLookup('好', ['characters', 'phrases'], 'result');
-    cache.invalidateDictionary('characters');
-    // Multi-dict lookup that included 'characters' must be gone
-    expect(cache.getLookup('好', ['characters', 'phrases'])).toBeUndefined();
-  });
-
-  test('invalidateDictionary removes lookup entry even if the invalidated dict is non-primary', () => {
-    cache.setLookup('好', ['phrases', 'characters'], 'result');
-    // Invalidate the second dict in the list
-    cache.invalidateDictionary('characters');
-    expect(cache.getLookup('好', ['phrases', 'characters'])).toBeUndefined();
-  });
-
-  test('lookup entries not containing the invalidated dictionary survive', () => {
-    cache.setLookup('好', ['phrases'], 'phrases-only');
-    cache.invalidateDictionary('characters');
-    // 'phrases' lookup did not involve 'characters', so it should survive
-    expect(cache.getLookup('好', ['phrases'])).toBe('phrases-only');
-  });
-
-  test('invalidating a dictionary that was never populated is a no-op', () => {
-    // Should not throw
-    expect(() => cache.invalidateDictionary('nonexistent')).not.toThrow();
-  });
-
-  test('lookups under another dictionary survive invalidation', () => {
-    cache.setLookup('你', ['characters'], 'bạn');
-    cache.setLookup('你', ['properNouns-Test'], 'Bạn');
-
-    cache.invalidateDictionary('characters');
-
-    expect(cache.getLookup('你', ['properNouns-Test'])).toBe('Bạn');
-  });
-
-  test('new entries can be added after invalidation', () => {
-    cache.setLookup('你', ['characters'], 'bạn');
-    cache.invalidateDictionary('characters');
-
-    cache.setLookup('你', ['characters'], 'bạn-v2');
-    expect(cache.getLookup('你', ['characters'])).toBe('bạn-v2');
-  });
-
-  test('invalidation drops only entries that searched the dictionary', () => {
-    cache.setLookup('你', ['characters', 'phrases'], 'bạn');
-    cache.setLookup('他', ['phrases'], 'anh ấy');
-    cache.invalidateDictionary('characters');
-
-    expect(cache.getLookup('你', ['characters', 'phrases'])).toBeUndefined();
-    expect(cache.getLookup('他', ['phrases'])).toBe('anh ấy');
-  });
-
-  test('invalidation drops a cached null too', () => {
+describe('TranslationCache — misses and eviction', () => {
+  test('a cached null (a known miss) is served, distinct from a lookup never cached', () => {
+    const cache = makeCache();
     cache.setLookup('无', ['characters'], null);
     expect(cache.getLookup('无', ['characters'])).toBeNull();
-    cache.invalidateDictionary('characters');
-    expect(cache.getLookup('无', ['characters'])).toBeUndefined();
+    expect(cache.getLookup('有', ['characters'])).toBeUndefined();
   });
 
   test('holds no bookkeeping beyond the LRU: evicted lookups leave nothing behind', () => {
@@ -138,7 +81,6 @@ describe('TranslationCache — invalidateDictionary', () => {
     for (let i = 0; i < 100; i++) small.setLookup(`w${i}`, ['characters'], i);
 
     expect(small.lookupCache.size()).toBe(5);
-    expect(small.dictionaryIndex).toBeUndefined();
   });
 });
 

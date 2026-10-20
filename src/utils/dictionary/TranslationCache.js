@@ -2,10 +2,9 @@
  * Lookup memo for multi-dictionary translations.
  *
  * `DictionaryManager.translate` is the only reader: it keys a result by the word plus
- * the dictionary search order. A miss is memoized too (as `null`). Each entry remembers the
- * dictionaries it searched, so invalidating one drops every lookup that searched it by scanning
- * the (bounded) LRU: edits are rare, and a separate key index would outlive the evictions that
- * make its keys stale.
+ * the dictionary search order. A miss is memoized too (as `null`). Nothing invalidates an
+ * entry: the tries behind it never change after load, and a dictionary edit reaches lookups
+ * only through a new engine, which brings a new memo (ADR-106).
  */
 
 import { LRUCache } from '../caching/LRUCache.js';
@@ -63,11 +62,11 @@ export class TranslationCache {
    */
   getLookup(text, dictionaryNames) {
     if (!this.isEnabled) return undefined;
-    return this.lookupCache.get(this.generateMultiLookupKey(text, dictionaryNames))?.result;
+    return this.lookupCache.get(this.generateMultiLookupKey(text, dictionaryNames));
   }
 
   /**
-   * Cache multi-dictionary lookup result, remembering every dictionary searched
+   * Cache multi-dictionary lookup result
    * @param {string} text - Text translated
    * @param {Array} dictionaryNames - Array of dictionary names
    * @param {*} result - Translation result
@@ -75,19 +74,7 @@ export class TranslationCache {
   setLookup(text, dictionaryNames, result) {
     if (!this.isEnabled) return;
 
-    const cacheKey = this.generateMultiLookupKey(text, dictionaryNames);
-    this.lookupCache.set(cacheKey, { result, dictionaryNames: [...dictionaryNames] });
-  }
-
-  /**
-   * Drop every memoized lookup that searched this dictionary, even when the key's
-   * other dictionaries are unchanged.
-   * @param {string} dictionaryName - Dictionary name to invalidate
-   */
-  invalidateDictionary(dictionaryName) {
-    for (const [key, entry] of this.lookupCache.entries()) {
-      if (entry.dictionaryNames.includes(dictionaryName)) this.lookupCache.delete(key);
-    }
+    this.lookupCache.set(this.generateMultiLookupKey(text, dictionaryNames), result);
   }
 
   /** Clear the memo */

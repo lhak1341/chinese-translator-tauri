@@ -109,7 +109,7 @@ export interface DictionaryContextInterface {
    * The patch may be a function of the current fields (toggling one allowed variable type).
    * An empty `semanticType`/`allowedVariableTypes` removes the key; a string value is written
    * back as an object; a lookup table keeps only `translation`. Goes through `updateEntry`,
-   * so history, toasts and engine invalidation are the same. See `utils/dictionary/EntryValue.ts`.
+   * so history and toasts are the same. See `utils/dictionary/EntryValue.ts`.
    */
   patchEntry: (
     dictionaryId: string,
@@ -166,8 +166,6 @@ export interface DictionaryContextInterface {
   getDictionaries: () => { [key: string]: DictionaryData };
   /** Re-read every dictionary for force reload; resolves to what memory then holds. */
   reloadAllDictionaries: () => Promise<{ [key: string]: DictionaryData }>;
-  /** Re-read every dictionary after import rewrote the files: invalidates the engine for each,
-   * and clears history in the same turn. */
   /** Imports dictionary files and re-reads every dictionary, clearing history (ADR-055). */
   importDictionaries: () => Promise<ImportOutcome>;
   /** Currently selected dictionary */
