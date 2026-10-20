@@ -97,3 +97,7 @@ Two more changes the same day make "the JS path takes over" hold when WASM never
 ## Addendum — 2026-10-11
 
 ADR-101 deletes the JS matcher. "Subsequent calls use `SemanticPatternProcessor`" and "the JS path takes over" no longer hold: after the third failure, or when WASM never initialized, Phase 1 is skipped and a `toast.error` says so. `SemanticPatternProcessor` is now `PatternStore`. Everything else here stands: no JS fallback inside `TwoPhasePatternProcessor`, no `WasmPatternBridge`, throw on `{ success: false }`.
+
+## Addendum — 2026-10-21
+
+"`applyPatterns()` owns the fallback" no longer holds. `PatternStore` owns the skip decision, the failure tracker and the toasts, and `applyPatterns()` applies what `patternStore.matchTokens` returns (ADR-101 addendum 2026-10-21). An error in `applyHierarchicalResults` is no longer counted as a matcher failure. Everything else here stands.

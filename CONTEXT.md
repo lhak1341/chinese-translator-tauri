@@ -133,9 +133,9 @@ Entry point: `src/utils/dictionary/EntryValue.ts`, barrel-exported from `src/uti
 
 The single dictionary match ordering rule (ADR-010: specificity over provenance). Longer match wins; equal-length matches tie-break on lower priority number. Was independently reimplemented at 4 sites (JS sequential, JS parallel, WASM lookup, lookup-index post-fetch sort) before being unified — one of the 4 sites carried a `?? 0` undefined-priority guard the other 3 didn't need.
 
-Interface: `compareMatchesBySpecificityThenPriority(a, b): number`, taking `{ word: string; priority: number }`. Priority is a required field — the sole caller with a possibly-missing priority (`MatchSource`'s index adapter) defaults it to `0` before calling, keeping the comparator's own contract simple.
+Interface: `compareMatchesBySpecificityThenPriority(a, b): number`, taking `{ word: string; priority: number }`. Priority is a required field; every caller has one (the only caller that could lack it, the Rust lookup index's post-fetch sort, was deleted with the index, ADR-108).
 
-Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 3 callers live inside `src/utils/dictionary/`. Called from `DictionaryManager.findAllMatches` and `MatchSource`.
+Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 3 callers live inside `src/utils/dictionary/`. Called from `DictionaryManager.findAllMatches`.
 
 ## NumberProcessor
 
@@ -245,7 +245,7 @@ Entry point: `src/utils/pattern/TwoPhasePatternProcessor.js`.
 
 ## PatternStore
 
-The parsed pattern list and the WASM pattern processor's lifetime. `initializePatterns(patternsDict)` turns the patterns dictionary into entries `{ originalPattern, template, allowAsPatternVariable }` (what `TwoPhasePatternProcessor` and the variable cache read), warns when a template drops a variable its pattern declares, and calls `reinitializeWasmPatternProcessor` with the raw dictionary, recording the result in `wasmAvailable`. It does no matching: the Rust matcher is the only one (ADR-101). When patterns are loaded and `wasmAvailable` is false, the engine sets `enableTwoPhasePatterns = false`, Phase 1 is skipped and the user gets an error toast. Held by the engine as `patternStore`; formerly `SemanticPatternProcessor`.
+The parsed pattern list, the WASM pattern processor's lifetime, and whether Phase 1 runs. `initializePatterns(patternsDict)` turns the patterns dictionary into entries `{ originalPattern, template, allowAsPatternVariable }` (what `TwoPhasePatternProcessor` and the variable cache read), warns when a template drops a variable its pattern declares, and calls `reinitializeWasmPatternProcessor` with the raw dictionary, recording the result in `wasmAvailable`. When patterns are loaded and `wasmAvailable` is true, it builds the one `processor` (`TwoPhasePatternProcessor`). When it is false, no processor is built, Phase 1 is skipped and the user gets an error toast. It does no matching itself: the Rust matcher is the only one (ADR-101). `matchTokens(tokens, { activeProperNouns, dictionaryManager })` returns the matcher's results, or `null` when Phase 1 is skipped. A matcher failure is caught, counted by its `PatternFailureTracker` and toasted. Enough failures within the window set `enabled` to `false` for the store's lifetime. The engine's `applyPatterns` only applies what comes back (ADR-101 addendum 2026-10-21). Held by the engine as `patternStore`; formerly `SemanticPatternProcessor`.
 
 Entry point: `src/utils/pattern/PatternStore.js`.
 
@@ -292,22 +292,6 @@ The per-dictionary lookup structure. A prefix trie where each node owns `childre
 Confirmed dead by `ADR-034`: `repair()`/`getHealthScore()` had zero callers anywhere, ever; `validateIntegrity()`'s only 2 callers were the other two methods, so the whole subsystem was a closed, unreachable island. Unlike `TranslationProfiler`/Pattern Profiling (ADR-021, kept as gated dev tools with a real enable/disable toggle), this had no wiring or dev-console hook — just orphaned code. The supporting `.d.ts` types (`TrieValidationResult`, `TrieRepairResult`, `TrieHealthScore`, and 5 more feeding them) were deleted alongside from `DictionaryManagerTypes.d.ts`.
 
 Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary, built by `DictionaryTrieBuilder`).
-
-## DictionaryEntryFlattener
-
-Converts raw dictionary JSON directly into the flat `{chinese, vietnamese, metadata}[]` shape `MatchSource` consumes (the Rust lookup-index build, `build_lookup_index` in `src-tauri/src/dictionary_commands.rs`, which builds its own `lookup_index_engine::TrieNode` from the flat entries — a distinct trie type from `DictionaryTrie`).
-
-Replaces two former trie-walks that independently reverse-engineered this same flat shape by DFS-walking an already-built `DictionaryTrie`: Both were defensive/undefended machinery that existed only because a live trie was being treated as untrusted structure to walk. `DictionaryManager` now builds flat entries directly from the same raw JSON it reads to build the trie, once at dictionary-load time, and retains them in `this.flatEntries` — no walk, no cycle risk, nothing to guard against, and only one metadata shape to reason about.
-
-Per-entry `metadata` intentionally omits the derived `priority`/`frequency`/`dictionary` fields `DictionaryManager`'s trie-insert loop computes for `DictionaryTrie` nodes — every reader of trie-node metadata was grepped and none read those fields, on the Rust lookup-index side (and on the WASM `DictionaryEngine` side, deleted). Rust treats `metadata` as an opaque passthrough string. Only whatever the source dictionary JSON itself provides (e.g. `allowAsPatternVariable`, `semanticType`) is carried through.
-
-`DictionaryTrieBuilder.buildTrieFromDictionary` (the older JS `DictionaryTrie`-node path this section's `priority`/`frequency`/`dictionary` finding was originally about) was brought to the same shape: `frequency` and `dictionary` deleted (zero readers, confirmed by the same grep), `priority` kept (the one field with a real reader — `SemanticPatternProcessor.js`'s pattern-priority tie-break reads `pattern.metadata.priority` for JS-side Phase 1 pattern matching, a consumer neither the Rust lookup-index nor the WASM `DictionaryEngine` share).
-
-**`metadata` is pre-serialized (`string | null`), not a raw object** — `MatchSource` hands it to Rust as it is, so it must stay wire-ready (a raw object here, or a second `JSON.stringify` there, would break or double-encode it). **A lookup match's `metadata` has two shapes**: the JS trie returns the parsed object, the Rust lookup index (texts of 50 or more characters) returns the string untouched. Nothing reads either on a match today — the only reader, an `onlyPatternVariables` filter in the engine's per-position phase lookup (`getCandidateMatchesAtPosition`, now `MatchSource`), was never enabled by any caller and was deleted — so anything new that reads `match.metadata` must handle both.
-
-Interface: `flattenDictionaryEntries(dictionaryData): FlatDictionaryEntry[]`. Pure function of the raw JSON object — no trie, no DictionaryManager instance required.
-
-Entry point: `src/utils/dictionary/DictionaryEntryFlattener.ts`. Called from `DictionaryManager`'s one dictionary-registration site, the main load loop, alongside `this.dictionaries.set(...)` (a second, `lazyLoadDictionary`, was deleted).
 
 ## TranslationCache
 
@@ -436,33 +420,13 @@ Per-type column-layout narrative (which columns, what widths) lives as block com
 
 `DictionaryManager.findAllMatches(text, startPos, dictionaryOrder)`: scans the given dictionaries in order, asking each `DictionaryTrie.findMatches`, tags each match with its dictionary and priority, and sorts by `compareMatchesBySpecificityThenPriority`. A dictionary that throws is logged and skipped; before load or after `dispose()` it returns `[]`. `dictionaryOrder` is required: every caller passes one.
 
-Synchronous and always a sequential JS scan, which `PatternVariableCache`'s per-position hot loop requires (it cannot await). The engine's phrase pass (`processRemainingPhrases`) and `MatchSource`'s JS trie adapter call it too. **There is deliberately no lookup cache between the engine and `DictionaryManager`:** a semantic cache served stale translations and broke the 5-phase priority order (a proper noun must override a character). Anything that re-adds one must key or validate on phase priority — 1 patterns, 2 proper nouns, 3 numbers, 4 phrases, 5 characters — so an entry from a higher-priority phase beats one from a lower phase.
+Synchronous and always a sequential JS scan, which `PatternVariableCache`'s per-position hot loop requires (it cannot await). The engine's phrase pass (`processRemainingPhrases`) and `findMatchesAtToken` call it too. **There is deliberately no lookup cache between the engine and `DictionaryManager`:** a semantic cache served stale translations and broke the 5-phase priority order (a proper noun must override a character). Anything that re-adds one must key or validate on phase priority — 1 patterns, 2 proper nouns, 3 numbers, 4 phrases, 5 characters — so an entry from a higher-priority phase beats one from a lower phase.
 
 There is no JS "parallel" path (a `Promise.all` over synchronous trie walks ran sequentially) and no WASM tier. **The WASM dictionary lookup tier was deleted (ADR-073)** after a benchmark on the real dictionaries (13,338 characters; 3,525 + 3,570 + 2,281 proper nouns): its `translate` was 2.5x (distinct words) to 8.7x (repeated words, which the JS lookup cache serves) slower, its multi-dictionary `findAllMatchesAsync` 22x slower, a reload cost 34 ms against 20 ms, and its linear memory grew from 4 MB to 18.6 MB over five reloads and never shrank. Parity held on word, translation and dictionary; only `metadata` differed.
 
 It was a separate class, `DictionaryMatchLookup`, built with `DictionaryManager`'s Maps and two closures, until 2026-10-20 (ADR-035 addendum).
 
-See `MatchSource` for the separate, orthogonal axis (whole-text index build, chosen once per translation) that this class's `findAllMatchesSequential` is itself called by internally, and that also runs independently per-call whenever no index exists.
-
-## MatchSource
-
-The dictionary matches that start at a token, in one category — one question, answered by one of two adapters chosen once per translation (ADR-082): the **Rust lookup index** (built for the whole text before the phases run, so they don't re-walk dictionary tries per token) or the **JS trie** (`DictionaryManager.findAllMatches` over the text that follows the token, up to the next punctuation). Orthogonal to the dictionary match lookup (`DictionaryManager.findAllMatches`, one lookup call's scan): this axis decides IF a whole-text index gets built, and what the phases read.
-
-Interface: `openMatchSource(text, { dictionaryManager, logWarn })` returns a `MatchSource`; `source.forPhase(dictionaryOrder)` returns `(tokens, pos, category) => matches`, longest first, lower priority number on a tie. The engine opens one in `translateDirectly` and passes it as an argument to `translateSinglePass` → `applyProperNouns`. The character-only pass does not open one: it is a point lookup (`CharacterMatch`, below). It is never put on `options`: chunk options are spread from the parent's, and a parent's source would carry its own text positions into a chunk. `dictionaryOrder` names the dictionaries the phase searches, and every one of them must have the Rust category `category` (an id Rust does not recognise counts as `phrases`): the `properNouns` phase passes the properNouns dictionaries. No production phase reads the `characters` category through `MatchSource` any more (Phase 5 and the character-only pass are point lookups, ADR-087); the parity fixture still holds both adapters to it. `applyProperNouns` is the only caller and asks for the `properNouns` category alone (the `phrases`/`characters`/`general` branches were deleted 2026-10-12, ADR-082 addendum).
-
-The index adapter is chosen when the text is `DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX` (50) characters or more, has no surrogate pair, and the circuit is closed. A surrogate pair rules it out because Rust keys the index by code point and tokens carry UTF-16 offsets, which agree only until the first one; with none, `text.length` is the code-point count Rust gates on. The threshold is sent to Rust (`options.minTextLength`), so there is one number; Rust's own default (`DEFAULT_MIN_TEXT_LENGTH`) applies only to a caller that sends none. The JS options `enableIndexing` and `useParallel` are still not sent (Rust's defaults, on and on).
-
-The adapter's failure handling: this module is the only thing between the engine and the Rust `build_lookup_index` command, called through `window.electronAPI.buildLookupIndex`. It converts `dictionaryManager.flatEntries` to Rust's dictionary shape, keeps the failure count, and falls back to the JS trie on any failure. Three consecutive failures (a failed result or a throw) stop the build for the rest of the session and show one toast ("High-performance indexing unavailable…"; the count and the flag are module state in `MatchSource.ts`). Rust is the only code that decides which category a dictionary's matches land in (`DictionaryType::from_name`), and it sends unknown ids to `phrases`, harmless only because every phase filters by its own dictionary set, which the index adapter does in `forPhase`.
-
-The index adapter re-sorts Rust's dictionary-iteration-order matches into specificity/priority order (`compareMatchesBySpecificityThenPriority`, a missing priority counting as 0).
-
-**What counts as a correct answer is one fixture**: `src/test/fixtures/lookup_index_parity.json`, read by `MatchSource.parity.test.ts` (the JS trie, and the order `MatchSource` gives a Rust-shaped list) and by `test_lookup_index_matches_the_shared_parity_fixture` in `dictionary_commands.rs` (the Rust index, compared as a set). Do not edit an expectation to make a test pass.
-
-**Rust-tier match `.priority` is the real dictionary tier, not the array position in `dictionaryOrder`.** `openMatchSource` sets each dictionary's `priority` from `dictionaryManager.getPriorityForDictionary(name)` for every name in `dictionaryOrder`. Before the fix the loop position was sent as `priority` — behaviour-neutral at the time (Rust collects each position's matches in `dictionaryOrder` order, and `compareMatchesBySpecificityThenPriority`'s stable sort keeps that order on a real tie), but a trap for any caller that did not pre-sort `dictionaryOrder` by real priority, or any code reading `.priority` as an absolute value instead of a sort key.
-
-See "Dictionary match lookup" for the separate, per-call scan that the JS trie adapter calls into.
-
-Entry point: `src/utils/dictionary/MatchSource.ts` (`openMatchSource`). It replaced `LookupIndexBuilder.ts` and `LookupIndexUtils.ts` (`buildLookupIndexOrFallback`, `getIndexedMatches`), 2026-10-07.
+**`findMatchesAtToken(tokens, pos, dictionaryOrder)`** asks the same question at a token: `findAllMatches` over the text from that token up to the next punctuation (`reconstructTextFromIndex`, which reads across a space, so `墨 子` matches `墨子`), longest first; a position past the last token logs and returns `[]`. It is how Phase 2 (`applyProperNouns`) reads matches, the only phase that does. It replaced `MatchSource` (ADR-082), whose Rust lookup-index adapter was meant for texts of 50+ characters but never ran on real books, because chunks split at punctuation (0 of 35,760 calls); the index, the category per dictionary and the parity fixture were deleted (ADR-108). Pinned by `DictionaryManager.findMatchesAtToken.test.js`.
 
 ## TextChunker
 
@@ -571,7 +535,7 @@ A dictionary id answers two independent questions, both owned by `DictionaryIdCl
 
 ### Dictionary priority ladder
 
-A dictionary's rank, lower first: `priorityOf(id)` in `DictionaryIdClassifier.ts`, the only source. Proper nouns rank by tier (fiction 1, generic 2, root and custom 3); the fixed names take `patterns` 2, `phrases` 3, `characters` 4, `punctuation` 5, `conversion` 6; any other id (a `patterns-*` pair half included) 10. It breaks ties between equal-length matches (ADR-010), orders `getDefaultSearchOrder`, and is what `MatchSource` sends the Rust lookup index. `DictionaryManager` stores it per dictionary at load. Nothing passes its own table: until 2026-10-20 a `priorities` option was threaded hook → engine → manager with a hand-copied default, though only one table was ever passed (architecture review round 34, candidate #2). The parity fixture `lookup_index_parity.json` uses production priorities, so its test reads the real ladder.
+A dictionary's rank, lower first: `priorityOf(id)` in `DictionaryIdClassifier.ts`, the only source. Proper nouns rank by tier (fiction 1, generic 2, root and custom 3); the fixed names take `patterns` 2, `phrases` 3, `characters` 4, `punctuation` 5, `conversion` 6; any other id (a `patterns-*` pair half included) 10. It breaks ties between equal-length matches (ADR-010), and orders `getDefaultSearchOrder`. `DictionaryManager` stores it per dictionary at load. Nothing passes its own table: until 2026-10-20 a `priorities` option was threaded hook → engine → manager with a hand-copied default, though only one table was ever passed (architecture review round 34, candidate #2). The parity fixture `lookup_index_parity.json` uses production priorities, so its test reads the real ladder.
 
 Both are total: every fixed name (`phrases`, `characters`, …) is tier `root`, and an unrecognized id is kind `lookupTable` — the most inert kind (not movable, no Semantic column, no pattern validation). Rust `DictionaryType::from_name` defaults unknowns to `Phrases` instead; harmless, because each engine phase filters indexed matches by its own `dictionarySet`.
 
@@ -703,7 +667,7 @@ The Character-only result, built from tokens the engine has already stamped. Own
 
 Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state.
 
-Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`), `openMatchSource`, and `prebuiltSegments: []`. The pass looks up `characters` with `characterMatchFor`, a synchronous point lookup shared with Phase 5 (ADR-087); it opens no `MatchSource` and builds no Rust index. Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation through `lookupPunctuation` later (ADR-089).
+Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`) and `prebuiltSegments: []`. The pass looks up `characters` with `characterMatchFor`, a synchronous point lookup shared with Phase 5 (ADR-087); it does not call `findMatchesAtToken`. Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation through `lookupPunctuation` later (ADR-089).
 
 Entry point: `src/utils/text/CharOnlyAssembly.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithCharactersOnly`.
 

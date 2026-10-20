@@ -70,26 +70,12 @@ export type TranslationSource = TranslationLeaderSource | TranslationConsumedSou
 // ============================================================================
 
 /**
- * Pattern processing settings
- */
-export interface PatternProcessingSettings {
-  /**
-   * Enable two-phase hierarchical pattern processing (Phase 1). `false` skips Phase 1; the engine
-   * sets it when WASM pattern matching is unavailable at init or fails repeatedly (ADR-101).
-   * (`maxCompositeDetectionTime` and `fallbackToSinglePhase` were removed 2026-10-05: nothing read
-   * them. The init option is merged by spread, so a stale key passed in is stored and ignored.)
-   */
-  enableTwoPhasePatterns: boolean;
-}
-
-/**
- * Translation engine initialization options
+ * Translation engine initialization options. Whether Phase 1 runs is not an option: the Pattern
+ * Store decides it (ADR-101 addendum 2026-10-21).
  */
 export interface TranslationEngineInitOptions {
   /** Active proper noun dictionary names */
   activeProperNouns?: string[];
-  /** Pattern processing settings */
-  patternSettings?: PatternProcessingSettings;
 }
 
 // ============================================================================

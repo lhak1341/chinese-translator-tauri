@@ -15,8 +15,6 @@
 import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
-import { runSinglePass } from '../../test/runSinglePass';
-import { openMatchSource } from '../dictionary/MatchSource';
 
 const DICTS = {
   characters: {
@@ -74,14 +72,14 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   describe('Phase 5 — character fallback', () => {
     test('single char → translationSource characters', async () => {
       const tokens = [tok('在', 0)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translationSource).toBe('characters');
       expect(tokens[0].translated).toBe('ở');
     });
 
     test('two independent chars → each translated separately', async () => {
       const tokens = [tok('在', 0), tok('里', 1)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('ở');
       expect(tokens[0].translationSource).toBe('characters');
       expect(tokens[1].translated).toBe('bên trong');
@@ -91,7 +89,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
     test('a token no dictionary knows stays untranslated, and a stamped one is left alone', async () => {
       const stamped = { ...tok('在', 1), translated: 'PRE', translationSource: 'patterns' };
       const tokens = [tok('龘', 0), stamped];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBeNull();
       expect(tokens[1].translated).toBe('PRE');
       expect(tokens[1].translationSource).toBe('patterns');
@@ -101,16 +99,16 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   // ── Phase 4: phrase lookup ─────────────────────────────────────────────────
 
   describe('Phase 4 — phrase lookup', () => {
-    test('runs with the pattern flag off: Phase 4 reads no pattern setting (ADR-006 addendum)', async () => {
-      const before = engine.settings.enableTwoPhasePatterns;
-      engine.settings.enableTwoPhasePatterns = false;
+    test('runs with Phase 1 switched off: Phase 4 reads no pattern state (ADR-006 addendum)', async () => {
+      const before = engine.patternStore.enabled;
+      engine.patternStore.enabled = false;
       try {
         const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-        await runSinglePass(engine, tokens, {});
+        await engine.translateSinglePass(tokens, {});
         expect(tokens[0].translated).toBe('không biết');
         expect(tokens[0].translationSource).toBe('phrases');
       } finally {
-        engine.settings.enableTwoPhasePatterns = before;
+        engine.patternStore.enabled = before;
       }
     });
 
@@ -121,7 +119,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
           throw new Error('phrase boom');
         });
       try {
-        await runSinglePass(engine, [tok('不', 0), tok('知', 1), tok('道', 2)], {});
+        await engine.translateSinglePass([tok('不', 0), tok('知', 1), tok('道', 2)], {});
         expect(engine.lastPhaseFailures.failures.phrases).toBe('phrase boom');
       } finally {
         findAllMatches.mockRestore();
@@ -130,7 +128,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('2-char phrase: leader translated, consumed null', async () => {
       const tokens = [tok('你', 0), tok('好', 1)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('xin chào');
       expect(tokens[0].translationSource).toBe('phrases');
       expect(tokens[1].translated).toBeNull();
@@ -139,7 +137,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('3-char phrase: two consumed tokens', async () => {
       const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('không biết');
       expect(tokens[0].translationSource).toBe('phrases');
       expect(tokens[1].translated).toBeNull();
@@ -150,7 +148,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('phrase grouping: leader isGrouped, consumed have groupLeader index', async () => {
       const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].isGrouped).toBe(true);
       expect(tokens[1].isGrouped).toBe(true);
       expect(tokens[1].groupLeader).toBe(0);
@@ -160,7 +158,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('phrase then lone char: phrase handles first tokens, char handles remainder', async () => {
       const tokens = [tok('你', 0), tok('好', 1), tok('在', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translationSource).toBe('phrases');
       expect(tokens[1].translationSource).toBe('phrases_consumed');
       expect(tokens[2].translationSource).toBe('characters');
@@ -169,7 +167,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('phrase beats char: 中国人 as phrase, not 3 individual chars', async () => {
       const tokens = [tok('中', 0), tok('国', 1), tok('人', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('người Trung Quốc');
       expect(tokens[0].translationSource).toBe('phrases');
       expect(tokens[1].translated).toBeNull();
@@ -182,7 +180,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   describe('Phase 2 — proper noun lookup', () => {
     test('2-char proper noun: translated, isProperNoun true', async () => {
       const tokens = [tok('张', 0), tok('三', 1)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('Trương Tam');
       expect(tokens[0].translationSource).toBe('properNouns');
       expect(tokens[0].isProperNoun).toBe(true);
@@ -190,7 +188,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('2-char proper noun: consumed token has _consumed source, null translated', async () => {
       const tokens = [tok('张', 0), tok('三', 1)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[1].translated).toBeNull();
       expect(tokens[1].translationSource).toBe('properNouns_consumed');
     });
@@ -199,14 +197,14 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       // 张三 is in both properNouns ('Trương Tam') and phrases ('PHRASE_张三')
       // Phase 2 runs before Phase 4 — proper noun must win
       const tokens = [tok('张', 0), tok('三', 1)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translationSource).toBe('properNouns');
       expect(tokens[0].translated).toBe('Trương Tam');
     });
 
     test('proper noun + trailing char: both phases resolve their tokens', async () => {
       const tokens = [tok('张', 0), tok('三', 1), tok('是', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translationSource).toBe('properNouns');
       expect(tokens[1].translationSource).toBe('properNouns_consumed');
       expect(tokens[2].translationSource).toBe('characters');
@@ -218,7 +216,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       // at i=1 — strictly longer, so the short match at i=0 must defer. See
       // src/utils/CLAUDE.md "Phase 2 Proper Noun Lookahead".
       const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
 
       // 日元 never wins — 日 falls through to Phase 5 character fallback instead.
       expect(tokens[0].translationSource).toBe('characters');
@@ -235,32 +233,22 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       expect(tokens[4].translated).toBeNull();
     });
 
-    test('asks the match source for the active proper-noun dictionaries, in one category', async () => {
-      // ADR-082: a phase's dictionaries share one category. Phase 2 is the only phase that
-      // reads the match source, so every call the spy sees is Phase 2's.
-      const real = await openMatchSource('', {
-        dictionaryManager: engine.dictionaryManager,
-        logWarn: () => {},
-      });
-      const orders = [];
-      const categories = new Set();
-      const spy = {
-        forPhase(order) {
-          orders.push(order);
-          const matchesAt = real.forPhase(order);
-          return (tokens, pos, category) => {
-            categories.add(category);
-            return matchesAt(tokens, pos, category);
-          };
-        },
-      };
+    test('asks findMatchesAtToken for the active proper-noun dictionaries', async () => {
+      // ADR-108: Phase 2 is the only phase that reads findMatchesAtToken, so every call the
+      // spy sees is Phase 2's.
+      const lookup = vi.spyOn(engine.dictionaryManager, 'findMatchesAtToken');
+      try {
+        const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
+        await engine.translateSinglePass(tokens, {});
 
-      const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
-      await engine.translateSinglePass(tokens, {}, spy);
-
-      expect(orders).toEqual([['properNouns']]);
-      expect([...categories]).toEqual(['properNouns']);
-      expect(tokens[1].translationSource).toBe('properNouns');
+        expect(lookup).toHaveBeenCalled();
+        expect(new Set(lookup.mock.calls.map((call) => JSON.stringify(call[2])))).toEqual(
+          new Set([JSON.stringify(['properNouns'])])
+        );
+        expect(tokens[1].translationSource).toBe('properNouns');
+      } finally {
+        lookup.mockRestore();
+      }
     });
   });
 
@@ -273,7 +261,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
         tok('知', 1),
         tok('道', 2),
       ];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('PATTERN_RESULT');
       expect(tokens[0].translationSource).toBe('pattern');
     });
@@ -282,7 +270,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       const tokens = [
         { ...tok('在', 0), translated: 'PATTERN_RESULT', translationSource: 'pattern' },
       ];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('PATTERN_RESULT');
       expect(tokens[0].translationSource).toBe('pattern');
     });
@@ -293,7 +281,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   describe('consumed token contract', () => {
     test('consumed tokens always have null translated', async () => {
       const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       const consumed = tokens.filter((t) => t.translationSource?.includes('_consumed'));
       expect(consumed.length).toBeGreaterThan(0);
       expect(consumed.every((t) => t.translated === null)).toBe(true);
@@ -301,20 +289,20 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
     test('non-consumed tokens always have non-null translated', async () => {
       const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-      await runSinglePass(engine, tokens, {});
+      await engine.translateSinglePass(tokens, {});
       const leaders = tokens.filter((t) => !t.translationSource?.includes('_consumed'));
       expect(leaders.every((t) => t.translated !== null)).toBe(true);
     });
 
     test('_consumed suffix consistent across phrase and proper noun phases', async () => {
       const phraseTokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-      await runSinglePass(engine, phraseTokens, {});
+      await engine.translateSinglePass(phraseTokens, {});
       const phraseConsumed = phraseTokens.filter((t) => t.translationSource?.includes('_consumed'));
       expect(phraseConsumed.every((t) => t.translationSource.endsWith('_consumed'))).toBe(true);
       expect(phraseConsumed.every((t) => t.translated === null)).toBe(true);
 
       const nounTokens = [tok('张', 0), tok('三', 1)];
-      await runSinglePass(engine, nounTokens, {});
+      await engine.translateSinglePass(nounTokens, {});
       expect(nounTokens[1].translationSource).toMatch(/_consumed$/);
       expect(nounTokens[1].translated).toBeNull();
     });
@@ -343,7 +331,7 @@ describe('TranslationEngine.translateSinglePass — phase order (ADR-004)', () =
   test('runs Pattern, Proper Noun, Number, Phrase, Character, inside the total', async () => {
     const profile = vi.spyOn(engine.phaseProfiler, 'profile');
     try {
-      await runSinglePass(engine, [tok('我', 0)], {});
+      await engine.translateSinglePass([tok('我', 0)], {});
       expect(profile.mock.calls.map(([phase]) => phase)).toEqual([
         'total',
         'patterns',
@@ -359,14 +347,14 @@ describe('TranslationEngine.translateSinglePass — phase order (ADR-004)', () =
 
   test('number beats phrase over the same span', async () => {
     const tokens = [tok('三', 0), tok('十', 1)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[0].translated).toBe('30');
     expect(sources(tokens)).toEqual(['number_conversion', 'number_conversion_consumed']);
   });
 
   test('number beats character fallback', async () => {
     const tokens = [tok('我', 0), tok('五', 1), tok('十', 2)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[0].translationSource).toBe('characters');
     expect(tokens[1].translated).toBe('50');
     expect(tokens[1].translationSource).toBe('number_conversion');
@@ -374,7 +362,7 @@ describe('TranslationEngine.translateSinglePass — phase order (ADR-004)', () =
 
   test('proper noun beats number over the same span', async () => {
     const tokens = [tok('三', 0), tok('十', 1), tok('五', 2)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[0].translated).toBe('PROPER_35');
     expect(sources(tokens)).toEqual([
       'properNouns',
@@ -408,7 +396,7 @@ describe('TranslationEngine.translateSinglePass — phrases over a whole chunk',
   test('a chunk longer than 10 tokens still gets its phrases applied', async () => {
     const tokens = chunk();
     expect(tokens.length).toBeGreaterThan(10);
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens.map((t) => t.translationSource)).toEqual([
       'characters',
       'characters',
@@ -428,7 +416,7 @@ describe('TranslationEngine.translateSinglePass — phrases over a whole chunk',
 
   test('the longest phrase wins where phrases overlap', async () => {
     const tokens = chunk();
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[2].translated).toBe('người TQ'); // 中国人, not 中国 or 国人
     expect(tokens[7].translated).toBe('quốc nhân'); // 国人 alone
     expect(tokens[10].translated).toBe('TQ'); // 中国 alone
@@ -437,7 +425,7 @@ describe('TranslationEngine.translateSinglePass — phrases over a whole chunk',
   test("chunkOffset shifts the phrases' semantic-unit token indices", async () => {
     const tokens = chunk();
     engine.semanticArrayBuilder = new SemanticArrayBuilder();
-    await runSinglePass(engine, tokens, { chunkOffset: 7 });
+    await engine.translateSinglePass(tokens, { chunkOffset: 7 });
     const phraseUnits = engine.semanticArrayBuilder
       .getArrays()
       .metadata.filter((unit) => ['中国人', '国人', '中国'].includes(unit.originalText));
@@ -472,13 +460,13 @@ describe('TranslationEngine.initialize — which dictionaries it loads', () => {
 
   test('an active proper-noun dictionary translates its names', async () => {
     const tokens = [tok('王', 0), tok('五', 1)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[0].translated).toBe('Vương Ngũ');
   });
 
   test('an inactive proper-noun dictionary is left out, so its names fall to characters', async () => {
     const tokens = [tok('李', 0), tok('四', 1)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens[0].translated).toBe('lý');
     expect(tokens[1].translated).toBe('bốn');
     expect(engine.lastLoadedDictionaries).not.toHaveProperty('properNouns-f_Other');

@@ -1,8 +1,8 @@
 /**
  * Tests for tauriAPI.ts's `callTauriCommand` seam — the shared invoke/catch shell for the
  * wrappers whose failure contract is exactly `{success: false, error: String(error)}` — and for
- * the four wrappers that stay inline because their failure handling differs: saveDictionary,
- * loadDictionariesParallel and buildLookupIndex (readClipboard rethrows). Why
+ * the wrappers that stay inline because their failure handling differs: saveDictionary and
+ * loadDictionariesParallel (readClipboard rethrows). Why
  * the shell stays narrow: ADR-090. These inline blocks were untested until round 20.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -175,34 +175,6 @@ describe('loadDictionariesParallel — inline, failure is a batch of failed ids'
         { dictionary_id: 'characters', success: false, error: 'ipc down' },
         { dictionary_id: 'phrases', success: false, error: 'ipc down' },
       ],
-    });
-  });
-});
-
-describe('buildLookupIndex — inline, failure is a zero-filled result', () => {
-  it('sends only the length gate as options', async () => {
-    mockInvoke.mockResolvedValueOnce({ success: true, index: {} });
-
-    await tauriAPI.buildLookupIndex('text', [], ['characters'], 50);
-
-    expect(mockInvoke).toHaveBeenCalledWith('build_lookup_index', {
-      text: 'text',
-      dictionaries: [],
-      dictionaryOrder: ['characters'],
-      options: { minTextLength: 50 },
-    });
-  });
-
-  it('turns a rejection into an empty index with the error', async () => {
-    mockInvoke.mockRejectedValueOnce('ipc down');
-
-    expect(await tauriAPI.buildLookupIndex('text', [], [], 50)).toEqual({
-      success: false,
-      index: {},
-      buildTimeMs: 0,
-      positionsIndexed: 0,
-      indexSize: 0,
-      error: 'ipc down',
     });
   });
 });

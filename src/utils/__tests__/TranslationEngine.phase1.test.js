@@ -12,7 +12,6 @@
  */
 import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
-import { runSinglePass } from '../../test/runSinglePass';
 import { isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 
 vi.mock('../../wasm/translation_wasm_core.js', async (importOriginal) => await importOriginal());
@@ -80,7 +79,7 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
       start: i,
       end: i + 1,
     }));
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
 
     const [leader, ...followers] = tokens;
     expect(leader.translated).toBe('những bạn bè này');

@@ -1,6 +1,6 @@
 # ADR-082: One Seam for "Dictionary Matches at a Token" — MatchSource
 
-**Status:** Decided
+**Status:** Decided; superseded in part by ADR-108 (the Rust index adapter, the category and the parity fixture are deleted)
 **Date:** 2026-10-07
 
 ## Context
@@ -37,3 +37,7 @@ Anything that needs the matches at a token goes through `MatchSource`. A new rea
 ## Addendum (2026-10-12)
 
 The "Findings recorded, not acted on" item is done (architecture review round 32, candidate #2). `applyDictionaryTranslation` is now `applyProperNouns(tokens, options, matchSource)`. It reads `this.activeProperNouns` itself and looks up one category, `properNouns`. The `phase` option and its `general` default are gone, along with the category map, the `phrases` shortcut, Phase 4's `phraseMatch` write that fed it, and `processedRanges[].source`. `TranslationEngine.pipeline.test.js` pins the seam: Phase 2 asks the match source for the active proper-noun list, in that one category.
+
+## Addendum (2026-10-21)
+
+The Rust index adapter never ran on real text: 0 of 35,760 calls on 248 book windows passed the 50-character gate, because chunks split at punctuation (ADR-108). It is deleted, with the category argument, the circuit breaker and the parity fixture. The seam stays: anything that needs the matches at a token goes through `DictionaryManager.findMatchesAtToken(tokens, pos, dictionaryOrder)`, which replaced `MatchSource`. The rule "a new reader must pass dictionaries of one Rust category per phase" no longer applies. The dictionary set is the only classification.

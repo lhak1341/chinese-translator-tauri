@@ -4,7 +4,7 @@
  *
  * Every `characters` key is one code point (ADR-087; PersistTimeValidator enforces it on every
  * write and DictionaryManager warns on a load that breaks it), so the entry for a token is a
- * point lookup: no span, no overlap, no MatchSource, no Rust-versus-JS choice. This is the one
+ * point lookup: no span, no overlap, no `findMatchesAtToken`. This is the one
  * place that rule is applied; a multi-character key never matches here.
  *
  * Interface: `characterMatchFor(dictionary, token) → match | null`. The caller still owns the

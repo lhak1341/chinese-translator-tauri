@@ -6,11 +6,10 @@ mod lru_cache;
 mod poison_report;
 pub mod book_loader;
 pub mod chapter_outline;
-pub mod lookup_index_engine;
 mod webview_diagnostics;
 
 use book_commands::BookCache;
-use dictionary_commands::{DictionaryCache, TrieCache};
+use dictionary_commands::DictionaryCache;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Clipboard command - read text from clipboard
@@ -32,8 +31,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         // Manage dictionary cache state
         .manage(DictionaryCache::new())
-        // PERFORMANCE: Manage trie cache for build_lookup_index (see dictionary_commands.rs)
-        .manage(TrieCache::new())
         // Reader: one decoded book at a time (see book_commands.rs)
         .manage(BookCache::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
@@ -64,7 +61,6 @@ pub fn run() {
             dictionary_commands::save_book_records,
             dictionary_commands::export_dictionaries,
             dictionary_commands::import_dictionaries,
-            dictionary_commands::build_lookup_index,
             book_commands::scan_library,
             book_commands::open_book,
             book_commands::read_book_lines,

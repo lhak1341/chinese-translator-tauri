@@ -17,7 +17,6 @@
  *   CacheConfiguration,
  *   DictionaryManagerOptions,
  *   DictionaryLoadOptions,
- *   LookupIndexStats,
  *   DictionaryManagerStats
  * } from '../types/DictionaryManagerTypes'
  */
@@ -25,14 +24,13 @@
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
-import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 import { buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
 import { priorityOf } from './DictionaryIdClassifier.js';
+import { reconstructTextFromIndex } from '../TokenHelpers';
 
 export class DictionaryManager {
   constructor(options = {}) {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
-    this.flatEntries = new Map(); // Map of dictionary name to flat {chinese,vietnamese,metadata}[] — for the Rust lookup-index build, computed once at load instead of walked from the trie per translate call
     this.metadata = new Map(); // Dictionary metadata
     this.loadTime = 0;
     this.ready = false;
@@ -81,7 +79,6 @@ export class DictionaryManager {
       }
 
       this.dictionaries.set(dictionaryName, trie);
-      this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
 
       this.metadata.set(dictionaryName, {
         name: dictionaryName,
@@ -189,6 +186,24 @@ export class DictionaryManager {
   }
 
   /**
+   * The matches that start at token `pos`: `findAllMatches` over the text from that token up to
+   * the next punctuation, so a match never spans a punctuation mark but does span a space
+   * (`墨 子`). Longest first, lower priority number on a tie. The one way a phase asks for the
+   * matches at a token (ADR-108; formerly MatchSource, whose Rust index adapter never ran).
+   * @param {Array<Object>} tokens - Tokenized text
+   * @param {number} pos - Token index
+   * @param {DictionarySearchOrder} dictionaryOrder - Dictionaries to search
+   * @returns {DictionaryMatchResult[]}
+   */
+  findMatchesAtToken(tokens, pos, dictionaryOrder) {
+    if (pos >= tokens.length) {
+      logger.error(`⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`);
+      return [];
+    }
+    return this.findAllMatches(reconstructTextFromIndex(tokens, pos), 0, dictionaryOrder);
+  }
+
+  /**
    * Get default search order based on dictionary priorities
    * @returns {Array} Dictionary names in search order
    */
@@ -246,7 +261,6 @@ export class DictionaryManager {
       }
     }
     this.dictionaries.clear();
-    this.flatEntries.clear();
     this.metadata.clear();
   }
 
@@ -271,7 +285,6 @@ export class DictionaryManager {
 
     // Nullify all references for GC
     this.dictionaries = null;
-    this.flatEntries = null;
     this.metadata = null;
 
     // Dispose cache
@@ -290,15 +303,6 @@ export class DictionaryManager {
    */
   clearCache() {
     this.cache.clear();
-  }
-
-  /**
-   * Get priority for a specific dictionary, loaded or not (`priorityOf`, the one ladder)
-   * @param {string} dictionaryName - Dictionary name
-   * @returns {number} Priority value
-   */
-  getPriorityForDictionary(dictionaryName) {
-    return priorityOf(dictionaryName);
   }
 
   getDictionary(name) {

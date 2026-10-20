@@ -52,7 +52,7 @@ describe('Tauri IPC adapter access path', () => {
     expect(adapterImports("import tauriAPI from '../../tauriAPI';")).toHaveLength(1);
     expect(adapterImports("import tauriAPI from '../tauriAPI.js';")).toHaveLength(1);
     expect(adapterImports("import tauriAPI, { type A } from '../tauriAPI';")).toHaveLength(1);
-    expect(adapterImports("import { buildLookupIndex } from '../tauriAPI';")).toHaveLength(1);
+    expect(adapterImports("import { openBook } from '../tauriAPI';")).toHaveLength(1);
     expect(adapterImports("const m = await import('../tauriAPI');")).toHaveLength(1);
     expect(adapterImports("import type { A, B } from '../../tauriAPI';")).toHaveLength(0);
     expect(adapterImports("import { type A, type B } from '../../tauriAPI';")).toHaveLength(0);

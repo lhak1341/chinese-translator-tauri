@@ -12,7 +12,6 @@
  */
 import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createTranslationEngine, TranslationEngine } from '../TranslationEngine.js';
-import { runSinglePass } from '../../test/runSinglePass';
 
 const DICTS = {
   characters: {
@@ -149,7 +148,7 @@ describe('token state per phase', () => {
 
   test('Phase 2, a proper noun: grouped shape, leader end moves to the last token', async () => {
     const tokens = [tok('张', 0), tok('三', 1)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens.map(state)).toStrictEqual([
       {
         value: '张三',
@@ -230,7 +229,7 @@ describe('token state per phase', () => {
 
   test('Phase 3, a number: light shape, no isGrouped', async () => {
     const tokens = [tok('三', 0), tok('十', 1), tok('在', 2)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens.map(state)).toStrictEqual([
       { value: '三', end: 1, translated: '30', translationSource: 'number_conversion' },
       {
@@ -246,7 +245,7 @@ describe('token state per phase', () => {
 
   test('Phase 4, a phrase: grouped shape, same as Phase 2: leader end moves to the last token', async () => {
     const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens.map(state)).toStrictEqual([
       {
         value: '不知道',
@@ -280,7 +279,7 @@ describe('token state per phase', () => {
 
   test('Phase 5, one character: a plain leader', async () => {
     const tokens = [tok('里', 0)];
-    await runSinglePass(engine, tokens, {});
+    await engine.translateSinglePass(tokens, {});
     expect(tokens.map(state)).toStrictEqual([
       { value: '里', end: 1, translated: 'bên trong', translationSource: 'characters' },
     ]);

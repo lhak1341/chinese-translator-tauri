@@ -6,15 +6,6 @@
  */
 
 /**
- * Dictionary Lookup Configuration
- */
-export const DICTIONARY_LOOKUP = {
-  // Minimum text length (characters) for the Rust lookup index. MatchSource checks it before the
-  // IPC call and sends it to Rust, so the two sides gate on one number.
-  MIN_TEXT_FOR_RUST_INDEX: 50,
-};
-
-/**
  * Memory Management Configuration
  */
 export const MEMORY_MANAGEMENT = {

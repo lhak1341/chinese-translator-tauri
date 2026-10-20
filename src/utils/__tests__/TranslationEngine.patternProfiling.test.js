@@ -5,9 +5,9 @@
  *
  * Kept per ADR-021 addendum (2026-07-18) as a legitimate dev-console diagnostic —
  * this file closes the zero-test-coverage gap found during that review. Each
- * delegator is a thin pass-through to `this.twoPhaseProcessor`, guarded by a
- * null check (twoPhaseProcessor is only constructed inside translateSinglePass,
- * so it's null before the first translation).
+ * delegator is a thin pass-through to `this.patternStore.processor`, guarded by a
+ * null check (the store builds the processor in initializePatterns only when
+ * patterns are loaded and WASM is available).
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -41,10 +41,10 @@ beforeEach(() => {
   vi.mocked(logger.warn).mockClear();
 });
 
-describe('TranslationEngine pattern-profiling delegators — twoPhaseProcessor not initialized', () => {
+describe('TranslationEngine pattern-profiling delegators — no processor built', () => {
   test('enablePatternProfiling warns instead of throwing', () => {
     const engine = makeEngine();
-    expect(engine.twoPhaseProcessor).toBeFalsy();
+    expect(engine.patternStore.processor).toBeNull();
     expect(() => engine.enablePatternProfiling()).not.toThrow();
     expect(logger.warn).toHaveBeenCalled();
   });
@@ -64,7 +64,7 @@ describe('TranslationEngine pattern-profiling delegators — twoPhaseProcessor n
     const report = engine.getPatternProfilingReport();
     expect(report).toEqual({
       enabled: false,
-      message: 'TwoPhasePatternProcessor not initialized. Translate some text first.',
+      message: 'No pattern processor: no patterns loaded or WASM unavailable.',
     });
   });
 
@@ -72,45 +72,45 @@ describe('TranslationEngine pattern-profiling delegators — twoPhaseProcessor n
     const engine = makeEngine();
     expect(() => engine.printPatternProfilingReport()).not.toThrow();
     expect(logger.log).toHaveBeenCalledWith(
-      'TwoPhasePatternProcessor not initialized. Translate some text first.'
+      'No pattern processor: no patterns loaded or WASM unavailable.'
     );
   });
 });
 
-describe('TranslationEngine pattern-profiling delegators — twoPhaseProcessor present', () => {
+describe('TranslationEngine pattern-profiling delegators — processor present', () => {
   test('enablePatternProfiling calls through exactly once', () => {
     const engine = makeEngine();
-    engine.twoPhaseProcessor = makeProcessorStub();
+    engine.patternStore.processor = makeProcessorStub();
     engine.enablePatternProfiling();
-    expect(engine.twoPhaseProcessor.enableInternalProfiling).toHaveBeenCalledTimes(1);
+    expect(engine.patternStore.processor.enableInternalProfiling).toHaveBeenCalledTimes(1);
   });
 
   test('disablePatternProfiling calls through exactly once', () => {
     const engine = makeEngine();
-    engine.twoPhaseProcessor = makeProcessorStub();
+    engine.patternStore.processor = makeProcessorStub();
     engine.disablePatternProfiling();
-    expect(engine.twoPhaseProcessor.disableInternalProfiling).toHaveBeenCalledTimes(1);
+    expect(engine.patternStore.processor.disableInternalProfiling).toHaveBeenCalledTimes(1);
   });
 
   test('resetPatternProfiling calls through exactly once', () => {
     const engine = makeEngine();
-    engine.twoPhaseProcessor = makeProcessorStub();
+    engine.patternStore.processor = makeProcessorStub();
     engine.resetPatternProfiling();
-    expect(engine.twoPhaseProcessor.resetInternalProfiling).toHaveBeenCalledTimes(1);
+    expect(engine.patternStore.processor.resetInternalProfiling).toHaveBeenCalledTimes(1);
   });
 
   test('getPatternProfilingReport returns the processor report', () => {
     const engine = makeEngine();
-    engine.twoPhaseProcessor = makeProcessorStub();
+    engine.patternStore.processor = makeProcessorStub();
     const report = engine.getPatternProfilingReport();
     expect(report).toEqual({ enabled: true, totalCalls: 3 });
-    expect(engine.twoPhaseProcessor.getInternalProfilingReport).toHaveBeenCalledTimes(1);
+    expect(engine.patternStore.processor.getInternalProfilingReport).toHaveBeenCalledTimes(1);
   });
 
   test('printPatternProfilingReport calls through exactly once', () => {
     const engine = makeEngine();
-    engine.twoPhaseProcessor = makeProcessorStub();
+    engine.patternStore.processor = makeProcessorStub();
     engine.printPatternProfilingReport();
-    expect(engine.twoPhaseProcessor.printInternalProfilingReport).toHaveBeenCalledTimes(1);
+    expect(engine.patternStore.processor.printInternalProfilingReport).toHaveBeenCalledTimes(1);
   });
 });

@@ -13,7 +13,6 @@ vi.mock('../toast', () => ({
 
 import toast from '../toast';
 import { createTranslationEngine } from '../TranslationEngine.js';
-import { runSinglePass } from '../../test/runSinglePass';
 
 const tok = (value, start) => ({
   type: 'chinese_char',
@@ -51,7 +50,7 @@ describe('a corrupted semantic array builder', () => {
     expect(engine.semanticArrayBuilder.isCorrupted).toBe(true);
     const tokens = [tok('你', 0), tok('好', 1)];
 
-    await expect(runSinglePass(engine, tokens, {})).resolves.not.toThrow();
+    await expect(engine.translateSinglePass(tokens, {})).resolves.not.toThrow();
 
     expect(tokens.map((t) => t.translated)).toEqual(['bạn', 'tốt']);
     expect(toast.error).toHaveBeenCalledTimes(1);
@@ -82,7 +81,7 @@ describe('a corrupted semantic array builder', () => {
     ])('%s: one critical-error toast, then the translation is abandoned', async (_phase, stub) => {
       const restore = stub();
       try {
-        await expect(runSinglePass(engine, [tok('你', 0), tok('好', 1)], {})).rejects.toThrow(
+        await expect(engine.translateSinglePass([tok('你', 0), tok('好', 1)], {})).rejects.toThrow(
           /Token array corruption detected/
         );
       } finally {
@@ -97,7 +96,7 @@ describe('a corrupted semantic array builder', () => {
   });
 
   test('says nothing while the builder is healthy', async () => {
-    await runSinglePass(engine, [tok('你', 0)], {});
+    await engine.translateSinglePass([tok('你', 0)], {});
 
     expect(toast.error).not.toHaveBeenCalled();
   });

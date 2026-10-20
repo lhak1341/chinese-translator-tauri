@@ -55,7 +55,6 @@ export const CMD = {
   SAVE_TRANSFORM_RULES: 'save_transform_rules',
   EXPORT_DICTIONARIES: 'export_dictionaries',
   IMPORT_DICTIONARIES: 'import_dictionaries',
-  BUILD_LOOKUP_INDEX: 'build_lookup_index',
   SCAN_LIBRARY: 'scan_library',
   OPEN_BOOK: 'open_book',
   READ_BOOK_LINES: 'read_book_lines',
@@ -67,25 +66,6 @@ export const CMD = {
 } as const;
 
 // ── Tauri-specific types ──────────────────────────────────────────────────────
-
-export interface LookupIndexEntry {
-  chinese: string;
-  vietnamese: string;
-  metadata?: string;
-}
-
-export interface LookupIndexDictionary {
-  name: string;
-  entries: LookupIndexEntry[];
-  priority?: number;
-}
-
-export interface LookupIndexResult extends ElectronResult {
-  index: Record<string, unknown>;
-  buildTimeMs: number;
-  positionsIndexed: number;
-  indexSize: number;
-}
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
@@ -114,7 +94,7 @@ function requireValidDictionaryIds(
  * `{success: false, error: String(error)}` — no custom fallback shape, no success-path logic.
  * Deliberately excludes: `readClipboard` (rethrows, doesn't return a result object),
  * `saveDictionary` (real success-path logic — failure logging),
- * `loadDictionariesParallel`/`buildLookupIndex` (custom, multi-field fallback shapes).
+ * `loadDictionariesParallel` (a custom, multi-field fallback shape).
  * ID validation stays at each of those call sites, not folded in here — it's an orthogonal
  * pre-invoke guard, not part of the invoke/catch shell (architecture review 2026-09-09,
  * candidate #2 grilling). Extending the shell to cover them was proposed again and declined:
@@ -385,35 +365,6 @@ const tauriAPI = {
       undefined,
       'importDictionaries'
     ),
-
-  buildLookupIndex: async (
-    text: string,
-    dictionaries: LookupIndexDictionary[],
-    dictionaryOrder: string[],
-    minTextLength: number
-  ): Promise<LookupIndexResult> => {
-    try {
-      const result = await invoke<LookupIndexResult>(CMD.BUILD_LOOKUP_INDEX, {
-        text,
-        dictionaries,
-        dictionaryOrder,
-        // Indexing and parallelism stay on (Rust's defaults); only the length gate is sent, so
-        // MatchSource's check and Rust's use one number.
-        options: { minTextLength },
-      });
-      return result;
-    } catch (error) {
-      logger.error('Error in buildLookupIndex:', error);
-      return {
-        success: false,
-        index: {},
-        buildTimeMs: 0,
-        positionsIndexed: 0,
-        indexSize: 0,
-        error: String(error),
-      };
-    }
-  },
 };
 
 // Expose the API globally to mimic Electron's window.electronAPI

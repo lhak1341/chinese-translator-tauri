@@ -84,8 +84,6 @@ export interface AppConfiguration {
   autoSaveEnabled?: boolean;
   /** Enable debug mode logging */
   debugMode?: boolean;
-  /** Enable two-phase pattern processing */
-  enableTwoPhasePatterns?: boolean;
   /** Enable streaming translation */
   enableStreaming?: boolean;
   /** Chunk size for batch processing */

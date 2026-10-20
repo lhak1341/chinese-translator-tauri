@@ -2,8 +2,8 @@
  * Tracks pattern processor failure state and decides when to warn or permanently disable.
  *
  * Owns: failure count, when the current run of failures began, warning-shown flag, threshold
- * logic. Does NOT own: enableTwoPhasePatterns flag, toast calls, performance monitor — caller
- * interprets the returned action and handles those side effects.
+ * logic. Does NOT own: whether Phase 1 runs, toast calls, performance monitor — its one caller,
+ * `PatternStore`, interprets the returned action and handles those side effects.
  *
  * A "run" is consecutive failures with no success between them; a success ends it. The window
  * is measured from the first failure of the run, so a processor that never worked (or last worked

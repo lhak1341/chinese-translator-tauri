@@ -1,6 +1,6 @@
 # ADR-077: Keep Shipping the Dictionaries With Each Lookup-Index Call
 
-**Status:** Decided
+**Status:** Superseded (2026-10-21) by ADR-108 — the lookup index was deleted, so nothing ships dictionaries
 **Date:** 2026-10-05
 
 ## Context
@@ -29,3 +29,5 @@ About 16 ms plus IPC, once per window, in the background gloss pass, is not wort
 Future architecture reviews should not re-propose it without a measurement. Revisit if a measured IPC round trip exceeds about 50 ms per window, or if a code path starts calling the index per chunk. The dev console now logs the whole round trip (`🦀 Lookup index: Nms round trip …`, `LookupIndexBuilder.ts`); read it with a book open in `bun run tauri:dev`.
 
 **Addendum (2026-10-10):** the character-only gloss no longer builds an index (ADR-087 addendum), so the per-window payload described under Evidence is gone. The decision stands for the remaining caller, Full translation's 50+ character chunk.
+
+**Addendum (2026-10-21):** superseded by ADR-108. The one remaining caller, Full Translation's 50+ character chunk, never fired on 248 real windows, so the index and its per-call shipping were deleted.

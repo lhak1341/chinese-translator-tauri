@@ -140,10 +140,7 @@ import { cleanupFormatting } from './text/FormattingPasses';
 import { assembleCharOnlyResult } from './text/CharOnlyAssembly';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
-import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
-import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { claimSpan, claimGroupedSpan, isClaimed } from './TokenClaim.js';
-import { openMatchSource } from './dictionary/MatchSource';
 import { characterMatchFor } from './dictionary/CharacterMatch';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // Phase 4 conflict resolution — pure JS (the WASM twin was slower, ADR-083)
@@ -167,8 +164,10 @@ import {
   PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
   MAX_INPUT_TOKENS,
   UI_TIMEOUTS,
-  PATTERN_FAILURE_DETECTION,
 } from '../constants/TranslationConstants.js';
+
+// The pattern-profiling delegators' answer when the Pattern Store built no processor
+const NO_PATTERN_PROCESSOR = 'No pattern processor: no patterns loaded or WASM unavailable.';
 
 /**
  * @import {
@@ -248,22 +247,8 @@ export class TranslationEngine {
 
     // Initialize parallel processing configuration (will be set during first use)
 
-    // Hierarchical pattern processing settings
-    this.settings = {
-      enableTwoPhasePatterns: true, // Enable hierarchical pattern processing
-    };
-
     // Initialize translation profiler for performance analysis
     this.phaseProfiler = new TranslationProfiler();
-
-    // Store reference to TwoPhasePatternProcessor for internal profiling
-    this.twoPhaseProcessor = null;
-
-    // Tracks failures of the WASM pattern matcher — failure count, time window, disable threshold
-    this.patternFailureTracker = new PatternFailureTracker({
-      failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
-      disableThreshold: PATTERN_FAILURE_DETECTION.MAX_FAILURES,
-    });
 
     // The most tokens one translateDirectly call accepts. A field, not a constant, so a test can lower it.
     this.maxInputTokens = MAX_INPUT_TOKENS;
@@ -414,15 +399,6 @@ export class TranslationEngine {
     this.validatePhaseContracts = false;
 
     try {
-      // Documented in TranslationEngineInitOptions (TranslationEngineTypes.d.ts) as
-      // `patternSettings?: PatternProcessingSettings` but never actually wired up
-      // (architecture review 2026-07-30, candidate #3 grilling — zero references
-      // to `options.patternSettings` anywhere before this fix). Merge onto the
-      // constructor's { enableTwoPhasePatterns: true, ... } defaults.
-      if (options.patternSettings) {
-        this.settings = { ...this.settings, ...options.patternSettings };
-      }
-
       // Load dictionaries into trie structures
       await this.dictionaryManager.loadDictionaries(dictionaries);
 
@@ -433,20 +409,10 @@ export class TranslationEngine {
         this.MAX_PROPER_NOUN_TRANSLATIONS
       );
 
-      // Initialize semantic pattern processor
+      // Parse patterns and build the WASM pattern processor; the store switches Phase 1 off
+      // (with a toast) when WASM cannot run
       if (dictionaries.patterns) {
         await this.patternStore.initializePatterns(dictionaries.patterns);
-
-        // The WASM matcher cannot run, so say so now: left on, every chunk would throw "not
-        // available", skipping Phase 1 until the failure counter gave up. Only ever turns it off.
-        if (this.patternStore.patterns.length > 0 && !this.patternStore.wasmAvailable) {
-          this.settings.enableTwoPhasePatterns = false;
-          logger.error('WASM pattern processor unavailable; Phase 1 (patterns) is skipped');
-          toast.error(
-            'WASM pattern matching is unavailable, so patterns are skipped. Reload dictionaries (Cmd+R) to retry.',
-            { duration: 10000 }
-          );
-        }
       }
 
       // Load punctuation dictionary for post-processing
@@ -486,7 +452,7 @@ export class TranslationEngine {
    * Performs character-by-character translation without applying patterns, proper nouns,
    * numbers, or phrases. This mode is useful for understanding raw character meanings and
    * is significantly faster than full 5-phase translation. Each character is a point lookup in
-   * the characters dictionary (ADR-087); no Rust lookup index is built for it.
+   * the characters dictionary (ADR-087).
    *
    * Translation process:
    * 1. Tokenize input text into individual characters
@@ -697,7 +663,6 @@ export class TranslationEngine {
    * @performance
    * - Progressive mode: Better for long texts (>5000 chars), enables streaming UI updates
    * - Chunked mode: Better for accuracy and potential parallelization
-   * - Automatically builds Rust lookup index for texts of 50+ chars (6-50x speedup)
    *
    * @critical
    * This method resets the semantic array builder for each new translation.
@@ -796,79 +761,25 @@ export class TranslationEngine {
    * @critical
    * Must run FIRST in 5-phase pipeline (highest priority).
    * Consumed tokens are blocked from all subsequent phases.
-   * A pattern failure is not fatal: Phase 1 is skipped for that call. After
-   * PATTERN_FAILURE_DETECTION.MAX_FAILURES WASM failures within the window the matcher is
-   * switched off and Phase 1 is skipped until the dictionaries reload (ADR-101).
+   * Whether Phase 1 runs is the Pattern Store's decision: a matcher failure skips Phase 1 for
+   * that call, and after PATTERN_FAILURE_DETECTION.MAX_FAILURES failures within the window the
+   * store switches it off until the dictionaries reload (ADR-101). An error while applying the
+   * results is not a matcher failure: it propagates to translateSinglePass's Phase 1 catch.
    *
    * @architectural
    * Cannot be extracted because pattern-consumed tokens affect all subsequent phases.
    * Token state changes must be synchronized with phase execution order.
    */
   async applyPatterns(tokens, options) {
-    if (!this.patternStore.isInitialized) {
-      return;
-    }
+    // The processor reads exactly these two keys (to build its variable cache). Passing the
+    // translation options through copied options it never looked at.
+    const hierarchicalResults = await this.patternStore.matchTokens(tokens, {
+      activeProperNouns: this.activeProperNouns,
+      dictionaryManager: this.dictionaryManager,
+    });
+    if (!hierarchicalResults) return;
 
-    // Off after repeated failures or when WASM never initialized: Phase 1 is skipped (ADR-101)
-    if (!this.settings.enableTwoPhasePatterns || this.patternStore.patterns.length === 0) {
-      return;
-    }
-
-    try {
-      // Create or reuse TwoPhasePatternProcessor instance
-      if (!this.twoPhaseProcessor) {
-        this.twoPhaseProcessor = new TwoPhasePatternProcessor(this.patternStore.patterns);
-      }
-
-      // The processor reads exactly these two keys (to build its variable cache). Passing the
-      // translation options through copied options it never looked at.
-      const enhancedOptions = {
-        activeProperNouns: this.activeProperNouns,
-        dictionaryManager: this.dictionaryManager,
-      };
-
-      const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
-        tokens,
-        enhancedOptions
-      );
-
-      this.applyHierarchicalResults(tokens, hierarchicalResults, options);
-
-      const { recovered, previousCount } = this.patternFailureTracker.reportSuccess();
-      if (recovered) {
-        logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
-      }
-    } catch (error) {
-      // Pattern processing failures must not crash translation — phases 2-5 continue
-      logger.error('❌ Error in pattern processing phase:', error);
-      logger.error('Pattern phase will be skipped - translation quality may be reduced');
-
-      const { action, count } = this.patternFailureTracker.reportFailure();
-
-      if (action === 'disable') {
-        this.settings.enableTwoPhasePatterns = false;
-        toast.error(
-          'WASM pattern matching was turned off after repeated failures, so patterns are skipped. Reload dictionaries (Cmd+R) to turn it back on.',
-          { duration: 10000 }
-        );
-        logger.error(
-          `🚨 WASM pattern processing disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes — Phase 1 is skipped until the engine is rebuilt`
-        );
-      } else if (action === 'reset') {
-        logger.warn(
-          `⚠️ Resetting pattern failure counter (failures outside ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} min window)`
-        );
-        toast.warning(
-          `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
-          { duration: 8000 }
-        );
-      } else if (action === 'warn') {
-        toast.warning(
-          `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
-          { duration: 8000 }
-        );
-      }
-    }
+    this.applyHierarchicalResults(tokens, hierarchicalResults, options);
   }
 
   /**
@@ -1073,8 +984,8 @@ export class TranslationEngine {
 
   /**
    * Phase 2: Proper Nouns. Looks up the tokens no earlier phase claimed in the active
-   * proper-noun dictionaries (`this.activeProperNouns`), one category, `properNouns`
-   * (ADR-082: a phase's dictionaries share one category).
+   * proper-noun dictionaries (`this.activeProperNouns`), through
+   * `DictionaryManager.findMatchesAtToken` (ADR-108).
    *
    * Left to right, the longest match at each token wins, with one exception: the
    * lookahead defers a match when a token inside its span starts a STRICTLY LONGER match
@@ -1085,23 +996,23 @@ export class TranslationEngine {
    *
    * @param {Array<Object>} tokens - Tokenized input text, modified in place
    * @param {Object} options - Translation options, passed through to applyMatchToTokens
-   * @param {import('./dictionary/MatchSource').MatchSource} matchSource - Answers the match lookups
    * @returns {Promise<void>}
    *
    * @see translateSinglePass - Calls this method as Phase 2
-   * @see MatchSource.forPhase - The lookup seam
+   * @see DictionaryManager.findMatchesAtToken - The lookup seam
    *
    * @critical
    * Runs after Phase 1 (patterns) and before Phase 3. Phase order is IMMUTABLE.
    */
-  async applyProperNouns(tokens, options, matchSource) {
+  async applyProperNouns(tokens, options) {
     // Outside the try, as at the old call site: a missing list is a phase failure, not a
     // swallowed lookup error.
     const dictionaryOrder = [...this.activeProperNouns];
     try {
       // The match lookup for the active proper-noun dictionaries, shared by the main scan and
-      // the lookahead-defer scan below. It answers from the Rust index or the JS trie.
-      const matchesAt = matchSource.forPhase(dictionaryOrder);
+      // the lookahead-defer scan below
+      const matchesAt = (tokenList, pos) =>
+        this.dictionaryManager.findMatchesAtToken(tokenList, pos, dictionaryOrder);
 
       // Text ranges of the matches already applied, for the overlap check
       const processedRanges = [];
@@ -1117,7 +1028,7 @@ export class TranslationEngine {
           continue;
         }
 
-        const filteredMatches = matchesAt(tokens, i, 'properNouns');
+        const filteredMatches = matchesAt(tokens, i);
 
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
@@ -1146,7 +1057,7 @@ export class TranslationEngine {
             let deferToLookahead = false;
             for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
               if (isClaimed(tokens[j])) continue;
-              const jMatches = matchesAt(tokens, j, 'properNouns');
+              const jMatches = matchesAt(tokens, j);
               if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
               }
@@ -1546,12 +1457,11 @@ export class TranslationEngine {
    * Provides detailed breakdown of TwoPhasePatternProcessor operations
    */
   enablePatternProfiling() {
-    if (this.twoPhaseProcessor) {
-      this.twoPhaseProcessor.enableInternalProfiling();
+    const processor = this.patternStore.processor;
+    if (processor) {
+      processor.enableInternalProfiling();
     } else {
-      logger.warn(
-        '⚠️ TwoPhasePatternProcessor not initialized. Translate some text first, then enable profiling.'
-      );
+      logger.warn(`⚠️ ${NO_PATTERN_PROCESSOR}`);
     }
   }
 
@@ -1559,9 +1469,7 @@ export class TranslationEngine {
    * Disable pattern matching internal profiling
    */
   disablePatternProfiling() {
-    if (this.twoPhaseProcessor) {
-      this.twoPhaseProcessor.disableInternalProfiling();
-    }
+    this.patternStore.processor?.disableInternalProfiling();
   }
 
   /**
@@ -1569,23 +1477,22 @@ export class TranslationEngine {
    * @returns {Object} Internal profiling data
    */
   getPatternProfilingReport() {
-    if (this.twoPhaseProcessor) {
-      return this.twoPhaseProcessor.getInternalProfilingReport();
+    const processor = this.patternStore.processor;
+    if (processor) {
+      return processor.getInternalProfilingReport();
     }
-    return {
-      enabled: false,
-      message: 'TwoPhasePatternProcessor not initialized. Translate some text first.',
-    };
+    return { enabled: false, message: NO_PATTERN_PROCESSOR };
   }
 
   /**
    * Print pattern matching internal profiling report to console
    */
   printPatternProfilingReport() {
-    if (this.twoPhaseProcessor) {
-      this.twoPhaseProcessor.printInternalProfilingReport();
+    const processor = this.patternStore.processor;
+    if (processor) {
+      processor.printInternalProfilingReport();
     } else {
-      logger.log('TwoPhasePatternProcessor not initialized. Translate some text first.');
+      logger.log(NO_PATTERN_PROCESSOR);
     }
   }
 
@@ -1593,9 +1500,7 @@ export class TranslationEngine {
    * Reset pattern matching profiling data
    */
   resetPatternProfiling() {
-    if (this.twoPhaseProcessor) {
-      this.twoPhaseProcessor.resetInternalProfiling();
-    }
+    this.patternStore.processor?.resetInternalProfiling();
   }
 
   // ============================================================================
@@ -1913,7 +1818,6 @@ export class TranslationEngine {
    *
    * Key features:
    * - Full 5-phase translation pipeline
-   * - Automatic Rust lookup index for texts of 50+ chars (6-50x speedup)
    * - Token consumption tracking to prevent double-processing
    * - Semantic array generation for clickable highlighting
    *
@@ -1943,8 +1847,6 @@ export class TranslationEngine {
    *
    * @performance
    * - Small texts (<500 chars): ~50-100ms
-   * - Large texts (50+ chars with Rust index): 6-50x faster
-   * - Automatic optimization selection based on text length
    *
    * @critical
    * When isParallelChunk=true, does NOT reset semantic builder or segments.
@@ -1973,13 +1875,6 @@ export class TranslationEngine {
         this.semanticArrayBuilder.reset();
       }
 
-      // OPTIMIZATION: Rust-powered lookup index for large texts (6-50x faster); the match source
-      // falls back to the JS trie for short text or when Rust is unavailable
-      const matchSource = await openMatchSource(text, {
-        dictionaryManager: this.dictionaryManager,
-        logWarn: (msg) => logger.warn(msg),
-      });
-
       // Phase 1: Tokenization with memory-based processing limits
       const tokens = this.tokenizer.tokenize(text);
 
@@ -1997,7 +1892,7 @@ export class TranslationEngine {
       }
 
       // Use optimized single-pass processing
-      await this.translateSinglePass(tokens, options, matchSource);
+      await this.translateSinglePass(tokens, options);
 
       // Phase 7: Post-processing and cleanup (simplified for direct mode)
       const result = this.postProcess(tokens, options);
@@ -2088,7 +1983,7 @@ export class TranslationEngine {
    *   translated: null,
    *   translationSource: null
    * }));
-   * const translated = await engine.translateSinglePass(tokens, options, matchSource);
+   * const translated = await engine.translateSinglePass(tokens, options);
    *
    * @see translateDirectly - Calls this method after tokenization
    * @see applyPatterns - Phase 1 implementation
@@ -2118,14 +2013,14 @@ export class TranslationEngine {
    * - Phase 2 (Proper Nouns): 5-20ms
    * - Phase 3 (Numbers with WASM): 2-10ms (5-10x faster than JS)
    * - Phase 4 (Phrases): 10-50ms
-   * - Phase 5 (Characters with Rust): 20-200ms (6-50x faster with lookup index)
+   * - Phase 5 (Characters): a point lookup per token (ADR-087)
    *
    * @critical
    * Phase order is IMMUTABLE. Changing order breaks translation quality.
    * Each phase must run to completion before next phase starts.
    * Token state is shared - concurrent execution would corrupt results.
    */
-  async translateSinglePass(tokens, options, matchSource) {
+  async translateSinglePass(tokens, options) {
     // CRITICAL FIX: Track phase completion for debugging silent failures
     // Phases can fail silently (catch error, log, continue) which makes debugging difficult
     // This Set tracks which phases completed successfully vs failed
@@ -2304,7 +2199,7 @@ export class TranslationEngine {
         validatePhaseOrder('properNouns');
         await withTimeout(
           this.phaseProfiler.profile('properNouns', async () => {
-            await this.applyProperNouns(tokens, options, matchSource);
+            await this.applyProperNouns(tokens, options);
           }),
           PHASE_TIMEOUTS.properNouns,
           'properNouns'
