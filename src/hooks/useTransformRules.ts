@@ -87,8 +87,6 @@ export function useTransformRuleEditor() {
   // see the one made just before it.
   const pendingRef = useRef<PendingChange[]>([]);
   const nextIdRef = useRef(0);
-  const savedRef = useRef(saved);
-  savedRef.current = saved;
 
   const setPendingChanges = useCallback((next: PendingChange[]) => {
     pendingRef.current = next;
@@ -122,7 +120,9 @@ export function useTransformRuleEditor() {
   const submit = useCallback(
     async (change: RuleChange): Promise<void> => {
       try {
-        change(withPending(savedRef.current, pendingRef.current));
+        // The backend's cache, not the rendered `saved`: a save that just landed is in it
+        // before React re-renders.
+        change(withPending(getTransformRulesSnapshot() ?? NO_RULES, pendingRef.current));
       } catch (error) {
         toast.error((error as Error).message);
         throw error;

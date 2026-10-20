@@ -1,6 +1,6 @@
 /**
  * DictionaryTrie: the per-dictionary lookup structure. `findMatches` is the one prefix walk that
- * DictionaryMatchLookup and PatternVariableCache read matches through, so it is pinned here
+ * DictionaryManager.findAllMatches and PatternVariableCache read matches through, so it is pinned here
  * rather than through either caller.
  */
 import { describe, expect, it } from 'vitest';

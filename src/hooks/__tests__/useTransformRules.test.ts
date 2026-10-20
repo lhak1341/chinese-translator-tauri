@@ -308,4 +308,37 @@ describe('useTransformRuleEditor — changes made while a save is in flight', ()
     expect(result.current.rules.map((r) => r.id)).toEqual(['r1']);
     expect(saveTransformRules).toHaveBeenCalledTimes(1);
   });
+
+  test('a change that conflicts with the saved rules is refused at once, not after the save ahead of it', async () => {
+    loadTransformRules.mockResolvedValue(
+      loadResult([makeRule({ id: 'r1', key: '城' }), makeRule({ id: 'r2', key: '市' })])
+    );
+    const first = deferredSave();
+    saveTransformRules.mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useTransformRuleEditor());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    let toggle!: Promise<void>;
+    act(() => {
+      toggle = result.current.toggleEnabled('r2');
+    });
+    // The toggle's save is still held, so only the check made when the change is made can
+    // answer before it is released.
+    await expect(
+      result.current.addRule({
+        matchKind: 'suffix',
+        key: '城',
+        relocate: true,
+        capitalizeExceptN: 1,
+        semanticType: 'location',
+        enabled: true,
+      })
+    ).rejects.toThrow('already exists');
+
+    await act(async () => {
+      first.resolve();
+      await toggle;
+    });
+    expect(saveTransformRules).toHaveBeenCalledTimes(1);
+  });
 });

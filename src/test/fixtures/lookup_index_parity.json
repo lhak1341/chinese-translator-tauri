@@ -1,7 +1,7 @@
 {
   "_contract": "What 'dictionary matches starting at a text position' means, shared by the two adapters of MatchSource: the Rust lookup index (src-tauri/src/dictionary_commands.rs, build_lookup_index_impl) and the JS trie (DictionaryManager.findAllMatches). src/utils/__tests__/MatchSource.parity.test.ts and the lookup_index_parity tests in dictionary_commands.rs read this file (ADR-082). Do not edit an expectation to make a test pass: change an adapter, or record the behaviour on purpose. Each lookup asks for the matches at `position` (UTF-16 offset, what the engine passes from token starts; `charPosition` is the code-point offset the Rust index is keyed by, equal unless an astral character comes first) from the dictionaries in `dictionarySet`. Contract: `dictionarySet` holds only dictionaries whose Rust category is `category` (an id Rust does not recognise lands in `phrases`). `expected` is winner-first (longer word first, lower priority number on a tie, MatchComparator order). The Rust side returns matches in dictionary order, so its test compares them as a set; the JS side compares the exact sequence.",
   "dictionaries": {
-    "properNouns": { "priority": 2, "entries": { "你好吗": "Ni Hao Ma" } },
+    "properNouns": { "priority": 3, "entries": { "你好吗": "Ni Hao Ma" } },
     "phrases": { "priority": 3, "entries": { "你好": "xin chào", "你好吗": "bạn khỏe không" } },
     "characters": { "priority": 4, "entries": { "你": "bạn", "好": "tốt" } },
     "customDict": { "priority": 10, "entries": { "好吗": "ok?" } }

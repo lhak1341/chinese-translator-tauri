@@ -177,7 +177,7 @@ describe('DictionaryManager match sort order', () => {
       { activeProperNouns }
     );
 
-    const matches = manager.findAllMatches('王者归来', 0);
+    const matches = manager.findAllMatches('王者归来', 0, activeProperNouns);
     expect(matches[0].word).toBe('王者');
     expect(matches[0].translation).toBe('Vương Giả');
   });
@@ -189,7 +189,7 @@ describe('DictionaryManager match sort order', () => {
       { activeProperNouns }
     );
 
-    const matches = manager.findAllMatches('王者归来', 0);
+    const matches = manager.findAllMatches('王者归来', 0, activeProperNouns);
     expect(matches[0].word).toBe('王者');
     expect(matches[0].translation).toBe('Vương Giả (f)');
   });

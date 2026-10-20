@@ -76,9 +76,8 @@ function setup(): BookBindingStore {
     unbindDictionary,
     createDictionaryFiles: (dictionaryId) => createDictionary(dictionaryId, pairOps),
     renameDictionary: (oldId, newId) => renameDictionary(oldId, newId, pairOps),
-    rebuildEngine: async () => {
-      await reinitializeEngine(getDictionaries(), { forceConfigReload: true });
-    },
+    reinitializeEngine,
+    getDictionaries,
   });
   return current;
 }
@@ -109,7 +108,7 @@ function deferredSave() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  reinitializeEngine.mockResolvedValue(true);
+  reinitializeEngine.mockResolvedValue({ ok: true });
   loadDictionary.mockResolvedValue(undefined);
   applyRename.mockResolvedValue(undefined);
   getDictionaries.mockImplementation(() => dictionaries);
@@ -787,7 +786,7 @@ describe('the quick-add view', () => {
 
   test("with a bound book open, the fiction slice is the binding's, whatever config says", async () => {
     // The apply fails, so config keeps naming the previous novel.
-    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    reinitializeEngine.mockResolvedValueOnce({ ok: false, error: 'engine exploded' });
     staleConfig();
     const store = setup();
     store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
@@ -848,7 +847,7 @@ describe('the quick-add view', () => {
   test("any tab's Cmd-5 files under the open book after a failed apply, not the stale config", async () => {
     // The Translator and the Dictionary tab both decide Cmd-5 as `quickAddTarget` over
     // `loadQuickAddView` (useDictionaryModals, TabbedInterface) — the same composition here.
-    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    reinitializeEngine.mockResolvedValueOnce({ ok: false, error: 'engine exploded' });
     const store = setup();
     store.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
     await settle();
@@ -868,7 +867,7 @@ describe('the quick-add view', () => {
 
 describe('a failed apply', () => {
   test('on open, it is reported as an apply error, and a later successful bind clears it', async () => {
-    reinitializeEngine.mockRejectedValueOnce(new Error('engine exploded'));
+    reinitializeEngine.mockResolvedValueOnce({ ok: false, error: 'engine exploded' });
     config.engine.activeProperNouns = ['properNouns', 'properNouns-f_TruTien'];
     const store = setup();
 

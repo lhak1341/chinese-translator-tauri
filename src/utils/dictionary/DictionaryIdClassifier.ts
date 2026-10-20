@@ -34,8 +34,9 @@ export const isLookupTableDict = (id: string): boolean => kindOf(id) === 'lookup
  * - `'generic'` — `*-_*`, a shared theme dictionary
  * - `'custom'` — a user-created `properNouns-Foo` with neither marker
  *
- * The Configuration screen groups `root` and `custom` together as "Base"; the trie priority
- * rule does not, which is why they are separate tiers.
+ * The Configuration screen groups `root` and `custom` together as "Base"; they are separate
+ * tiers because only a custom id has a name of its own (`bareNameOf`). `priorityOf` ranks a
+ * root and a custom proper-nouns dictionary the same.
  */
 export type DictionaryTier = 'root' | 'fiction' | 'generic' | 'custom';
 
@@ -47,6 +48,33 @@ export function tierOf(id: string): DictionaryTier {
   if (suffix.startsWith('f_')) return 'fiction';
   if (suffix.startsWith('_')) return 'generic';
   return 'custom';
+}
+
+/** Priorities of the fixed-name dictionaries. Lower wins. */
+const ROOT_PRIORITIES: Readonly<Record<string, number>> = {
+  patterns: 2,
+  phrases: 3,
+  properNouns: 3,
+  characters: 4,
+  punctuation: 5,
+  conversion: 6,
+};
+
+/**
+ * A dictionary's rank in the priority ladder, lower first. It breaks ties between equal-length
+ * matches (ADR-010) and orders the default search. Proper nouns rank by tier: fiction 1,
+ * generic 2, root and custom 3. Other ids take their fixed-name value, or 10 when unknown
+ * (a `patterns-*` pair half included). The one source of dictionary priority; nothing passes
+ * its own table.
+ */
+export function priorityOf(id: string): number {
+  if (isProperNounsDict(id)) {
+    const tier = tierOf(id);
+    if (tier === 'fiction') return 1;
+    if (tier === 'generic') return 2;
+    return 3;
+  }
+  return ROOT_PRIORITIES[id] ?? 10;
 }
 
 /** The id prefix every fiction proper-nouns dictionary carries. Exported for callers that

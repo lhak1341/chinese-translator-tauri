@@ -1,6 +1,6 @@
 # ADR-035: Skip Removing DictionaryManager's Constructor Closures (DictionaryMatchLookup/DictionaryWasmLookup)
 
-**Status:** Decided
+**Status:** Superseded (2026-10-20) by the addendum below: `DictionaryMatchLookup` was folded into `DictionaryManager`
 **Date:** 2026-07-29
 
 ## Context
@@ -26,3 +26,9 @@ Do not touch `DictionaryManager`'s constructor wiring or attempt to remove the `
 ## Consequence
 
 Future architecture reviews should not re-propose removing `DictionaryManager`'s `isReady`/`getDefaultSearchOrder` closures on the "untestable extraction" premise — check `DictionaryMatchLookup.test.js`/`DictionaryWasmLookup.test.js` first. If a real friction point in `DictionaryManager`'s constructor surfaces later, it isn't this one.
+
+## Addendum (2026-10-20, architecture review round 34, candidate #3)
+
+The premise of this decision is gone. `DictionaryMatchLookup.js` was 226 lines of dispatch; by 2026-10-20 it was 55 lines with one method. The parallel fan-out and its stats were deleted on 2026-10-03, `findMatchesThreadSafe` on 2026-10-05, and the WASM tier with `DictionaryWasmLookup` by ADR-073. What was left was one 25-line loop behind four injected values (the `dictionaries` and `metadata` Maps, `getDefaultSearchOrder`, `isReady`), with one caller, `DictionaryManager.findAllMatches`, that only delegated. The shared Maps also forced a rule on `_releaseDictionaries`: empty them in place, never reassign.
+
+The deletion test now favors folding. The loop is `DictionaryManager.findAllMatches(text, startPos, dictionaryOrder)`, reading `this.dictionaries` and `this.metadata` directly. `dictionaryOrder` is required, since every production caller passes one. The `ready` guard (which also covers a call after `dispose()`) and the log-and-skip catch per dictionary are unchanged. The tests run over real tries in `DictionaryManager.findAllMatches.test.js`.

@@ -13,6 +13,7 @@ import {
   entryCapabilities,
   showsSemanticType,
   dictionaryNameProblem,
+  priorityOf,
   MAX_DICTIONARY_NAME_LENGTH,
 } from '../dictionary/DictionaryIdClassifier';
 
@@ -43,6 +44,24 @@ describe.each([
     const paired = tier === 'fiction' || tier === 'generic';
     expect(hasPairedPatterns(id)).toBe(kind === 'properNouns' && paired);
     expect(isPairedPatternsId(id)).toBe(kind === 'patterns' && paired);
+  });
+});
+
+describe('priorityOf', () => {
+  test.each([
+    ['properNouns-f_MyNovel', 1],
+    ['properNouns-_generic', 2],
+    ['properNouns', 3],
+    ['properNouns-Custom', 3],
+    ['patterns', 2],
+    ['phrases', 3],
+    ['characters', 4],
+    ['punctuation', 5],
+    ['conversion', 6],
+    ['patterns-f_MyNovel', 10],
+    ['unknownDict', 10],
+  ])('%s ranks %i', (id, priority) => {
+    expect(priorityOf(id)).toBe(priority);
   });
 });
 

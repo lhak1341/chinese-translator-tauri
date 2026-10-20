@@ -66,29 +66,6 @@ type TranslationConsumedSource =
 export type TranslationSource = TranslationLeaderSource | TranslationConsumedSource;
 
 // ============================================================================
-// Dictionary Configuration
-// ============================================================================
-
-/**
- * Dictionary priorities for 5-phase translation processing
- * Lower numbers = higher priority
- */
-export interface DictionaryPriorities {
-  /** Phase 2: Proper noun translation */
-  properNouns: number;
-  /** Phase 1: Pattern-based translation */
-  patterns: number;
-  /** Phase 4: Common phrase translation */
-  phrases: number;
-  /** Phase 5: Character-level translation */
-  characters: number;
-  /** Punctuation and symbol translation */
-  punctuation: number;
-  /** Text conversion (traditional/simplified) */
-  conversion: number;
-}
-
-// ============================================================================
 // Translation Engine Configuration
 // ============================================================================
 
@@ -109,8 +86,6 @@ export interface PatternProcessingSettings {
  * Translation engine initialization options
  */
 export interface TranslationEngineInitOptions {
-  /** Dictionary priorities for 5-phase processing */
-  priorities?: DictionaryPriorities;
   /** Active proper noun dictionary names */
   activeProperNouns?: string[];
   /** Pattern processing settings */

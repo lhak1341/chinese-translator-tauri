@@ -424,10 +424,7 @@ export class TranslationEngine {
       }
 
       // Load dictionaries into trie structures
-      await this.dictionaryManager.loadDictionaries(dictionaries, {
-        ...options,
-        activeProperNouns: this.activeProperNouns,
-      });
+      await this.dictionaryManager.loadDictionaries(dictionaries);
 
       // Cache proper noun translations for capitalization preservation
       this.properNounTranslations = buildProperNounCapitalizationMap(

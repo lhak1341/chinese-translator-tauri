@@ -5,16 +5,6 @@ import { createTranslationEngine } from '../utils/TranslationEngine.js';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 
-// Engine initialization priorities — shared between initial load and reinitialize
-const ENGINE_PRIORITIES = {
-  properNouns: 3,
-  patterns: 2,
-  phrases: 3,
-  characters: 4,
-  punctuation: 5,
-  conversion: 6,
-};
-
 /**
  * Manages the translation engine lifecycle: config load → dict wait → init → ready.
  *
@@ -72,8 +62,7 @@ export function useTranslatorEngine() {
    * state with the first. Destroying the outgoing engine before constructing
    * the replacement is what enforces that, not caller discipline.
    */
-  const runEngineInit = useCallback(async (dictionaries, activeProperNouns, options = {}) => {
-    const { priorities = ENGINE_PRIORITIES } = options;
+  const runEngineInit = useCallback(async (dictionaries, activeProperNouns) => {
     try {
       if (engineRef.current) {
         try {
@@ -83,10 +72,7 @@ export function useTranslatorEngine() {
         }
       }
       engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(dictionaries, {
-        priorities,
-        activeProperNouns,
-      });
+      await engineRef.current.initialize(dictionaries, { activeProperNouns });
       setInitError(null);
       setEngineVersion((version) => version + 1);
       setEnginePhase('ready');
@@ -105,7 +91,7 @@ export function useTranslatorEngine() {
   /** One queued request: the optional config reload, then the init. Never rejects. */
   const runRequest = useCallback(
     async ({ rawDictionaries, options }) => {
-      const { forceConfigReload = false, priorities = ENGINE_PRIORITIES } = options;
+      const { forceConfigReload = false } = options;
       try {
         if (forceConfigReload) {
           invalidateAppConfig();
@@ -114,8 +100,7 @@ export function useTranslatorEngine() {
         }
         return await runEngineInit(
           rawDictionaries,
-          activeProperNounsRef.current ?? ['properNouns'],
-          { priorities }
+          activeProperNounsRef.current ?? ['properNouns']
         );
       } catch (error) {
         // Only the config reload can land here (runEngineInit reports its own failures):

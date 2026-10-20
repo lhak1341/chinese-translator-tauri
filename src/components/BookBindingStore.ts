@@ -1,5 +1,6 @@
 import type { BookBinding } from '../types/ReaderTypes';
 import type { DictionaryCreateResult } from '../types/ElectronTypes';
+import type { EngineInitOutcome } from './EngineContext';
 import { loadAppConfig, transformAppConfig, type AppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -68,9 +69,13 @@ export interface BookBindingDeps {
   createDictionaryFiles: (dictionaryId: string) => Promise<DictionaryCreateResult>;
   /** Rename a pair on disk and swap its halves in memory. */
   renameDictionary: (oldId: string, newId: string) => Promise<{ success: boolean; error?: string }>;
-  /** Rebuild the engine from the Dictionary Store's current map, read at call time: a pair
-   * just loaded or renamed is there before React re-renders. */
-  rebuildEngine: () => Promise<unknown>;
+  /** The engine's `reinitializeEngine`: never rejects, reports a failed build as `ok: false`. */
+  reinitializeEngine: (
+    rawDictionaries: Record<string, unknown>,
+    options: { forceConfigReload: boolean }
+  ) => Promise<EngineInitOutcome>;
+  /** The Dictionary Store's current map. */
+  getDictionaries: () => Record<string, unknown>;
 }
 
 export interface BookBindingStore {
@@ -149,6 +154,19 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
     listeners.forEach((listener) => listener());
   }
 
+  /**
+   * Rebuilds the engine after a config write. `forceConfigReload`, because the engine's
+   * `activeProperNouns` comes from the config this store just wrote. The map is read now,
+   * not captured earlier: a pair just loaded or renamed is in it before React re-renders.
+   * Rejects when the build failed, which is how `applyError` and a tier move's failure learn.
+   */
+  async function rebuildEngine(): Promise<void> {
+    const outcome = await deps.reinitializeEngine(deps.getDictionaries(), {
+      forceConfigReload: true,
+    });
+    if (!outcome.ok) throw new Error(outcome.error);
+  }
+
   // Serializes every operation. Opening a book and answering the dialog both do a
   // read-modify-write of `activeProperNouns` followed by an engine rebuild; overlapping them
   // would rebuild against a half-written config. Creating, renaming and moving a dictionary
@@ -196,7 +214,7 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
       return { value: withBindingConfig(config, change), result: change.activeChanged };
     });
     if (!activeChanged) return;
-    await deps.rebuildEngine();
+    await rebuildEngine();
   }
 
   /** `writeAnswer`, recording whether the dictionaries actually switched — see
@@ -449,7 +467,7 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
             });
             return { value: withBindingConfig(config, change), result: change.activeChanged };
           });
-          if (wasActive || activeChanged) await deps.rebuildEngine();
+          if (wasActive || activeChanged) await rebuildEngine();
         } catch (cause) {
           logger.error('Failed to apply a dictionary tier move:', cause);
           failures.push(`the dictionaries in use were not updated: ${extractErrorMessage(cause)}`);

@@ -1,34 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import {
-  resolveDictionaryPriority,
-  buildTrieFromDictionary,
-} from '../dictionary/DictionaryTrieBuilder';
-
-describe('resolveDictionaryPriority', () => {
-  test('fiction-specific proper noun prefix always wins, priority 1', () => {
-    expect(
-      resolveDictionaryPriority('properNouns-f_MyNovel', { 'properNouns-f_MyNovel': 99 })
-    ).toBe(1);
-  });
-
-  test('generic proper noun prefix wins over caller priorities map, priority 2', () => {
-    expect(resolveDictionaryPriority('properNouns-_generic', { 'properNouns-_generic': 99 })).toBe(
-      2
-    );
-  });
-
-  test('uses caller-supplied priorities map when present', () => {
-    expect(resolveDictionaryPriority('phrases', { phrases: 3 })).toBe(3);
-  });
-
-  test('falls back to 3 for an unmapped properNouns-prefixed dictionary', () => {
-    expect(resolveDictionaryPriority('properNouns', {})).toBe(3);
-  });
-
-  test('falls back to 10 for an unmapped, non-properNouns dictionary', () => {
-    expect(resolveDictionaryPriority('unknownDict', {})).toBe(10);
-  });
-});
+import { buildTrieFromDictionary } from '../dictionary/DictionaryTrieBuilder';
 
 describe('buildTrieFromDictionary', () => {
   test('inserts string-value entries with an empty-field metadata object', () => {

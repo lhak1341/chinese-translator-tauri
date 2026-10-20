@@ -28,12 +28,7 @@ const dictionaries = fixture.dictionaries as Record<string, Dictionary>;
 async function loadManager() {
   const manager = new DictionaryManager();
   await manager.loadDictionaries(
-    Object.fromEntries(Object.entries(dictionaries).map(([name, d]) => [name, d.entries])),
-    {
-      priorities: Object.fromEntries(
-        Object.entries(dictionaries).map(([name, d]) => [name, d.priority])
-      ),
-    }
+    Object.fromEntries(Object.entries(dictionaries).map(([name, d]) => [name, d.entries]))
   );
   return manager;
 }
@@ -55,7 +50,7 @@ const tokenIndexAt = (text: string, position: number) =>
   tokensFor(text).findIndex((token) => token.start === position);
 
 describe('lookup index parity fixture', () => {
-  it('uses the priorities the TS rule would assign', async () => {
+  it('gives each fixture dictionary its production priority (priorityOf)', async () => {
     const manager = await loadManager();
     for (const [name, dictionary] of Object.entries(dictionaries)) {
       expect(manager.getPriorityForDictionary(name), name).toBe(dictionary.priority);

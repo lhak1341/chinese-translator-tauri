@@ -98,7 +98,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-032](./ADR-032-delete-baseline-tracker-cachehitrate-machinery.md)              | Delete PerformanceBaselineTracker's cacheHitRate             | Decided                           | The whole `cacheHitRate` baseline/alert machinery is deleted.                                                                                        |
 | [ADR-033](./ADR-033-defer-pattern-matcher-parity-test.md)                           | Delete broken pattern-matcher parity tooling                 | Resolved (2026-09-08)             | Broken parity tooling deleted; real parity coverage built later.                                                                                     |
 | [ADR-034](./ADR-034-skip-dictionarymanager-validateintegrity.md)                    | Skip DictionaryManager.validateIntegrity()                   | Decided                           | Fix the test's silent guard instead of building the method.                                                                                          |
-| [ADR-035](./ADR-035-skip-dictionarymatchlookup-closure-removal.md)                  | Skip removing DictionaryManager's constructor closures       | Decided                           | The lookup classes are already testable with stubs; no change.                                                                                       |
+| [ADR-035](./ADR-035-skip-dictionarymatchlookup-closure-removal.md)                  | Skip removing DictionaryManager's constructor closures       | Superseded (2026-10-20)           | Premise gone; `DictionaryMatchLookup` folded into `DictionaryManager` (addendum).                                                                    |
 | [ADR-036](./ADR-036-skip-segmentprecomputer-scan-unification.md)                    | Skip a shared segment scanner                                | Decided (addenda 2026-08-25)      | The two scans solve different matching problems; close test gaps instead.                                                                            |
 | [ADR-037](./ADR-037-delete-orphaned-wasm-boundary-validators.md)                    | Delete orphaned WASM boundary validators                     | Decided                           | Dead validators deleted; `validateWasmDictionaryMatch` kept.                                                                                         |
 | [ADR-038](./ADR-038-reject-rulematchesmodal-transform-output-preview.md)            | Reject RuleMatchesModal output preview                       | Decided                           | The modal edits real stored translations, which is what it is for.                                                                                   |
@@ -170,6 +170,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-104](./ADR-104-no-shared-fake-for-one-shot-ipc-in-tests.md)                    | No shared fake for one-shot IPC in tests                     | Decided                           | Stubs are the assertion handles; subsets differ; no state to share.                                                                                  |
 | [ADR-105](./ADR-105-one-batch-event-for-a-progressive-run.md)                       | One batch event for a progressive run                        | Decided                           | Text and counts every batch; the streaming hook is the one throttle.                                                                                 |
 | [ADR-106](./ADR-106-a-dictionary-edit-reaches-the-engine-only-through-a-rebuild.md) | An edit reaches the engine only through a rebuild            | Decided                           | Tries are fixed at load; per-edit invalidation cleared nothing.                                                                                      |
+| [ADR-107](./ADR-107-keep-the-transform-rule-pending-overlay-in-the-editor-hook.md)  | Keep the Transform Rule pending overlay in the editor hook   | Decided                           | The Add form must not see unsaved rules; the queue is already a module.                                                                              |
 
 ## ADR Format
 
@@ -232,5 +233,5 @@ Write an ADR when making decisions about:
 - **2026-10-10**: ADR-092; ADR-093; ADR-094; ADR-095
 - **2026-10-11**: ADR-096; ADR-097; ADR-098; ADR-099; ADR-100; ADR-101; ADR-102; ADR-103; ADR-104
 - **2026-10-12**: ADR-105
-- **2026-10-20**: ADR-106
+- **2026-10-20**: ADR-106; ADR-107
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

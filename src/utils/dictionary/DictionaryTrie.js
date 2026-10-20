@@ -73,7 +73,7 @@ export class DictionaryTrie {
 
   /**
    * Every dictionary word that starts at `startPos`, shortest first. The one prefix walk:
-   * DictionaryMatchLookup and PatternVariableCache both read matches through it.
+   * DictionaryManager.findAllMatches and PatternVariableCache both read matches through it.
    *
    * Walks by code point, because `insert` keys the trie by code point: a UTF-16 walk could never
    * match a word holding an astral character (CJK Ext-B, e.g. 𠮷). `startPos` and `endPos` are

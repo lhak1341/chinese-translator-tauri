@@ -143,15 +143,9 @@ export function BookBindingProvider({
       unbindDictionary,
       createDictionaryFiles: (dictionaryId) => createDictionary(dictionaryId, pairOps),
       renameDictionary: (oldId, newId) => renameDictionary(oldId, newId, pairOps),
-      // The store's map, read at call time: a pair just loaded or renamed is in it before
-      // React re-renders.
-      rebuildEngine: async () => {
-        const outcome = await latest.current.reinitializeEngine(latest.current.getDictionaries(), {
-          forceConfigReload: true,
-        });
-        // The store reports a failed rebuild through a rejection (applyError, tier-move failures).
-        if (!outcome.ok) throw new Error(outcome.error);
-      },
+      reinitializeEngine: (rawDictionaries, options) =>
+        latest.current.reinitializeEngine(rawDictionaries, options),
+      getDictionaries: () => latest.current.getDictionaries(),
     });
   });
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);

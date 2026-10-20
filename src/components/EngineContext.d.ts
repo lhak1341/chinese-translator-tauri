@@ -32,7 +32,6 @@ export interface EngineContextValue {
     rawDictionaries: Record<string, unknown>,
     options?: {
       forceConfigReload?: boolean;
-      priorities?: Record<string, number>;
     }
   ) => Promise<EngineInitOutcome>;
   /** Frees the idle engine early; does nothing while an init runs (that init's engine is half-built). */

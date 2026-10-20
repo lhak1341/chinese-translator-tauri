@@ -10,7 +10,6 @@
  *   TrieStats,
  *   DictionaryEntry,
  *   DictionaryData,
- *   DictionaryPriorities,
  *   DictionaryMetadata,
  *   DictionarySearchOrder,
  *   TranslationResult,
@@ -25,9 +24,10 @@
 
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
-import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
+import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
-import { resolveDictionaryPriority, buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
+import { buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
+import { priorityOf } from './DictionaryIdClassifier.js';
 
 export class DictionaryManager {
   constructor(options = {}) {
@@ -42,34 +42,16 @@ export class DictionaryManager {
       lookupCacheSize: options.lookupCacheSize || 800,
       enabled: options.cacheEnabled !== false, // Default to enabled
     });
-
-    this.matchLookup = new DictionaryMatchLookup({
-      dictionaries: this.dictionaries,
-      metadata: this.metadata,
-      getDefaultSearchOrder: () => this.getDefaultSearchOrder(),
-      isReady: () => this.ready,
-    });
   }
 
   /**
    * Load dictionaries from dictionary objects
    * @param {Object} dictionaryData - Dictionary data {name: {source: target}}
-   * @param {Object} options - Loading options
    */
-  async loadDictionaries(dictionaryData, options = {}) {
+  async loadDictionaries(dictionaryData) {
     const startTime = performance.now();
 
     this._releaseDictionaries();
-
-    const priorities = options.priorities || {
-      patterns: 2,
-      phrases: 3,
-      properNouns: 3, // base; f_* → 1, _* → 2 assigned below by prefix
-      characters: 4,
-      punctuation: 5,
-      conversion: 6,
-    };
-    this.priorities = priorities;
 
     // Load every dictionary given. Which ones the engine receives is decided before this call,
     // by `filterDictionariesForEngine` in `TranslationEngine.initialize`.
@@ -79,7 +61,7 @@ export class DictionaryManager {
         continue;
       }
 
-      const priority = resolveDictionaryPriority(dictionaryName, priorities);
+      const priority = priorityOf(dictionaryName);
       const { trie, entryCount, invalidSources } = buildTrieFromDictionary(dictionary);
       for (const invalidSource of invalidSources) {
         logger.error(
@@ -174,16 +156,36 @@ export class DictionaryManager {
   }
 
   /**
-   * Find all possible matches for text at a position across all dictionaries.
-   * Always sequential — the synchronous entry point. Delegates to
-   * DictionaryMatchLookup, which owns the trie walk and dispatch internals.
+   * Every match starting at `startPos`, from the dictionaries in `dictionaryOrder`, longest
+   * first, lower priority number on a tie. Synchronous: PatternVariableCache's per-position
+   * loop cannot await. A dictionary whose walk throws is logged and skipped.
    * @param {string} text - Input text
    * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Array} All possible matches sorted by priority and length
+   * @param {DictionarySearchOrder} dictionaryOrder - Dictionaries to search
+   * @returns {DictionaryMatchResult[]} All matches sorted by specificity, then priority
    */
-  findAllMatches(text, startPos = 0, dictionaryOrder = null) {
-    return this.matchLookup.findAllMatches(text, startPos, dictionaryOrder);
+  findAllMatches(text, startPos, dictionaryOrder) {
+    if (!this.ready) return [];
+
+    const allMatches = [];
+    for (const dictionaryName of dictionaryOrder) {
+      const dictionary = this.dictionaries.get(dictionaryName);
+      if (!dictionary) continue;
+
+      try {
+        const matches = dictionary.findMatches(text, startPos);
+        const { priority } = this.metadata.get(dictionaryName);
+        for (const match of matches) {
+          match.dictionary = dictionaryName;
+          match.priority = priority;
+        }
+        allMatches.push(...matches);
+      } catch (error) {
+        logger.error(`Dictionary ${dictionaryName} lookup failed:`, error);
+      }
+    }
+
+    return allMatches.sort(compareMatchesBySpecificityThenPriority);
   }
 
   /**
@@ -233,8 +235,7 @@ export class DictionaryManager {
    * CODE REVIEW FIX (CRITICAL-1): without disposal, 2-10MB per dictionary leaks on reload —
    * each trie holds nested Map structures that need recursive cleanup.
    *
-   * In place, never reassigned: `DictionaryMatchLookup` was constructed with these same Map
-   * instances. Every path that drops dictionaries goes through here, so none can skip the tries.
+   * Every path that drops dictionaries goes through here, so none can skip the tries.
    */
   _releaseDictionaries() {
     for (const [name, trie] of this.dictionaries.entries()) {
@@ -292,19 +293,12 @@ export class DictionaryManager {
   }
 
   /**
-   * Get priority for a specific dictionary (checks loaded metadata first, then defaults)
+   * Get priority for a specific dictionary, loaded or not (`priorityOf`, the one ladder)
    * @param {string} dictionaryName - Dictionary name
    * @returns {number} Priority value
    */
   getPriorityForDictionary(dictionaryName) {
-    // First check if the dictionary is loaded and has metadata with priority
-    const dictMetadata = this.metadata.get(dictionaryName);
-    if (dictMetadata && typeof dictMetadata.priority === 'number') {
-      return dictMetadata.priority;
-    }
-
-    // Fall back to the same rule loadDictionaries uses
-    return resolveDictionaryPriority(dictionaryName, this.priorities || {});
+    return priorityOf(dictionaryName);
   }
 
   getDictionary(name) {

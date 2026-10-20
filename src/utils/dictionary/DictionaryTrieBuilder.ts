@@ -1,35 +1,20 @@
 /**
  * The one trie-construction path (DictionaryManager.loadDictionaries builds every trie here —
- * there is no persisted trie cache), plus the single priority-assignment rule shared by both
- * places DictionaryManager needs a dictionary's priority: the load (loadDictionaries) and the
- * not-yet-loaded fallback in getPriorityForDictionary.
+ * there is no persisted trie cache). A dictionary's priority is not decided here: that is
+ * `priorityOf` in DictionaryIdClassifier.
  *
  * No `this`, no I/O, no logging — DictionaryManager owns disposal, cache lookup, Map
  * storage, and logging invalid entries; this module owns only the entry-by-entry trie
- * insert and the priority-assignment rule.
+ * insert.
  */
 
 import { DictionaryTrie } from './DictionaryTrie.js';
-import { isProperNounsDict, tierOf, isFictionProperNounsId } from './DictionaryIdClassifier';
 
 export interface TrieBuildResult {
   trie: DictionaryTrie;
   entryCount: number;
   /** Sources skipped because their value wasn't a string or a `{translation}` object. */
   invalidSources: string[];
-}
-
-/**
- * Resolve a dictionary's priority: fiction/generic proper-noun prefixes always win over
- * the caller-supplied priorities map.
- */
-export function resolveDictionaryPriority(
-  dictionaryName: string,
-  priorities: Record<string, number>
-): number {
-  if (isFictionProperNounsId(dictionaryName)) return 1; // fiction-specific (highest)
-  if (isProperNounsDict(dictionaryName) && tierOf(dictionaryName) === 'generic') return 2;
-  return priorities[dictionaryName] ?? (isProperNounsDict(dictionaryName) ? 3 : 10);
 }
 
 /**
