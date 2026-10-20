@@ -59,7 +59,7 @@ const {
     selectedDictionaryRef.current = id;
   }),
   deleteEntry: vi.fn().mockResolvedValue(undefined),
-  bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 0, errors: [] }),
+  bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 0, missing: [] }),
   updateEntry: vi.fn().mockResolvedValue(undefined),
   renameEntry: vi.fn().mockResolvedValue(undefined),
   patchEntry: vi.fn().mockResolvedValue(undefined),
@@ -148,7 +148,7 @@ function getRowCheckbox(sourceText: string): HTMLInputElement {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  bulkDeleteEntries.mockResolvedValue({ successCount: 0, errors: [] });
+  bulkDeleteEntries.mockResolvedValue({ count: 0, missing: [] });
   history.canUndo = false;
   history.canRedo = false;
   selectedDictionaryRef.current = 'properNouns-Test';
@@ -293,7 +293,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('bulk-delete confirm flow calls bulkDeleteEntries and resets selection', async () => {
-    bulkDeleteEntries.mockResolvedValue({ successCount: 1, errors: [] });
+    bulkDeleteEntries.mockResolvedValue({ count: 1, missing: [] });
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
@@ -307,7 +307,9 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
       fireEvent.click(screen.getByRole('button', { name: /Yes, Delete 1/ }));
     });
 
-    expect(bulkDeleteEntries).toHaveBeenCalledWith('properNouns-Test', ['你好']);
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'properNouns-Test', key: '你好' },
+    ]);
     expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
   });
 

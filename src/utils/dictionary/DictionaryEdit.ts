@@ -28,12 +28,18 @@ export interface EntryChange {
   after: StoredValue | undefined;
 }
 
+/** One entry, named by the dictionary that holds it and its key. */
+export interface EntryRef {
+  dictionaryId: string;
+  key: string;
+}
+
 /** What the edit did, for the caller's message. Plans set it; `invert` keeps it. */
 export type EditOutcome =
   | { kind: 'added' }
   | { kind: 'overwritten' }
   | { kind: 'updated' }
-  | { kind: 'deleted'; count: number; missing: string[] }
+  | { kind: 'deleted'; count: number; missing: EntryRef[] }
   | { kind: 'moved'; count: number; missing: string[] };
 
 export interface DictionaryEdit {
@@ -97,14 +103,20 @@ export function planUpdate(
   return { changes, outcome: { kind: 'updated' } };
 }
 
-/** Removes each present key; absent ones are reported in `outcome.missing`. */
-export function planDelete(dicts: Dictionaries, dictionaryId: string, keys: string[]): PlanResult {
-  const dict = dicts[dictionaryId];
-  if (!dict) return missingDictionary(dictionaryId);
+/** Removes each present entry, in any number of dictionaries, as one edit; absent ones are
+ * reported in `outcome.missing`. A target in a dictionary not in memory makes the whole plan
+ * invalid, so nothing is deleted. */
+export function planDelete(dicts: Dictionaries, targets: EntryRef[]): PlanResult {
   const changes: EntryChange[] = [];
-  const missing: string[] = [];
-  for (const key of new Set(keys)) {
-    if (dict[key] === undefined) missing.push(key);
+  const missing: EntryRef[] = [];
+  const seen = new Set<string>();
+  for (const { dictionaryId, key } of targets) {
+    const dict = dicts[dictionaryId];
+    if (!dict) return missingDictionary(dictionaryId);
+    const id = JSON.stringify([dictionaryId, key]);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (dict[key] === undefined) missing.push({ dictionaryId, key });
     else changes.push({ dictionaryId, key, before: dict[key], after: undefined });
   }
   return { changes, outcome: { kind: 'deleted', count: changes.length, missing } };

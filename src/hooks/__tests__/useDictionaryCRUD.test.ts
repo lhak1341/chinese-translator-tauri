@@ -19,6 +19,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useDictionaryCRUD } from '../useDictionaryCRUD';
 import { commitEdit } from '../../components/dictionary/EditCommitter';
 import type { EditCommitter } from '../../components/dictionary/EditCommitter';
+import { invert } from '../../utils/dictionary/DictionaryEdit';
+import type { Dictionaries, DictionaryEdit } from '../../utils/dictionary/DictionaryEdit';
 import toast from '../../utils/toast';
 import { validatePersistEntry } from '../../utils/dictionary/PersistTimeValidator';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
@@ -415,25 +417,91 @@ describe('deleteEntry', () => {
 });
 
 describe('bulkDeleteEntries', () => {
-  it('returns zero counts without saving for empty input', async () => {
+  const at = (dictionaryId: string, key: string) => ({ dictionaryId, key });
+
+  it('returns zero counts without saving or toasting for empty input', async () => {
     const result = makeHook({ [DICT_ID]: {} });
     let out;
     await act(async () => {
-      out = await result.current.bulkDeleteEntries(DICT_ID, []);
+      out = await result.current.bulkDeleteEntries([]);
     });
-    expect(out).toEqual({ successCount: 0, errors: [] });
+    expect(out).toEqual({ count: 0, missing: [] });
     expect(save).not.toHaveBeenCalled();
+    expect(toastCount() + vi.mocked(toast.success).mock.calls.length).toBe(0);
   });
 
-  it('reports missing entries as errors and records one edit', async () => {
+  it('deletes across two dictionaries as one edit that one undo reverses', async () => {
+    const initial = {
+      [PN_A]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry },
+      [PN_B]: { [SOURCE]: phraseEntry },
+    };
+    const result = makeHook(initial);
+    await act(async () => {
+      await result.current.bulkDeleteEntries([at(PN_A, SOURCE), at(PN_B, SOURCE)]);
+    });
+    expect(memory).toEqual({ [PN_A]: { [SOURCE_B]: phraseEntry }, [PN_B]: {} });
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('Deleted 2 entries');
+
+    const [edit] = record.mock.calls[0] as [DictionaryEdit];
+    const deps = {
+      read: () => memory,
+      write: (u: Dictionaries) => (memory = { ...memory, ...u }),
+      save,
+    };
+    expect((await commitEdit(deps, () => invert(edit))).status).toBe('ok');
+    expect(memory).toEqual(initial);
+  });
+
+  it('a failed save in one dictionary leaves the other unchanged, with one toast (I3 + I4)', async () => {
+    const result = makeHook({
+      [PN_A]: { [SOURCE]: phraseEntry },
+      [PN_B]: { [SOURCE]: phraseEntry },
+    });
+    save.mockImplementation(async (id: string) => ({ success: id !== PN_B }));
+    await act(async () => {
+      await expect(
+        result.current.bulkDeleteEntries([at(PN_A, SOURCE), at(PN_B, SOURCE)])
+      ).rejects.toThrow();
+    });
+    expect(memory[PN_A]).toEqual({ [SOURCE]: phraseEntry });
+    // A saved the deletion, then was written back to what it held.
+    expect(save.mock.calls.filter(([id]) => id === PN_A).at(-1)).toEqual([
+      PN_A,
+      { [SOURCE]: phraseEntry },
+    ]);
+    expect(toastCount()).toBe(1);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it('warns once when some entries are missing, and records one edit', async () => {
     const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry } });
     let out;
     await act(async () => {
-      out = await result.current.bulkDeleteEntries(DICT_ID, [SOURCE, SOURCE_B, '无']);
+      out = await result.current.bulkDeleteEntries([
+        at(DICT_ID, SOURCE),
+        at(DICT_ID, SOURCE_B),
+        at(DICT_ID, '无'),
+      ]);
     });
-    expect(out).toEqual({ successCount: 2, errors: ['Entry "无" not found in dictionary'] });
+    expect(out).toEqual({ count: 2, missing: [at(DICT_ID, '无')] });
     expect(memory[DICT_ID]).toEqual({});
     expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledWith('Deleted 2 of 3 entries; 1 not found');
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('warns when none of the entries were found', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
+    await act(async () => {
+      await result.current.bulkDeleteEntries([at(DICT_ID, '无'), at(DICT_ID, '空')]);
+    });
+    expect(toast.warning).toHaveBeenCalledWith('None of the 2 entries were found');
+    expect(toastCount()).toBe(1);
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -449,7 +517,9 @@ describe('bulkDeleteEntries', () => {
   ])('toasts once and records nothing when %s (I3 + I4)', async (_name, setup) => {
     const result = setup();
     await act(async () => {
-      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
+      await expect(
+        result.current.bulkDeleteEntries([{ dictionaryId: DICT_ID, key: SOURCE }])
+      ).rejects.toThrow();
     });
     expect(toastCount()).toBe(1);
     expect(record).not.toHaveBeenCalled();

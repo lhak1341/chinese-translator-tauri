@@ -12,7 +12,12 @@ import {
 } from '../utils/dictionary';
 import type { EntryFields, EntryPatch } from '../utils/dictionary';
 import { planAdd, planUpdate, planDelete, planMove } from '../utils/dictionary/DictionaryEdit';
-import type { Dictionaries, DictionaryEdit, PlanResult } from '../utils/dictionary/DictionaryEdit';
+import type {
+  Dictionaries,
+  DictionaryEdit,
+  EntryRef,
+  PlanResult,
+} from '../utils/dictionary/DictionaryEdit';
 import type { EditCommitter } from '../components/dictionary/EditCommitter';
 import {
   describeFreshFailure,
@@ -253,7 +258,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         const edit = await commitOrThrow(
           committer,
           record,
-          (d) => planDelete(d, dictionaryId, [source]),
+          (d) => planDelete(d, [{ dictionaryId, key: source }]),
           'Failed to delete dictionary entry'
         );
         if (edit.outcome.kind === 'deleted' && edit.outcome.count === 0) {
@@ -272,27 +277,31 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     [committer, record]
   );
 
+  // One Dictionary Edit for the whole selection, however many dictionaries it spans, so one
+  // undo restores it and a failed save rolls all of it back. Owns every message: the caller
+  // toasts nothing.
   const bulkDeleteEntries = useCallback(
-    async (
-      dictionaryId: string,
-      sources: string[]
-    ): Promise<{ successCount: number; errors: string[] }> => {
-      if (sources.length === 0) {
-        return { successCount: 0, errors: [] };
-      }
+    async (targets: EntryRef[]): Promise<{ count: number; missing: EntryRef[] }> => {
+      if (targets.length === 0) return { count: 0, missing: [] };
       try {
         const edit = await commitOrThrow(
           committer,
           record,
-          (d) => planDelete(d, dictionaryId, sources),
+          (d) => planDelete(d, targets),
           'Failed to save dictionary after bulk delete'
         );
         const { count, missing } =
           edit.outcome.kind === 'deleted' ? edit.outcome : { count: 0, missing: [] };
-        return {
-          successCount: count,
-          errors: missing.map((s) => `Entry "${s}" not found in dictionary`),
-        };
+        const total = count + missing.length;
+        const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
+        if (count === 0) {
+          toast.warning(
+            total === 1 ? 'The entry was not found' : `None of the ${total} entries were found`
+          );
+        } else if (missing.length > 0) {
+          toast.warning(`Deleted ${count} of ${entries(total)}; ${missing.length} not found`);
+        } else toast.success(`Deleted ${entries(count)}`);
+        return { count, missing };
       } catch (error) {
         fail(error, 'bulk delete entries', 'Error bulk deleting entries:');
       }

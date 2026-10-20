@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useEntrySelection } from '../useEntrySelection';
+import toast from '../../utils/toast';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
 
 vi.mock('../../utils/toast', () => ({
@@ -44,7 +45,7 @@ function makeProps(overrides = {}) {
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
       await fn();
     }),
-    bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 2, errors: [] }),
+    bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 2, missing: [] }),
     onSelectionChange: undefined,
     ...overrides,
   };
@@ -113,32 +114,58 @@ describe('useEntrySelection — handleSelectAll', () => {
   });
 });
 
+// `bulkDeleteEntries` owns every bulk-delete message (useDictionaryCRUD.test.ts); this hook
+// only turns the selection into entries and never toasts, except for a selection it cannot read.
+const noToasts = () => {
+  expect(toast.success).not.toHaveBeenCalled();
+  expect(toast.warning).not.toHaveBeenCalled();
+  expect(toast.error).not.toHaveBeenCalled();
+};
+
 describe('useEntrySelection — handleBulkDelete (normal mode)', () => {
-  it('calls bulkDeleteEntries with correct args', async () => {
-    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 2, errors: [] });
+  beforeEach(() => vi.clearAllMocks());
+
+  it('calls bulkDeleteEntries once with the selected dictionary’s entries', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ count: 2, missing: [] });
     const props = makeProps({ bulkDeleteEntries });
     const { result } = renderHook(() => useEntrySelection(props));
     act(() => result.current.handleSelectAll(true));
     await act(async () => result.current.handleBulkDelete());
-    expect(bulkDeleteEntries).toHaveBeenCalledWith('phrases', ['龙', '凤凰']);
+    expect(bulkDeleteEntries).toHaveBeenCalledTimes(1);
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'phrases', key: '龙' },
+      { dictionaryId: 'phrases', key: '凤凰' },
+    ]);
+    noToasts();
   });
 
-  it('clears selection after full success', async () => {
+  it('clears selection after a delete that removed something', async () => {
     const { result } = renderHook(() => useEntrySelection(makeProps()));
     act(() => result.current.handleSelectAll(true));
+    act(() => result.current.setShowBulkDeleteConfirm(true));
     await act(async () => result.current.handleBulkDelete());
     expect(result.current.selectedEntries.size).toBe(0);
     expect(result.current.showBulkDeleteConfirm).toBe(false);
   });
 
-  it('keeps selection when all deletions fail', async () => {
-    const bulkDeleteEntries = vi
-      .fn()
-      .mockResolvedValue({ successCount: 0, errors: ['save failed'] });
+  it('keeps selection when nothing was deleted', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ count: 0, missing: [] });
     const { result } = renderHook(() => useEntrySelection(makeProps({ bulkDeleteEntries })));
     act(() => result.current.handleSelectAll(true));
     await act(async () => result.current.handleBulkDelete());
     expect(result.current.selectedEntries.size).toBe(2);
+  });
+
+  it('keeps selection and adds no toast when the delete rejects', async () => {
+    const bulkDeleteEntries = vi.fn().mockRejectedValue(new Error('save failed'));
+    const { result } = renderHook(() => useEntrySelection(makeProps({ bulkDeleteEntries })));
+    act(() => result.current.handleSelectAll(true));
+    act(() => result.current.setShowBulkDeleteConfirm(true));
+    await act(async () => result.current.handleBulkDelete());
+    expect(result.current.selectedEntries.size).toBe(2);
+    expect(result.current.showBulkDeleteConfirm).toBe(true);
+    expect(result.current.isDeleting).toBe(false);
+    noToasts();
   });
 
   it('no-op when selection is empty', async () => {
@@ -152,7 +179,7 @@ describe('useEntrySelection — handleBulkDelete (normal mode)', () => {
     let capturedDeleting = false;
     const bulkDeleteEntries = vi.fn().mockImplementation(async () => {
       capturedDeleting = true;
-      return { successCount: 1, errors: [] };
+      return { count: 1, missing: [] };
     });
     const { result } = renderHook(() => useEntrySelection(makeProps({ bulkDeleteEntries })));
     act(() => result.current.handleSelectEntry('龙', true));
@@ -163,27 +190,55 @@ describe('useEntrySelection — handleBulkDelete (normal mode)', () => {
 });
 
 describe('useEntrySelection — handleBulkDelete (duplicate mode)', () => {
-  it('groups deletions by dictionaryId parsed from composite key', async () => {
-    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 1, errors: [] });
+  beforeEach(() => vi.clearAllMocks());
+
+  const twoDicts = { phrases, properNouns: { 龙: { translation: 'con rồng' } } };
+
+  it('sends a selection spanning two dictionaries as one call', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ count: 2, missing: [] });
+    const props = makeProps({
+      showDuplicatesMode: true,
+      dictionaries: twoDicts,
+      bulkDeleteEntries,
+    });
+    const { result } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙::phrases', true));
+    act(() => result.current.handleSelectEntry('龙::properNouns', true));
+    await act(async () => result.current.handleBulkDelete());
+    expect(bulkDeleteEntries).toHaveBeenCalledTimes(1);
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'phrases', key: '龙' },
+      { dictionaryId: 'properNouns', key: '龙' },
+    ]);
+    noToasts();
+  });
+
+  it('leaves a key whose dictionary is gone to the plan, which refuses the whole delete', async () => {
+    const bulkDeleteEntries = vi.fn().mockRejectedValue(new Error('does not exist'));
     const props = makeProps({ showDuplicatesMode: true, bulkDeleteEntries });
     const { result } = renderHook(() => useEntrySelection(props));
     act(() => result.current.handleSelectEntry('龙::phrases', true));
-    act(() => result.current.handleSelectEntry('凤凰::phrases', true));
-    await act(async () => result.current.handleBulkDelete());
-    expect(bulkDeleteEntries).toHaveBeenCalledTimes(1);
-    expect(bulkDeleteEntries).toHaveBeenCalledWith(
-      'phrases',
-      expect.arrayContaining(['龙', '凤凰'])
-    );
-  });
-
-  it('skips missing dictionary in duplicate mode', async () => {
-    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 0, errors: [] });
-    const props = makeProps({ showDuplicatesMode: true, bulkDeleteEntries });
-    const { result } = renderHook(() => useEntrySelection(props));
     act(() => result.current.handleSelectEntry('龙::nonexistent', true));
     await act(async () => result.current.handleBulkDelete());
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'phrases', key: '龙' },
+      { dictionaryId: 'nonexistent', key: '龙' },
+    ]);
+    expect(result.current.selectedEntries.size).toBe(2);
+    noToasts();
+  });
+
+  it('an unreadable key deletes nothing, with one error toast', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ count: 1, missing: [] });
+    const props = makeProps({ showDuplicatesMode: true, bulkDeleteEntries });
+    const { result } = renderHook(() => useEntrySelection(props));
+    // Pruning runs on a dictionaries change, not on selection, so the bad key stays selected.
+    act(() => result.current.handleSelectEntry('龙::phrases', true));
+    act(() => result.current.handleSelectEntry('bad', true));
+    await act(async () => result.current.handleBulkDelete());
     expect(bulkDeleteEntries).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(result.current.selectedEntries.size).toBe(2);
   });
 
   it('offers no bulk move in duplicate mode (selections span several dictionaries)', () => {

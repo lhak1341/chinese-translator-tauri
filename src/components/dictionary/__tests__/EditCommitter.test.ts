@@ -95,7 +95,10 @@ describe('EditCommitter, through the Dictionary Store', () => {
 
   test('an edit with no changes saves nothing and does not call onCommitted', async () => {
     const onCommitted = vi.fn();
-    const result = await committer.commit((d) => planDelete(d, A, ['无']), onCommitted);
+    const result = await committer.commit(
+      (d) => planDelete(d, [{ dictionaryId: A, key: '无' }]),
+      onCommitted
+    );
 
     expect(result.status).toBe('ok');
     expect(save).not.toHaveBeenCalled();

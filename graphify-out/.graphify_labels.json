@@ -238,6 +238,7 @@
   "236": "ADR-031: Skip Splitting dictionary_commands.rs by Concern",
   "237": "ADR-078: Delete the WASM String Tier",
   "238": "ADR-029: Fiction Structural Pattern Entries Use 'pattern' Source String, Not Dictionary Name",
+  "239": "AdaptiveBatchSizer.ts",
   "240": "ADR-049: Keep the Selection-Mapper Registry",
   "241": "ADR-042: Adopt `@tanstack/react-virtual` for the Reader, Rather Than Extend `useVirtualScrollRange`",
   "242": "vite",
@@ -294,6 +295,7 @@
   "293": "src/components/rules — Gotchas",
   "294": "ADR-023: Do Not Merge useStreamingTranslation + useTranslationResults into useTranslationOutput",
   "295": "husky",
+  "296": "TextAssembly.js",
   "297": "ADR-029: Fiction Structural Pattern Entries Use 'pattern' Source String, Not Dictionary Name",
   "298": "useStreamingTranslation.js",
   "299": "ADR-098: Pattern Result Indices Are Original Indices",
@@ -342,5 +344,6 @@
   "342": "SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)",
   "343": "Documentation Index",
   "344": "types",
-  "347": "types"
+  "345": "DictionaryTrie.js",
+  "346": "jsdom"
 }

@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
+import type {
+  DictionaryContextInterface,
+  DictionaryData,
+  DictionaryEntryValue,
+} from '../types/DictionaryTypes';
 import { parseDuplicateKey, createDuplicateKey } from '../utils/dictionary';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
+import type { EntryRef } from '../utils/dictionary/DictionaryEdit';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 
@@ -13,10 +18,7 @@ export interface SelectionState {
   showBulkDeleteConfirm: boolean;
   setShowBulkDeleteConfirm: (show: boolean) => void;
   onBulkMove?: () => void;
-  isMoving?: boolean;
 }
-
-type BulkDeleteResult = { successCount: number; errors: string[] };
 
 interface UseEntrySelectionDeps {
   selectedDictionary: string;
@@ -25,7 +27,7 @@ interface UseEntrySelectionDeps {
   dictionaries: Record<string, DictionaryData>;
   showDuplicatesMode: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
-  bulkDeleteEntries: (dictId: string, sources: string[]) => Promise<BulkDeleteResult>;
+  bulkDeleteEntries: DictionaryContextInterface['bulkDeleteEntries'];
   onSelectionChange?: (state: SelectionState) => void;
 }
 
@@ -111,104 +113,39 @@ export function useEntrySelection({
     [filteredEntries, filteredDuplicateRows, showDuplicatesMode, withScrollPreservation]
   );
 
+  // The selection becomes one list of entries and one `bulkDeleteEntries` call, which commits
+  // it as one Dictionary Edit and owns every message. This hook toasts only a selection it
+  // cannot read: a malformed duplicate-view key is a bug, so nothing is deleted.
   const handleBulkDelete = useCallback(async (): Promise<void> => {
     const entries = selectedEntriesRef.current;
     if (entries.size === 0) return;
 
-    setIsDeleting(true);
-
-    const errors: string[] = [];
-    let successCount = 0;
-
+    let targets: EntryRef[];
     try {
-      if (showDuplicatesMode) {
-        // Duplicate mode: entries contains composite keys (source::dictionaryId)
-        // Group deletions by dictionary, handling malformed keys gracefully
-        const deletionsByDict = new Map<string, string[]>();
+      targets = Array.from(entries, (key) => {
+        if (!showDuplicatesMode) return { dictionaryId: selectedDictionary, key };
+        const { source, dictionaryId } = parseDuplicateKey(key);
+        return { dictionaryId, key: source };
+      });
+    } catch (error) {
+      logger.error('Bulk delete: unreadable selection key', error);
+      toast.error('Could not delete: the selection could not be read. Nothing was deleted.');
+      return;
+    }
 
-        for (const key of entries) {
-          try {
-            const { source, dictionaryId } = parseDuplicateKey(key);
-            if (!deletionsByDict.has(dictionaryId)) {
-              deletionsByDict.set(dictionaryId, []);
-            }
-            deletionsByDict.get(dictionaryId)!.push(source);
-          } catch (parseError) {
-            errors.push(`Invalid key format: ${key}`);
-            logger.error('Key parsing error:', parseError);
-          }
-        }
-
-        // Delete from each dictionary using bulkDeleteEntries (more efficient - one save per dictionary)
-        const deletionPromises = Array.from(deletionsByDict.entries()).map(
-          async ([dictionaryId, sources]) => {
-            try {
-              if (!dictionaries[dictionaryId]) {
-                return {
-                  successCount: 0,
-                  errors: [`Dictionary '${dictionaryId}' no longer exists`],
-                };
-              }
-              const result = await bulkDeleteEntries(dictionaryId, sources);
-              return result;
-            } catch (deleteError) {
-              const errorMsg = `Failed to delete entries from ${dictionaryId}: ${(deleteError as Error).message}`;
-              logger.error('Bulk delete error:', deleteError);
-              return { successCount: 0, errors: [errorMsg] };
-            }
-          }
-        );
-
-        const results = await Promise.all(deletionPromises);
-        for (const result of results) {
-          successCount += result.successCount;
-          errors.push(...result.errors);
-        }
-      } else {
-        // Normal mode: entries contains source strings, all from same dictionary
-        const entriesToDelete = Array.from(entries);
-        try {
-          const result = await bulkDeleteEntries(selectedDictionary, entriesToDelete);
-          successCount = result.successCount;
-          errors.push(...result.errors);
-        } catch (deleteError) {
-          errors.push(`Failed to delete entries: ${(deleteError as Error).message}`);
-          logger.error('Bulk delete error:', deleteError);
-        }
-      }
-
-      if (errors.length > 0) {
-        if (successCount > 0) {
-          toast.warning(
-            `Deleted ${successCount} of ${entries.size} entries. ${errors.length} failed.`,
-            { duration: 6000 }
-          );
-        } else {
-          toast.error(
-            `Failed to delete ${entries.size} ${entries.size === 1 ? 'entry' : 'entries'}.`,
-            { duration: 6000 }
-          );
-        }
-      } else {
-        toast.success(
-          `Deleted ${successCount} ${successCount === 1 ? 'entry' : 'entries'} successfully`,
-          { duration: 3000 }
-        );
-      }
-
-      if (successCount > 0) {
+    setIsDeleting(true);
+    try {
+      const { count } = await bulkDeleteEntries(targets);
+      if (count > 0) {
         setSelectedEntries(new Set());
         setShowBulkDeleteConfirm(false);
       }
-    } catch (error) {
-      toast.error(`Critical error during deletion: ${(error as Error).message}`, {
-        duration: 6000,
-      });
-      logger.error('Bulk delete error:', error);
+    } catch {
+      // Already logged and toasted by `bulkDeleteEntries`; the selection stays for a retry.
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDictionary, bulkDeleteEntries, dictionaries, showDuplicatesMode]);
+  }, [selectedDictionary, bulkDeleteEntries, showDuplicatesMode]);
 
   const handleBulkMove = useCallback((): void => {
     if (selectedEntriesRef.current.size === 0) return;
@@ -230,7 +167,6 @@ export function useEntrySelection({
         // dialog has one source dictionary, so bulk move is offered only in the normal view.
         // Single rows still move from the duplicate view's context menu.
         onBulkMove: showDuplicatesMode ? undefined : handleBulkMove,
-        isMoving: false,
       });
     }
   }, [

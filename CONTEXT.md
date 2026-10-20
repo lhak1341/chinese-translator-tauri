@@ -371,7 +371,7 @@ Entry point: `src/utils/dictionary/DictionaryBackend.ts`. The Dictionary Store's
 
 ## Dictionary Edit
 
-One change to user dictionaries, described as data (ADR-052): a list of `{dictionaryId, key, before, after}` changes plus an `outcome` tag (`added | overwritten | updated | deleted(count, missing) | moved(count, missing)`). `before`/`after` of `undefined` means the key is absent. Because every change records what it overwrote, undo is `invert(edit)` (swap `before` and `after`) and redo is the edit itself.
+One change to user dictionaries, described as data (ADR-052): a list of `{dictionaryId, key, before, after}` changes plus an `outcome` tag (`added | overwritten | updated | deleted(count, missing) | moved(count, missing)`). `before`/`after` of `undefined` means the key is absent. Because every change records what it overwrote, undo is `invert(edit)` (swap `before` and `after`) and redo is the edit itself. One user action is one edit, even across dictionaries: a bulk delete in the duplicate view is one `planDelete(dicts, targets)` over `EntryRef`s (`{dictionaryId, key}`, the entry a delete names; `deleted.missing` lists them), so one undo restores it all (ADR-052 addendum 2026-10-21).
 
 Pure half, `src/utils/dictionary/DictionaryEdit.ts`: `planAdd/planUpdate/planDelete/planMove(dicts, …) → DictionaryEdit | {invalid: reason}`, `invert`, `applyEdit`, and `changedKeys(edit, dicts)` (keys whose current value no longer equals what the edit expects, compared field by field by `sameEntryValue`). Tested by a round-trip over every plan type: `applyEdit(applyEdit(d, e), invert(e))` equals `d`.
 

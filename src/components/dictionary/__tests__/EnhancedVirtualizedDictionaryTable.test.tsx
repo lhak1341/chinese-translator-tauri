@@ -34,7 +34,7 @@ const {
   dictionariesRef: { current: {} as Record<string, DictionaryData> },
   isLoadingRef: { current: false },
   deleteEntry: vi.fn().mockResolvedValue(undefined),
-  bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 0, errors: [] }),
+  bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 0, missing: [] }),
   updateEntry: vi.fn().mockResolvedValue(undefined),
   renameEntry: vi.fn().mockResolvedValue(undefined),
   patchEntry: vi.fn().mockResolvedValue(undefined),

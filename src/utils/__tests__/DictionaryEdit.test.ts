@@ -29,6 +29,8 @@ function dicts(): Dictionaries {
   };
 }
 
+const at = (dictionaryId: string, key: string) => ({ dictionaryId, key });
+
 function edit(result: PlanResult): DictionaryEdit {
   if (isInvalidPlan(result)) throw new Error(`unexpected invalid plan: ${result.invalid}`);
   return result;
@@ -42,8 +44,15 @@ const plans: Array<[string, (d: Dictionaries) => PlanResult]> = [
   ['update in place', (d) => planUpdate(d, A, '张三', '张三', entry('Trương Tam 2'))],
   ['update renamed to a free key', (d) => planUpdate(d, A, '李四', '赵六', entry('Lý Tứ'))],
   ['update renamed onto an existing key', (d) => planUpdate(d, A, '李四', '张三', entry('Lý Tứ'))],
-  ['delete one', (d) => planDelete(d, A, ['张三'])],
-  ['delete several, one missing', (d) => planDelete(d, A, ['张三', '李四', '无'])],
+  ['delete one', (d) => planDelete(d, [at(A, '张三')])],
+  [
+    'delete several, one missing',
+    (d) => planDelete(d, [at(A, '张三'), at(A, '李四'), at(A, '无')]),
+  ],
+  [
+    'delete across two dictionaries, same key in both',
+    (d) => planDelete(d, [at(A, '张三'), at(B, '张三'), at(B, '王五')]),
+  ],
   ['move to a free key', (d) => planMove(d, A, B, ['李四'])],
   ['move onto an existing key', (d) => planMove(d, A, B, ['张三'])],
   ['move several', (d) => planMove(d, A, B, ['张三', '李四', '无'])],
@@ -79,10 +88,10 @@ describe('DictionaryEdit — plans', () => {
   });
 
   test('delete and move report counts and missing keys', () => {
-    expect(edit(planDelete(dicts(), A, ['张三', '无'])).outcome).toEqual({
+    expect(edit(planDelete(dicts(), [at(A, '张三'), at(A, '无')])).outcome).toEqual({
       kind: 'deleted',
       count: 1,
-      missing: ['无'],
+      missing: [at(A, '无')],
     });
     expect(edit(planMove(dicts(), A, B, ['张三', '李四', '无'])).outcome).toEqual({
       kind: 'moved',
@@ -106,6 +115,19 @@ describe('DictionaryEdit — plans', () => {
   test('overwrittenByMove is empty when the target holds none of the keys, or the plan is invalid', () => {
     expect(overwrittenByMove(planMove(dicts(), A, B, ['李四']))).toEqual([]);
     expect(overwrittenByMove(planMove(dicts(), A, 'properNouns-X', ['张三']))).toEqual([]);
+  });
+
+  test('a delete across dictionaries is one edit; a pair repeated counts once', () => {
+    const e = edit(planDelete(dicts(), [at(A, '张三'), at(B, '张三'), at(A, '张三')]));
+    expect(touchedDictionaries(e)).toEqual([A, B]);
+    expect(e.outcome).toEqual({ kind: 'deleted', count: 2, missing: [] });
+  });
+
+  test('a delete with one target in a missing dictionary deletes nothing', () => {
+    expect(planDelete(dicts(), [at(A, '张三'), at('properNouns-X', '张三')])).toEqual({
+      invalid: "Dictionary 'properNouns-X' does not exist",
+      missingDictionaryId: 'properNouns-X',
+    });
   });
 
   test('a move touches source then target', () => {

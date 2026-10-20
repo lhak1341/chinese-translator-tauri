@@ -6,6 +6,7 @@ import type { SemanticType, PatternSemanticTypeRef } from '../constants/Semantic
 import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
 import type { DictionaryTypesCollection } from './ComponentTypes';
 import type { ImportOutcome } from '../components/dictionary/DictionaryStore';
+import type { EntryRef } from '../utils/dictionary/DictionaryEdit';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -123,11 +124,11 @@ export interface DictionaryContextInterface {
   renameEntry: (dictionaryId: string, oldSource: string, newSource: string) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
-  /** Delete multiple entries from a dictionary in one operation */
-  bulkDeleteEntries: (
-    dictionaryId: string,
-    sources: string[]
-  ) => Promise<{ successCount: number; errors: string[] }>;
+  /**
+   * Delete entries from any number of dictionaries as one Dictionary Edit (one undo, all or
+   * nothing on disk). Toasts its own outcome; rejects, already toasted, on failure.
+   */
+  bulkDeleteEntries: (targets: EntryRef[]) => Promise<{ count: number; missing: EntryRef[] }>;
   /** Move a single entry between dictionaries atomically */
   moveEntry: (
     sourceDictId: string,

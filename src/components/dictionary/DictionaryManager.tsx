@@ -26,26 +26,7 @@ import { findConflictingEntries, getMoveFamily, type DuplicateRow } from '../../
 import { quickAddChoices, type QuickAddView } from '../../utils/dictionary/QuickAddTarget';
 import toast from '../../utils/toast';
 import { useBookBinding } from '../BookBindingContext';
-
-/**
- * Selection state for bulk operations in Enhanced table
- */
-interface SelectionState {
-  /** Number of selected entries */
-  selectedCount: number;
-  /** Whether bulk delete confirmation is shown */
-  showBulkDeleteConfirm: boolean;
-  /** Callback to execute bulk delete */
-  onBulkDelete: () => void;
-  /** Callback to toggle bulk delete confirmation */
-  setShowBulkDeleteConfirm: (show: boolean) => void;
-  /** Whether bulk delete is in progress */
-  isDeleting: boolean;
-  /** Optional callback to execute bulk move */
-  onBulkMove?: () => void;
-  /** Optional flag indicating bulk move is in progress */
-  isMoving?: boolean;
-}
+import type { SelectionState } from '../../hooks/useEntrySelection';
 
 /**
  * Props for DictionaryManager component
@@ -375,14 +356,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                 <button
                   onClick={selectionState.onBulkMove}
                   className={`secondary ${styles.button}`}
-                  disabled={selectionState.isMoving}
                   title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
                 >
-                  {selectionState.isMoving ? (
-                    <Loader size={15} className="animate-spin" />
-                  ) : (
-                    <ArrowRightLeft size={15} />
-                  )}
+                  <ArrowRightLeft size={15} />
                   Move ({selectionState.selectedCount})
                 </button>
               )}
@@ -398,7 +374,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                     Cancel
                   </button>
                   <button
-                    onClick={() => selectionState.onBulkDelete()}
+                    onClick={() => void selectionState.onBulkDelete()}
                     className={`danger ${styles.button}`}
                     disabled={selectionState.isDeleting}
                     title={`Confirm delete ${selectionState.selectedCount} entries`}

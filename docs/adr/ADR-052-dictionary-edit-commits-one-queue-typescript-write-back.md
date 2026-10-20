@@ -35,3 +35,7 @@ A review that proposes a Rust batch save, or per-dictionary parallel commits, sh
 ## Addendum (2026-10-20)
 
 `commitEdit` no longer invalidates the engine after a save (ADR-106): it applies, saves and records.
+
+## Addendum (2026-10-21)
+
+One user action is one Dictionary Edit, also when it spans dictionaries (architecture review round 35, candidate #1). A bulk delete in the duplicate view used to run one commit per dictionary, so one Cmd+Z undid only one dictionary's share, a failed save in one dictionary left the others' deletions on disk, and every failure was toasted twice (by CRUD, then by `useEntrySelection`). Now `planDelete(dicts, targets)` takes `EntryRef` pairs from any number of dictionaries, a target in a dictionary that is not in memory makes the whole plan invalid, and `bulkDeleteEntries(targets)` commits once and owns every message; the selection hook only turns its keys into pairs and never toasts, except for a key it cannot read, which deletes nothing. This is the multi-dictionary rollback in "One rollback path", now used by delete as well as move. Pinned in `useDictionaryCRUD.test.ts` (one record and one undo for two dictionaries; a failed save in one leaves the other unchanged, with one toast) and `useEntrySelection.test.ts` (one call, no toast).
