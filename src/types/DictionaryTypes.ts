@@ -6,6 +6,7 @@ import type { SemanticType, PatternSemanticTypeRef } from '../constants/Semantic
 import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
 import type { DictionaryTypesCollection } from './ComponentTypes';
 import type { ImportOutcome } from '../components/dictionary/DictionaryStore';
+import type { LoadOutcome } from '../utils/dictionary/DictionaryLoadClassifier';
 import type { EntryRef } from '../utils/dictionary/DictionaryEdit';
 
 /**
@@ -82,7 +83,9 @@ export interface DictionaryContextInterface {
   /** Whether initial loading is in progress */
   isLoading: boolean;
   /**
-   * Error message from initial dictionary load failure, or null on success.
+   * Error message when the last full load (startup, force reload, import) read no dictionary
+   * or threw, or null otherwise — the Dictionary Store's `lastLoad`, so a later good load
+   * clears it.
    * Consumers (e.g. Translator) MUST check this before initializing the
    * translation engine — `dictionaries` will be `{}` on failure and the
    * engine would otherwise initialize with empty tries, producing garbage
@@ -165,8 +168,12 @@ export interface DictionaryContextInterface {
   /** What memory holds right now, read from the store rather than the last render — for a
    * caller that rebuilds the engine right after a store operation, before React re-renders. */
   getDictionaries: () => { [key: string]: DictionaryData };
-  /** Re-read every dictionary for force reload; resolves to what memory then holds. */
-  reloadAllDictionaries: () => Promise<{ [key: string]: DictionaryData }>;
+  /** Re-read every dictionary for force reload; resolves to what memory then holds and how
+   * the load went (a `critical` outcome means no dictionary loaded). */
+  reloadAllDictionaries: () => Promise<{
+    dictionaries: { [key: string]: DictionaryData };
+    outcome: LoadOutcome;
+  }>;
   /** Imports dictionary files and re-reads every dictionary, clearing history (ADR-055). */
   importDictionaries: () => Promise<ImportOutcome>;
   /** Currently selected dictionary */

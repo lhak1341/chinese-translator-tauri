@@ -27,6 +27,9 @@ import type {
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { DictionaryOperationResult } from '../../types/ElectronTypes';
+import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
+import type { LoadOutcome } from '../../utils/dictionary/DictionaryLoadClassifier';
+import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import { commitEdit } from './EditCommitter';
 import type { CommitResult, EditCommitter } from './EditCommitter';
@@ -38,6 +41,12 @@ export interface DictionarySnapshot {
   unreadDictionaryIds: string[];
   /** Every dictionary that exists, with its label — what the dropdowns list. */
   dictionaryTypes: DictionaryTypesCollection;
+  /**
+   * How the last full load went — startup, force reload or an import's re-read — or `null`
+   * before the first. A load that threw is `critical`. Reloading or renaming one dictionary
+   * leaves it alone: `unreadDictionaryIds` already says which one failed.
+   */
+  lastLoad: LoadOutcome | null;
 }
 
 export interface DictionaryStoreDeps {
@@ -69,6 +78,8 @@ export interface LoadAllResult {
   total: number;
   /** The dictionaries in memory once the operation finished. */
   dictionaries: Dictionaries;
+  /** The load classified, as `lastLoad` now holds it. */
+  outcome: LoadOutcome;
 }
 
 /** A proper-nouns dictionary renamed on disk: memory drops `from` and loads `to`. */
@@ -114,6 +125,7 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
     dictionaries: {},
     unreadDictionaryIds: [],
     dictionaryTypes: {},
+    lastLoad: null,
   };
   const listeners = new Set<() => void>();
   let tail: Promise<unknown> = Promise.resolve();
@@ -157,17 +169,30 @@ export function createDictionaryStore(deps: DictionaryStoreDeps): DictionaryStor
   };
 
   /** The body of `loadAll`, for an operation that is already in its turn. */
-  async function loadAllNow({ onApplied }: LoadAllOptions = {}) {
-    const dictionaryTypes = await deps.listDictionaries();
-    const ids = Object.keys(dictionaryTypes);
-    const { loadedDictionaries, stillFailedIds, total } = await deps.load(ids);
+  async function loadAllNow({ onApplied }: LoadAllOptions = {}): Promise<LoadAllResult> {
+    let dictionaryTypes: DictionaryTypesCollection;
+    let batch: BatchLoadResult;
+    try {
+      dictionaryTypes = await deps.listDictionaries();
+      batch = await deps.load(Object.keys(dictionaryTypes));
+    } catch (error) {
+      set({
+        lastLoad: {
+          severity: 'critical',
+          message: `Failed to load dictionaries: ${extractErrorMessage(error)}`,
+        },
+      });
+      throw error;
+    }
+    const { loadedDictionaries, stillFailedIds, total } = batch;
     const dictionaries: Dictionaries = {};
     for (const [id, data] of Object.entries(loadedDictionaries)) {
       if (!stillFailedIds.includes(id)) dictionaries[id] = sorted(data);
     }
-    set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes });
+    const outcome = classifyLoadResult(stillFailedIds, total);
+    set({ dictionaries, unreadDictionaryIds: stillFailedIds, dictionaryTypes, lastLoad: outcome });
     onApplied?.();
-    return { stillFailedIds, total, dictionaries };
+    return { stillFailedIds, total, dictionaries, outcome };
   }
 
   return {

@@ -26,3 +26,7 @@ Future architecture reviews should not re-propose extracting either piece. Revis
 ## Addendum (2026-10-20)
 
 The invalidation rule this ADR kept in the provider is deleted (ADR-106): an edit cannot make an engine cache stale, because the engine's tries are fixed at load. `DictionaryContext.cacheInvalidationSeam.test.tsx` went with it. The startup-load half of this decision is unchanged.
+
+## Addendum (2026-10-21)
+
+The revisit condition above was met: force reload (`useForceReload`) and import's re-read were second consumers of the startup-load classification, and both skipped it. A force reload where every read failed reported success over an empty engine, a partial one said nothing, and the `loadError` banner, set only in the provider's mount effect, never cleared after a good force reload. The classification now lives in the Dictionary Store: every full load (`loadAllNow`) records `classifyLoadResult`'s outcome, or `critical` when the load threw, as the snapshot's `lastLoad`. The provider derives `loadError` from it and toasts each new one; `useForceReload` leaves the engine down on a critical outcome. Selection restore and `isLoading` stay in the provider's startup effect, as this ADR decided.

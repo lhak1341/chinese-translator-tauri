@@ -25,10 +25,10 @@ import { logger } from '../utils/logger';
  * @param {boolean} isDictionaryReloading
  * @param {string} inputText
  * @param {boolean} isLoading
- * @param {() => Promise<Record<string, any>>} reloadAllDictionaries - The provider's: re-reads
- *   every dictionary through the Dictionary Store, unread ones included, and resolves to what
- *   memory then holds — so the new engine and the dictionaries the next edit saves are the
- *   same copy (ADR-055).
+ * @param {() => Promise<{dictionaries: Record<string, any>, outcome: import('../utils/dictionary/DictionaryLoadClassifier').LoadOutcome}>} reloadAllDictionaries
+ *   The provider's: re-reads every dictionary through the Dictionary Store, unread ones
+ *   included, and resolves to what memory then holds — so the new engine and the dictionaries
+ *   the next edit saves are the same copy (ADR-055) — and how the load went.
  * @returns {(options?: {retranslateInput?: boolean}) => Promise<void>}
  */
 export function useForceReload(
@@ -89,8 +89,16 @@ export function useForceReload(
         ctx.setStatus(
           '🔄 Dictionary reload in progress...\n\nStep 3: Loading dictionaries in parallel...'
         );
-        const freshDictionaries = await reloadAllDictionaries();
+        const { dictionaries: freshDictionaries, outcome: loadOutcome } =
+          await reloadAllDictionaries();
         logger.log(`📥 Loaded ${Object.keys(freshDictionaries).length} dictionaries`);
+
+        // No dictionary loaded: an engine built now would translate with empty tries. Leave it
+        // down, as a failed startup load does; the provider's banner and toast say why.
+        if (loadOutcome.severity === 'critical') {
+          ctx.setReloadError(`❌ Reload Dictionary failed!\n\n${loadOutcome.message}`);
+          return;
+        }
 
         // Step 5: UI state
         logger.log('Step 5: Updating UI state...');

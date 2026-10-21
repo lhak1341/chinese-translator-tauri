@@ -25,6 +25,11 @@ vi.mock('../../utils/logger', () => ({
 /** The provider's `reloadAllDictionaries`: the Dictionary Store's reload of every dictionary. */
 const reloadAll = vi.fn();
 
+/** What `reloadAllDictionaries` resolves to after a load where every file read. */
+function loaded(dictionaries = {}) {
+  return { dictionaries, outcome: { severity: 'ok' } };
+}
+
 /** Build a minimal ctx with all 10 ForceReloadContext methods. */
 function makeCtx(overrides = {}) {
   return {
@@ -44,7 +49,7 @@ function makeCtx(overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  reloadAll.mockResolvedValue({});
+  reloadAll.mockResolvedValue(loaded());
 });
 
 afterEach(() => {
@@ -451,7 +456,7 @@ describe('useForceReload — retranslateInput: false', () => {
 describe('dictionaries come from the Dictionary Store (ADR-055)', () => {
   test('the engine is rebuilt from what the store reloaded, unread ones retried with the rest', async () => {
     const ctx = makeCtx();
-    reloadAll.mockResolvedValue({ phrases: { 你好: 'xin chào' } });
+    reloadAll.mockResolvedValue(loaded({ phrases: { 你好: 'xin chào' } }));
 
     vi.useFakeTimers();
     const { result } = renderHook(() => useForceReload(ctx, false, '', false, reloadAll));
@@ -478,7 +483,7 @@ describe('dictionaries come from the Dictionary Store (ADR-055)', () => {
     });
     reloadAll.mockImplementation(async () => {
       order.push('reload');
-      return {};
+      return loaded();
     });
 
     vi.useFakeTimers();
@@ -492,5 +497,33 @@ describe('dictionaries come from the Dictionary Store (ADR-055)', () => {
     await done;
 
     expect(order).toEqual(['cancel', 'destroy', 'reload']);
+  });
+
+  test('a reload where no dictionary read leaves the engine down and says so', async () => {
+    const ctx = makeCtx();
+    reloadAll.mockResolvedValue({
+      dictionaries: {},
+      outcome: {
+        severity: 'critical',
+        message: 'All 3 dictionaries failed to load. Translation unavailable.',
+      },
+    });
+
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello', false, reloadAll));
+    const done = act(async () => {
+      result.current();
+    });
+    await act(async () => {
+      vi.runAllTimersAsync();
+    });
+    await done;
+
+    expect(ctx.reinitializeEngine).not.toHaveBeenCalled();
+    expect(ctx.retranslate).not.toHaveBeenCalled();
+    expect(ctx.setReloadError).toHaveBeenCalledWith(
+      expect.stringContaining('All 3 dictionaries failed to load')
+    );
+    expect(ctx.setReloading).toHaveBeenLastCalledWith(false);
   });
 });

@@ -279,6 +279,72 @@ describe('rename', () => {
   });
 });
 
+describe('the outcome of the last full load (lastLoad)', () => {
+  const lastLoad = () => store.getSnapshot().lastLoad;
+
+  test('is null before the first load', () => {
+    expect(createDictionaryStore(fake.deps).getSnapshot().lastLoad).toBeNull();
+  });
+
+  test('a load where every file read is ok', () => {
+    expect(lastLoad()).toEqual({ severity: 'ok' });
+  });
+
+  test('a load where some files failed is a warning naming them', async () => {
+    fake.unreadable.add(B);
+    const result = await store.loadAll();
+
+    expect(lastLoad()).toMatchObject({ severity: 'warning', failedIds: [B], total: 2 });
+    expect(result.outcome).toBe(lastLoad());
+  });
+
+  test('a load where no file read is critical, and the next good load clears it', async () => {
+    fake.unreadable.add(A);
+    fake.unreadable.add(B);
+    await store.loadAll();
+    expect(lastLoad()?.severity).toBe('critical');
+
+    fake.unreadable.clear();
+    await store.loadAll();
+    expect(lastLoad()).toEqual({ severity: 'ok' });
+  });
+
+  test('a load that throws is critical, and still rejects', async () => {
+    fake.deps.listDictionaries.mockRejectedValueOnce(new Error('disk gone'));
+
+    await expect(store.loadAll()).rejects.toThrow('disk gone');
+    expect(lastLoad()).toEqual({
+      severity: 'critical',
+      message: 'Failed to load dictionaries: disk gone',
+    });
+  });
+
+  test("an import's re-read sets it", async () => {
+    fake.deps.importFiles.mockImplementation(async () => {
+      fake.unreadable.add(B);
+      return { success: true, message: 'Imported' };
+    });
+    await store.importAll();
+
+    expect(lastLoad()).toMatchObject({ severity: 'warning', failedIds: [B] });
+  });
+
+  test('reloading or renaming one dictionary leaves it alone', async () => {
+    fake.unreadable.add(A);
+    fake.unreadable.add(B);
+    await store.loadAll();
+    const critical = lastLoad();
+
+    fake.unreadable.clear();
+    await store.reload(A);
+    fake.files['properNouns-A2'] = fake.files[A];
+    delete fake.files[A];
+    await store.rename([[A, 'properNouns-A2']]);
+
+    expect(lastLoad()).toBe(critical);
+  });
+});
+
 test('subscribers hear every change', async () => {
   const listener = vi.fn();
   const unsubscribe = store.subscribe(listener);

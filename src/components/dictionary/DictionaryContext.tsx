@@ -18,7 +18,6 @@ import { getDictionaryTypes } from './DictionaryTypes';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
-import { extractErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig } from '../../utils/appConfig';
 import type { DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
@@ -26,7 +25,6 @@ import { useDictionaryCRUD } from '../../hooks/useDictionaryCRUD';
 import { createDictionaryStore } from './DictionaryStore';
 import type { ImportOutcome } from './DictionaryStore';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
-import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
 /**
  * Dictionary Context value.
@@ -52,14 +50,14 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
  * Exposes the Dictionary Store (CONTEXT.md "Dictionary Store", ADR-055) to React: every
  * dictionary is loaded at startup (ADR-005), and every write to them — edits, undo/redo,
  * reloads, renames, import — is an operation on the store's one queue. This provider owns
- * only what is React's: loading and error flags, the startup toast, the selection, history.
+ * only what is React's: the loading flag, the load-failure toast and banner (rendered from the
+ * store's `lastLoad`), the selection, history.
  *
  * @param props - Component props
  * @returns Dictionary context provider
  */
 export function DictionaryProvider({ children }: DictionaryProviderProps): React.ReactElement {
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   // The one writer of the in-memory dictionaries; its queue orders every write (ADR-055).
   // The running engine never sees a write: an edit reaches translations only when the engine
@@ -72,10 +70,30 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       importFiles: () => window.electronAPI.importDictionaries(),
     })
   );
-  const { dictionaries, unreadDictionaryIds, dictionaryTypes } = useSyncExternalStore(
+  const { dictionaries, unreadDictionaryIds, dictionaryTypes, lastLoad } = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot
   );
+  // The banner follows the last full load, whichever operation ran it.
+  const loadError = lastLoad?.severity === 'critical' ? lastLoad.message : null;
+
+  // Each full load's outcome is new, so a failed read is reported once per load.
+  useEffect(() => {
+    if (lastLoad?.severity === 'critical') {
+      toast.error(lastLoad.message, {
+        duration: TOAST_DURATIONS.CRITICAL,
+        id: TOAST_IDS.DICT_LOAD_FAILED,
+      });
+    } else if (lastLoad?.severity === 'warning') {
+      logger.warn(
+        `⚠️ ${lastLoad.failedIds.length}/${lastLoad.total} dictionaries failed after retry: ${lastLoad.failedIds.join(', ')}`
+      );
+      toast.warning(lastLoad.message, {
+        duration: TOAST_DURATIONS.LOAD_FAILURE,
+        id: TOAST_IDS.DICT_LOAD_FAILED,
+      });
+    }
+  }, [lastLoad]);
 
   const { record, undo, redo, clear: clearHistory, canUndo, canRedo } = useDictionaryHistory(store);
 
@@ -93,14 +111,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
   // Load initial dictionaries and configuration — the store's first operation, so an edit
-  // made before it finishes waits behind it.
+  // made before it finishes waits behind it. The store records how it went (`lastLoad`).
   useEffect(() => {
     const loadInitialState = async (): Promise<void> => {
       setIsLoading(true);
-      setLoadError(null);
 
       try {
-        const { stillFailedIds, total } = await store.loadAll();
+        await store.loadAll();
 
         // Restore saved dictionary selection if it still exists
         const config = await loadAppConfig();
@@ -108,31 +125,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         if (saved && store.getSnapshot().dictionaryTypes[saved]) {
           setSelectedDictionary(saved);
         }
-
-        const outcome = classifyLoadResult(stillFailedIds, total);
-        if (outcome.severity === 'critical') {
-          setLoadError(outcome.message);
-          toast.error(outcome.message, {
-            duration: TOAST_DURATIONS.CRITICAL,
-            id: TOAST_IDS.DICT_LOAD_FAILED,
-          });
-        } else if (outcome.severity === 'warning') {
-          logger.warn(
-            `⚠️ ${outcome.failedIds.length}/${outcome.total} dictionaries failed after retry: ${outcome.failedIds.join(', ')}`
-          );
-          toast.warning(outcome.message, {
-            duration: TOAST_DURATIONS.LOAD_FAILURE,
-            id: TOAST_IDS.DICT_LOAD_FAILED,
-          });
-        }
       } catch (error) {
-        const msg = `Failed to load dictionaries: ${extractErrorMessage(error)}`;
         logger.error('Failed to load initial state:', error);
-        setLoadError(msg);
-        toast.error(msg, {
-          duration: TOAST_DURATIONS.CRITICAL,
-          id: TOAST_IDS.DICT_LOAD_FAILED,
-        });
       } finally {
         setIsLoading(false);
       }
@@ -160,10 +154,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   const getDictionaries = useCallback(() => store.getSnapshot().dictionaries, [store]);
 
-  const reloadAllDictionaries = useCallback(
-    async () => (await store.loadAll()).dictionaries,
-    [store]
-  );
+  const reloadAllDictionaries = useCallback(async () => {
+    const { dictionaries: fresh, outcome } = await store.loadAll();
+    return { dictionaries: fresh, outcome };
+  }, [store]);
 
   // Import rewrites the files outside history, so no edit in it can be undone.
   const importDictionaries = useCallback(

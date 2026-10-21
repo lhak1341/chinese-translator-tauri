@@ -29,3 +29,13 @@ Generic proper-nouns dictionaries are paired the same way: `properNouns-_X` ↔ 
 - Book binding stays fiction-only (`isFictionProperNounsId`): `BookRecordValidation`, `BindingActivation`, `ReaderQuickAddTarget`.
 - An unbound book's Cmd-6 in the Reader now opens the active generic pair (or root `patterns`) instead of prompting to bind a fiction dictionary.
 - Renaming a paired dictionary into the custom tier (`properNouns-_X` → `properNouns-Foo`) still cascades the patterns file to `patterns-Foo`, which then has no pair and no effect. This was already true of fiction dictionaries and is left as is.
+
+## Addendum (2026-10-21)
+
+An architecture review (candidate #5) proposed one create command that pairs whenever `has_paired_patterns`, deleting the TypeScript branch in `createDictionary` (`DictionaryPairs.ts`) that picks between `create_fiction_dictionary_pair` and `create_proper_nouns_dictionary`. Declined:
+
+- TypeScript asks `hasPairedPatterns` anyway, to know which halves to load into the Dictionary Store after a create (`halvesOf`), as rename does for which halves to swap. Removing the branch would concentrate nothing.
+- The two copies of the rule cannot drift: `hasPairedPatterns`/`toPatternsId` and `has_paired_patterns`/`to_patterns_id` are held to `src/test/fixtures/dictionary_id_rules.json` (ADR-060). Rust's `has_paired_patterns` check in the pair command is a guard against a wrong id, not a second decision.
+- The command keeps its misleading name. Renaming it touches the Rust command, `lib.rs`, `tauriAPI.ts` and the IPC mocks in five test files for no change in behaviour.
+
+Revisit if a create command returns the ids it created, so TypeScript no longer needs the rule to load them.

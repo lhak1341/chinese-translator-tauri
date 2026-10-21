@@ -676,10 +676,8 @@ const Translator = ({ isActive }) => {
         />
       )}
 
-      {/* Surface dictionary load failure when the engine cannot initialize.
-          DictionaryContext's loadInitialState fires once on mount (deps `[]`), so
-          a partial reload (handleForceReload) cannot re-trigger it — recovery
-          requires a full app reload to remount the provider. */}
+      {/* Surface dictionary load failure when the engine cannot initialize. It follows
+          the Dictionary Store's last full load, so a good force reload clears it. */}
       {loadError && (
         <div className={styles.errorBanner} role="alert">
           <div className={styles.errorHeader}>
