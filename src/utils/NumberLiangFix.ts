@@ -14,7 +14,7 @@ interface FixableToken {
 }
 
 /**
- * Reads 两 as a tael unit after a converted number (CONTEXT.md "NumberLiangFix"): "五百二十两" is
+ * Reads 两 as a tael unit after a converted number (GLOSSARY.md "NumberLiangFix"): "五百二十两" is
  * "520 lượng", not "520 lưỡng". Mutates the tokens in place.
  *
  * Runs after Phase 5, because 两's translation does not exist earlier. It depends on the user's

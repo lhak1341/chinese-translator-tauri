@@ -18,7 +18,7 @@ Reading the pass showed the matcher had no effect:
 
 The character-only pass does not match punctuation. A punctuation token is kept as-is like every other non-Chinese token (`preserved-punctuation`), and `lookupPunctuation` translates it during finishing, as before. `findLongestMatchAtPosition`, the punctuation branch of `processCharacterOnlyTokens` and the oracle block in `MatchSource.parity.test.ts` are deleted.
 
-The assembly that follows the pass (text, units, finishing, position back-fill) moves to `CharOnlyAssembly` (`src/utils/text/CharOnlyAssembly.ts`; CONTEXT.md). The stamping pass stays in the engine because it uses `this.applyMatchToTokens`.
+The assembly that follows the pass (text, units, finishing, position back-fill) moves to `CharOnlyAssembly` (`src/utils/text/CharOnlyAssembly.ts`; GLOSSARY.md). The stamping pass stays in the engine because it uses `this.applyMatchToTokens`.
 
 ## Reasoning
 

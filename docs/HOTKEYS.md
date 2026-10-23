@@ -103,7 +103,7 @@ Vietnamese, so Add first maps it back to Chinese: it snaps to the whole units it
 pre-fills the Chinese they cover in the source, gaps included. The Translation field
 is guessed from that Chinese as usual — a matching Transform Rule first, then the character
 gloss — never from the selected Vietnamese. A selection
-spanning more than one line is refused with a toast. See "Selection mapping" in `CONTEXT.md`.
+spanning more than one line is refused with a toast. See "Selection mapping" in `GLOSSARY.md`.
 
 ---
 

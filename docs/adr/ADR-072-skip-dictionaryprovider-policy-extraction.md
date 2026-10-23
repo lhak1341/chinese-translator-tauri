@@ -17,7 +17,7 @@ Leave both in the provider.
 
 **The invalidation rule already has one home and one test.** `invokeEngineInvalidator`, its two refs and `registerCacheInvalidator` are about 35 lines in one file. `DictionaryContext.cacheInvalidationSeam.test.tsx` pins all three states (never registered, registered then cleared, currently registered) by calling the real `registerCacheInvalidator` through the provider. The only production registrar is `Translator.jsx`.
 
-**The provider is the intended test seam.** CONTEXT.md ("Unread dictionary") pins the load chain through `DictionaryContext.unread.test.tsx` over a fake IPC, deliberately across the whole chain.
+**The provider is the intended test seam.** GLOSSARY.md ("Unread dictionary") pins the load chain through `DictionaryContext.unread.test.tsx` over a fake IPC, deliberately across the whole chain.
 
 ## Consequence
 

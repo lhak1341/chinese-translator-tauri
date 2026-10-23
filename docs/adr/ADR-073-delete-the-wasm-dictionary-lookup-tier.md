@@ -5,7 +5,7 @@
 
 ## Context
 
-`DictionaryManager` could answer a lookup from a WASM copy of every dictionary: `translate()` tried `DictionaryWasmLookup` first whenever it was ready, and `findAllMatchesAsync` did the same for a search across two or more dictionaries. The tier was `DictionaryWasmLookup`, `WasmDictionaryAdapter` and `WasmDictionaryManager` (about 680 lines of JavaScript), a sync of every dictionary into Rust on each load, edit and reload, the cascade-retire rules, and seven test files. `CONTEXT.md` listed whether it beat the JS trie walk at all as "open, unmeasured".
+`DictionaryManager` could answer a lookup from a WASM copy of every dictionary: `translate()` tried `DictionaryWasmLookup` first whenever it was ready, and `findAllMatchesAsync` did the same for a search across two or more dictionaries. The tier was `DictionaryWasmLookup`, `WasmDictionaryAdapter` and `WasmDictionaryManager` (about 680 lines of JavaScript), a sync of every dictionary into Rust on each load, edit and reload, the cascade-retire rules, and seven test files. `GLOSSARY.md` listed whether it beat the JS trie walk at all as "open, unmeasured".
 
 ## Decision
 

@@ -1,6 +1,6 @@
 /**
  * The IPC command list is held to Rust's by this test, not by convention (architecture
- * review 2026-10-03, candidate #4 grilling). CONTEXT.md's tauriAPI entry says "adding a
+ * review 2026-10-03, candidate #4 grilling). GLOSSARY.md's tauriAPI entry says "adding a
  * command is a Rust function plus a wrapper here"; three ways that goes wrong silently:
  * a `#[tauri::command]` fn nobody registered in `generate_handler!` (invoke fails at
  * runtime: "command not found"), a `CMD` name Rust does not register, and a registered

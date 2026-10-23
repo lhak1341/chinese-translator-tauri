@@ -22,14 +22,13 @@ import { createTranslationEngine } from '../TranslationEngine.js';
 /** A stand-in dictionary manager that records which teardown path was taken. */
 function spyManager() {
   return {
-    clearCache: vi.fn(),
     dispose: vi.fn(),
     isReady: () => false,
   };
 }
 
 describe('TranslationEngine.destroy - dictionary release', () => {
-  test('disposes the dictionary manager rather than only clearing its cache', () => {
+  test('disposes the dictionary manager', () => {
     const engine = createTranslationEngine();
     const manager = spyManager();
     engine.dictionaryManager = manager;
@@ -37,9 +36,6 @@ describe('TranslationEngine.destroy - dictionary release', () => {
     engine.destroy();
 
     expect(manager.dispose).toHaveBeenCalledTimes(1);
-    // `dispose()` clears the cache itself; calling both would be double work on a path that
-    // already nulls the fields the second call would read.
-    expect(manager.clearCache).not.toHaveBeenCalled();
   });
 
   test('survives a manager that is already gone', () => {

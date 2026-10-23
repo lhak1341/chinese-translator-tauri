@@ -111,7 +111,7 @@ export function validateTransformRule(raw: unknown): TransformRule | null {
 
 // ─── Rule field commit ──────────────────────────────────────────────────────────
 // What an edited value means, for both editing surfaces — the inline RuleRow (one field at a
-// time, on blur) and NewRuleModal (the whole draft, at Save). See CONTEXT.md "Rule field
+// time, on blur) and NewRuleModal (the whole draft, at Save). See GLOSSARY.md "Rule field
 // commit". One rule per field: `key` is trimmed; an empty `charCount` is absent (any length);
 // an empty `capitalizeExceptN` is invalid, never a silent 0; empty or whitespace-only
 // `label`/`moveReplacement` are absent, and non-empty ones are trimmed.

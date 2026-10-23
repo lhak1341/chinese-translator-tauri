@@ -5,7 +5,6 @@
  *
  * Coverage:
  * - CRITICAL-1: Position order validation
- * - CRITICAL-2: Capitalization length validation
  * - CRITICAL-3: Character-only mode position validation
  * - CRITICAL-4: Semantic array synchronization
  * - CRITICAL-6: Type safety (no type casting)
@@ -57,37 +56,6 @@ describe('CRITICAL-1: Position Order Validation', () => {
     // End <= start
     expect(builder.setPositionByMatch(0, 'ở', 5, 5)).toBe(false);
     expect(builder.setPositionByMatch(0, 'ở', 5, 4)).toBe(false);
-  });
-});
-
-describe('CRITICAL-2: Capitalization Length Validation', () => {
-  test('should reject capitalization that changes text length', () => {
-    const builder = new SemanticArrayBuilder();
-    builder.addUnit('在', 'ở', 'characters', 0);
-    builder.setPositionByMatch(0, 'ở', 0, 2);
-
-    // Mock finalText with different-length capitalized version
-    const finalText = 'ỞỞ trong'; // "ỞỞ" is 2 chars but "ở" is 1 char
-
-    // This should skip the update due to length mismatch
-    builder.updateWithCapitalizedText(finalText);
-
-    // Original should remain unchanged
-    expect(builder.translated[0]).toBe('ở');
-  });
-
-  test('should accept capitalization with same length', () => {
-    const builder = new SemanticArrayBuilder();
-    builder.addUnit('trong', 'trong', 'characters', 0);
-    builder.setPositionByMatch(0, 'trong', 0, 5);
-
-    // Final text has "Trong" (capitalized) instead of "trong"
-    const finalText = 'Trong bầu trời'; // "Trong" same length as "trong"
-
-    builder.updateWithCapitalizedText(finalText);
-
-    // Should update to capitalized version
-    expect(builder.translated[0]).toBe('Trong');
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * Pure matching/transform logic for Transform Rules. No React/Tauri/WASM
- * dependency — see CONTEXT.md's "Transform Rule" glossary entry for the
+ * dependency — see GLOSSARY.md's "Transform Rule" glossary entry for the
  * full contract this implements.
  */
 import { isPhrasesDict, isProperNounsDict } from './DictionaryIdClassifier';
@@ -61,7 +61,7 @@ export function findBestMatch(rules: TransformRule[], source: string): Transform
 /**
  * Applies a matched rule's transform to `source`'s per-character gloss.
  * Capitalize always runs before move/replace, on the pre-move word order — see
- * CONTEXT.md for why order isn't configurable.
+ * GLOSSARY.md for why order isn't configurable.
  *
  * `relocate` is always a boolean relocate/stay flag, never a literal word count — the
  * number of words moved (or replaced) is always the key's own character count
@@ -97,7 +97,7 @@ export function applyRule(
 /**
  * Derives the Capitalize-except-N default when a rule's `key` changes, shared by
  * NewRuleModal's per-keystroke create path and RuleRow's inline edit path — see
- * CONTEXT.md's "Transform Rule" glossary entry for why capitalizeExceptN defaults
+ * GLOSSARY.md's "Transform Rule" glossary entry for why capitalizeExceptN defaults
  * to the key's own length.
  *
  * Only re-derives when the key's LENGTH actually changes: a same-length edit (e.g.
@@ -277,7 +277,7 @@ export function initialEntryGuess(
  * beside `rules` — the New Rule dialog's preview. The draft counts as enabled: it is being
  * written, and the dialog says separately when Enabled is off. `winner` is the rule the guess
  * came from (the draft, or another rule that outranks it — `compareRulePrecedence`), or null
- * for the rough gloss. See CONTEXT.md "Rule preview".
+ * for the rough gloss. See GLOSSARY.md "Rule preview".
  */
 export function previewRuleGuess<D extends Omit<TransformRule, 'id'> & { id?: string }>(
   draft: D,

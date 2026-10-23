@@ -52,10 +52,10 @@ export interface FullTextAssemblyResult {
 }
 
 /**
- * The Full Translation result, built from every chunk once the batches are done (CONTEXT.md
+ * The Full Translation result, built from every chunk once the batches are done (GLOSSARY.md
  * "FullTextAssembly"). The twin of CharOnlyAssembly, except that its builder is the engine's
  * shared one, which the batch phase filled: this is the one place that builder is mutated at
- * the end (`updateWithCapitalizedText`).
+ * the end (`setTranslatedCasing`).
  *
  * ORDER IS LOAD-BEARING:
  * 1. Punctuation over ALL chunks, not per batch: comma-quote spacing reads a chunk's neighbours.
@@ -65,10 +65,8 @@ export interface FullTextAssemblyResult {
  *    ("màu" as 3 code points, not 4) are only settled after step 3.
  * 4. Word segments are matched against the FINISHED text (case-insensitively), from the arrays
  *    as the batches left them.
- * 5. updateWithCapitalizedText, then the casing of every matched unit taken from its segment, so
- *    the arrays carry the capitalised forms the text has. The second step overrides the first
- *    for units without a recorded position, where updateWithCapitalizedText guesses by first
- *    occurrence.
+ * 5. The casing of every matched unit is taken from its segment, so the arrays carry the
+ *    capitalised forms the text has. A unit the match did not place keeps the form the phases gave it.
  *
  * The batch preview text (ProgressiveBatchText) is cleaned only; the text returned here is the
  * finished one and is not an extension of it.
@@ -97,11 +95,7 @@ export function assembleFullText(
     logger.log(`⚠️ Progressive: No translated chunks or semantic arrays available`);
   }
 
-  builder.updateWithCapitalizedText(translatedText);
-  // updateWithCapitalizedText cannot place a unit that has no recorded position (every unit after
-  // the first chunk) except by its text's first occurrence, which stamps a later lowercase repeat
-  // with an earlier capital. The segment match above already placed every unit it found, so its
-  // slice of the finished text is the casing to take.
+  // Each unit the segment match placed takes its casing from its slice of the finished text.
   for (const segment of prebuiltSegments) {
     if (segment.type !== 'semantic') continue;
     builder.setTranslatedCasing(

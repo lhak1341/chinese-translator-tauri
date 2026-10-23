@@ -77,7 +77,6 @@ export class SemanticArrayBuilder {
   private length: number = 0;
 
   // Pre-compiled pattern for capitalization check — /u flag required for \p{Lu}
-  private readonly uppercasePattern: RegExp = /^\p{Lu}/u;
 
   // Position tracking
   private lastPositionSet: number = -1;
@@ -310,85 +309,9 @@ export class SemanticArrayBuilder {
   }
 
   /**
-   * Update semantic arrays with capitalized versions from final text.
-   * - Fast path (O(1)): uses translatedStart/End position metadata when available
-   * - Fallback: indexOf with a lazily-initialised lowercase copy of finalText
-   *
-   * NOTE: Does NOT write metadata[i].translatedText — SemanticArrayMetadata omits that
-   * field for memory efficiency. getArrays(copy=true) reconstructs translatedText from
-   * this.translated[i]; getArrays(copy=false) callers must not read metadata[i].translatedText.
-   *
-   * @param finalText - The final capitalized text
-   */
-  updateWithCapitalizedText(finalText: string): void {
-    if (!finalText || this.length === 0) return;
-
-    // Lazy-initialised lowercase cache for the indexOf fallback path
-    let lowerFinal: string | null = null;
-
-    for (let i = 0; i < this.length; i++) {
-      const originalTranslation = this.translated[i];
-      if (!originalTranslation || originalTranslation.length === 0) continue;
-
-      const meta = this.metadata[i];
-
-      // Fast path: position metadata is available — O(1) lookup per unit.
-      if (
-        meta.translatedStart >= 0 &&
-        meta.translatedEnd > meta.translatedStart &&
-        meta.translatedEnd <= finalText.length
-      ) {
-        const actualText = finalText.substring(meta.translatedStart, meta.translatedEnd);
-
-        // CRITICAL-2 FIX: Only update when lengths match and casing actually differs
-        if (
-          actualText.length === originalTranslation.length &&
-          actualText !== originalTranslation &&
-          this.uppercasePattern.test(actualText) &&
-          actualText.toLowerCase() === originalTranslation.toLowerCase()
-        ) {
-          this.translated[i] = actualText;
-        }
-        continue;
-      }
-
-      // Fallback: position metadata not yet set — use indexOf with a cached lowercase
-      // copy of finalText. indexOf is V8-optimised and avoids per-unit regex + matchAll.
-      //
-      // KNOWN LIMITATION: This search starts at index 0 regardless of which unit i is.
-      // For a repeated word (e.g. "là" appearing 10×), it always capitalises the first
-      // occurrence in the text for every unit that lacks position metadata, regardless of
-      // which occurrence unit i actually maps to. This only fires when translatedStart/End
-      // is not set — the fast path above (O(1), position-gated) handles the common case
-      // correctly. The same limitation exists in SemanticArrayBuilder. FullTextAssembly works
-      // around it for Full Translation with setTranslatedCasing, after this call.
-      if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
-      const lowerUnit = originalTranslation.toLowerCase();
-      let searchFrom = 0;
-
-      while (searchFrom <= finalText.length - originalTranslation.length) {
-        const idx = lowerFinal.indexOf(lowerUnit, searchFrom);
-        if (idx === -1) break;
-
-        const candidate = finalText.substring(idx, idx + originalTranslation.length);
-        if (candidate !== originalTranslation && this.uppercasePattern.test(candidate)) {
-          // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
-          if (candidate.length === originalTranslation.length) {
-            this.translated[i] = candidate;
-          }
-          break;
-        }
-        searchFrom = idx + 1;
-      }
-    }
-  }
-
-  /**
-   * Take a unit's casing from the finished text, where the caller has already found the unit.
-   * Unlike `updateWithCapitalizedText`, which guesses the unit's place from its text when no
-   * position was recorded (the first occurrence, so a later lowercase repeat is stamped with an
-   * earlier capital), this is told the place. It changes the casing only: a form that differs in
-   * length or in anything but case is ignored.
+   * Take a unit's casing from the finished text, where the caller has already placed the unit
+   * (the one rule for both assemblies; nothing guesses a place from the unit's text). It changes
+   * the casing only: a form that differs in length or in anything but case is ignored.
    */
   setTranslatedCasing(index: number, finalForm: string): void {
     if (index < 0 || index >= this.length) return;

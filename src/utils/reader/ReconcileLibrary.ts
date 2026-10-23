@@ -208,7 +208,7 @@ export async function reconcileLibraryScan(
 }
 
 /**
- * What one scan of the library came to — the **shelf outcome** (CONTEXT.md "Bookshelf").
+ * What one scan of the library came to — the **shelf outcome** (GLOSSARY.md "Bookshelf").
  *
  * - `loaded`: every scanned file matched to its record.
  * - `recordsUnknown`: the scan worked but could not be reconciled (the records failed to

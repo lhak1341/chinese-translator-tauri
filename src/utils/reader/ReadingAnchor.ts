@@ -3,7 +3,7 @@ import { logger } from '../logger';
 import { countVisibleLines, nextViewportLines } from './TranslationWindow';
 
 /**
- * The Reader's one answer to "where is the reader" — see CONTEXT.md's "Reading Anchor".
+ * The Reader's one answer to "where is the reader" — see GLOSSARY.md's "Reading Anchor".
  *
  * Owns the anchor (line plus sub-line fraction), the viewport line count measured in the
  * same pass, jumps, the debounced write to `books.json`, restoring on open, re-anchoring

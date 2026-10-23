@@ -19,7 +19,7 @@
  * - Return types match expected structure
  */
 
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 
 describe('DictionaryManager API Contract', () => {
@@ -175,66 +175,37 @@ describe('DictionaryManager match sort order', () => {
   });
 });
 
-describe('DictionaryManager translate()/_findInDictionaries cache split (candidate #5 refactor)', () => {
-  test('translate() memoizes a hit via setLookup, once per word and search order', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
+describe('DictionaryManager translate()', () => {
+  test('returns the word, translation, dictionary and metadata of a hit', async () => {
+    const manager = new DictionaryManager();
     await manager.loadDictionaries({ chars: { 在: 'ở' }, phrases: { 你好: 'xin chào' } });
 
-    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
-
-    const single = manager.translate('在');
-    const multi = manager.translate('你好');
-
-    expect(single).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
-    expect(multi).toMatchObject({ word: '你好', translation: 'xin chào', dictionary: 'phrases' });
-    expect(setLookupSpy).toHaveBeenCalledTimes(2);
-    expect(setLookupSpy).toHaveBeenCalledWith('在', manager.getDefaultSearchOrder(), single);
-    expect(setLookupSpy).toHaveBeenCalledWith('你好', manager.getDefaultSearchOrder(), multi);
+    expect(manager.translate('在')).toMatchObject({
+      word: '在',
+      translation: 'ở',
+      dictionary: 'chars',
+    });
+    expect(manager.translate('你好')).toMatchObject({
+      word: '你好',
+      translation: 'xin chào',
+      dictionary: 'phrases',
+    });
   });
 
-  test('translate() caches a negative result via setLookup(word, searchOrder, null)', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+  test('searches the dictionaries in the order given, first hit wins', async () => {
+    const manager = new DictionaryManager();
+    await manager.loadDictionaries({ a: { 在: 'ở' }, b: { 在: 'tại' } });
 
-    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
-    const result = manager.translate('不存在');
-
-    expect(result).toBeNull();
-    expect(setLookupSpy).toHaveBeenCalledWith('不存在', manager.getDefaultSearchOrder(), null);
+    expect(manager.translate('在', ['a', 'b']).translation).toBe('ở');
+    expect(manager.translate('在', ['b', 'a']).translation).toBe('tại');
+    expect(manager.translate('在', ['b']).dictionary).toBe('b');
   });
 
-  test('a cached miss is served: the second translate() of an unknown word does not search again', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
+  test('returns null for a word no searched dictionary holds', async () => {
+    const manager = new DictionaryManager();
     await manager.loadDictionaries({ chars: { 在: 'ở' } });
 
-    const findSpy = vi.spyOn(manager, '_findInDictionaries');
     expect(manager.translate('不存在')).toBeNull();
-    expect(manager.translate('不存在')).toBeNull();
-
-    expect(findSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test('_findInDictionaries never reads or writes the cache', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({ chars: { 在: 'ở' } });
-
-    const getLookupSpy = vi.spyOn(manager.cache, 'getLookup');
-    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
-
-    const result = manager._findInDictionaries('在', manager.getDefaultSearchOrder());
-
-    expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
-    expect(getLookupSpy).not.toHaveBeenCalled();
-    expect(setLookupSpy).not.toHaveBeenCalled();
-  });
-
-  test('_findInDictionaries and translate() agree on a cache-cold lookup', async () => {
-    const manager = new DictionaryManager({ enableVerboseLogging: false });
-    await manager.loadDictionaries({ chars: { 在: 'ở' } });
-
-    const direct = manager._findInDictionaries('在', manager.getDefaultSearchOrder());
-    const viaTranslate = manager.translate('在');
-
-    expect(direct).toEqual(viaTranslate);
+    expect(manager.translate('在', ['missing'])).toBeNull();
   });
 });

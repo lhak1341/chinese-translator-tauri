@@ -47,7 +47,7 @@ export function listFictionPatternDictionaryIds(): Promise<string[]> {
 export interface BatchLoadResult {
   /** Raw (unsorted) data per dictionary ID. A failed ID is absent, never `{}`: an empty
    * placeholder reads as a real empty dictionary, and the next edit's save would write it over
-   * the file that failed to load (CONTEXT.md "Unread dictionary", ADR-053). A file that does
+   * the file that failed to load (GLOSSARY.md "Unread dictionary", ADR-053). A file that does
    * not exist yet is not a failure — Rust loads it as `{}`. */
   loadedDictionaries: Record<string, DictionaryData>;
   /** IDs that failed the parallel load AND the serial retry — the unread dictionaries. */

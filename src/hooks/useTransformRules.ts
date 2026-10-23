@@ -48,7 +48,7 @@ function withPending(rules: TransformRule[], pending: PendingChange[]): Transfor
 const NO_RULES: TransformRule[] = [];
 
 /**
- * The saved Transform Rules, read-only — what the Add form seeds from (CONTEXT.md "Transform
+ * The saved Transform Rules, read-only — what the Add form seeds from (GLOSSARY.md "Transform
  * Rule"). Reads the backend's cache, so it follows every save the moment it lands. Starts a
  * load if none has happened; says nothing about a failed one — the Rules tab's editor does.
  */

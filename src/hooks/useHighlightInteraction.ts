@@ -27,7 +27,7 @@ interface UseHighlightInteractionResult {
 
 /**
  * Owns click-to-highlight: the lit unit, the three click directions, and the scroll that follows
- * each. See CONTEXT.md's "Click-to-Highlight Lifecycle" for the full story.
+ * each. See GLOSSARY.md's "Click-to-Highlight Lifecycle" for the full story.
  *
  * State is one lit unit (`LitUnit`: an index into the current `semanticArrays`, and whether the
  * click came from the Character Only panel). `resolveHighlights` derives the indices the three

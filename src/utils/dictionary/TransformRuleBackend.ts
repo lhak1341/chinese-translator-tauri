@@ -4,7 +4,7 @@ import { createAppFile } from '../appFile';
 
 /** Pre-2026-08-24 persisted rules stored the relocate flag as `moveWords: number`
  * (0/1, occasionally a legacy literal word count from before 2026-08-15 — see
- * CONTEXT.md's "Transform Rule" entry). Coerce it to `relocate: boolean` on load so
+ * GLOSSARY.md's "Transform Rule" entry). Coerce it to `relocate: boolean` on load so
  * every in-memory rule uses the current field regardless of when it was saved. Runs
  * on unvalidated raw data — BEFORE `validateTransformRule`, which checks the current
  * `relocate: boolean` shape only. */
@@ -29,7 +29,7 @@ function parseRules(data: unknown): { value: TransformRule[]; dropped: number } 
   return { value, dropped: migrated.length - value.length };
 }
 
-/** `transform-rules.json` (CONTEXT.md "App file"). A failed read throws: saving then would
+/** `transform-rules.json` (GLOSSARY.md "App file"). A failed read throws: saving then would
  * replace every rule on disk with what this session made. */
 const rulesFile = createAppFile<TransformRule[]>({
   fileName: 'transform-rules.json',

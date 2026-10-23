@@ -634,7 +634,7 @@ fn load_dictionary_file(
 /// A file that does not exist is an empty dictionary, not an unread one: nothing seeds the
 /// dictionary directory, so a fresh install or a reset has no `phrases.json` until the first
 /// Add creates it. Only a file that exists and cannot be read is a failure; the TS side
-/// refuses to save over those (CONTEXT.md "Unread dictionary", ADR-053). Empty is not cached,
+/// refuses to save over those (GLOSSARY.md "Unread dictionary", ADR-053). Empty is not cached,
 /// so the first save's file is what the next load reads.
 fn read_dictionary_file(
     path: &PathBuf,

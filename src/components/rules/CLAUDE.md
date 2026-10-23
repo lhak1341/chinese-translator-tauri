@@ -56,7 +56,7 @@ the saved entry — rules never touch saved entries.
 ## `TransformRule.relocate` — Renamed from `moveWords: number` 2026-08-24
 
 Was `moveWords: number` (values only ever `{0,1}` since 2026-08-15, but the type stayed
-`number` — see CONTEXT.md's "Transform Rule" entry). Renamed to `relocate: boolean` so the
+`number` — see GLOSSARY.md's "Transform Rule" entry). Renamed to `relocate: boolean` so the
 type itself enforces the domain instead of prose alone (architecture review candidate #2
 grilling). `TransformRuleBackend.loadTransformRules` migrates a pre-2026-08-24 persisted
 `moveWords` key to `relocate` on load — production `transform-rules.json` never needed the
@@ -80,4 +80,4 @@ styling; that's the exact duplication this unification closed. `RuleRow.tsx`'s `
 
 ## Saving: one writer, one queue
 
-`useTransformRuleEditor()` (`src/hooks/useTransformRules.ts`) is the only writer, and only `RulesManager` calls it. Anything else that needs the rules — the Add form's seed and preview — calls the read-only `useTransformRules()`, which has no operations to call. Every change is a function of the rule list committed through `TransformRuleBackend.commitRuleChange`, which queues it on the rules App File (CONTEXT.md "Transform Rule", "App file"). Do not add a queue, a ref copy of the saved rules, or a whole-list save to a hook: the backend's cache is the one copy. The pending overlay (`withPending`, `pendingRef`) stays in the editor, not the backend: the Add form must not see unsaved rules (ADR-107).
+`useTransformRuleEditor()` (`src/hooks/useTransformRules.ts`) is the only writer, and only `RulesManager` calls it. Anything else that needs the rules — the Add form's seed and preview — calls the read-only `useTransformRules()`, which has no operations to call. Every change is a function of the rule list committed through `TransformRuleBackend.commitRuleChange`, which queues it on the rules App File (GLOSSARY.md "Transform Rule", "App file"). Do not add a queue, a ref copy of the saved rules, or a whole-list save to a hook: the backend's cache is the one copy. The pending overlay (`withPending`, `pendingRef`) stays in the editor, not the backend: the Add form must not see unsaved rules (ADR-107).

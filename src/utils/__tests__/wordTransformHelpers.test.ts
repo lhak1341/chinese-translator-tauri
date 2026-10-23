@@ -116,7 +116,7 @@ describe('replaceFirstNWordsInPlace', () => {
 
 describe('head-anchored pair composes symmetrically with the tail-anchored pair', () => {
   test('prefix rule: capitalize-except-first then move-first-to-end mirrors the suffix worked example', () => {
-    // Suffix worked example (documented in CONTEXT.md): "nam kinh thành"
+    // Suffix worked example (documented in GLOSSARY.md): "nam kinh thành"
     // -> titleCaseExceptLastN(_,1) -> "Nam Kinh thành" -> moveLastNWordsToBeginning(_,1) -> "thành Nam Kinh"
     const suffixResult = moveLastNWordsToBeginning(titleCaseExceptLastN('nam kinh thanh', 1), 1);
     expect(suffixResult).toBe('thanh Nam Kinh');

@@ -8,7 +8,7 @@ export const MAX_TRANSFORM_RULE_KEY_LENGTH = 4;
 /**
  * A user-authored rule that auto-transforms a dictionary entry's rough-gloss
  * Translation guess and stamps its semanticType, keyed off leading/trailing
- * Chinese characters of the entry's Source text. See CONTEXT.md's
+ * Chinese characters of the entry's Source text. See GLOSSARY.md's
  * "Transform Rule" glossary entry for the full contract.
  */
 export interface TransformRule {

@@ -1,5 +1,5 @@
 /**
- * The reading view's book-binding UI (CONTEXT.md "Book binding"), as three pieces that each
+ * The reading view's book-binding UI (GLOSSARY.md "Book binding"), as three pieces that each
  * read the binding provider and the offer themselves: the header button, the notices (the
  * offer banner and a failed apply), and the dialog. `BookReader` places them and passes only
  * facts about the book — it no longer relays nine provider fields to four places.

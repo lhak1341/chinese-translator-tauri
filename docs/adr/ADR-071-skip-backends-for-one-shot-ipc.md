@@ -19,7 +19,7 @@ Do not add them. A Backend module is justified by a protocol it holds, and the o
 
 **One adapter is a hypothetical seam.** Each direct caller has one call site. Tests for all of them (`ReaderTab.openBook.test.tsx`, `useBookLines.test.ts`, `useClipboardTranslation.test.ts`, `DictionaryManager.composition.test.tsx`) already stub the `window.electronAPI` global, so a Backend module would add an indirection without unlocking a test.
 
-**The single IPC door is already enforced.** `tauriAPI` installs `window.electronAPI`, and `TauriApiAccessPath.test.js` rejects production value imports of it (CONTEXT.md, "tauriAPI"). Callers that need injection already take the same object as a dependency (`ChapterOutlineStore`, `ReconcileLibrary`, `DictionaryContext` passing `save` / `importFiles` to the store).
+**The single IPC door is already enforced.** `tauriAPI` installs `window.electronAPI`, and `TauriApiAccessPath.test.js` rejects production value imports of it (GLOSSARY.md, "tauriAPI"). Callers that need injection already take the same object as a dependency (`ChapterOutlineStore`, `ReconcileLibrary`, `DictionaryContext` passing `save` / `importFiles` to the store).
 
 **Same reasoning as ADR-014**, which kept save/move IPC in the provider for the same reasons.
 

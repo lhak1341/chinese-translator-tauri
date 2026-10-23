@@ -1,5 +1,5 @@
 /**
- * Commits Dictionary Edits (CONTEXT.md "Dictionary Edit", ADR-052): the one save protocol for
+ * Commits Dictionary Edits (GLOSSARY.md "Dictionary Edit", ADR-052): the one save protocol for
  * every change to user dictionaries — CRUD, undo and redo alike.
  *
  * A commit plans against the dictionaries as the previous operation left them, refuses if any
@@ -41,7 +41,7 @@ export interface EditCommitterDeps {
   /** Replaces the given dictionaries in memory, leaving the others alone. */
   write: (updates: Dictionaries) => void;
   save: (dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean }>;
-  /** True for a dictionary whose file failed to load (CONTEXT.md "Unread dictionary"). It is
+  /** True for a dictionary whose file failed to load (GLOSSARY.md "Unread dictionary"). It is
    * absent from `read()`, so plans already refuse it; this only names the reason. */
   isUnread?: (dictionaryId: string) => boolean;
 }

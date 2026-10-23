@@ -76,7 +76,7 @@ export interface ReaderPanels {
 }
 
 /**
- * The Reader's three panels — see CONTEXT.md's "Reader Panels".
+ * The Reader's three panels — see GLOSSARY.md's "Reader Panels".
  *
  * The same lines at three natural heights, each with its own virtualizer. The translation
  * panel is the scroll master; the Chinese source and the character-only gloss follow it,

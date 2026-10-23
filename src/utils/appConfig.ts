@@ -75,7 +75,7 @@ function toRaw(config: AppConfig): AppConfiguration {
   } as unknown as AppConfiguration;
 }
 
-/** `config.json` (CONTEXT.md "App file"). A failed read runs the app on defaults, but they
+/** `config.json` (GLOSSARY.md "App file"). A failed read runs the app on defaults, but they
  * are never saved over the file. */
 const configFile = createAppFile<AppConfig>({
   fileName: 'config.json',
@@ -148,7 +148,7 @@ export function invalidateAppConfig(): void {
 
 /**
  * The seam for Tauri commands that write `config.json` directly (bypassing
- * saveAppConfig's read-modify-write — see the AppConfig entry in CONTEXT.md).
+ * saveAppConfig's read-modify-write — see the AppConfig entry in GLOSSARY.md).
  * Serializes on the same lock as saveAppConfig so no plain config write can start
  * while a Rust-side write is in flight, calls `fn`, and invalidates the cache
  * immediately on success — before releasing the lock — so the very next queued

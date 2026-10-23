@@ -54,7 +54,7 @@ export class TextChunker {
    *
    * CHUNKING BEHAVIOR:
    *   - startIndex of a chunk with empty content (punctuation or line break only) is
-   *     unspecified; nothing reads it (see CONTEXT.md, TextChunker).
+   *     unspecified; nothing reads it (see GLOSSARY.md, TextChunker).
    *
    * @param {string} text - Input text to chunk
    * @returns {TextChunk[]} Array of text chunks with startedBy context

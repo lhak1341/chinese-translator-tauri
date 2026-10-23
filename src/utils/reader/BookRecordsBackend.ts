@@ -28,7 +28,7 @@ function parseRecords(data: unknown): { value: BookRecords; dropped: number } {
 }
 
 /**
- * `books.json` (CONTEXT.md "App file"). A failed read throws and caches nothing, so no
+ * `books.json` (GLOSSARY.md "App file"). A failed read throws and caches nothing, so no
  * read-modify-write can save an empty map over the file. Every write — a scan's
  * reconciliation and a debounced position flush can land close together — runs under the
  * file's lock, so none can clobber another with a stale copy.

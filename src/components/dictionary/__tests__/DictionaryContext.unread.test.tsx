@@ -1,5 +1,5 @@
 /**
- * An unread dictionary is never saved over (CONTEXT.md "Unread dictionary", ADR-053).
+ * An unread dictionary is never saved over (GLOSSARY.md "Unread dictionary", ADR-053).
  *
  * Runs the real load protocol (`DictionaryBackend`) and the real `EditCommitter` against a
  * fake IPC, so what is pinned is the whole chain: a dictionary whose file could not be read

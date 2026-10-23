@@ -1,5 +1,5 @@
 /**
- * An **App File** (CONTEXT.md "App file"): one of the JSON files the app keeps beside the
+ * An **App File** (GLOSSARY.md "App file"): one of the JSON files the app keeps beside the
  * dictionaries — `config.json`, `appearance.json`, `transform-rules.json`, `books.json` — read
  * once, cached, and written only by read-modify-write under one lock per file. Each file's own
  * module supplies the IPC calls and a parser; this module owns everything the four have in

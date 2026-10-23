@@ -57,7 +57,7 @@ export interface DictionaryModalsOptions {
 
 /**
  * The quick-add dialog: its openers, keyed by Add action, and the dialog itself. See
- * CONTEXT.md "Quick-add dialog".
+ * GLOSSARY.md "Quick-add dialog".
  *
  * Owns the modal's open/close state, and the quick-add view each open decided over: every
  * opener loads the view once through `loadView` and stores it with the target, so the form's

@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 type IpcName = keyof typeof window.electronAPI;
 
 /**
- * A fake App file (CONTEXT.md "App file") behind one `window.electronAPI` load/save pair —
+ * A fake App file (GLOSSARY.md "App file") behind one `window.electronAPI` load/save pair —
  * `loadBookRecords`/`saveBookRecords`, `loadTransformRules`/`saveTransformRules` and the
  * like — for tests that want the real backend (its cache, lock and commit queue) over a disk
  * that just works. Load answers `{ success: true, data }`; save stores what it is given and

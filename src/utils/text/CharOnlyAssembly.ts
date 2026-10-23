@@ -18,13 +18,11 @@ export interface CharOnlyAssemblyResult {
 }
 
 /**
- * The Character-only result, built from tokens the engine has already stamped (CONTEXT.md
+ * The Character-only result, built from tokens the engine has already stamped (GLOSSARY.md
  * "CharOnlyAssembly"). Pure: it builds its own private SemanticArrayBuilder.
  *
  * ORDER IS LOAD-BEARING: the positions are searched in the FINISHED text (finishing rewrites it),
- * and before updateWithCapitalizedText, whose fallback takes the first occurrence and would stamp
- * every repeat of a word with the same position. With this order each unit already has its
- * position, and updateWithCapitalizedText reads the capitalized form from finalText[start:end].
+ * and each unit takes its casing from the range it was just placed at.
  */
 export function assembleCharOnlyResult(
   tokens: StampedToken[],
@@ -80,10 +78,9 @@ export function assembleCharOnlyResult(
 
     const endPos = unitPosition + translatedUnit.length;
     builder.setPositionByMatch(metadata.tokenIndex, translatedUnit, unitPosition, endPos);
+    builder.setTranslatedCasing(i, translatedText.slice(unitPosition, endPos));
     searchPosition = endPos;
   }
-
-  builder.updateWithCapitalizedText(translatedText);
 
   return { translatedText, semanticArrays: builder.getArrays() };
 }

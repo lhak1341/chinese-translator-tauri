@@ -3,7 +3,7 @@ import type { HotkeyAction } from '../ui/HotkeyDispatchTable';
 /**
  * Everything the reader can ask the Reader to do, named by the dispatch table's own action
  * types — so a palette row, a hotkey and a button that mean the same action share one
- * name, and one function (see `useReaderCommands`). See CONTEXT.md's "Reader Commands".
+ * name, and one function (see `useReaderCommands`). See GLOSSARY.md's "Reader Commands".
  *
  * `Extract` rather than a free union: an id that is not a real `HotkeyAction` type is a
  * compile error, so this list cannot invent a vocabulary of its own.

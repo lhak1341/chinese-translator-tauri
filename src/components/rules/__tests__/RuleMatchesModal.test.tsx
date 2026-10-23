@@ -17,7 +17,7 @@ vi.mock('../../dictionary/MoveDialog', () => ({
 // integration test and TransformRuleEngine.test.ts's findRuleMatchingEntries suite do
 // NOT: commitTranslation's metadata-merge variants, the VAR-badge properNoun-vs-phrases
 // branches, the showSemantic conditional, Semantic-toggle wiring, and the empty state.
-// See CONTEXT.md's "Transform Rule" entry and ADR-038 for what the modal is and why.
+// See GLOSSARY.md's "Transform Rule" entry and ADR-038 for what the modal is and why.
 
 const RULE: TransformRule = {
   id: 'rule-1',

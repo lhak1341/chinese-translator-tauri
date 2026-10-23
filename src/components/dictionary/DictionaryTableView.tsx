@@ -68,7 +68,7 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
 /**
  * One dictionary's view in the Dictionary table: its rows, and the state that belongs to
  * looking at that one dictionary — selection, the open edit or move, the context menu. See
- * CONTEXT.md "Dictionary table view".
+ * GLOSSARY.md "Dictionary table view".
  *
  * Rendered with `key={selectedDictionary}`, so switching dictionaries remounts it and that
  * state starts fresh. Nothing resets it by hand. What survives a switch (the search term, the

@@ -78,7 +78,7 @@ export interface DictionaryContextInterface {
   /** All loaded dictionaries */
   dictionaries: { [key: string]: DictionaryData };
   /** Dictionaries whose file failed to load; each is absent from `dictionaries`, and edits
-   * to it are refused until a Reload reads it (CONTEXT.md "Unread dictionary"). */
+   * to it are refused until a Reload reads it (GLOSSARY.md "Unread dictionary"). */
   unreadDictionaryIds: string[];
   /** Whether initial loading is in progress */
   isLoading: boolean;
@@ -159,7 +159,7 @@ export interface DictionaryContextInterface {
   /** Every dictionary that exists, with its label — kept by the Dictionary Store, refreshed by
    * the operations that can change it (reload of a new id, rename, reload all). */
   dictionaryTypes: DictionaryTypesCollection;
-  /** Read one dictionary from disk (CONTEXT.md "Dictionary Store"). A failed read makes it
+  /** Read one dictionary from disk (GLOSSARY.md "Dictionary Store"). A failed read makes it
    * unread; a new id is listed. */
   loadDictionary: (dictionaryId: string) => Promise<void>;
   /** Apply renames Rust already made on disk — load each new id, drop each old one — in one

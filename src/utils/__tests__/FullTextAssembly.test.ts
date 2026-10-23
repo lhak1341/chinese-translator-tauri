@@ -80,6 +80,23 @@ describe('assembleFullText', () => {
     expect(semanticArrays.translated).toEqual(['Thuyết', 'biệt', 'thuyết']);
   });
 
+  it('leaves a unit the segment match did not place with the form the phases gave it', () => {
+    // Two units, one occurrence in the text: the match places the first, and 'Thuyết' is not
+    // the second unit's place, so it must not borrow the capital.
+    const chunks = [chunk('说', 'thuyết'), chunk('别', 'biệt', '', ',')];
+    const { prebuiltSegments, semanticArrays } = assemble(
+      chunks,
+      builderWith([
+        ['说', 'thuyết'],
+        ['说', 'thuyết'],
+      ])
+    );
+
+    const placed = prebuiltSegments.filter((segment) => segment.type === 'semantic');
+    expect(placed.map((segment) => segment.unitIndex)).toEqual([0]);
+    expect(semanticArrays.translated).toEqual(['Thuyết', 'thuyết']);
+  });
+
   it('builds prebuilt segments that slice to the finished text', () => {
     const chunks = [chunk('说', 'thuyết'), chunk('别', 'biệt', '', ',')];
     const { translatedText, prebuiltSegments } = assemble(

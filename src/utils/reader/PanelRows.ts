@@ -1,5 +1,5 @@
 /**
- * **Panel rows** (CONTEXT.md "Reader Panels"): what each of the Reader's three panels shows
+ * **Panel rows** (GLOSSARY.md "Reader Panels"): what each of the Reader's three panels shows
  * for one raw file line, given the translated chunks that have landed.
  *
  * `projectPanelRows` folds the cache's entries once — after every chunk lands or leaves —

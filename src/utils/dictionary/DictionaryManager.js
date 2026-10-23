@@ -21,7 +21,6 @@
  * } from '../types/DictionaryManagerTypes'
  */
 
-import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 import { buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
@@ -29,17 +28,11 @@ import { priorityOf } from './DictionaryIdClassifier.js';
 import { reconstructTextFromIndex } from '../TokenHelpers';
 
 export class DictionaryManager {
-  constructor(options = {}) {
+  constructor() {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
     this.metadata = new Map(); // Dictionary metadata
     this.loadTime = 0;
     this.ready = false;
-
-    // Initialize translation caching system
-    this.cache = new TranslationCache({
-      lookupCacheSize: options.lookupCacheSize || 800,
-      enabled: options.cacheEnabled !== false, // Default to enabled
-    });
   }
 
   /**
@@ -105,36 +98,6 @@ export class DictionaryManager {
 
     const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
 
-    // Check cache first for multi-dictionary lookup
-    // `undefined` is a miss; a cached `null` is a known absence and is served too
-    const cachedResult = this.cache.getLookup(word, searchOrder);
-    if (cachedResult !== undefined) {
-      return cachedResult;
-    }
-
-    // MEDIUM-9 FIX: Remove per-dictionary cache checks to eliminate duplicate lookups
-    // Multi-dictionary cache check above is sufficient
-    const translationResult = this._findInDictionaries(word, searchOrder);
-
-    if (translationResult) {
-      this.cache.setLookup(word, searchOrder, translationResult);
-
-      return translationResult;
-    }
-
-    // Cache negative result to avoid repeated failed lookups
-    this.cache.setLookup(word, searchOrder, null);
-    return null;
-  }
-
-  /**
-   * Pure search-order trie walk — no cache reads or writes. translate() layers the lookup
-   * cache on top of it.
-   * @param {string} word
-   * @param {Array<string>} searchOrder - Already-resolved dictionary search order.
-   * @returns {Object|null} {word, translation, dictionary, metadata} or null
-   */
-  _findInDictionaries(word, searchOrder) {
     for (const dictionaryName of searchOrder) {
       const dictionary = this.dictionaries.get(dictionaryName);
       if (!dictionary) continue;
@@ -278,31 +241,15 @@ export class DictionaryManager {
    *   await manager.loadDictionaries({...});  // Load new dictionaries
    */
   dispose() {
-    // Clear all caches first
-    this.clearCache();
-
     this._releaseDictionaries();
 
     // Nullify all references for GC
     this.dictionaries = null;
     this.metadata = null;
 
-    // Dispose cache
-    if (this.cache) {
-      this.cache.dispose();
-      this.cache = null;
-    }
-
     // Reset state flags
     this.ready = false;
     this.loadTime = 0;
-  }
-
-  /**
-   * Clear all translation caches
-   */
-  clearCache() {
-    this.cache.clear();
   }
 
   getDictionary(name) {
@@ -312,7 +259,6 @@ export class DictionaryManager {
   getMemoryUsage() {
     return {
       dictionaries: this.dictionaries?.size ?? 0,
-      cacheEnabled: !!this.cache,
     };
   }
 }

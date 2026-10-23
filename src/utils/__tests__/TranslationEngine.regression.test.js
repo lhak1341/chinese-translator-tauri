@@ -100,7 +100,7 @@ describe('TranslationEngine Regression Tests', () => {
     });
 
     it("translateWithProgressiveBatches hands every batch its chunks' global token offsets", async () => {
-      // Six chunks run as two batches (the first holds MIN_BATCH_SIZE = 3), so the second
+      // Six chunks run as two batches (the first holds PROGRESSIVE_BATCH_SIZE = 5), so the second
       // batch's offsets only come out right if the count carries across the batch boundary.
       engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
       const processChunks = vi.spyOn(engine, 'processChunksInParallel');

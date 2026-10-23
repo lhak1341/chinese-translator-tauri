@@ -29,7 +29,7 @@ export type HotkeyAction =
  * (`resolveQuickAddSource`) — with the name a failure toast gives each. One fact, read by the
  * hotkey hook (which resolves the source for these and no others) and by the Reader's palette
  * (which passes its source to these and no others), so a key and its palette row always start
- * from the same text. See CONTEXT.md "Reader Commands".
+ * from the same text. See GLOSSARY.md "Reader Commands".
  */
 export const SOURCE_ACTION_LABELS = {
   quickAddCharacter: 'Add Character',

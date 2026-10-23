@@ -133,7 +133,7 @@ export function fictionDisplayName(dictionaryId: string): string {
  * dictionary" for the answer "none". `binding: null` means the book was never asked, and
  * reads as `unanswered` — each caller words that its own way ("Bind dictionaries" on the
  * Reader's button is a prompt; "Not bound" on the shelf is a fact). The two answers stay
- * distinct from it on purpose (CONTEXT.md, "Dictionary Binding").
+ * distinct from it on purpose (GLOSSARY.md, "Dictionary Binding").
  */
 export function bindingLabel(binding: BookBinding | null, unanswered: string): string {
   if (!binding) return unanswered;

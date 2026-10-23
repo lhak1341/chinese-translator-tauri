@@ -111,7 +111,7 @@ function fail(error: unknown, verb: string, logMessage: string): never {
 /**
  * Owns all dictionary CRUD operations: add, update, patch, delete, bulk-delete, move,
  * bulk-move. Each one plans a Dictionary Edit and commits it through the provider's
- * `EditCommitter` (CONTEXT.md "Dictionary Edit"); this hook adds input clean-up, error
+ * `EditCommitter` (GLOSSARY.md "Dictionary Edit"); this hook adds input clean-up, error
  * typing and the user-facing message. All returned callbacks are stable.
  *
  * @param committer - The provider's EditCommitter (stable)

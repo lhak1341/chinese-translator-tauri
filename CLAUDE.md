@@ -25,7 +25,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 
 **5-Phase Pipeline (order is immutable):** Pattern → Proper Noun → Number → Phrase → Character. Each phase's `translationSource` string is the discriminator (`getSourcePriority()` returns 999 for any unrecognized string — silently corrupts output; literal `addUnit()` sources are guarded by `TranslationEngine.addUnitCallSites.test.js`, runtime-computed ones are not). **Consumed token contract:** `*_consumed` → `translated` must be `null`; non-`*_consumed` → `translated` must NOT be `null`. Validated by `validateConsumedTokenContract()`.
 
-**Dual-Path Architecture:** Character-only and Full-Translation are completely separate rendering/highlighting pipelines with separate entry points (`src/components/char-only/` vs `src/components/full-translation/`). Debug the right one — see `CONTEXT.md` for which module belongs to which.
+**Dual-Path Architecture:** Character-only and Full-Translation are completely separate rendering/highlighting pipelines with separate entry points (`src/components/char-only/` vs `src/components/full-translation/`). Debug the right one — see `GLOSSARY.md` for which module belongs to which.
 
 ---
 
@@ -50,7 +50,7 @@ This file stays short on purpose — everything task-scoped moved to where it's 
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing, and before presenting a candidate run the prior-decision greps in troubleshooting.md: rounds 23, 28 and 30 shipped candidates an ADR addendum or scoped `CLAUDE.md` had already declined) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.
 - **`Translator.jsx`/hooks/component contracts** (engine lifecycle, hotkeys, highlighting state) → `src/components/CLAUDE.md` (and nested `src/components/*/CLAUDE.md` for dictionary/rules).
-- **Domain glossary** (what a module is, in this codebase's own vocabulary) → `CONTEXT.md`.
+- **Domain glossary** (what a module is, in this codebase's own vocabulary) → `GLOSSARY.md`.
 - **Architectural decisions** → `docs/adr/` — each new ADR also gets a row in `docs/adr/README.md`'s index table (keep every cell within the existing column widths, or Prettier re-aligns the whole table) **and** its id on the dated line at the bottom (the table sat stale at ADR-006 until 2026-09-26); a supersession also edits the old ADR's `Status:` line **and** its README status cell (two copies).
 
 📖 [Architecture](docs/guides/architecture.md) · [Development](docs/guides/development.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Hotkeys](docs/HOTKEYS.md) · [ADRs](docs/adr/) · [CSP Security](docs/CSP_SECURITY.md)

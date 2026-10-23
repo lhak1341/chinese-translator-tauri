@@ -34,7 +34,7 @@ export interface ReaderCommands {
 }
 
 /**
- * Everything the reader can ask the Reader to do, by any route — see CONTEXT.md's
+ * Everything the reader can ask the Reader to do, by any route — see GLOSSARY.md's
  * "Reader Commands". One action record, from which the palette's rows and the hotkeys are
  * both built, so a row and the key its hint names cannot run different code.
  */

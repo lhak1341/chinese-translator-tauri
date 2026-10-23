@@ -94,7 +94,7 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
   };
 }
 
-/** `appearance.json` (CONTEXT.md "App file"). A failed read still shows the defaults, but
+/** `appearance.json` (GLOSSARY.md "App file"). A failed read still shows the defaults, but
  * they are never saved over the file. */
 const appearanceFile = createAppFile<AppearanceSettings>({
   fileName: 'appearance.json',

@@ -122,7 +122,7 @@ function bindingConfigFields(config: AppConfig) {
 }
 
 /**
- * The open book's dictionary binding for the whole app (CONTEXT.md "Dictionary Binding").
+ * The open book's dictionary binding for the whole app (GLOSSARY.md "Dictionary Binding").
  *
  * It is not a Reader-local preference: while a book is open it is **authoritative for the
  * fiction slice of `activeProperNouns`**, which the Configuration tab renders and the

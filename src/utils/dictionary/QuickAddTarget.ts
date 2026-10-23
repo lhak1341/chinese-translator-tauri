@@ -11,7 +11,7 @@ import { logger } from '../logger';
 
 /**
  * Which dictionary Cmd-5 (proper noun) and Cmd-6 (structural pattern) add to — one rule for
- * the Translator modal, the Dictionary tab, and the Reader. See CONTEXT.md "Quick-add target".
+ * the Translator modal, the Dictionary tab, and the Reader. See GLOSSARY.md "Quick-add target".
  *
  * The rule reads a **quick-add view**, not config directly. Every surface gets it from the
  * binding provider's `loadQuickAddView` (BookBindingContext): config as the open book's
@@ -31,7 +31,7 @@ export interface QuickAddView {
 export type QuickAddTarget =
   | { kind: 'open'; dictionaryId: string }
   /** `pairMissing`: the patterns file is gone. `unread`: it is there but failed to load
-   * (CONTEXT.md "Unread dictionary") — the fix is to repair the file and Reload. */
+   * (GLOSSARY.md "Unread dictionary") — the fix is to repair the file and Reload. */
   | { kind: 'none'; reason: 'pairMissing' | 'unread'; patternsId: string };
 
 /** Fallback order when the default is unusable. Root is never picked here — it is the last

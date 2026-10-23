@@ -7,11 +7,11 @@
 
 The architecture review of 2026-09-29 (candidate #1) found that a dictionary whose file failed to load could be saved over. `DictionaryBackend.loadAllDictionaries` put `{}` in place of every dictionary that failed both the parallel load and the serial retry. The provider showed a toast and kept the `{}`. `planAdd` accepted it as an empty dictionary, and `EditCommitter` saved a one-entry dictionary over the file.
 
-The same day, the four JSON app files (`books.json`, `config.json`, `transform-rules.json`, `appearance.json`) got a fix for the same failure (CONTEXT.md "Unreadable app files"). For those, Rust's `load_blob` quarantines unreadable content: it renames the file to `<stem>.corrupt-<ms>.json` and starts from defaults. A later review will likely propose that dictionaries mirror that. This ADR records why they don't.
+The same day, the four JSON app files (`books.json`, `config.json`, `transform-rules.json`, `appearance.json`) got a fix for the same failure (GLOSSARY.md "Unreadable app files"). For those, Rust's `load_blob` quarantines unreadable content: it renames the file to `<stem>.corrupt-<ms>.json` and starts from defaults. A later review will likely propose that dictionaries mirror that. This ADR records why they don't.
 
 ## Decision
 
-An **unread dictionary** (CONTEXT.md) is left out of the provider's `dictionaries`, listed in `unreadDictionaryIds`, and every edit to it is refused. The file stays where it is until a Reload reads it cleanly. Rust does not quarantine dictionaries.
+An **unread dictionary** (GLOSSARY.md) is left out of the provider's `dictionaries`, listed in `unreadDictionaryIds`, and every edit to it is refused. The file stays where it is until a Reload reads it cleanly. Rust does not quarantine dictionaries.
 
 A missing file is not unread. The parallel loader returns `{}` for it, because the hard-coded dictionaries have no file until their first Add.
 

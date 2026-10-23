@@ -36,7 +36,7 @@ export interface WindowFillerSnapshot {
 }
 
 /**
- * The Reader's Window Filler (CONTEXT.md "Window Filler"): translates the region the reader
+ * The Reader's Window Filler (GLOSSARY.md "Window Filler"): translates the region the reader
  * is in, on demand, as the anchor moves — the fill's whole lifecycle in one plain object.
  *
  * Each `update` re-plans: it prunes the cache to the keep band, plans the fetch band into

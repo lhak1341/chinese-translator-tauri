@@ -7,7 +7,7 @@
 
 The architecture review of 2026-09-29 (candidate #1) found that undo loses user data. A history record did not store what an edit overwrote, so undoing an Add over an existing key, an Update renamed onto an existing key, or a Move into a dictionary that already held the key deleted the earlier value. Saves also ran through three protocols with different semantics: `persistDictionaryMutation` (state first, rollback), `commitMoveOp` (state first, partial disk write-back) and `commitMutation` (save first, no partial revert, used by undo).
 
-The grilling settled on one **Dictionary Edit** module (see `CONTEXT.md`). Every edit is a pure plan of `{dictionaryId, key, before, after}` changes. One `commitEdit` applies, saves, records and invalidates. Undo is `commitEdit(invert(edit))`. Two parts of that design look like gaps that a later review might want to "fix". This ADR records why they are deliberate.
+The grilling settled on one **Dictionary Edit** module (see `GLOSSARY.md`). Every edit is a pure plan of `{dictionaryId, key, before, after}` changes. One `commitEdit` applies, saves, records and invalidates. Undo is `commitEdit(invert(edit))`. Two parts of that design look like gaps that a later review might want to "fix". This ADR records why they are deliberate.
 
 ## Decision
 

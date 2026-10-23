@@ -151,7 +151,6 @@ import {
   isConsumedSource,
   validateConsumedTokenContract,
 } from './TranslationSourcePriority.js';
-import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
 import { createProgressiveBatchText } from './text/ProgressiveBatchText';
 import { assembleFullText } from './text/FullTextAssembly';
 import { logger } from './logger';
@@ -165,6 +164,12 @@ import {
   MAX_INPUT_TOKENS,
   UI_TIMEOUTS,
 } from '../constants/TranslationConstants.js';
+
+// Chunks per progressive batch. A batch yields to the event loop once and fires one
+// `onBatchComplete`. On 204,000 characters of real books, 5 ran 6-7% faster than the size
+// AdaptiveBatchSizer chose (it ran at 5 in about 40% of its batches), and 3 ran about 9%
+// slower; output and highlighting segments were identical at every size (deleted-symbols.md).
+const PROGRESSIVE_BATCH_SIZE = 5;
 
 // The pattern-profiling delegators' answer when the Pattern Store built no processor
 const NO_PATTERN_PROCESSOR = 'No pattern processor: no patterns loaded or WASM unavailable.';
@@ -214,11 +219,7 @@ const NO_PATTERN_PROCESSOR = 'No pattern processor: no patterns loaded or WASM u
 export class TranslationEngine {
   constructor() {
     this.tokenizer = new TextTokenizer();
-    this.dictionaryManager = new DictionaryManager({
-      // Enable caching with optimized cache sizes
-      cacheEnabled: true,
-      lookupCacheSize: 800,
-    });
+    this.dictionaryManager = new DictionaryManager();
     this.patternStore = new PatternStore();
     this.textChunker = new TextChunker();
     this.chunkPostProcessor = new ChunkPostProcessor();
@@ -288,13 +289,9 @@ export class TranslationEngine {
    * After calling destroy(), the engine instance cannot be reused - create a new instance.
    */
   destroy() {
-    // Dispose the dictionary manager, rather than only clearing its cache.
-    //
-    // `clearCache()` empties the translation cache and nothing else, so every trie and the
-    // flat entry list outlived the engine that owned them. A reload builds a replacement
-    // engine, so that was a leak *per reload*.
-    //
-    // `dispose()` is what releases them. It leaves the manager unusable, which is
+    // Dispose the dictionary manager: `dispose()` releases every trie and the flat entry list,
+    // which would otherwise outlive the engine that owned them (a leak *per reload*, since a
+    // reload builds a replacement engine). It leaves the manager unusable, which is
     // exactly the contract this method already documents for the engine as a whole. It
     // also sets `ready = false`, so `isReady()` stays answerable rather than throwing on
     // the nulled fields.
@@ -1629,12 +1626,12 @@ export class TranslationEngine {
   }
 
   /**
-   * Progressive translation: chunks the text, translates it in adaptive batches, and reports
+   * Progressive translation: chunks the text, translates it in fixed-size batches, and reports
    * each finished batch through `options.onBatchComplete`.
    *
    * Process flow:
    * 1. Split text into chunks by punctuation boundaries
-   * 2. Translate the chunks in batches sized by AdaptiveBatchSizer
+   * 2. Translate the chunks in batches of PROGRESSIVE_BATCH_SIZE
    * 3. After each batch, call onBatchComplete with the text so far (ADR-105)
    * 4. Assemble the full result once, in FullTextAssembly
    *
@@ -1662,9 +1659,7 @@ export class TranslationEngine {
   // SECTION 13: PROGRESSIVE BATCH TRANSLATION
   // ============================================================================
   // Purpose: Stream translation results in batches for UI progress updates
-  // Dependencies: AdaptiveBatchSizer, processChunksInParallel, ProgressiveBatchText,
-  //   FullTextAssembly
-  // Critical: batchPerformanceHistory is a local, so it resets per translation
+  // Dependencies: processChunksInParallel, ProgressiveBatchText, FullTextAssembly
   // ============================================================================
 
   async translateWithProgressiveBatches(text, options = {}) {
@@ -1689,15 +1684,7 @@ export class TranslationEngine {
       };
     }
 
-    // Step 2: Process chunks in adaptive batches. Start at MIN_BATCH_SIZE — the floor the
-    // sizer's severe-degradation shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes —
-    // and let calculateNextBatchSize grow it toward MAX_BATCH_SIZE while batches stay fast.
-    let currentBatchSize = MIN_BATCH_SIZE;
-
-    // Adaptive batch sizing reads this history; it is local, so each translation starts empty
-    const batchPerformanceHistory = [];
-    let performanceBaseline = null;
-
+    // Step 2: Process chunks in fixed-size batches.
     let processedChunks = 0;
     let batchIndex = 0;
 
@@ -1722,21 +1709,8 @@ export class TranslationEngine {
         throw new Error('Translation cancelled by user');
       }
 
-      // Adaptive batch sizing: adjust based on performance history
-      const sizing = calculateNextBatchSize({
-        batchPerformanceHistory,
-        currentBatchSize,
-        performanceBaseline,
-        batchIndex,
-      });
-      currentBatchSize = sizing.batchSize;
-      performanceBaseline = sizing.performanceBaseline;
-      if (sizing.log?.level === 'warn') {
-        logger.warn(sizing.log.message);
-      }
-
       const batchStart = processedChunks; // Chunk index
-      const batchEnd = Math.min(batchStart + currentBatchSize, translatableChunks.length);
+      const batchEnd = Math.min(batchStart + PROGRESSIVE_BATCH_SIZE, translatableChunks.length);
       const currentBatch = translatableChunks.slice(batchStart, batchEnd);
 
       // Translate current batch (with parallel processing)
@@ -1746,15 +1720,6 @@ export class TranslationEngine {
         chunkTokenOffsets.slice(batchStart, batchEnd)
       );
       const batchNumber = batchIndex + 1; // 1-based, as the UI shows it
-
-      // Track performance degradation across batches (read by calculateNextBatchSize)
-      batchPerformanceHistory.push({
-        batchNumber,
-        processingTime: batchTiming.processingTime,
-        avgTimePerChunk: batchTiming.avgTimePerChunk,
-        chunkCount: currentBatch.length,
-        timestamp: Date.now(),
-      });
 
       // Yield to event loop after each batch so the UI can paint a frame.
       // processChunksInParallel runs synchronous WASM (pattern + number processing) inside
@@ -1766,9 +1731,7 @@ export class TranslationEngine {
       // Only the current batch is processed here, never all chunks again (no O(n²) rework).
       // Capitalization happens once, at the final level.
       // `chunks`, not translatableChunks: comma spacing reads the non-translatable neighbours.
-      const { batchText, cumulativeText } = progressiveText.addBatch(currentBatch, chunks);
-
-      this.semanticArrayBuilder.updateWithCapitalizedText(batchText);
+      const { cumulativeText } = progressiveText.addBatch(currentBatch, chunks);
 
       // Update progress tracking
       processedChunks = batchEnd;

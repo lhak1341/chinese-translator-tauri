@@ -156,7 +156,7 @@ describe('Bookshelf binding', () => {
 
   test('the answer "none" reads differently from never having answered', async () => {
     // `binding: null` is "never answered"; `{ fictionDictionary: null }` is the answer
-    // "no fiction dictionary" (CONTEXT.md, "Dictionary Binding").
+    // "no fiction dictionary" (GLOSSARY.md, "Dictionary Binding").
     await seedRecords({ fp1: makeBookRecord({ binding: { fictionDictionary: null } }) });
     const { unmount } = renderShelf();
     expect(screen.getByText('No fiction dictionary')).toBeTruthy();

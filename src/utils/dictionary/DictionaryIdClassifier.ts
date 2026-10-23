@@ -1,5 +1,5 @@
 /**
- * What shape a dictionary's entries have. See CONTEXT.md "Dictionary Kind / Dictionary Tier".
+ * What shape a dictionary's entries have. See GLOSSARY.md "Dictionary Kind / Dictionary Tier".
  *
  * - `'patterns'` — `patterns` and every `patterns-*` (templates with variable slots)
  * - `'phrases'` — the one `phrases` dictionary
@@ -214,7 +214,7 @@ export function dictionaryNameProblem(rawName: string): string | null {
 
 /**
  * What an entry of a dictionary's kind can carry. Every surface — table rows and headers, filters,
- * the Add form, Rule Matches — reads this instead of naming a kind. See CONTEXT.md "Entry
+ * the Add form, Rule Matches — reads this instead of naming a kind. See GLOSSARY.md "Entry
  * capabilities".
  *
  * - `variableFlag` — the VAR flag (`allowAsPatternVariable`): a per-entry `'toggle'`; `'always'`

@@ -16,7 +16,7 @@ import { MetadataBadge, SemanticTypeToggleCell, BadgeChip } from './TableBuildin
  * X/Y variable types — each decided by `entryCapabilities` / `showsSemanticType` and nothing
  * else. Every view that lists entries (the Dictionary table, its duplicate view, Rule Matches)
  * renders these inside its own layout; which kind of dictionary a row comes from decides
- * column classes there, never a capability. See CONTEXT.md "Entry capabilities".
+ * column classes there, never a capability. See GLOSSARY.md "Entry capabilities".
  */
 
 type PatchEntry = DictionaryContextInterface['patchEntry'];

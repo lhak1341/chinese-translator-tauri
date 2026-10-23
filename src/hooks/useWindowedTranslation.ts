@@ -37,7 +37,7 @@ export interface UseWindowedTranslationOptions {
 
 export interface WindowedTranslation {
   /**
-   * Each panel's row for a raw file line — see `PanelRow` and CONTEXT.md's "Reader Panels".
+   * Each panel's row for a raw file line — see `PanelRow` and GLOSSARY.md's "Reader Panels".
    * Each getter is referentially stable for the component's life.
    */
   getRow: {
@@ -58,7 +58,7 @@ export interface WindowedTranslation {
 }
 
 /**
- * The Reader's Window Filler (`src/utils/reader/WindowFiller.ts`, CONTEXT.md "Window
+ * The Reader's Window Filler (`src/utils/reader/WindowFiller.ts`, GLOSSARY.md "Window
  * Filler"), adapted to React: one filler per book instance, re-planned from one effect
  * whenever an input changes, read through `useSyncExternalStore`, disposed on unmount. The
  * fill's rules — planning, the two staleness signals, the cache, when `isTranslating`

@@ -10,7 +10,7 @@ export interface MoveTargetDictionary {
 }
 
 /** The dictionaries an entry in `currentDictionaryId` can move to, from the Dictionary Store's
- * list (CONTEXT.md "Dictionary Store"). */
+ * list (GLOSSARY.md "Dictionary Store"). */
 export function useMoveTargetDictionaries(currentDictionaryId: string): {
   availableDictionaries: MoveTargetDictionary[];
   sourceLabel: string;

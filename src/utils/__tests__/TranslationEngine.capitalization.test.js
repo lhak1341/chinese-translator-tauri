@@ -214,7 +214,8 @@ describe('TranslationEngine calls the formatting passes in order', () => {
 
   test('onBatchComplete reports the text including the batch that just finished', async () => {
     const batches = [];
-    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+    // Sixteen chunks: batches of 5, 5, 5 and 1.
+    await engine.translateWithSegments(Array(8).fill('说，别').join('，'), {
       onBatchComplete: (data) => batches.push(data),
     });
 
@@ -232,7 +233,8 @@ describe('TranslationEngine calls the formatting passes in order', () => {
 
   test('the batch event carries text and counts only, never semantic arrays (ADR-105)', async () => {
     const batches = [];
-    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+    // Sixteen chunks: batches of 5, 5, 5 and 1.
+    await engine.translateWithSegments(Array(8).fill('说，别').join('，'), {
       onBatchComplete: (data) => batches.push(data),
     });
 
@@ -253,7 +255,8 @@ describe('TranslationEngine calls the formatting passes in order', () => {
   test('onBatchComplete numbers batches 1..n', async () => {
     // currentBatchNumber was the 0-based index read with `||`, so batches 0 and 1 both said 1.
     const batches = [];
-    await engine.translateWithSegments('说，别，说，别，说，别，说，别，说，别', {
+    // Sixteen chunks: batches of 5, 5, 5 and 1.
+    await engine.translateWithSegments(Array(8).fill('说，别').join('，'), {
       onBatchComplete: (data) => batches.push(data),
     });
 

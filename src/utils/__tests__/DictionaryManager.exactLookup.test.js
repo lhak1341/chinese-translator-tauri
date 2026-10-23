@@ -21,7 +21,7 @@ describe('exact dictionary lookup', () => {
     const manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({ chars: ENTRIES });
 
-    const result = manager._findInDictionaries(word, ['chars']);
+    const result = manager.translate(word, ['chars']);
 
     expect(result?.translation ?? null).toBe(expected);
   });

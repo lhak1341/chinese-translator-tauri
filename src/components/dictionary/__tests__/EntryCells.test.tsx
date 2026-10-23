@@ -1,6 +1,6 @@
 /**
  * What each dictionary kind's entry row shows, decided by the entry capabilities alone
- * (CONTEXT.md "Entry capabilities"). One table, every kind, so a view that lists entries
+ * (GLOSSARY.md "Entry capabilities"). One table, every kind, so a view that lists entries
  * cannot answer differently from another.
  */
 import { describe, test, expect, vi } from 'vitest';

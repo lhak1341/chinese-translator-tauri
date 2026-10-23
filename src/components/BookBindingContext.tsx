@@ -68,7 +68,7 @@ export interface BookBindingContextValue {
   /** Called by the Reader whenever it stops showing a book (Back to the shelf, or a new
    * book waiting on an encoding choice). The book gives up authority over the fiction
    * slice: `isBookOpen` goes false and the Configuration tab unlocks. Writes no config and
-   * rebuilds nothing — the last book's dictionary stays active (CONTEXT.md "Dictionary
+   * rebuilds nothing — the last book's dictionary stays active (GLOSSARY.md "Dictionary
    * Binding"). Reopening a book announces it again. */
   announceClosedBook: () => void;
   /** Persist and apply an answer: a fiction dictionary id, or `null` for "none". */

@@ -170,6 +170,6 @@ verification or instance method validation. (It now calls `loadSharedWasmModule(
 - String processor: deleted 2026-10-05 (`WasmStringProcessor.js`, ADR-078)
 - Other lifecycle holder: none left (`WasmConflictResolution.js` was deleted 2026-10-07, ADR-083)
 - Number processor: deleted 2026-06-20 (`WasmNumberProcessor.js`)
-- CONTEXT.md: `WasmProcessorLifecycle` entry
+- GLOSSARY.md: `WasmProcessorLifecycle` entry
 - ADR-007: No JS fallback, no `WasmPatternBridge` (still applies to runtime call sites)
 - ADR-008: Dictionary cache invalidation stays in `handleForceReload` (unchanged)

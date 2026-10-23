@@ -44,7 +44,7 @@ const numberFormat = new Intl.NumberFormat();
  * Holds what survives a dictionary switch: the search term, the filters, and the scroll state
  * (which returns to the top on its own `resetKey`). One dictionary's rows, selection, edit/move
  * and context menu are `DictionaryTableView`, keyed by the dictionary, so a switch remounts
- * them fresh — see CONTEXT.md "Dictionary table view".
+ * them fresh — see GLOSSARY.md "Dictionary table view".
  *
  * @param props - Component props
  * @returns Enhanced virtualized dictionary table with inline editing

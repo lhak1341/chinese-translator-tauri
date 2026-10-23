@@ -41,7 +41,7 @@ A 5% win is 0.01 ms on a gloss window; the pre-set rule was to delete a tier tha
 
 ## Consequences
 
-Chunk boundaries now come from one implementation. Rust produced 0.0-0.2% more chunks than JS on 17M characters (`CONTEXT.md`, TextChunker), nearly all `——` before closing punctuation, so production chunking changes slightly on real text. The suite already pinned the JS behaviour.
+Chunk boundaries now come from one implementation. Rust produced 0.0-0.2% more chunks than JS on 17M characters (`GLOSSARY.md`, TextChunker), nearly all `——` before closing punctuation, so production chunking changes slightly on real text. The suite already pinned the JS behaviour.
 
 ADR-009 loses two wrappers: three hold a `WasmProcessorLifecycle` (`WasmPatternProcessor`, `WasmTextTokenizer`, `WasmConflictResolution`). ADR-070's note that `WasmTextAssembler` keeps `jsAssembleWithSpacing` beside it no longer applies. `unicode_properties` stays: the pattern matcher uses it.
 

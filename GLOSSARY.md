@@ -293,12 +293,6 @@ Confirmed dead by `ADR-034`: `repair()`/`getHealthScore()` had zero callers anyw
 
 Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary, built by `DictionaryTrieBuilder`).
 
-## TranslationCache
-
-The lookup memo for `DictionaryManager.translate`. Entry point: `src/utils/dictionary/TranslationCache.js`. Interface: `getLookup(word, searchOrder)`, `setLookup(word, searchOrder, result)`, `clear()`, `setEnabled(bool)`, `dispose()`. A key is the word plus the dictionary search order (order matters), and a negative result (`null`) is memoized too. Nothing invalidates an entry: the tries behind the memo never change after load, and a dictionary edit reaches lookups only through a new engine, which brings a new memo (ADR-106).
-
-Only the lookup memo was ever read; the rest, the pre-warm (`preWarmCaches`, `VocabularyWarmup`) and the `cachePrewarm` knob were deleted — see `docs/guides/deleted-symbols.md`. If first-translation latency ever hurts, measure it before designing a pre-warm for this memo.
-
 ## ScrollPositionRecovery
 
 The retry algorithm for restoring scroll positions after a dictionary reload, translation update, or virtualized-list remount. Generic over the positions shape (`ScrollPositionRecovery<T>`) — the class never reads into `positions` itself, it's passed through opaquely to `attemptFn` on every call. Owns: RAF-first attempt, then exponential-backoff `setTimeout` retries (up to `maxRetryAttempts`, delay doubles each miss, capped at `maxRetryDelay`), plus timer handle lifecycle (`cancel()`). A frame-cadence `scheduler: 'raf'` mode existed for the dictionary table's restore and was deleted with it (2026-10-07).
@@ -608,39 +602,19 @@ Interface: `buildSegmentsFromPositions(text, semanticArrays) → Segment[]`. Tak
 
 Entry point: `src/utils/highlighting/PositionBasedSegmentBuilder.ts`, barrel-exported from `src/utils/highlighting/index.ts`. Sole caller: `precomputeOriginalSegments` in `SegmentPrecomputer.ts`, gated by the `allHavePositions` check.
 
-## _clampInitialBatchSize
-
-`TranslationEngine.js`'s seam-contract fix for the batch-size floor (a real bug, not just shallowness). `AdaptiveBatchSizer.calculateNextBatchSize`'s severe-degradation shrink guard (`currentBatchSize > MIN_BATCH_SIZE`) silently never fires below `MIN_BATCH_SIZE` (3) — reachable whenever `chunkConfig.enabled === false` (short texts, <~400 chars), which previously pinned the initial `currentBatchSize` to a hardcoded `2`, one below the floor. `_clampInitialBatchSize(chunkConfig, currentBatchSize)` now floors the disabled-chunking case at `MIN_BATCH_SIZE` instead — self-sufficient fix, since the shrink branch's own floor (`max(MIN_BATCH_SIZE, size-1)`) keeps `currentBatchSize` in range for the rest of the loop once entry respects it. `MIN_BATCH_SIZE`/`MAX_BATCH_SIZE` now exported from `AdaptiveBatchSizer.ts`.
-
-Entry point: `src/utils/TranslationEngine.js`, private method of `TranslationEngine`. Tests: `AdaptiveBatchSizer.test.ts` (pure-function boundary behavior), `TranslationEngine.regression.test.js`'s `_clampInitialBatchSize wiring` block (real call-site invariant).
-
 ## emptySemanticArrays
 
 A small dedup extraction from `TranslationEngine.js`, scoped file-wide rather than to a single method — no call site is on the DO-NOT-EXTRACT list (`translateSinglePass`/`findAllMatchesWithSemanticCache`/`postProcess`).
 
 `emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
 
-## _findInDictionaries
-
-`DictionaryManager`'s pure search-order trie walk — no cache reads or writes. `translate()` calls it for its JS path and layers its own caching (character/phrase split, multi-dict lookup cache, negative-cache-on-miss) on top of the result. It is also the cache-free oracle for `DictionaryManager.exactLookup.test.js`: calling `translate()` there would return a stale cached value, which hides a divergence. That independence is asserted in `DictionaryManager.apiContract.test.js` (all 4 `TranslationCache` methods spied, zero calls).
-
-Entry point: `src/utils/dictionary/DictionaryManager.js`, private method — `translate()` is the only production caller.
-
 ## Memory signals on macOS
 
 **The app targets macOS only, where the web view is WKWebView, and WebKit has no `performance.memory`** (checked in the deployed app: `typeof performance.memory === "undefined"`). Everything that reads it is inert there: `SmartMemoryPressureDetector` reported level `unknown`, ratio 0, and never emitted a cleanup event (deleted with `WasmMemoryPoolManager`, whose buffers nothing borrowed); the dev-console memory readers (`SystemPerformanceMonitor`, `window.checkRealMemory`) were deleted with the regression detector (ADR-069). The input limit is a fixed `MAX_INPUT_TOKENS` (15,000) held in `engine.maxInputTokens`; the memory-scaled `calculateMaxTokensForDevice` was deleted 2026-10-09 (`AdaptiveVirtualScrolling`, the other fallback, went earlier).
 
-What bounds memory is deterministic: `batchPerformanceHistory` reset per translation, the Lookup memo's LRU size, and the Reader's single decoded book. **The pressure-reactive batch stack was deleted:** `SmartMemoryCoordinator`, `BackgroundCleanupManager`, `ComponentMemoryProfiler`, `BatchMemoryCleanup`, `MemoryLeakDetector` (the engine's `memoryTracker`), the every-5th-batch growth check and `getEngineStats().smartMemoryStats`. They were inert on macOS, and `BatchMemoryCleanup` was reachable only from those inert triggers, so it never ran (this section used to list its keep-counts as a bound, wrongly). Git history is the way back if a Windows target ever exists; that port would choose its own memory signal after measuring. `SmartMemoryPressureDetector` and `WasmMemoryPoolManager` were deleted: no production code called `getBuffer`/`returnBuffer`, and the detector was inert. **Open, not built:** a real memory signal for the reloads below. App-process RSS would not do, since WebKit's content runs in a separate process; two data points in the termination log are too few to design from.
+What bounds memory is deterministic: the Reader's single decoded book. **The pressure-reactive batch stack was deleted:** `SmartMemoryCoordinator`, `BackgroundCleanupManager`, `ComponentMemoryProfiler`, `BatchMemoryCleanup`, `MemoryLeakDetector` (the engine's `memoryTracker`), the every-5th-batch growth check and `getEngineStats().smartMemoryStats`. They were inert on macOS, and `BatchMemoryCleanup` was reachable only from those inert triggers, so it never ran (this section used to list its keep-counts as a bound, wrongly). Git history is the way back if a Windows target ever exists; that port would choose its own memory signal after measuring. `SmartMemoryPressureDetector` and `WasmMemoryPoolManager` were deleted: no production code called `getBuffer`/`returnBuffer`, and the detector was inert. **Open, not built:** a real memory signal for the reloads below. App-process RSS would not do, since WebKit's content runs in a separate process; two data points in the termination log are too few to design from.
 
 **The app sometimes reloads by itself mid-reading (reported 2026-10-03, built app, unpredictable).** No app code does it: the only `window.location.reload()` calls are buttons on error screens. Tauri's macOS runtime reloads the page when WebKit terminates the web-content process (memory pressure, a crash or a watchdog). Cause unconfirmed; memory is the leading guess. `src-tauri/src/webview_diagnostics.rs` now records each termination: it sets Tauri's `on_web_content_process_terminate` handler, which replaces the default, so it appends a line to `webview-terminations.log` in the app data folder (a `launch` line at startup, then `web-content-terminated` with the uptime and the count this run) and reloads exactly as the default did. Read that log after a reload to see when it happens and how long the session had run.
-
-## AdaptiveBatchSizer
-
-The adaptive batch-size heuristic for `translateWithProgressiveBatches`: looks at the last 2 batches' `avgTimePerChunk` against the first batch's baseline, shrinks toward a floor of 3 on severe sustained degradation (>3x baseline), grows toward a ceiling of 5 when comfortably better than baseline (<0.8x) and past batch 1, logs-but-doesn't-resize on moderate degradation (2x-3x — this codebase's own history treats that range as memory-related overhead, not something batch size fixes). Pure function, no engine state.
-
-Interface: `calculateNextBatchSize({ batchPerformanceHistory, currentBatchSize, performanceBaseline, batchIndex }) → { batchSize, performanceBaseline, log }`, where `log` is `{ level, message } | null` for the caller to route through `this.log`.
-
-Entry point: `src/utils/text/AdaptiveBatchSizer.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
 
 ## ProgressiveBatchText
 
@@ -648,15 +622,15 @@ The running translated text of `translateWithProgressiveBatches`. Owns one step 
 
 Interface: `createProgressiveBatchText({ punctuationDict, chunkPostProcessor }) → { addBatch(batch, allChunks) → { batchText, cumulativeText } }`. Plain module, no engine state, so tests feed it chunks.
 
-The engine's per-batch order is: `addBatch`, `semanticArrayBuilder.updateWithCapitalizedText(batchText)`, then `onBatchComplete`. It fires from the progressive loop, after the add, so `partialText` includes the batch that just finished. The event carries text and counts only, never semantic arrays (ADR-105); the caller throttles. This text is not the final text: batches are cleaned with `cleanFullText`, and the whole text is finished once, afterwards, by FullTextAssembly.
+The engine's per-batch order is: `addBatch`, then `onBatchComplete`. The builder is not touched per batch: casing is set once, by FullTextAssembly. It fires from the progressive loop, after the add, so `partialText` includes the batch that just finished. The event carries text and counts only, never semantic arrays (ADR-105); the caller throttles. This text is not the final text: batches are cleaned with `cleanFullText`, and the whole text is finished once, afterwards, by FullTextAssembly.
 
 Entry point: `src/utils/text/ProgressiveBatchText.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
 
 ## FullTextAssembly
 
-The Full Translation result, built from every chunk once the batches are done. Owns, in this order: punctuation translation over _all_ chunks (comma-quote spacing reads a chunk's neighbours), `applySmartCapitalization` over all chunks, `reconstructText` then `finishFullText` once (the only NFC step), `matchWordSegments` against the finished text, then `updateWithCapitalizedText` on the builder followed by `setTranslatedCasing` for every unit the segment match placed (units after the first chunk have no recorded position, and `updateWithCapitalizedText` places those by their text's first occurrence, which stamped a later lowercase repeat with an earlier capital until 2026-10-10), and the result arrays copied by `snapshotSemanticArrays`. Segment matching reads the arrays as the batches left them and is case-insensitive, so it precedes the capitalization update without depending on it.
+The Full Translation result, built from every chunk once the batches are done. Owns, in this order: punctuation translation over _all_ chunks (comma-quote spacing reads a chunk's neighbours), `applySmartCapitalization` over all chunks, `reconstructText` then `finishFullText` once (the only NFC step), `matchWordSegments` against the finished text, then `setTranslatedCasing` on the builder for every unit the segment match placed (a unit it did not place keeps the form the phases gave it; the first-occurrence guess `updateWithCapitalizedText` made for those, which stamped a later lowercase repeat with an earlier capital, was deleted 2026-10-24), and the result arrays copied by `snapshotSemanticArrays`. Segment matching reads the arrays as the batches left them and is case-insensitive, so the casing step comes after it.
 
-Interface: `assembleFullText(chunks, { chunkPostProcessor, punctuationDict, properNounTranslations, builder }) → { translatedText, semanticArrays, prebuiltSegments }`. Unlike CharOnlyAssembly it works on the engine's shared `SemanticArrayBuilder`, which the batch phase filled, and mutates it once at the end (`updateWithCapitalizedText`). Everything else is injected, so tests need no engine.
+Interface: `assembleFullText(chunks, { chunkPostProcessor, punctuationDict, properNounTranslations, builder }) → { translatedText, semanticArrays, prebuiltSegments }`. Unlike CharOnlyAssembly it works on the engine's shared `SemanticArrayBuilder`, which the batch phase filled, and mutates it once at the end (`setTranslatedCasing`). Everything else is injected, so tests need no engine.
 
 Not owned: the batch loop and its preview text (ProgressiveBatchText), the builder's contents (the phases fill it), and the precondition guard it keeps verbatim: no translated chunk, or no semantic units, gives `prebuiltSegments: []` and a log line.
 
@@ -664,7 +638,7 @@ Entry point: `src/utils/text/FullTextAssembly.ts`. Not barrel-exported. Sole cal
 
 ## CharOnlyAssembly
 
-The Character-only result, built from tokens the engine has already stamped. Owns, in this order: the output text (`translated ?? value` per token, with `needsSpaceCharOnly` deciding the space after each), one semantic unit per `chinese_char` whose `translated` differs from its `value`, `finishCharOnlyText` over the whole text, the position back-fill, then `updateWithCapitalizedText`. The back-fill searches each unit's text, case-insensitively, in the _finished_ text, moving a cursor forward so repeated words get distinct, increasing positions; it must run after finishing (finishing rewrites the text) and before `updateWithCapitalizedText` (whose fallback takes the first occurrence and would stamp every repeat with the same position). A unit the search cannot find stays unmapped (`translatedStart = -1`) and does not move the cursor.
+The Character-only result, built from tokens the engine has already stamped. Owns, in this order: the output text (`translated ?? value` per token, with `needsSpaceCharOnly` deciding the space after each), one semantic unit per `chinese_char` whose `translated` differs from its `value`, `finishCharOnlyText` over the whole text, the position back-fill, which also takes each unit's casing from the range it placed. The back-fill searches each unit's text, case-insensitively, in the _finished_ text, moving a cursor forward so repeated words get distinct, increasing positions; it must run after finishing (finishing rewrites the text). A unit the search cannot find stays unmapped (`translatedStart = -1`) and does not move the cursor.
 
 Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state.
 

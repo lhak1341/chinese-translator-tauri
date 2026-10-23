@@ -15,7 +15,7 @@ Keep the registry and both mappers as they are.
 
 **At most one mapper can answer, by construction.** Each mapper passes its own panel as the container: the Translator its Full Translation panel (`translationTextRef`), the Reader its Translation panel (`panels.translation.scrollRef`). Both go through `touchedUnits`, which returns `null` (so `unmapped`) unless `container.contains(range.commonAncestorContainer)`. The two panels are disjoint DOM subtrees in different tab panels, and one range lies inside at most one of them, so registration order never matters. The guard is tested directly: `SelectionMapping.test.ts`, "is null when the selection is not inside the container".
 
-**The registry is a real seam.** Cmd-1..6 belong to the Translator and Reader hotkey registrations, but Cmd-7 belongs to the tab container's `'app'` registration, which knows no panel (CONTEXT.md, "Selection mapping"). Without the registry, every hotkey registration would need every surface's mapper handed to it. The deletion test concentrates nothing; it spreads the mappers into the hotkey layer.
+**The registry is a real seam.** Cmd-1..6 belong to the Translator and Reader hotkey registrations, but Cmd-7 belongs to the tab container's `'app'` registration, which knows no panel (GLOSSARY.md, "Selection mapping"). Without the registry, every hotkey registration would need every surface's mapper handed to it. The deletion test concentrates nothing; it spreads the mappers into the hotkey layer.
 
 Tab gating is unnecessary for the same reason, and `src/components/CLAUDE.md` already says not to add it.
 

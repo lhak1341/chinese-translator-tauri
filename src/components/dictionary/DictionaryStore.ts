@@ -1,5 +1,5 @@
 /**
- * The Dictionary Store (CONTEXT.md "Dictionary Store", ADR-055): the user dictionaries in
+ * The Dictionary Store (GLOSSARY.md "Dictionary Store", ADR-055): the user dictionaries in
  * memory, the ones whose file failed to load, and the list of dictionaries that exist — with
  * one queue for every write to them.
  *
@@ -37,7 +37,7 @@ import type { CommitResult, EditCommitter } from './EditCommitter';
 export interface DictionarySnapshot {
   /** Every dictionary that loaded, sorted. An unread one is absent, never `{}` (ADR-053). */
   dictionaries: Dictionaries;
-  /** Dictionaries whose file failed to load (CONTEXT.md "Unread dictionary"). */
+  /** Dictionaries whose file failed to load (GLOSSARY.md "Unread dictionary"). */
   unreadDictionaryIds: string[];
   /** Every dictionary that exists, with its label — what the dropdowns list. */
   dictionaryTypes: DictionaryTypesCollection;

@@ -129,7 +129,7 @@ describe('RuleRow / NewRuleModal field parity', () => {
   });
 });
 
-// The same meaning of "empty" on both surfaces (CONTEXT.md "Rule field commit"): each optional
+// The same meaning of "empty" on both surfaces (GLOSSARY.md "Rule field commit"): each optional
 // text field, emptied, saves as absent — through RuleRow's per-field commit, and through the
 // modal's draft as RulesManager saves it (`commitRuleDraft`).
 describe('RuleRow / NewRuleModal: an emptied optional field saves as absent', () => {

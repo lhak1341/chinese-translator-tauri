@@ -5,7 +5,6 @@
  * - CRITICAL-1: dispose() called before dictionary reload
  * - HIGH-2: WASM cleanup clears dictionaries
  * - HIGH-1: EnhancedDictionaryManager cleanup chain
- * - MEDIUM-1: TranslationCache disposal
  *
  * See: docs/code-review/DICTIONARY_MEMORY_FIXES_2026-02-03.md
  */
@@ -13,7 +12,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 import { DictionaryTrie } from '../dictionary/DictionaryTrie.js';
-import { TranslationCache } from '../dictionary/TranslationCache.js';
 
 describe('Dictionary Memory Cleanup Regression Tests', () => {
   describe('CRITICAL-1: Dictionary dispose() on reload', () => {
@@ -155,59 +153,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     });
   });
 
-  describe('MEDIUM-1: TranslationCache disposal', () => {
-    it('should have dispose() method', () => {
-      const cache = new TranslationCache();
-      expect(typeof cache.dispose).toBe('function');
-    });
-
-    it('should clear all caches on dispose', () => {
-      const cache = new TranslationCache();
-
-      // Add entries to all caches
-      cache.setLookup('测试', ['characters'], { translation: 'test' });
-
-      // Verify caches have data
-      expect(cache.getLookup('测试', ['characters'])).toBeDefined();
-
-      // Dispose
-      cache.dispose();
-
-      // Verify caches are cleared
-      expect(cache.lookupCache).toBeNull();
-    });
-
-    it('should disable caching on dispose', () => {
-      const cache = new TranslationCache();
-      expect(cache.isEnabled).toBe(true);
-
-      cache.dispose();
-
-      expect(cache.isEnabled).toBe(false);
-    });
-
-    it('should be safe to call dispose() multiple times', () => {
-      const cache = new TranslationCache();
-
-      expect(() => {
-        cache.dispose();
-        cache.dispose();
-        cache.dispose();
-      }).not.toThrow();
-    });
-  });
-
-  describe('DictionaryManager cache disposal integration', () => {
-    it('should call cache.dispose() when manager is disposed', () => {
-      const manager = new DictionaryManager();
-      const disposeSpy = vi.spyOn(manager.cache, 'dispose');
-
-      manager.dispose();
-
-      expect(disposeSpy).toHaveBeenCalled();
-    });
-  });
-
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {
     it('a second loadDictionaries disposes the tries it replaces', async () => {
       const manager = new DictionaryManager();
@@ -294,12 +239,8 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
         phrases: { 你好: 'xin chào' },
       });
 
-      // Add cache entries
-      manager.cache.setLookup('的', ['characters'], { translation: 'của' });
-
       // Verify resources exist
       expect(manager.dictionaries.size).toBe(2);
-      expect(manager.cache.lookupCache).toBeDefined();
       expect(manager.ready).toBe(true);
 
       // Dispose everything
@@ -308,7 +249,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       // Verify complete cleanup
       expect(manager.dictionaries).toBeNull();
       expect(manager.metadata).toBeNull();
-      expect(manager.cache).toBeNull();
       expect(manager.ready).toBe(false);
     });
 
@@ -336,7 +276,6 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       // All major data structures should be null
       expect(manager.dictionaries).toBeNull();
       expect(manager.metadata).toBeNull();
-      expect(manager.cache).toBeNull();
     });
   });
 });

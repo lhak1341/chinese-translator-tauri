@@ -1,5 +1,5 @@
 /**
- * A Dictionary Edit: one change to user dictionaries, described as data (CONTEXT.md
+ * A Dictionary Edit: one change to user dictionaries, described as data (GLOSSARY.md
  * "Dictionary Edit", ADR-052).
  *
  * Every change records the value it replaced (`before`) as well as the value it writes

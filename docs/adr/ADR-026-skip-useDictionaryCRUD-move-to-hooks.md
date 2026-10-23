@@ -27,7 +27,7 @@ If `DictionaryTypes.ts` is refactored to extract the validation registry out of 
 
 ## Supersession Note (2026-06-27)
 
-The blocker was resolved. `validateDictionaryEntry` (persist-time) was extracted from `DictionaryTypes.ts` into `src/utils/dictionary/PersistTimeValidator.ts` as `validatePersistEntry`. With no component-layer imports remaining, `useDictionaryCRUD.ts` was moved to `src/hooks/useDictionaryCRUD.ts`. Callers updated: `DictionaryContext.tsx` and `useDictionaryPersistence.ts`. See `PersistTimeValidator` entry in `CONTEXT.md`.
+The blocker was resolved. `validateDictionaryEntry` (persist-time) was extracted from `DictionaryTypes.ts` into `src/utils/dictionary/PersistTimeValidator.ts` as `validatePersistEntry`. With no component-layer imports remaining, `useDictionaryCRUD.ts` was moved to `src/hooks/useDictionaryCRUD.ts`. Callers updated: `DictionaryContext.tsx` and `useDictionaryPersistence.ts`. See `PersistTimeValidator` entry in `GLOSSARY.md`.
 
 ## Addendum (2026-10-03)
 

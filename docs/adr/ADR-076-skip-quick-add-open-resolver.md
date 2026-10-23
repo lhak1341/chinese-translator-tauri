@@ -13,7 +13,7 @@ Do not extract it. The remembered-pick read (`useDictionaryModals.tsx`, `openQui
 
 ## Reasoning
 
-**The three places do not decide the same thing.** Cmd-5 and Cmd-6 already have one rule, `quickAddTarget`; its two consumers are the hook's Add opener and `dictionaryTabNavigation`, which `TabbedInterface` calls. Cmd-3 and Cmd-4 on the Dictionary tab select the `properNouns` or `patterns` table outright, which is a different question from which dictionary an Add opens on (CONTEXT.md, "Quick-add target"). `DictionaryManager.tsx` only filters its dropdown through `quickAddChoices`; it never picks an Add's dictionary.
+**The three places do not decide the same thing.** Cmd-5 and Cmd-6 already have one rule, `quickAddTarget`; its two consumers are the hook's Add opener and `dictionaryTabNavigation`, which `TabbedInterface` calls. Cmd-3 and Cmd-4 on the Dictionary tab select the `properNouns` or `patterns` table outright, which is a different question from which dictionary an Add opens on (GLOSSARY.md, "Quick-add target"). `DictionaryManager.tsx` only filters its dropdown through `quickAddChoices`; it never picks an Add's dictionary.
 
 **The rule is about six lines.** The read is "use the remembered id if it is on the shortlist, else the first id"; the write is "remember a pick only when it is on the shortlist". Moving them relocates the lines; no caller gets simpler.
 

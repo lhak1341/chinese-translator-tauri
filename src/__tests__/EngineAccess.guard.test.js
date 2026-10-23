@@ -3,7 +3,7 @@
  * `engineRef`.
  *
  * `translateWithSegments` resets engine-wide segment state on entry, so two callers at once
- * corrupt each other (CONTEXT.md "EngineAccess"). `Translator.jsx` is JavaScript, so a type
+ * corrupt each other (GLOSSARY.md "EngineAccess"). `Translator.jsx` is JavaScript, so a type
  * brand cannot police it the way `EngineCall` polices the Reader's hooks; a scan can. The
  * callers below are the whole list: the Reader's three mappers and the Translator's two sites,
  * each inside an `engineAccess.run(...)` callback that receives the engine as a parameter.

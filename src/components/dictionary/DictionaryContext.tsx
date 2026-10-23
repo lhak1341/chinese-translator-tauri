@@ -47,7 +47,7 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
 /**
  * DictionaryProvider Component
  *
- * Exposes the Dictionary Store (CONTEXT.md "Dictionary Store", ADR-055) to React: every
+ * Exposes the Dictionary Store (GLOSSARY.md "Dictionary Store", ADR-055) to React: every
  * dictionary is loaded at startup (ADR-005), and every write to them — edits, undo/redo,
  * reloads, renames, import — is an operation on the store's one queue. This provider owns
  * only what is React's: the loading flag, the load-failure toast and banner (rendered from the

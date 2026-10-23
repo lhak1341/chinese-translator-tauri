@@ -56,7 +56,7 @@ const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
 };
 
 // Function to generate dictionary types including all proper nouns dictionaries
-/** A dropdown label that says when the dictionary's file failed to load (CONTEXT.md "Unread
+/** A dropdown label that says when the dictionary's file failed to load (GLOSSARY.md "Unread
  * dictionary") — its table is empty and its edits are refused, which would otherwise read as
  * a wiped dictionary. */
 export function dictionaryOptionLabel(
