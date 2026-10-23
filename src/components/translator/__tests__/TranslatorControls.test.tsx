@@ -12,7 +12,6 @@ function baseProps() {
     isReloading: false,
     isTranslating: false,
     throttledStreamingState: { isStreaming: false, completedChunks: 0, totalChunks: 0 },
-    activeTranslations: 0,
     avgTime: 0,
   };
 }

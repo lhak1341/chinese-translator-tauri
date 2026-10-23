@@ -10,8 +10,9 @@
  *
  * It also owns the skip decision (ADR-101): Phase 1 is off when WASM did not initialize, and is
  * switched off after `PATTERN_FAILURE_DETECTION.MAX_FAILURES` matcher failures within the window
- * (counted by `PatternFailureTracker`). Each way of being off tells the user once, by toast. The
- * engine asks `matchTokens` and applies what comes back.
+ * (counted by `PatternFailureTracker`), or at once when a failure left the WASM processor retired.
+ * Each way of being off tells the user once, by toast, and this module owns every Phase 1 toast.
+ * The engine asks `matchTokens` and applies what comes back.
  */
 
 import { logger } from '../logger.js';
@@ -20,7 +21,10 @@ import { PATTERN_FAILURE_DETECTION } from '../../constants/TranslationConstants.
 import { PatternTemplateEngine } from './PatternTemplateEngine.js';
 import { PatternFailureTracker } from './PatternFailureTracker.js';
 import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
-import { reinitializeWasmPatternProcessor } from '../wasm/WasmPatternProcessor.js';
+import {
+  reinitializeWasmPatternProcessor,
+  isWasmPatternProcessorReady,
+} from '../wasm/WasmPatternProcessor.js';
 
 const RETRY_TOAST = (count) =>
   `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`;
@@ -113,7 +117,11 @@ export class PatternStore {
       // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
-      this.reportFailure();
+      if (isWasmPatternProcessorReady()) {
+        this.reportFailure();
+      } else {
+        this.disableAfterCrash();
+      }
       return null;
     }
 
@@ -122,6 +130,21 @@ export class PatternStore {
       logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
     }
     return results;
+  }
+
+  /**
+   * A WASM panic retires the processor for good, so retrying cannot succeed: switch Phase 1 off now
+   * instead of counting two more guaranteed failures.
+   */
+  disableAfterCrash() {
+    this.enabled = false;
+    toast.error(
+      'WASM pattern matching crashed and was turned off, so patterns are skipped. Reload dictionaries (Cmd+R) to turn it back on.',
+      { duration: 10000 }
+    );
+    logger.error(
+      '🚨 WASM pattern processor retired after a failure — Phase 1 is skipped until the engine is rebuilt'
+    );
   }
 
   /** Count one matcher failure and tell the user what the tracker decided. */

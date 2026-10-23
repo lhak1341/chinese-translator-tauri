@@ -11,6 +11,7 @@ const { processTokens, constructed } = vi.hoisted(() => ({
 
 vi.mock('../wasm/WasmPatternProcessor.js', () => ({
   reinitializeWasmPatternProcessor: vi.fn().mockResolvedValue(false),
+  isWasmPatternProcessorReady: vi.fn().mockReturnValue(true),
 }));
 vi.mock('../pattern/TwoPhasePatternProcessor.js', () => ({
   default: class {
@@ -28,7 +29,10 @@ vi.mock('../toast', () => ({
 }));
 
 import { PatternStore } from '../pattern/PatternStore.js';
-import { reinitializeWasmPatternProcessor } from '../wasm/WasmPatternProcessor.js';
+import {
+  reinitializeWasmPatternProcessor,
+  isWasmPatternProcessorReady,
+} from '../wasm/WasmPatternProcessor.js';
 import { logger } from '../logger.js';
 import toast from '../toast';
 
@@ -40,6 +44,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   constructed.length = 0;
   reinitializeWasmPatternProcessor.mockResolvedValue(false);
+  isWasmPatternProcessorReady.mockReturnValue(true);
   processTokens.mockResolvedValue([]);
 });
 
@@ -222,6 +227,24 @@ describe('matchTokens and WASM matcher failures', () => {
     for (let i = 0; i < 3; i++) await store.matchTokens(tokens(), context);
 
     expect(store.enabled).toBe(false);
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  test('a failure that left the WASM processor retired switches Phase 1 off at once, with one toast', async () => {
+    const store = await readyStore();
+    fail();
+    isWasmPatternProcessorReady.mockReturnValue(false);
+
+    expect(await store.matchTokens(tokens(), context)).toBeNull();
+
+    expect(store.enabled).toBe(false);
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0][0]).toMatch(/crashed/);
+
+    processTokens.mockClear();
+    expect(await store.matchTokens(tokens(), context)).toBeNull();
+    expect(processTokens).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 

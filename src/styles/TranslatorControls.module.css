@@ -144,31 +144,6 @@
   gap: 0.25rem;
 }
 
-/* Active Badge */
-.activeBadge {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  animation: fadeIn 0.2s ease;
-}
-
-.activeBadgeSingle {
-  background: var(--success-subtle);
-  color: var(--success-color);
-}
-
-.activeBadgeDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
 /* Fade-in for conditionally rendered pills/badges */
 @keyframes fadeIn {
   from {

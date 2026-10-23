@@ -37,7 +37,7 @@ A style the Reader toggles on a row (`.clickableSegmentHighlighted`) may change 
 
 CSS `transition` cannot fire on unmount — exit is always a hard cut with conditional rendering. Do NOT use `visibility: hidden` + `opacity: 0` to "hide" flex items.
 
-Affected: `TranslatorControls.module.css` `.progressIndicator` / `.activeBadge` use `@keyframes fadeIn`.
+Affected: `TranslatorControls.module.css` `.progressIndicator` uses `@keyframes fadeIn`.
 
 ## Grid Rows Aren't Shared Across Sibling Grid Containers
 

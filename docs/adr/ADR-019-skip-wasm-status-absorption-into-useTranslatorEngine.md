@@ -46,3 +46,7 @@ A 2026-06-20 architecture review proposed extracting the cluster into a standalo
 Given this ADR's own finding that the cluster was dev-only display with zero production impact, repairing it wasn't worth it — doing so would mean widening `WasmDictionaryAdapter`, a seam its own doc comment describes as deliberately narrow ("exposes only the 5 operations `DictionaryManager` needs"). The cluster was deleted instead: the `wasmManager` getter, the polling effect, `wasmStatus`/`wasmStatusRef` state, the `TranslatorControls` prop and badge JSX, the `.wasmStatus` CSS class, three duplicate `WasmStatus` ambient type declarations (`ComponentTypes.d.ts`, `TranslationEngineTypes.d.ts` ×2), and the now-unused `WASM_STATUS_CHECK_INTERVAL` constant.
 
 Future architecture reviews: this cluster no longer exists. Do not recreate it without a concrete need — see `CLAUDE.md`'s deleted-symbols list.
+
+## Addendum — 2026-10-24: `isTranslatingRef` deleted too
+
+The ref this ADR named as the blocker had no reader once the polling effect went (2026-07-17d); only `.current =` writes remained, threaded through `useAutoTranslateTrigger` and `useForceReloadContext`. Round 36 deleted it, along with the `activeTranslations` counter and its "N active" badge. `isTranslating` state is the one in-flight flag.

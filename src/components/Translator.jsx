@@ -131,7 +131,6 @@ const Translator = ({ isActive }) => {
     characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
   } = highlighting;
   const [isTranslating, setIsTranslating] = useState(false);
-  const isTranslatingRef = useRef(false);
   const {
     enginePhase,
     engineRef,
@@ -140,7 +139,6 @@ const Translator = ({ isActive }) => {
     reinitializeEngine,
     destroyEngine,
   } = useEngine();
-  const [activeTranslations, setActiveTranslations] = useState(0);
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
 
   // Cmd-1..7 over a Full Translation selection add the Chinese it came from.
@@ -402,7 +400,6 @@ const Translator = ({ isActive }) => {
               batchNumber: 0,
               avgTimePerChunk: 0,
             });
-            setActiveTranslations(1);
 
             // A document run is long, so it is preemptible: when the Reader calls the engine,
             // `EngineAccess` cancels this run through the runner and starts the Reader's call
@@ -454,7 +451,6 @@ const Translator = ({ isActive }) => {
               // A newer run owns the streaming flags now
               if (!superseded) {
                 updateStreaming({ isStreaming: false });
-                setActiveTranslations(0);
                 logger.log('🏁 Translation finished');
               }
               // Small delay to ensure state updates are processed
@@ -518,7 +514,6 @@ const Translator = ({ isActive }) => {
     consumeReloadTransition,
     clearHighlighting,
     setIsTranslating,
-    isTranslatingRef,
     setResultArrays,
     setStreamingText,
     isClipboardTranslationRef,
@@ -545,7 +540,6 @@ const Translator = ({ isActive }) => {
   const forceReloadCtx = useForceReloadContext({
     destroyEngine,
     cancelAllTranslations,
-    isTranslatingRef,
     setIsTranslating,
     setStatusMessage,
     setTranslationError,
@@ -745,7 +739,6 @@ const Translator = ({ isActive }) => {
         isLoading={isLoading}
         isReloading={isDictionaryReloading}
         isTranslating={isTranslating}
-        activeTranslations={activeTranslations}
         avgTime={avgTime}
         throttledStreamingState={throttledStreamingState}
       />

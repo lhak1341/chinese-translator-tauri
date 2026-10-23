@@ -24,3 +24,7 @@ Do not merge. Leave `useForceReloadContext`, `ForceReloadContext` and `useForceR
 ## Consequence
 
 A review that sees the 13-in, 10-out hook and proposes folding it should find this ADR first. Reconsider if the reload protocol gains a second caller (then the assembler is shared and earns its keep), if `Translator.jsx` becomes TypeScript (then the typed contract and shape guard stop being needed and the assembler is a pure pass-through), or if the fan-in is reworked for another reason.
+
+## Addendum — 2026-10-24: `isTranslatingRef` param removed
+
+Round 36 deleted `isTranslatingRef` (no reader). `useForceReloadContext` now takes 12 params; `cancelTranslations` still cancels, waits for cleanup, then resets `isTranslating` and progress. The merge stays declined.

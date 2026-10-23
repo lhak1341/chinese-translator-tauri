@@ -35,7 +35,6 @@ interface TranslatorControlsProps {
   isReloading: boolean;
   isTranslating: boolean;
   throttledStreamingState: StreamingProgress;
-  activeTranslations: number;
   avgTime: number;
 }
 
@@ -52,7 +51,6 @@ export default function TranslatorControls({
   isReloading,
   isTranslating,
   throttledStreamingState,
-  activeTranslations,
   avgTime,
 }: TranslatorControlsProps): React.ReactElement {
   return (
@@ -139,14 +137,6 @@ export default function TranslatorControls({
         <div className={styles.progressIndicator} role="status" aria-live="polite">
           <div className={styles.pulseDot} />
           {throttledStreamingState.completedChunks}/{throttledStreamingState.totalChunks} chunks
-        </div>
-      )}
-
-      {/* Active badge — conditionally rendered, fades in on mount */}
-      {activeTranslations > 0 && (
-        <div className={`${styles.activeBadge} ${styles.activeBadgeSingle}`}>
-          <div className={styles.activeBadgeDot} />
-          {activeTranslations} active
         </div>
       )}
     </div>

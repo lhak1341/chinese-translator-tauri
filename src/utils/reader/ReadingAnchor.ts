@@ -344,7 +344,9 @@ export class ReadingAnchor {
 
   /** The master scrolled: measure, publish, and queue the position for writing. */
   onScroll(): void {
-    const anchor = this.#measure();
+    // Until the restore on open has landed, the reader is wherever the first layout left them
+    // (the top), not where they were: measuring that would queue it over the saved position.
+    const anchor = this.#measure(this.#restoreFrame === null);
     if (anchor) this.#queueWrite(anchor);
   }
 
@@ -427,7 +429,7 @@ export class ReadingAnchor {
    * One geometry read of the master, two outputs: the viewport line count, and — unless a
    * jump just claimed this measurement — the anchor.
    */
-  #measure(): ReadingPosition | null {
+  #measure(trackAnchor = true): ReadingPosition | null {
     const scrollEl = this.#inputs.master.scrollRef.current;
     if (!scrollEl) return null;
     const rows = this.#inputs.master.virtualizer.getVirtualItems();
@@ -436,7 +438,7 @@ export class ReadingAnchor {
 
     const skip = this.#skipNextMeasure;
     this.#skipNextMeasure = false;
-    const anchor = skip ? null : computeAnchor(scrollEl.scrollTop, rows);
+    const anchor = skip || !trackAnchor ? null : computeAnchor(scrollEl.scrollTop, rows);
     if (anchor) this.#anchor = anchor;
     this.#publish(anchor ? { viewportLines, anchorLine: anchor.line } : { viewportLines });
     return anchor;
@@ -476,9 +478,23 @@ export class ReadingAnchor {
           position
         );
         if (!done && attemptsLeft > 0) attempt(attemptsLeft - 1);
+        if (done && lineCount > 0) this.#adoptRestored(position, lineCount);
       });
     };
     attempt(RESTORE_RETRY_FRAMES);
+  }
+
+  /**
+   * The restore is a programmatic jump like `scrollToLine`, and its own scroll event has the
+   * same flaw: the line it lands on is only estimated, so measuring it reads some other line and
+   * would queue that over the saved position. The saved position is already on disk, so adopt it
+   * as the anchor without queueing a write, and discard the next measurement.
+   */
+  #adoptRestored(position: ReadingPosition, lineCount: number): void {
+    const line = Math.max(0, Math.min(position.line, lineCount - 1));
+    this.#anchor = { line, fraction: position.fraction };
+    this.#publish({ anchorLine: line });
+    this.#skipNextMeasure = true;
   }
 
   #measureAllPanels(): void {

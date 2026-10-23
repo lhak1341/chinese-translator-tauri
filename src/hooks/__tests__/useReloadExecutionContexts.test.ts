@@ -22,7 +22,6 @@ function baseForceReloadParams(overrides = {}) {
   return {
     destroyEngine: vi.fn(),
     cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete: Promise.resolve() })),
-    isTranslatingRef: { current: false },
     setIsTranslating: vi.fn(),
     setStatusMessage: vi.fn(),
     setTranslationError: vi.fn(),
@@ -78,7 +77,6 @@ describe('useForceReloadContext', () => {
       const cleanupComplete = vi.fn();
       const params = baseForceReloadParams({
         cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete })),
-        isTranslatingRef: { current: true },
       });
       const { result } = renderHook(() => useForceReloadContext(params));
 
@@ -86,7 +84,6 @@ describe('useForceReloadContext', () => {
         await result.current.cancelTranslations();
       });
 
-      expect(params.isTranslatingRef.current).toBe(false);
       expect(params.setIsTranslating).toHaveBeenCalledWith(false);
     });
 
@@ -123,9 +120,9 @@ describe('useForceReloadContext', () => {
       process.env.NODE_ENV = originalEnv;
     });
 
-    test('throws when isTranslatingRef is not ref-shaped', () => {
-      const params = baseForceReloadParams({ isTranslatingRef: null });
-      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/isTranslatingRef/);
+    test('throws when a required setter is missing', () => {
+      const params = baseForceReloadParams({ setIsTranslating: null });
+      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/setIsTranslating/);
     });
 
     test('throws when a required function param is missing', () => {
@@ -135,7 +132,7 @@ describe('useForceReloadContext', () => {
 
     test('does not throw in production even with a wrong-shaped param', () => {
       process.env.NODE_ENV = 'production';
-      const params = baseForceReloadParams({ isTranslatingRef: null });
+      const params = baseForceReloadParams({ setIsTranslating: null });
       expect(() => renderHook(() => useForceReloadContext(params))).not.toThrow();
     });
   });

@@ -165,6 +165,8 @@ describe('WasmPatternProcessor Error Handling', () => {
       expect(result.error).toContain('WASM pattern processing error');
       // A throw may be a Rust panic, so the processor is retired for good
       expect(isWasmPatternProcessorReady()).toBe(false);
+      // What the user sees is PatternStore's call, not the wrapper's
+      expect(mockToast.warning).not.toHaveBeenCalled();
     });
 
     it('should handle null/undefined tokens gracefully', async () => {

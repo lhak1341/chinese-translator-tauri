@@ -39,7 +39,6 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
-import toast from '../toast';
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
@@ -51,8 +50,6 @@ const lifecycle = new WasmProcessorLifecycle({
 });
 
 let wasmPatternProcessor = null;
-let lastPatternWarningTime = 0;
-const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
 
 function retireWasmPatternProcessorOnSharedPanic() {
   // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
@@ -86,9 +83,7 @@ async function initializeWasmPatternProcessor(patternsDict) {
     return instance;
   });
 
-  if (success) {
-    lastPatternWarningTime = 0;
-  } else {
+  if (!success) {
     // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
     wasmPatternProcessor?.__destroy_into_raw();
     wasmPatternProcessor = null;
@@ -97,13 +92,6 @@ async function initializeWasmPatternProcessor(patternsDict) {
 
   return success;
 }
-
-// MEDIUM FIX: Toast duration constants
-const TOAST_DURATION = {
-  ERROR: 10000,
-  WARNING: 5000,
-  INFO: 3000,
-};
 
 /**
  * Process semantic tokens with two-phase pattern matching
@@ -142,15 +130,7 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
     fireCascadeRetire();
 
-    // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
-    const now = Date.now();
-    if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
-      toast.warning('Pattern matching error. Translation quality may be reduced.', {
-        duration: TOAST_DURATION.WARNING,
-      });
-      lastPatternWarningTime = now;
-    }
-
+    // No toast here: PatternStore decides what the user sees (ADR-101).
     // MEDIUM FIX: Return structured error object
     // Log error but don't block translation - patterns are quality enhancement
     // Translation can continue without patterns (proper nouns + phrases + characters still work)
@@ -180,7 +160,6 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
   // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
   wasmPatternProcessor?.__destroy_into_raw();
   wasmPatternProcessor = null;
-  lastPatternWarningTime = 0;
   return initializeWasmPatternProcessor(patternsDict);
 }
 

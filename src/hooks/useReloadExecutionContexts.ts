@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import type { MutableRefObject } from 'react';
 import { logger } from '../utils/logger.js';
 import type { EngineInitOutcome } from '../components/EngineContext';
 
@@ -59,7 +58,6 @@ export interface ForceReloadContext {
 export interface UseForceReloadContextParams {
   destroyEngine: () => void;
   cancelAllTranslations: () => { count: number; cleanupComplete: Promise<void> };
-  isTranslatingRef: MutableRefObject<boolean>;
   setIsTranslating: (v: boolean) => void;
   setStatusMessage: (msg: string) => void;
   setTranslationError: (msg: string) => void;
@@ -74,7 +72,6 @@ export interface UseForceReloadContextParams {
 const FORCE_RELOAD_EXPECTED_KEYS = [
   'destroyEngine',
   'cancelAllTranslations',
-  'isTranslatingRef',
   'setIsTranslating',
   'setStatusMessage',
   'setTranslationError',
@@ -107,7 +104,6 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
   const {
     destroyEngine,
     cancelAllTranslations,
-    isTranslatingRef,
     setIsTranslating,
     setStatusMessage,
     setTranslationError,
@@ -126,9 +122,8 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
       await cleanupComplete;
       logger.log('✅ All translation cleanup(s) completed');
     }
-    isTranslatingRef.current = false;
     setIsTranslating(false);
-  }, [cancelAllTranslations, isTranslatingRef, setIsTranslating]);
+  }, [cancelAllTranslations, setIsTranslating]);
 
   return {
     cancelTranslations,

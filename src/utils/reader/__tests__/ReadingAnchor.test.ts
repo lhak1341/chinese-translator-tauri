@@ -398,6 +398,58 @@ describe('ReadingAnchor — restore on open', () => {
     expect(master.scrollToIndex).not.toHaveBeenCalled();
   });
 
+  it('does not save a scroll that lands before the restore has: the saved position survives', () => {
+    const { persist, scrollTo, advance, anchor } = setup({
+      initialPosition: { line: 42, fraction: 0.25 },
+    });
+
+    scrollTo(0); // a scroll event from the first layout, before the restore frame runs
+    advance(2000);
+    void anchor.flush();
+
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("does not save the restore's own scroll event, which reads the estimated rows", () => {
+    const { persist, scrollTo, advance, anchor, runFrame } = setup({
+      initialPosition: { line: 42, fraction: 0.25 },
+    });
+
+    runFrame(); // the restore lands
+    scrollTo(0); // its scroll event; the rows are still estimates, so this reads line 0
+    advance(2000);
+    void anchor.flush();
+
+    expect(persist).not.toHaveBeenCalled();
+    expect(anchor.readLine()).toBe(42);
+  });
+
+  it("saves the reader's own scrolling once the restore has settled", () => {
+    const { persist, scrollTo, advance, runFrame } = setup({
+      initialPosition: { line: 42, fraction: 0.25 },
+    });
+
+    runFrame();
+    scrollTo(0); // the restore's own event, skipped
+    scrollTo(400); // the reader
+    advance(2000);
+
+    expect(persist).toHaveBeenCalledWith('fp1', { line: 10, fraction: 0 });
+  });
+
+  it('saves again if the restore never lands, so an unrestorable book is not frozen', () => {
+    const { persist, scrollTo, advance, runFrame } = setup({
+      clientHeight: 0,
+      initialPosition: { line: 42, fraction: 0 },
+    });
+
+    for (let frame = 0; frame < 20; frame += 1) runFrame();
+    scrollTo(400);
+    advance(2000);
+
+    expect(persist).toHaveBeenCalledWith('fp1', { line: 10, fraction: 0 });
+  });
+
   it('cancels a pending restore on close', () => {
     const { anchor, master, runFrame } = setup({ initialPosition: { line: 42, fraction: 0 } });
     anchor.close();

@@ -33,7 +33,6 @@ function makeCtx(
     consumeReloadTransition: vi.fn().mockReturnValue(false),
     clearHighlighting: vi.fn(),
     setIsTranslating: vi.fn(),
-    isTranslatingRef: { current: false },
     setResultArrays: vi.fn(),
     setStreamingText: vi.fn(),
     isClipboardTranslationRef: { current: false },
@@ -174,18 +173,6 @@ describe('happy path', () => {
     expect(callOrder).toEqual(['translating:true', 'translate', 'translating:false']);
   });
 
-  it('isTranslatingRef.current mirrors setIsTranslating — true before, false after', async () => {
-    const snapshots: boolean[] = [];
-    const ctx = makeCtx();
-    const translateText = vi.fn().mockImplementation(() => {
-      snapshots.push(ctx.isTranslatingRef.current);
-      return Promise.resolve(done('done'));
-    });
-    await renderAndFlush(makeProps({ translateText, ctx }));
-    expect(snapshots[0]).toBe(true);
-    expect(ctx.isTranslatingRef.current).toBe(false);
-  });
-
   it('setStreamingText called with resolved translation value', async () => {
     const ctx = makeCtx();
     const translateText = vi.fn().mockResolvedValue(done('Thật tuyệt'));
@@ -229,7 +216,6 @@ describe('skipped translation', () => {
   it('still ends the isTranslating state', async () => {
     const { ctx } = await renderSkipped();
     expect(ctx.setIsTranslating).toHaveBeenLastCalledWith(false);
-    expect(ctx.isTranslatingRef.current).toBe(false);
   });
 
   it('resets the clipboard flag, since that attempt is over', async () => {
@@ -342,7 +328,6 @@ describe('error recovery', () => {
     const translateText = vi.fn().mockRejectedValue(new Error('network failure'));
     await renderAndFlush(makeProps({ translateText, ctx }));
     expect(ctx.setIsTranslating).toHaveBeenLastCalledWith(false);
-    expect(ctx.isTranslatingRef.current).toBe(false);
   });
 
   it('toast.error called with extracted message when translateText throws', async () => {

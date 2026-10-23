@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmPatternProcessor.js": {
-    "mtime": 1791705465.125756,
-    "seen": 1792776572.256525,
-    "ast_hash": "6f8ccf4034e9ed7c28feb64f390771a8",
+    "mtime": 1792777428.7368548,
+    "seen": 1792777495.5898461,
+    "ast_hash": "05909f8302c8e41e16256536a76c7a15",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmBoundaryValidation.ts": {
@@ -594,9 +594,9 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1792537013.6025465,
-    "seen": 1792776572.256329,
-    "ast_hash": "6a9c5a556a8cd2652fb1416479afa3b8",
+    "mtime": 1792776915.1038222,
+    "seen": 1792777026.042908,
+    "ast_hash": "9c38858c15ab434379cf9cb6fbf99943",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -654,9 +654,9 @@
     "semantic_hash": ""
   },
   "src/components/translator/TranslatorControls.tsx": {
-    "mtime": 1791816126.4736676,
-    "seen": 1792776572.2563672,
-    "ast_hash": "b218bfe3c41e62ffe50ec06fe10abcdc",
+    "mtime": 1792776925.130351,
+    "seen": 1792777026.0429518,
+    "ast_hash": "c9fce1055d28325ac95eef5f384d69c0",
     "semantic_hash": ""
   },
   "src/components/dictionary/VirtualRowComponent.tsx": {
@@ -726,9 +726,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useAutoTranslateTrigger.ts": {
-    "mtime": 1791480339.3146489,
-    "seen": 1792776572.2563798,
-    "ast_hash": "05ad45e040cca4194c881672c88c89cb",
+    "mtime": 1792776919.9199853,
+    "seen": 1792777026.0429661,
+    "ast_hash": "c41c99adf8550d36b83db4f700a4668a",
     "semantic_hash": ""
   },
   "src/hooks/useCachePoisoningGuard.ts": {
@@ -870,21 +870,21 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1792775700.4192367,
-    "seen": 1792776572.256551,
-    "ast_hash": "c44b51bccbdde41db97fbe6b0a450b1a",
+    "mtime": 1792776948.1689217,
+    "seen": 1792777026.043165,
+    "ast_hash": "93e11acb2688cf9402255121220acffd",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791711024.3405323,
-    "seen": 1792776572.256552,
-    "ast_hash": "391a9661649bb6664d98589782cd3ae9",
+    "mtime": 1792776765.5875106,
+    "seen": 1792777026.043166,
+    "ast_hash": "34bbbd33d9f0fdabfdd892add98603b7",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791711024.3405323,
-    "seen": 1792776572.2565498,
-    "ast_hash": "391a9661649bb6664d98589782cd3ae9",
+    "mtime": 1792776765.5875106,
+    "seen": 1792777026.043164,
+    "ast_hash": "34bbbd33d9f0fdabfdd892add98603b7",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -936,10 +936,10 @@
     "semantic_hash": "f51cbc581aa3e307b773a8caa72c5d37"
   },
   "docs/adr/ADR-019-skip-wasm-status-absorption-into-useTranslatorEngine.md": {
-    "mtime": 1784293785.7020347,
-    "seen": 1792776572.2565691,
-    "ast_hash": "c1efce0a6e3ed0e7c2b11ef9d4664e74",
-    "semantic_hash": "c1efce0a6e3ed0e7c2b11ef9d4664e74"
+    "mtime": 1792776948.1697962,
+    "seen": 1792777026.043186,
+    "ast_hash": "1320a58fec535448dd2d197f297d778f",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-027-fiction-structural-patterns-coupled-by-naming-convention.md": {
     "mtime": 1784219716.0486238,
@@ -1200,15 +1200,15 @@
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
-    "mtime": 1789808747.4343328,
-    "seen": 1792776572.2566578,
-    "ast_hash": "c522858c1e8e518e8f367564afdfca33",
+    "mtime": 1792776925.131274,
+    "seen": 1792777026.0432901,
+    "ast_hash": "1801144dd20729dddd2babeceef3e8d4",
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1792559798.578108,
-    "seen": 1792776572.256656,
-    "ast_hash": "b5821eb0882b83df80c92a4f4ca0cd6e",
+    "mtime": 1792776948.1681242,
+    "seen": 1792777026.043287,
+    "ast_hash": "243d3b826c93e631bcfce0877d689e61",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1434,9 +1434,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useReloadExecutionContexts.ts": {
-    "mtime": 1791816057.1746593,
-    "seen": 1792776572.256408,
-    "ast_hash": "b654d6d9fa2a6d4bbd57e1343671e2c9",
+    "mtime": 1792776919.9198093,
+    "seen": 1792777026.042998,
+    "ast_hash": "e5b4ccaecbbe061ab3ec88e7f83af4bb",
     "semantic_hash": ""
   },
   "src/hooks/useReloadRetranslate.js": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1792536215.0881164,
-    "seen": 1792776572.256646,
-    "ast_hash": "8074c3a17498cb5380c769baf88a3726",
+    "mtime": 1792776765.315831,
+    "seen": 1792777026.043275,
+    "ast_hash": "77af2c32af080623a41527eb3fbac16b",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1842,9 +1842,9 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1791825695.7388783,
-    "seen": 1792776572.25666,
-    "ast_hash": "246a61b64ff1a9c1fbcc2c0ba7049e40",
+    "mtime": 1792777984.1089323,
+    "seen": 1792778049.854653,
+    "ast_hash": "ed718bdd13e0f3c4963dd46a7722a305",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2034,9 +2034,9 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReadingAnchor.ts": {
-    "mtime": 1790352706.371082,
-    "seen": 1792776572.256499,
-    "ast_hash": "042c1b36bffbe0ac848dc9d072c95987",
+    "mtime": 1792777973.675866,
+    "seen": 1792778049.854455,
+    "ast_hash": "c482cf9a6ad8d5a8fd10204169b46af9",
     "semantic_hash": ""
   },
   "src/hooks/useReaderEngine.ts": {
@@ -2622,9 +2622,9 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-084-skip-merging-the-reload-context-assembler.md": {
-    "mtime": 1791339093.2432184,
-    "seen": 1792776572.25662,
-    "ast_hash": "b64a2e4b49ec94c596c121aa611a8ae5",
+    "mtime": 1792776948.170257,
+    "seen": 1792777026.043245,
+    "ast_hash": "8541c1fab030fe8b4c08dc8adfea0aa0",
     "semantic_hash": ""
   },
   "docs/adr/ADR-085-engine-access-one-queue-ownership-follows-the-visible-tab.md": {
@@ -2790,15 +2790,15 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternStore.js": {
-    "mtime": 1792534750.1130292,
-    "seen": 1792776572.25648,
-    "ast_hash": "729eda5416461c01f18337fdc70faf2f",
+    "mtime": 1792777407.0124192,
+    "seen": 1792777495.589793,
+    "ast_hash": "524b18026c4ed09275fc35cb8fb27bc0",
     "semantic_hash": ""
   },
   "docs/adr/ADR-101-delete-the-js-pattern-matcher.md": {
-    "mtime": 1792534773.2378623,
-    "seen": 1792776572.256633,
-    "ast_hash": "fef27840c36845b11d26df334e9f8d6b",
+    "mtime": 1792777404.6006136,
+    "seen": 1792777495.5899699,
+    "ast_hash": "3a9dc5f2d6f946b71d9e35f580891d2e",
     "semantic_hash": ""
   },
   "docs/adr/ADR-102-keep-utils-toast-as-the-notification-seam.md": {

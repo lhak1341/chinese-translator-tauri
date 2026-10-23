@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { RefObject, MutableRefObject } from 'react';
+import type { RefObject } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
@@ -13,7 +13,6 @@ export interface TranslationExecutionContext {
   consumeReloadTransition: () => boolean;
   clearHighlighting: () => void;
   setIsTranslating: (v: boolean) => void;
-  isTranslatingRef: MutableRefObject<boolean>;
   setResultArrays: (arrays: SemanticArrays | null, segs?: unknown[]) => void;
   setStreamingText: (text: string) => void;
   isClipboardTranslationRef: RefObject<boolean>;
@@ -25,7 +24,6 @@ const TRANSLATION_EXECUTION_EXPECTED_KEYS = [
   'consumeReloadTransition',
   'clearHighlighting',
   'setIsTranslating',
-  'isTranslatingRef',
   'setResultArrays',
   'setStreamingText',
   'isClipboardTranslationRef',
@@ -78,7 +76,6 @@ export function useAutoTranslateTrigger({
     consumeReloadTransition,
     clearHighlighting,
     setIsTranslating,
-    isTranslatingRef,
     setResultArrays,
     setStreamingText,
     isClipboardTranslationRef,
@@ -104,7 +101,6 @@ export function useAutoTranslateTrigger({
 
         if (inputText && !isLoading) {
           setIsTranslating(true);
-          isTranslatingRef.current = true;
           clearHighlighting();
           setResultArrays(null, []);
 
@@ -144,7 +140,6 @@ export function useAutoTranslateTrigger({
             }
           } finally {
             setIsTranslating(false);
-            isTranslatingRef.current = false;
           }
         }
       } catch (error) {

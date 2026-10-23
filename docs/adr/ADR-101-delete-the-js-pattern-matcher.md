@@ -45,3 +45,9 @@ Deleted: `settings.enableTwoPhasePatterns`, `initialize`'s `options.patternSetti
 One behaviour changed. An error in `applyHierarchicalResults` (JS, after the matcher returned) no longer counts as a matcher failure. It propagates to `translateSinglePass`'s Phase 1 catch and is recorded in `lastPhaseFailures`. Before, three such errors switched a working WASM matcher off behind a "WASM pattern matching was turned off" toast.
 
 The failure tests now run against the store in `PatternStore.test.js`, with `TwoPhasePatternProcessor` mocked as a module. No engine is involved. `TranslationEngine.patternFailure.test.js` keeps the engine side: the option keys, a skip, and an apply error escaping uncounted. The profiling delegators (ADR-021) read `patternStore.processor`. Because it is built at load, they work before the first translation.
+
+## Addendum — 2026-10-24: the store alone owns Phase 1 toasts; a crash switches Phase 1 off at once
+
+Round 36, candidate #3. `processTokensWasm` also toasted "Pattern matching error" (10-minute cooldown) on a panic, a fifth toast beside the store's four, and the store then toasted attempt 1/3 for the same panic. The wrapper toast, its cooldown state and its duration constants are deleted; the wrapper logs, retires everything and returns `{ success: false }`, as before. The result-object-then-throw round trip to the store stays (declined this round: it touches the not-initialized backstop and every `processTokensWasm` mock).
+
+A panic retires the processor for good, so attempts 2/3 could only fail. `PatternStore.matchTokens` now checks `isWasmPatternProcessorReady()` after a failure: not ready means the matcher is dead, so Phase 1 is switched off at once with one toast ("crashed and was turned off") and the tracker is not consulted. A failure with the processor still ready (e.g. a JS error in `buildVariableCache`) is counted as before: 3 in 5 minutes.
