@@ -53,7 +53,7 @@ Entry point: `src/utils/highlighting/TextPositionMapper.ts`, re-exported from `s
 
 The span claim: the one place a phase writes a match onto the token array (architecture review 2026-10-10, round 26, candidate #2). The leader token keeps the translation, every other token of the span is a follower consumed by it (`translated: null`, source `<leader source>_consumed`, `groupLeader` pointing back), per the consumed-token contract in `TranslationSourcePriority.ts`. Two shapes, because `postProcess` and highlighting read them differently:
 
-- `claimSpan(tokens, startIndex, endIndex, source, translated, activeProperNouns?)` — the light shape, for Phase 1 patterns and Phase 3 numbers. No `isGrouped`, no `groupedWith`, the leader's `value` untouched, so pattern-consumed tokens stay in `getTextFromTokens`.
+- `claimSpan(tokens, startIndex, endIndex, source, translated, activeProperNouns?)` — the light shape, for Phase 1 patterns and Phase 3 numbers. No `isGrouped`, no `groupedWith`, the leader's `value` untouched, so a pattern-consumed token keeps its text.
 - `claimGroupedSpan(tokens, startIndex, tokenSpan, source, translated, groupedText, activeProperNouns?)` — the grouped shape, for Phase 2 proper nouns, Phase 4 phrases and Phase 5 characters. Also marks the span `isGrouped`, records `groupedWith` and `originalValue`, and rewrites the leader's `value` and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that leader's followers beyond the new span. A one-token span is a plain leader.
 
 Both log (never throw) a leader with no translation and a source `getSourcePriority` does not rank, which closes the "unknown source ranks 999" gap for the plain-JS callers `tsc` cannot check. The Phase 5 sentinels (`untranslated-chinese`, `preserved-*`) and `NumberLiangFix` write tokens directly and stay outside it. `addUnit` calls stay at the call sites: they differ in `recordMatches`, the builder handle and where the original text comes from.
@@ -253,7 +253,7 @@ Entry point: `src/utils/pattern/PatternStore.js`.
 
 The dictionary lookup algorithm behind the pattern variable cache. Builds a `word → {translation, source, type}` map from dictionary state; `TwoPhasePatternProcessor` passes this map to the WASM matcher before executing.
 
-Four lookup stages run in fixed order, each able to overwrite earlier entries: (1) already-translated proper noun tokens, (2) phrase entries with `allowAsPatternVariable`, (3) proper noun single-token dictionary lookups, (4) full-text scan for multi-character proper nouns. Adapters supply a `resolveType(source, word, metadata) → string|null` strategy: the entry's type, or `null` for untyped (read as `'unknown'` at match time). Every entry is kept whatever its type — which variable it may fill is decided at match time, not here (a pattern-level prefilter, `buildTypeFilter`, was deleted: it never engaged, and would have dropped entries the day it did). Adapter-specific setup that runs before the shared stages: Semantic injects Phase A results as lowest-priority seed entries; TwoPhase injects prior-pass pattern-translated tokens (`patternSemanticType`) as seed entries.
+Three lookup stages run in fixed order, each able to overwrite earlier entries: (1) phrase entries with `allowAsPatternVariable`, (2) proper noun single-token dictionary lookups, (3) full-text scan for multi-character proper nouns. The rule that types an entry lives in the module (`resolveType(source, metadata)`: the entry's `semanticType`, else `'concept'` for a phrase source, else `null` for untyped, read as `'unknown'` at match time). Every entry is kept whatever its type — which variable it may fill is decided at match time, not here (a pattern-level prefilter, `buildTypeFilter`, was deleted: it never engaged, and would have dropped entries the day it did). The tokens are always untranslated when Phase 1 builds the cache, so no stage reads a translation off them: a stage over already-translated proper noun tokens, a TwoPhase step over `patternSemanticType` and a `resolveType` callback supplied by the caller were deleted 2026-10-24 (0 of 67,113 tokens over 8,382 real-library calls had either field set).
 
 Entry point: `src/utils/pattern/PatternVariableCache.js`.
 
@@ -421,7 +421,7 @@ There is no JS "parallel" path (a `Promise.all` over synchronous trie walks ran 
 
 It was a separate class, `DictionaryMatchLookup`, built with `DictionaryManager`'s Maps and two closures, until 2026-10-20 (ADR-035 addendum).
 
-**`findMatchesAtToken(tokens, pos, dictionaryOrder)`** asks the same question at a token: `findAllMatches` over the text from that token up to the next punctuation (`reconstructTextFromIndex`, which reads across a space, so `墨 子` matches `墨子`), longest first; a position past the last token logs and returns `[]`. It is how Phase 2 (`applyProperNouns`) reads matches, the only phase that does. It replaced `MatchSource` (ADR-082), whose Rust lookup-index adapter was meant for texts of 50+ characters but never ran on real books, because chunks split at punctuation (0 of 35,760 calls); the index, the category per dictionary and the parity fixture were deleted (ADR-108). Pinned by `DictionaryManager.findMatchesAtToken.test.js`.
+**`findMatchesAtToken(tokens, pos, dictionaryOrder)`** asks the same question at a token: `findAllMatches` over the text from that token up to the next punctuation (`reconstructTextFromIndex`, which reads across a space, so `墨 子` matches `墨子`), longest first; a position past the last token logs and returns `[]`. It is how Phases 2 (`applyProperNouns`) and 4 (`processRemainingPhrases`) read matches, so every phase that looks a word up in the dictionaries across tokens asks the same way. It replaced `MatchSource` (ADR-082), whose Rust lookup-index adapter was meant for texts of 50+ characters but never ran on real books, because chunks split at punctuation (0 of 35,760 calls); the index, the category per dictionary and the parity fixture were deleted (ADR-108). Pinned by `DictionaryManager.findMatchesAtToken.test.js`.
 
 ## TextChunker
 
@@ -429,7 +429,7 @@ Splits text into `TextChunk[]` at punctuation boundaries (`chunkText(text)`; con
 
 **Rules** (`test-fixtures/chunker-parity.json`, read by `TextChunker.parity.test.js`): split on Unicode punctuation including dashes (Pd: `-`, `—`, `——`) and `_` (Pc), and keep a `/` between two ASCII digits whole (`23/30`, `3/4`) while splitting any other `/`. `content` is trimmed through `TextChunk`.
 
-**`startIndex` of a chunk with empty content is unspecified** (a leading punctuation chunk gets 0, a trailing one after a line break -1), and nothing reads it: `chunkStartChar` (`TranslationEngine.js`) only reaches chunks with Chinese content. The fixture holds `null` for it and the harness skips it; a chunk with content must match. If something starts reading punctuation-chunk positions, define it first (the chunk's own first character is the natural meaning) and change the chunker.
+**`startIndex` of a chunk with empty content is unspecified** (a leading punctuation chunk gets 0, a trailing one after a line break -1), and nothing reads it: `chunkStartChar` (`TranslationEngine.js`) only reaches chunks with Chinese content. The fixture holds `null` for it and the harness skips it; a chunk with content must match: `text.slice(startIndex, startIndex + content.length) === content`. `TextChunk` trims `content` and skips the same leading whitespace in `startIndex`, so an indent is not part of either (until 2026-10-24 `startIndex` pointed at it, and a single-chunk text opening with whitespace recorded every unit's `originalStart` two or more characters early, so the Chinese panel's clickable units were the indent characters). The old `endIndex` field had no reader and was deleted. If something starts reading punctuation-chunk positions, define it first (the chunk's own first character is the natural meaning) and change the chunker.
 
 ## TextTokenizer
 
@@ -660,11 +660,13 @@ Entry point: `src/utils/NumberLiangFix.ts`, beside `NumberProcessor.js`. Not bar
 
 The greedy word-position matcher that maps each translated semantic unit onto its actual position in the final assembled output text, producing clickable word segments (`spacing` | `semantic` | `remaining`) in output order. Bug history: an intransitive-comparator bug, fixed by sorting ALL same-length candidates by `tokenIndex`, not just same-translated-text ones.
 
-Algorithm: build candidates from semantic-array entries with non-null translations → sort longest-first (prevents a short word matching inside a longer one), tie-broken by `compareByTokenIndex` for same-length candidates → find each candidate's first non-overlapping occurrence in the NFC-normalized, lowercased output text → re-sort by actual output position → build segments left-to-right.
+Algorithm: build candidates from semantic-array entries with non-null translations → sort by `compareByTokenIndex` (Chinese text order), longest first within one `tokenIndex` (a short word cannot claim a place inside a longer one it shares a token with) → find each candidate's first non-overlapping occurrence in the NFC-normalized, lowercased output text → re-sort by actual output position → build segments left-to-right.
+
+Overlap is checked against a sorted list of disjoint claimed ranges by binary search, so there is **no cap on units**: until 2026-10-24 the loop stopped after 1,001 placed units (a performance guard on a quadratic scan) and every later unit fell into a `remaining` segment, losing click-to-highlight in a Translator-tab text of about 1,500 characters or more. Do not reintroduce a limit; pinned by the 1,500-unit test in `WordSegmentMatcher.test.ts`.
 
 Interface: `matchWordSegments(semanticArrays, outputText) → WordSegment[]`. Pure function — no engine state touched anywhere in the algorithm.
 
-Entry point: `src/utils/highlighting/WordSegmentMatcher.ts`, barrel-exported from `src/utils/highlighting/index.ts`. Sole caller: `TranslationEngine.js`'s `translateWithProgressiveBatches`.
+Entry point: `src/utils/highlighting/WordSegmentMatcher.ts`, barrel-exported from `src/utils/highlighting/index.ts`. Sole caller: `assembleFullText` in `src/utils/text/FullTextAssembly.ts`.
 
 ## useForceReloadContext / useTranslationExecutionContext
 

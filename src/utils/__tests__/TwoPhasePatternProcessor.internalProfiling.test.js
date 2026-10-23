@@ -7,9 +7,8 @@
  * this file closes the zero-test-coverage gap found during that review, it does
  * not argue for keeping or deleting the feature itself.
  *
- * APPROACH: same as TwoPhasePatternProcessor.buildVariableCache.test.js —
- * construct with an empty patterns array, mock the WASM boundary for the
- * processTokens()-driven timers (extractSemanticTokens, processTokensWasm).
+ * APPROACH: construct with an empty patterns array and mock the WASM boundary, so the
+ * processTokens()-driven timers (extractSemanticTokens, buildVariableCache, processTokensWasm) run.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -72,27 +71,31 @@ describe('TwoPhasePatternProcessor internal profiling', () => {
     expect(processor.internalProfiling.enabled).toBe(false);
   });
 
-  test('buildVariableCache increments its own timer only when profiling is enabled', async () => {
+  test('the variable cache timer increments only when profiling is enabled', async () => {
+    vi.mocked(isWasmPatternProcessorReady).mockReturnValue(true);
+    vi.mocked(processTokensWasm).mockResolvedValue({ success: true, results: [] });
     const processor = await makeProcessor();
     const tokens = [{ value: '你', type: 'chinese_char' }];
     const options = { dictionaryManager: makeNoopDictionaryManager() };
 
-    processor.buildVariableCache(tokens, options);
+    await processor.processTokens(tokens, options);
     expect(processor.internalProfiling.buildVariableCache.calls).toBe(0);
 
     processor.enableInternalProfiling();
-    processor.buildVariableCache(tokens, options);
+    await processor.processTokens(tokens, options);
     expect(processor.internalProfiling.buildVariableCache.calls).toBe(1);
     expect(processor.internalProfiling.buildVariableCache.time).toBeGreaterThanOrEqual(0);
   });
 
   test('resetInternalProfiling zeroes time/calls but preserves the enabled flag', async () => {
+    vi.mocked(isWasmPatternProcessorReady).mockReturnValue(true);
+    vi.mocked(processTokensWasm).mockResolvedValue({ success: true, results: [] });
     const processor = await makeProcessor();
     const tokens = [{ value: '你', type: 'chinese_char' }];
     const options = { dictionaryManager: makeNoopDictionaryManager() };
 
     processor.enableInternalProfiling();
-    processor.buildVariableCache(tokens, options);
+    await processor.processTokens(tokens, options);
     expect(processor.internalProfiling.buildVariableCache.calls).toBe(1);
 
     processor.resetInternalProfiling();

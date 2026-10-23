@@ -37,3 +37,11 @@ Deleted:
 ## Revisit
 
 Revisit only with a measurement: a real corpus where chunks of 50+ characters with no punctuation are common and the trie walk on them costs visible time. Even then, try a faster JS walk before reintroducing IPC.
+
+## Addendum 2026-10-24: Phase 4 reads through the seam too
+
+Architecture review round 37, candidate #4. Phase 4 (`processRemainingPhrases`) had kept its own lookup: text rebuilt from the tokens (`getTextFromTokens`, grouped followers dropped) and searched with `findAllMatches` at each token's `.start`. A grouped leader's `value` is the grouped text, so after a Phase 2 span that held a space (`墨 子` grouped as `墨子`) that text ran behind `.start`, and every later phrase was looked up one character late: `墨 子在这里` gave `Mặc Tử tại giá lý`, `这里` missed. A first fix computed each token's offset in the rebuilt text (`getTextWithOffsets`); a measurement then showed the second lookup was not needed.
+
+Measured with the corpus-ab procedure over 156 windows from 26 books: 173,724 Phase 4 lookups, **0** whose match list (word and translation) differed between `findAllMatches` on the rebuilt text and `findMatchesAtToken`. Phase 4 now calls `findMatchesAtToken(tokens, i, ['phrases'])`, so no phase keeps a text frame of its own, and the offset helper was deleted. The one behaviour that can differ is a phrase matching across a digit or Latin token, which no production phrase key can do: all 16,315 are pure Han.
+
+Also deleted: `getTextPositionForTokenIndex`, and Phase 2's `processedRanges` overlap check, which cannot fire (1,889 checks, 0 conflicts; after a match the scan jumps past the claimed span and skips claimed tokens).

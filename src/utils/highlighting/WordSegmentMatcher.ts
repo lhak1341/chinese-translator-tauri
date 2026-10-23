@@ -1,6 +1,4 @@
 import { compareByTokenIndex } from './TextPositionMapper.js';
-import { POSITION_TRACKING } from '../../constants/TranslationConstants.js';
-import { logger } from '../logger.js';
 
 export type WordSegment =
   | {
@@ -111,52 +109,53 @@ export function matchWordSegments(
   });
 
   const foundWords: Array<CandidateWord & { position: number }> = [];
-  const usedPositions = new Set<{ start: number; end: number }>();
-  const MAX_TRACKING_POSITIONS = POSITION_TRACKING.MAX_TRACKING_POSITIONS;
+  // Claimed ranges, pairwise disjoint and ordered by position (so by end too). Candidates arrive
+  // in tokenIndex order, not output order, so a range lands anywhere in the list.
+  const claimed: Array<{ start: number; end: number }> = [];
+  const resumeFrom = new Map<string, number>();
   const normalizedOutput = outputText.toLowerCase();
 
   for (const candidate of candidateWords) {
-    if (usedPositions.size > MAX_TRACKING_POSITIONS * 2) {
-      logger.warn(
-        `⚠️ Position tracking limit exceeded (${usedPositions.size} positions). Stopping candidate processing to prevent performance degradation.`
-      );
-      break;
-    }
-
     const normalizedCandidate = candidate.translated.normalize('NFC').toLowerCase();
     let position = -1;
-    let searchStart = 0;
+    // A later candidate with the same text starts after where this text last stopped: every
+    // occurrence before that is claimed or overlapped, and a claim is never released.
+    let searchStart = resumeFrom.get(normalizedCandidate) ?? 0;
 
     do {
       position = normalizedOutput.indexOf(normalizedCandidate, searchStart);
       if (position >= 0) {
         const candidateEnd = position + normalizedCandidate.length;
-        let overlaps = false;
-        for (const usedPos of usedPositions) {
-          if (position < usedPos.end && candidateEnd > usedPos.start) {
-            overlaps = true;
-            break;
-          }
+        // The first claimed range ending after `position` is the only one that can overlap.
+        let lo = 0;
+        let hi = claimed.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (claimed[mid].end > position) hi = mid;
+          else lo = mid + 1;
         }
+        const overlaps = lo < claimed.length && claimed[lo].start < candidateEnd;
 
         if (!overlaps) {
           foundWords.push({ ...candidate, position });
-          usedPositions.add({ start: position, end: candidateEnd });
-          if (usedPositions.size > MAX_TRACKING_POSITIONS && usedPositions.size % 100 === 0) {
-            logger.warn(
-              `⚠️ Position tracking set large: ${usedPositions.size} positions (may impact performance for very large texts)`
-            );
-          }
+          claimed.splice(lo, 0, { start: position, end: candidateEnd });
           break;
         } else {
           searchStart = position + 1;
         }
       }
     } while (position >= 0);
+
+    // An empty text can be placed again at the same offset, so it keeps no resume point.
+    if (normalizedCandidate.length > 0) {
+      resumeFrom.set(
+        normalizedCandidate,
+        position >= 0 ? position + 1 : normalizedOutput.length + 1
+      );
+    }
   }
 
   foundWords.sort((a, b) => a.position - b.position);
-  usedPositions.clear();
 
   const outputOrder = foundWords.map((word) => ({
     semanticIndex: word.semanticIndex,

@@ -1,5 +1,5 @@
 {
-  "_contract": "Chunker fixture (architecture review 2026-10-03, candidate #3 grilling; the Rust twin was deleted 2026-10-06, ADR-079). src/utils/__tests__/TextChunker.parity.test.js asserts TextChunker.js against `expected`. Do not edit an expectation to make a test pass: change the chunker, or record the behaviour on purpose. startIndex of a chunk whose content is empty (a punctuation-only or line-break-only chunk) is unspecified and nothing reads it (the engine's chunkStartChar only reaches chunks with Chinese content), so it is null here and the harness skips it. A chunk WITH content must match.",
+  "_contract": "Chunker fixture (architecture review 2026-10-03, candidate #3 grilling; the Rust twin was deleted 2026-10-06, ADR-079). src/utils/__tests__/TextChunker.parity.test.js asserts TextChunker.js against `expected`. Do not edit an expectation to make a test pass: change the chunker, or record the behaviour on purpose. startIndex of a chunk whose content is empty (a punctuation-only or line-break-only chunk) is unspecified and nothing reads it (the engine's chunkStartChar only reaches chunks with Chinese content), so it is null here and the harness skips it. A chunk WITH content must match, and startIndex indexes its trimmed content: input.slice(startIndex, startIndex + content.length) === content, so leading whitespace (an indent) is skipped.",
   "cases": [
     {
       "name": "comma_and_period_agree",
@@ -375,6 +375,76 @@
           "startIndex": 4,
           "lineBreaks": "",
           "startedBy": "，"
+        }
+      ]
+    },
+    {
+      "name": "indent_after_line_break_agree",
+      "description": "A paragraph indent after a line break is not part of the chunk: startIndex is the first character of content.",
+      "input": "你好。\n　　他说话了，然后走了。",
+      "expected": [
+        {
+          "content": "你好",
+          "punctuation": "。",
+          "startIndex": 0,
+          "lineBreaks": "\n",
+          "startedBy": "start"
+        },
+        {
+          "content": "他说话了",
+          "punctuation": "，",
+          "startIndex": 6,
+          "lineBreaks": "",
+          "startedBy": "linebreak"
+        },
+        {
+          "content": "然后走了",
+          "punctuation": "。",
+          "startIndex": 11,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ]
+    },
+    {
+      "name": "leading_spaces_agree",
+      "description": "Leading spaces are skipped by startIndex, like the trim skips them in content.",
+      "input": "  你好，世界",
+      "expected": [
+        {
+          "content": "你好",
+          "punctuation": "，",
+          "startIndex": 2,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "世界",
+          "punctuation": "",
+          "startIndex": 5,
+          "lineBreaks": "",
+          "startedBy": "，"
+        }
+      ]
+    },
+    {
+      "name": "spaces_after_colon_agree",
+      "description": "Spaces after punctuation that opens a chunk are skipped by startIndex.",
+      "input": "他说：  你好",
+      "expected": [
+        {
+          "content": "他说",
+          "punctuation": "：",
+          "startIndex": 0,
+          "lineBreaks": "",
+          "startedBy": "start"
+        },
+        {
+          "content": "你好",
+          "punctuation": "",
+          "startIndex": 5,
+          "lineBreaks": "",
+          "startedBy": "："
         }
       ]
     }

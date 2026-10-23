@@ -9,8 +9,8 @@
  *
  * Two shapes, because `postProcess` and the highlight path read the two differently:
  * - `claimSpan` (Phase 1 patterns, Phase 3 numbers) writes the light shape: no `isGrouped`, no
- *   `groupedWith`, the leader's `value` untouched. Pattern-consumed tokens stay in
- *   `getTextFromTokens`, so text keeps lining up with the tokenizer's `.start` positions.
+ *   `groupedWith`, the leader's `value` untouched, so a pattern-consumed
+ *   token keeps its text.
  * - `claimGroupedSpan` (Phase 2 proper nouns, Phase 4 phrases, Phase 5 characters) also marks the
  *   span `isGrouped`, records `groupedWith`/`originalValue`, and rewrites the leader's `value`
  *   and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that

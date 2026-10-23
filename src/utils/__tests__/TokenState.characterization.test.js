@@ -39,7 +39,6 @@ const FIELDS = [
   'groupedWith',
   'originalValue',
   'isProperNoun',
-  'patternSemanticType',
 ];
 
 /** The contract-relevant fields of a token, leaving out any that are undefined. */
@@ -92,7 +91,6 @@ describe('token state per phase', () => {
         end: 1,
         translated: 'PAT',
         translationSource: 'pattern',
-        patternSemanticType: 'concept',
       },
       {
         value: '知',
@@ -134,7 +132,6 @@ describe('token state per phase', () => {
         end: 1,
         translated: 'PAT',
         translationSource: 'hierarchical_pattern',
-        patternSemanticType: null,
       },
       {
         value: '知',

@@ -33,7 +33,6 @@ export interface PatternProcessorResult {
   originalText: string;
   translation: string;
   translationSource: TranslationSource;
-  semanticType: string | null;
   pattern: { originalPattern: string };
   type: 'simple' | 'composite' | 'hierarchical';
   components?: unknown[];

@@ -126,6 +126,25 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       }
     });
 
+    test('a phrase after a proper noun that spans a space is still found, however many precede it', async () => {
+      // Phase 2 groups `张 三` as `张三`, so the text Phase 4 searches runs one behind `.start`
+      // after it (two behind after a second): the phrase must be looked up where it is in that text.
+      const name = (at) => [tok('张', at), tok(' ', at + 1, 'whitespace'), tok('三', at + 2)];
+      const tokens = [
+        ...name(0),
+        tok('你', 3),
+        tok('好', 4),
+        ...name(5),
+        tok('你', 8),
+        tok('好', 9),
+      ];
+
+      await engine.translateSinglePass(tokens, {});
+
+      expect(tokens[3].translated).toBe('xin chào');
+      expect(tokens[8].translated).toBe('xin chào');
+    });
+
     test('2-char phrase: leader translated, consumed null', async () => {
       const tokens = [tok('你', 0), tok('好', 1)];
       await engine.translateSinglePass(tokens, {});
@@ -234,8 +253,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
     });
 
     test('asks findMatchesAtToken for the active proper-noun dictionaries', async () => {
-      // ADR-108: Phase 2 is the only phase that reads findMatchesAtToken, so every call the
-      // spy sees is Phase 2's.
+      // ADR-108: Phases 2 and 4 read findMatchesAtToken, each for its own dictionaries.
       const lookup = vi.spyOn(engine.dictionaryManager, 'findMatchesAtToken');
       try {
         const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
@@ -243,7 +261,7 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
 
         expect(lookup).toHaveBeenCalled();
         expect(new Set(lookup.mock.calls.map((call) => JSON.stringify(call[2])))).toEqual(
-          new Set([JSON.stringify(['properNouns'])])
+          new Set([JSON.stringify(['properNouns']), JSON.stringify(['phrases'])])
         );
         expect(tokens[1].translationSource).toBe('properNouns');
       } finally {

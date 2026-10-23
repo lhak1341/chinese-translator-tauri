@@ -3,7 +3,6 @@ import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
 import { getSemanticTokens } from '../TokenHelpers.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
-import { isPatternSource } from '../TranslationSourcePriority.js';
 
 /**
  * TwoPhasePatternProcessor - the JS side of Phase 1 pattern matching.
@@ -35,61 +34,6 @@ class TwoPhasePatternProcessor {
   }
 
   /**
-   * Build variable cache from already-translated tokens and dictionaries
-   * Simplified version for WASM - extracts variables from:
-   * 1. Already-translated proper noun tokens
-   * 2. Dictionary lookups for proper nouns and phrases
-   * 3. Full-text scanning for multi-character proper nouns
-   * @param {Array} tokens - Token array
-   * @param {Object} options - Options containing activeProperNouns and dictionaryManager
-   * @returns {Object} Variable cache {text: {translation, source, type}}
-   */
-  buildVariableCache(tokens, options) {
-    const startTotal = performance.now();
-
-    // Shared stages 1–4 (proper nouns, phrases, full-text scan).
-    // resolveType: metadata?.semanticType if present; phrase source defaults to 'concept';
-    // proper noun sources default to null (untyped — the matcher reads it as 'unknown').
-    const cache = buildPatternVariableCache(
-      tokens,
-      {
-        activeProperNouns: options.activeProperNouns || [],
-        dictionaryManager: options.dictionaryManager,
-        patterns: this.patterns,
-      },
-      (source, word, meta) => {
-        const t = meta?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
-        return t === 'proper_noun' ? null : t;
-      }
-    );
-
-    // Step 1b (WASM-specific): pattern-translated tokens with explicit semantic types.
-    // Runs after shared stages so it wins over stage-1 proper-noun entries for the same word.
-    // These come from a prior translation pass where a pattern match set token.patternSemanticType,
-    // letting subsequent WASM processing use them as typed variables in constrained patterns.
-    for (const token of tokens) {
-      if (
-        token.translated &&
-        token.patternSemanticType &&
-        isPatternSource(token.translationSource)
-      ) {
-        cache[token.value] = {
-          translation: token.translated,
-          source: token.translationSource,
-          type: token.patternSemanticType,
-        };
-      }
-    }
-
-    if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache.time += performance.now() - startTotal;
-      this.internalProfiling.buildVariableCache.calls++;
-    }
-
-    return cache;
-  }
-
-  /**
    * Main processing entry point
    * @param {Array} tokens - Token array to process
    * @param {Object} options - Processing options including dictionaries and managers
@@ -112,8 +56,17 @@ class TwoPhasePatternProcessor {
         this.internalProfiling.extractSemanticTokens.calls++;
       }
 
-      // Build variable cache (this calls buildVariableCache which has its own internal profiling)
-      const variableCache = this.buildVariableCache(tokens, options);
+      // Build the variable cache the matcher reads (PatternVariableCache.js has the stages)
+      const start2 = performance.now();
+      const variableCache = buildPatternVariableCache(tokens, {
+        activeProperNouns: options.activeProperNouns || [],
+        dictionaryManager: options.dictionaryManager,
+        patterns: this.patterns,
+      });
+      if (this.internalProfiling.enabled) {
+        this.internalProfiling.buildVariableCache.time += performance.now() - start2;
+        this.internalProfiling.buildVariableCache.calls++;
+      }
 
       // Call WASM pattern processor
       const start3 = performance.now();

@@ -156,9 +156,9 @@
     "semantic_hash": ""
   },
   "src/types/PatternProcessingTypes.d.ts": {
-    "mtime": 1791705045.775619,
-    "seen": 1792776572.2564218,
-    "ast_hash": "448fdf294faad4bd8baa26fe9469dbbb",
+    "mtime": 1792786856.9533434,
+    "seen": 1792786952.5933068,
+    "ast_hash": "16c695d481612c3a7a7b8f58e5c82ffe",
     "semantic_hash": ""
   },
   "src/types/TranslationEngineTypes.d.ts": {
@@ -192,9 +192,9 @@
     "semantic_hash": ""
   },
   "src/constants/TranslationConstants.js": {
-    "mtime": 1792535926.3009157,
-    "seen": 1792776572.2563698,
-    "ast_hash": "6bd25813ece65df5be30afcfe5903850",
+    "mtime": 1792784141.6776278,
+    "seen": 1792784404.455085,
+    "ast_hash": "4f08a3f30802312666e48d8de1b6b310",
     "semantic_hash": ""
   },
   "src/constants/toastConfig.ts": {
@@ -258,9 +258,9 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1792782338.4472978,
-    "seen": 1792782588.684683,
-    "ast_hash": "889771f1499d641a699e03a46ea8316e",
+    "mtime": 1792786835.8233557,
+    "seen": 1792786952.593323,
+    "ast_hash": "027b4261b68ee1baffdfbedc16e22de5",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "src/utils/TokenHelpers.ts": {
-    "mtime": 1791903387.310238,
-    "seen": 1792776572.256434,
-    "ast_hash": "ec0e600724ebef57cf72464d1405ec89",
+    "mtime": 1792786712.9806604,
+    "seen": 1792786952.593322,
+    "ast_hash": "916480d8cb7d76b391984b917ab9c6de",
     "semantic_hash": ""
   },
   "src/utils/NumberProcessor.js": {
@@ -504,9 +504,9 @@
     "semantic_hash": ""
   },
   "src/utils/text/TextChunker.js": {
-    "mtime": 1792782474.0616593,
-    "seen": 1792782588.684772,
-    "ast_hash": "792bee551f31281b4392b53aae98eb5c",
+    "mtime": 1792784693.1632211,
+    "seen": 1792784765.492361,
+    "ast_hash": "dc727a650bbcbe9fd6b4c74ef2969b0c",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
@@ -516,9 +516,9 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
-    "mtime": 1791705045.7770872,
-    "seen": 1792776572.256481,
-    "ast_hash": "c27fabf04c098350157ede3fd213f8ec",
+    "mtime": 1792785267.1439602,
+    "seen": 1792785366.429615,
+    "ast_hash": "ab099615952b6f90a8aa996773352b45",
     "semantic_hash": ""
   },
   "src/utils/pattern/VariableTypeClassifier.ts": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/TwoPhasePatternProcessor.js": {
-    "mtime": 1791705045.776091,
-    "seen": 1792776572.2564821,
-    "ast_hash": "75ef455e068946214b4775138496d44c",
+    "mtime": 1792786881.3656886,
+    "seen": 1792786952.593379,
+    "ast_hash": "bf6d3fa975abe8fc41ef5ef183651f0e",
     "semantic_hash": ""
   },
   "src/utils/performance/TranslationProfiler.js": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1792782473.9545712,
-    "seen": 1792782588.684928,
-    "ast_hash": "b4d9fdce09d308af2839cf81cf9499ed",
+    "mtime": 1792783159.9473708,
+    "seen": 1792784404.455437,
+    "ast_hash": "65643c8142352d5687e7293b839a4ef7",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1176,9 +1176,9 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1792782474.0654318,
-    "seen": 1792782588.684942,
-    "ast_hash": "eac73aae1902fa99aefc7a9171655be0",
+    "mtime": 1792786878.645547,
+    "seen": 1792786952.593587,
+    "ast_hash": "b7221de9e8c21ec0ce1f2998243aba0d",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1488,9 +1488,9 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/WordSegmentMatcher.ts": {
-    "mtime": 1791731839.3120465,
-    "seen": 1792776572.256475,
-    "ast_hash": "8d726a899f282a7f467d30427d352c0a",
+    "mtime": 1792784339.827997,
+    "seen": 1792784404.455219,
+    "ast_hash": "0ae9b4dd8eb150fdf42a9ec4f60d63dc",
     "semantic_hash": ""
   },
   "test-fixtures/tokenizer-parity.json": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1792776765.315831,
-    "seen": 1792777026.043275,
-    "ast_hash": "77af2c32af080623a41527eb3fbac16b",
+    "mtime": 1792785292.297722,
+    "seen": 1792785366.429804,
+    "ast_hash": "bf2ac3bb84b29b550b778579e836738e",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1650,9 +1650,9 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1792782473.9510891,
-    "seen": 1792782588.6849248,
-    "ast_hash": "645e5fc9f30c376c5e74b9595d14c94d",
+    "mtime": 1792786892.0893114,
+    "seen": 1792786952.59357,
+    "ast_hash": "7cb34d02d727436f1be4afa8f6caab92",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -2382,9 +2382,9 @@
     "semantic_hash": ""
   },
   "test-fixtures/chunker-parity.json": {
-    "mtime": 1791294038.3293521,
-    "seen": 1792776572.256531,
-    "ast_hash": "e5abf8bb469e423e459502a37430e1b5",
+    "mtime": 1792784664.9761775,
+    "seen": 1792784765.4924512,
+    "ast_hash": "4d473d68b36f04341396c4b72e53532a",
     "semantic_hash": ""
   },
   "src/components/dictionary/CommitFeedback.ts": {
@@ -2718,9 +2718,9 @@
     "semantic_hash": ""
   },
   "src/utils/TokenClaim.ts": {
-    "mtime": 1791904544.8983998,
-    "seen": 1792776572.256433,
-    "ast_hash": "bba80b1de59419e96d9c4434056e8c67",
+    "mtime": 1792786749.9053338,
+    "seen": 1792786952.5933208,
+    "ast_hash": "693e1dee61c71df964568ad3b9e61f74",
     "semantic_hash": ""
   },
   "src/utils/highlighting/HighlightResolver.ts": {
@@ -2820,9 +2820,9 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-108-delete-the-rust-lookup-index.md": {
-    "mtime": 1792536192.0657804,
-    "seen": 1792776572.256639,
-    "ast_hash": "7c00cc0c0a0dfc7aaed70ca9a47925e1",
+    "mtime": 1792786749.9073644,
+    "seen": 1792786952.5935638,
+    "ast_hash": "5d58ff307107c9807914f88b5e552495",
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "GLOSSARY.md": {
-    "mtime": 1792782241.456848,
-    "seen": 1792782588.684816,
-    "ast_hash": "46f179d343fd5e35c6c4048f21651114",
+    "mtime": 1792786766.092243,
+    "seen": 1792786952.593462,
+    "ast_hash": "afecb0214e521bbc10a440a7139701f3",
     "semantic_hash": ""
   }
 }

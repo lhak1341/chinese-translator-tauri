@@ -2,13 +2,13 @@
  * PatternVariableCache — the dictionary lookup algorithm behind the pattern variable cache.
  *
  * TwoPhasePatternProcessor needs a word→{translation,type} map built from dictionary state
- * before the WASM matcher runs. This module owns the four lookup stages; the caller supplies
- * only its type-resolution strategy via resolveType.
+ * before the WASM matcher runs. This module owns the three lookup stages and the rule that types
+ * an entry.
  */
 
 import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
 
-/** Longest phrase, in tokens, that stage 2 will look for. */
+/** Longest phrase, in tokens, that stage 1 will look for. */
 const MAX_PHRASE_TOKENS = 6;
 
 /**
@@ -28,46 +28,47 @@ function withNumberVariables(tokens, cache, patterns) {
 }
 
 /**
+ * The entry's semantic type: `metadata.semanticType` if present, else 'concept' for a phrase
+ * source; null for untyped (both matchers read that as 'unknown'). Every entry is kept whatever
+ * its type: which variable it may fill is decided at match time
+ * (matcher.rs::is_variable_type_allowed and its JS mirror). A pattern-level prefilter on declared
+ * types (buildTypeFilter) was deleted 2026-09-26 — it never engaged, and would have dropped
+ * entries once it did.
+ *
+ * @param {string} source
+ * @param {object} [metadata]
+ * @returns {string|null}
+ */
+function resolveType(source, metadata) {
+  const type = metadata?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
+  return type === 'proper_noun' ? null : type;
+}
+
+/**
  * Build the variable cache TwoPhasePatternProcessor hands to the WASM matcher.
  *
- * Four lookup stages run in order; each stage can overwrite earlier entries:
- *   1. Already-translated proper noun tokens (from prior phases)
- *   2. Phrase entries with allowAsPatternVariable flag (single + multi-token up to 6)
- *   3. Proper noun single-token dictionary lookups
- *   4. Full-text scan for multi-character proper nouns
+ * Three lookup stages run in order; each stage can overwrite earlier entries:
+ *   1. Phrase entries with allowAsPatternVariable flag (single + multi-token up to 6)
+ *   2. Proper noun single-token dictionary lookups
+ *   3. Full-text scan for multi-character proper nouns
  *
- * resolveType: (source, word, metadata) => string | null
- *   The entry's semantic type, or null for untyped (both matchers read that as
- *   'unknown'). Every entry is kept whatever its type: which variable it may fill is
- *   decided at match time (matcher.rs::is_variable_type_allowed and its JS mirror).
- *   A pattern-level prefilter on declared types (buildTypeFilter) was deleted
- *   2026-09-26 — it never engaged, and would have dropped entries once it did.
+ * The tokens are always untranslated here (Phase 1 runs on freshly tokenized text), so no stage
+ * reads a translation off them. A stage that read `translated` or `patternSemanticType`
+ * off the tokens sat here until 2026-10-24: 0 of 67,113 tokens over 8,382 real-library calls
+ * had either set, and it was deleted.
  *
  * @param {Array} tokens
  * @param {{ activeProperNouns: string[], dictionaryManager: object, patterns: Array }} options
- * @param {(source: string, word: string, metadata: object) => string|null} resolveType
  * @returns {Object.<string, {translation: string, source: string, type: string|null}>}
  */
-export function buildPatternVariableCache(tokens, options, resolveType) {
+export function buildPatternVariableCache(tokens, options) {
   const { activeProperNouns = [], dictionaryManager, patterns = [] } = options;
   const cache = {};
   const actualProperNounDictionaries = activeProperNouns.filter((d) => d !== 'phrases');
 
-  // Stage 1: Already-translated proper noun tokens (from prior pipeline phases)
-  for (const token of tokens) {
-    if (token.translated && token.translationSource?.includes('properNoun')) {
-      const entryType = resolveType(token.translationSource, token.value, token.metadata);
-      cache[token.value] = {
-        translation: token.translated,
-        source: token.translationSource,
-        type: entryType,
-      };
-    }
-  }
-
   if (!dictionaryManager) return withNumberVariables(tokens, cache, patterns);
 
-  // Stage 2: Phrase lookups with allowAsPatternVariable flag.
+  // Stage 1: Phrase lookups with allowAsPatternVariable flag.
   // One trie walk per start position, through the trie's own findMatches. A match counts only
   // if it ends where a token ends (the pipeline works in whole tokens) within MAX_PHRASE_TOKENS.
   const fullText = tokens.map((t) => t.value).join('');
@@ -86,7 +87,7 @@ export function buildPatternVariableCache(tokens, options, resolveType) {
       for (let len = 1; len <= Math.min(MAX_PHRASE_TOKENS, tokens.length - i); len++) {
         const match = matchByEnd.get(tokenStarts[i + len]);
         if (!match?.metadata?.allowAsPatternVariable) continue;
-        const entryType = resolveType('phrases_pattern_variable', match.word, match.metadata);
+        const entryType = resolveType('phrases_pattern_variable', match.metadata);
         cache[match.word] = {
           translation: match.translation,
           source: 'phrases_pattern_variable',
@@ -96,7 +97,7 @@ export function buildPatternVariableCache(tokens, options, resolveType) {
     }
   }
 
-  // Stage 3: Single-token proper noun lookups.
+  // Stage 2: Single-token proper noun lookups.
   // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate
   // (the UI states the same rule as `entryCapabilities`: properNouns `variableFlag: 'always'`).
   for (const token of tokens) {
@@ -104,7 +105,6 @@ export function buildPatternVariableCache(tokens, options, resolveType) {
     if (properNounResult) {
       const entryType = resolveType(
         properNounResult.dictionary + '_pattern_variable',
-        token.value,
         properNounResult.metadata
       );
       cache[token.value] = {
@@ -115,7 +115,7 @@ export function buildPatternVariableCache(tokens, options, resolveType) {
     }
   }
 
-  // Stage 4: Full-text scan for multi-character proper nouns.
+  // Stage 3: Full-text scan for multi-character proper nouns.
   // Defensive: actualProperNounDictionaries excludes 'phrases', but guard if a phrase
   // entry leaks through — apply the allowAsPatternVariable gate in that case.
   for (let pos = 0; pos < fullText.length; pos++) {
@@ -130,11 +130,7 @@ export function buildPatternVariableCache(tokens, options, resolveType) {
         const phrasesResult = dictionaryManager.translate(match.word, ['phrases']);
         if (phrasesResult?.metadata?.allowAsPatternVariable !== true) continue;
       }
-      const entryType = resolveType(
-        match.dictionary + '_pattern_variable',
-        match.word,
-        match.metadata
-      );
+      const entryType = resolveType(match.dictionary + '_pattern_variable', match.metadata);
       cache[match.word] = {
         translation: match.translation,
         source: match.dictionary + '_pattern_variable',

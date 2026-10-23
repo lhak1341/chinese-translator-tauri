@@ -14,22 +14,6 @@ export const MEMORY_MANAGEMENT = {
 };
 
 /**
- * CODE REVIEW FIX (LOW-3): Position Tracking Configuration
- * Extracted magic numbers for better maintainability
- */
-export const POSITION_TRACKING = {
-  // Maximum position entries to track for overlap detection
-  // Prevents O(n²) degradation for 1000+ word translations
-  MAX_TRACKING_POSITIONS: 500,
-
-  // Eviction percentage when max reached (10% = LRU eviction of oldest 10%)
-  EVICTION_PERCENTAGE: 0.1,
-
-  // Warning threshold for logging position tracking size
-  WARNING_INTERVAL: 100, // Log every 100 positions after max
-};
-
-/**
  * LOW-2 FIX: Phase Timeout Configuration
  * Maximum execution time for each translation phase (milliseconds)
  *

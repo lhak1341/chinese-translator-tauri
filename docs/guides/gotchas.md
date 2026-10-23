@@ -263,7 +263,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **`PatternStore.initializePatterns` object-format dicts key on `translation`, not `template`**: `{ 'X的': { translation: 'của X', allowAsPatternVariable: true } }`.
 
-**A test file that hand-copies a production method "verbatim" is a reimplementation, not a mock** — it drifts silently. `TranslationEngine.patternSemanticType.test.js` was missing a `groupLeader` assignment and hardcoded a value the real method derives dynamically. Prefer calling the real method on a minimal stub (`EngineClass.prototype.method.call(stub, ...)`).
+**A test file that hand-copies a production method "verbatim" is a reimplementation, not a mock** — it drifts silently. `TranslationEngine.patternSemanticType.test.js` (deleted 2026-10-24 with the field it tested) was missing a `groupLeader` assignment and hardcoded a value the real method derives dynamically. Prefer calling the real method on a minimal stub (`EngineClass.prototype.method.call(stub, ...)`).
 
 **A `TextChunk[]` fixture capitalizes every chunk unless its `startedBy` says otherwise.** `applySmartCapitalization` keys on `startedBy` (`'start'` and sentence-end marks capitalize), not on position, so a lowercase expectation needs `startedBy: ','` (or similar) on every chunk after the first. Seen in `FullTextAssembly.test.ts`, 2026-10-10.
 

@@ -139,6 +139,24 @@ describe('matchWordSegments — NFC/NFD normalization', () => {
     expect(sem[0].translatedText.normalize('NFC')).toBe('màu');
   });
 
+  test('places every unit of a long text: no cap on units, none overlap, output order', () => {
+    const count = 1500;
+    const entries = Array.from({ length: count }, (_, i) => ({
+      original: '字',
+      translated: `w${i}x`,
+      tokenIndex: i,
+    }));
+    const output = entries.map((e) => e.translated).join(' ');
+
+    const sem = matchWordSegments(arrays(entries), output).filter((s) => s.type === 'semantic');
+
+    expect(sem).toHaveLength(count);
+    sem.forEach((s, i) => {
+      expect(s.translatedText).toBe(`w${i}x`);
+      if (i > 0) expect(s.start).toBeGreaterThanOrEqual(sem[i - 1].end);
+    });
+  });
+
   test('NFD candidate word matches inside an NFC output text', () => {
     const nfdWord = 'màu'.normalize('NFD');
     const semanticArrays = arrays([{ original: '颜色', translated: nfdWord, tokenIndex: 0 }]);

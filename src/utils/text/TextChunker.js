@@ -11,8 +11,9 @@ class TextChunk {
     this.content = content.trim(); // The actual text content
     this.punctuation = punctuation; // The punctuation that follows this chunk (will be translated later)
     this.lineBreaks = lineBreaks; // Line breaks that follow this chunk
-    this.startIndex = startIndex; // Original position in the text
-    this.endIndex = startIndex + content.length; // End position (before punctuation)
+    // UTF-16 index of `content` in the text: the scan starts at the first character after a
+    // separator, an indent included, so skip the whitespace the trim dropped.
+    this.startIndex = startIndex + (content.length - content.trimStart().length);
     this.startedBy = startedBy; // What precedes this chunk (for capitalization rules)
     this.translated = null; // Will hold the translated result
     this.translatedPunctuation = null; // Will hold the translated punctuation

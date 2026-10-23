@@ -206,6 +206,17 @@ describe('TranslationEngine calls the formatting passes in order', () => {
     }
   });
 
+  test('a text opening with an indent records each unit past the indent, not on it', async () => {
+    // The chunk's content is trimmed, so its tokens start after the indent: startIndex must too.
+    const text = '　　说别';
+    const { semanticArrays } = await engine.translateWithSegments(text);
+    for (const meta of semanticArrays.metadata) {
+      expect(text.slice(meta.originalStart, meta.originalEnd)).toBe(
+        semanticArrays.original[semanticArrays.metadata.indexOf(meta)]
+      );
+    }
+  });
+
   test('capitalizes the start of the text but not after a comma', async () => {
     const result = await engine.translateWithSegments('说，别');
     expect(result.translatedText).toMatch(/^Thuyết/);

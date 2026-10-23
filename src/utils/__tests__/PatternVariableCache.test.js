@@ -18,12 +18,10 @@ function makeManager(phrasesTrie) {
   };
 }
 
-const resolveType = () => 'concept';
-
-describe('buildPatternVariableCache — Stage 2 token boundaries', () => {
+describe('buildPatternVariableCache — Stage 1 token boundaries', () => {
   const flag = { allowAsPatternVariable: true };
   const run = (trie, tokens) =>
-    buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) }, resolveType);
+    buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
   test('a phrase ending mid-token is not a match', () => {
     // "ab" is a phrase, but the tokens are "a" + "bc": the phrase ends inside the second token.
@@ -60,16 +58,12 @@ describe('buildPatternVariableCache — Stage 2 token boundaries', () => {
   });
 });
 
-describe('buildPatternVariableCache — Stage 2 trie walk', () => {
+describe('buildPatternVariableCache — Stage 1 trie walk', () => {
   test('single-token phrase match', () => {
     const trie = makeTrie([['部', 'bộ', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: '部' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部']).toEqual({
       translation: 'bộ',
@@ -82,11 +76,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部分', 'bộ phận', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: '部' }, { value: '分' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部分']).toEqual({
       translation: 'bộ phận',
@@ -100,11 +90,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['一二三', 'một hai ba', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: '一' }, { value: '二' }, { value: '三' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['一二三'].translation).toBe('một hai ba');
   });
@@ -116,11 +102,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     ]);
     const tokens = [{ value: '部' }, { value: '分' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部'].translation).toBe('bộ');
     expect(result['部分'].translation).toBe('bộ phận');
@@ -130,11 +112,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部分', 'bộ phận', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: 'X' }, { value: '分' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(Object.keys(result)).toHaveLength(0);
   });
@@ -143,11 +121,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部分人', 'bộ phận người', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: '部' }, { value: 'X' }, { value: '人' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(Object.keys(result)).toHaveLength(0);
   });
@@ -156,11 +130,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部', 'bộ', { allowAsPatternVariable: false }]]);
     const tokens = [{ value: '部' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部']).toBeUndefined();
   });
@@ -169,23 +139,15 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部', 'bộ', {}]]);
     const tokens = [{ value: '部' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部']).toBeUndefined();
   });
 
-  test('null phrasesTrie skips stage 2 without crash', () => {
+  test('null phrasesTrie skips stage 1 without crash', () => {
     const tokens = [{ value: '部' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(null) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(null) });
 
     expect(Object.keys(result)).toHaveLength(0);
   });
@@ -195,11 +157,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([[word7, 'seven', { allowAsPatternVariable: true }]]);
     const tokens = word7.split('').map((ch) => ({ value: ch }));
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result[word7]).toBeUndefined();
   });
@@ -209,11 +167,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([[word6, 'six', { allowAsPatternVariable: true }]]);
     const tokens = word6.split('').map((ch) => ({ value: ch }));
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result[word6].translation).toBe('six');
   });
@@ -225,11 +179,7 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     ]);
     const tokens = [{ value: '部' }, { value: '分' }];
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部'].translation).toBe('bộ');
     expect(result['分'].translation).toBe('phần');
@@ -240,12 +190,102 @@ describe('buildPatternVariableCache — Stage 2 trie walk', () => {
     const trie = makeTrie([['部分', 'bộ phận', { allowAsPatternVariable: true }]]);
     const tokens = [{ value: '部分' }]; // single token with 2-char value
 
-    const result = buildPatternVariableCache(
-      tokens,
-      { dictionaryManager: makeManager(trie) },
-      resolveType
-    );
+    const result = buildPatternVariableCache(tokens, { dictionaryManager: makeManager(trie) });
 
     expect(result['部分'].translation).toBe('bộ phận');
+  });
+});
+
+describe('buildPatternVariableCache — entry type', () => {
+  const tokens = [{ value: '刘备' }];
+
+  test('a phrase without a semanticType is a concept; one with a semanticType keeps it', () => {
+    const concept = buildPatternVariableCache(tokens, {
+      dictionaryManager: makeManager(makeTrie([['刘备', 'x', { allowAsPatternVariable: true }]])),
+    });
+    const typed = buildPatternVariableCache(tokens, {
+      dictionaryManager: makeManager(
+        makeTrie([['刘备', 'x', { allowAsPatternVariable: true, semanticType: 'location' }]])
+      ),
+    });
+
+    expect(concept['刘备'].type).toBe('concept');
+    expect(typed['刘备'].type).toBe('location');
+  });
+
+  test('a proper noun without a semanticType is untyped; one with a semanticType keeps it', () => {
+    const lookup = (metadata) => ({
+      ...makeManager(null),
+      translate: () => ({ dictionary: 'properNouns', translation: 'Lưu Bị', metadata }),
+    });
+    const options = (metadata) => ({
+      activeProperNouns: ['properNouns'],
+      dictionaryManager: lookup(metadata),
+    });
+
+    expect(buildPatternVariableCache(tokens, options({}))['刘备'].type).toBeNull();
+    expect(
+      buildPatternVariableCache(tokens, options({ semanticType: 'character' }))['刘备'].type
+    ).toBe('character');
+  });
+});
+
+describe('buildPatternVariableCache — Stage 3 full-text scan', () => {
+  const tokens = [{ value: '诸' }, { value: '葛' }, { value: '亮' }];
+  const withMatches = (matches, phrasesMetadata) => ({
+    ...makeManager(null),
+    findAllMatches: (_text, pos) => (pos === 0 ? matches : []),
+    translate: () =>
+      phrasesMetadata ? { dictionary: 'phrases', metadata: phrasesMetadata } : null,
+  });
+
+  test('a multi-character proper noun found in the text is cached', () => {
+    const match = { word: '诸葛亮', translation: 'Gia Cát Lượng', dictionary: 'properNouns' };
+
+    const result = buildPatternVariableCache(tokens, {
+      activeProperNouns: ['properNouns'],
+      dictionaryManager: withMatches([match]),
+    });
+
+    expect(result['诸葛亮']).toEqual({
+      translation: 'Gia Cát Lượng',
+      source: 'properNouns_pattern_variable',
+      type: null,
+    });
+  });
+
+  test('a phrase match is cached only when the phrase allows pattern variables', () => {
+    const match = { word: '诸葛亮', translation: 'x', dictionary: 'phrases' };
+    const run = (flag) =>
+      buildPatternVariableCache(tokens, {
+        activeProperNouns: ['properNouns'],
+        dictionaryManager: withMatches([match], { allowAsPatternVariable: flag }),
+      });
+
+    expect(run(true)['诸葛亮']).toBeDefined();
+    expect(run(false)['诸葛亮']).toBeUndefined();
+  });
+});
+
+describe('buildPatternVariableCache — numbers for # patterns', () => {
+  const tokens = [
+    { value: '七', type: 'chinese_char' },
+    { value: '大', type: 'chinese_char' },
+  ];
+  const run = (patterns) =>
+    buildPatternVariableCache(tokens, { patterns, dictionaryManager: makeManager(null) });
+
+  test('adds numeral spans when a pattern uses #', () => {
+    const cache = run([{ originalPattern: '#大X之一', template: 'một trong # đại X' }]);
+
+    expect(cache['七']).toEqual({
+      translation: 'bảy',
+      source: 'number_pattern_variable',
+      type: 'number',
+    });
+  });
+
+  test('adds no numbers when no pattern uses #', () => {
+    expect(run([{ originalPattern: 'X大Y', template: 'X đại Y' }])['七']).toBeUndefined();
   });
 });

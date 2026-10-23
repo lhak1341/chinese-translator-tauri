@@ -126,11 +126,7 @@ import {
   filterDictionariesForEngine,
   isActiveProperNounSource,
 } from './dictionary/FictionDictionaryFilter';
-import {
-  getTokenSpanForText,
-  getTextFromTokens,
-  getTextPositionForTokenIndex,
-} from './TokenHelpers.js';
+import { getTokenSpanForText } from './TokenHelpers.js';
 import { PatternStore } from './pattern/PatternStore.js';
 import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
@@ -795,7 +791,6 @@ export class TranslationEngine {
         result.translation,
         this.activeProperNouns ?? []
       );
-      tokens[result.startIndex].patternSemanticType = result.semanticType ?? null;
 
       // Mark the result type for debugging and analysis
       if (result.type === 'composite') {
@@ -881,7 +876,6 @@ export class TranslationEngine {
    * @param {Object} options - Processing options
    */
   processRemainingPhrases(tokens, options) {
-    const fullText = getTextFromTokens(tokens);
     const allPotentialMatches = [];
 
     // HIGH-4 FIX: Pre-compute unprocessed ranges to avoid redundant checks
@@ -895,11 +889,7 @@ export class TranslationEngine {
         // Double-check token is still unprocessed (may have been grouped in previous iteration)
         if (isClaimed(token)) continue;
 
-        const textPosition = getTextPositionForTokenIndex(tokens, i);
-        // The sync lookup: a one-dictionary search, which never takes the WASM tier anyway
-        const phraseMatches = this.dictionaryManager.findAllMatches(fullText, textPosition, [
-          'phrases',
-        ]);
+        const phraseMatches = this.dictionaryManager.findMatchesAtToken(tokens, i, ['phrases']);
 
         // Add matches for remaining phrases
         for (const match of phraseMatches) {
@@ -985,8 +975,8 @@ export class TranslationEngine {
    *
    * Left to right, the longest match at each token wins, with one exception: the
    * lookahead defers a match when a token inside its span starts a STRICTLY LONGER match
-   * (src/utils/CLAUDE.md, "Phase 2 proper noun lookahead"). The overlap check against
-   * the spans already applied guards a span whose token count disagrees with its text.
+   * (src/utils/CLAUDE.md, "Phase 2 proper noun lookahead"). A match's start token is always past
+   * the span the last one claimed, so no match can overlap an earlier one.
    *
    * A lookup failure is logged and swallowed: the tokens stay unclaimed for later phases.
    *
@@ -1010,9 +1000,6 @@ export class TranslationEngine {
       const matchesAt = (tokenList, pos) =>
         this.dictionaryManager.findMatchesAtToken(tokenList, pos, dictionaryOrder);
 
-      // Text ranges of the matches already applied, for the overlap check
-      const processedRanges = [];
-
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
 
@@ -1029,51 +1016,34 @@ export class TranslationEngine {
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
 
-          // Check for overlap with the matches already applied
-          let hasConflict = false;
-          const matchStart = getTextPositionForTokenIndex(tokens, i);
-          const matchEnd = matchStart + bestMatch.word.length;
+          const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
 
-          for (const range of processedRanges) {
-            // Check for overlap: match overlaps with range if they share any position
-            if (!(matchEnd <= range.start || matchStart >= range.end)) {
-              hasConflict = true;
-              break;
+          // Lookahead: if a LONGER match exists starting within our span, defer to it.
+          // Prevents greedy left-to-right from picking a short match (e.g. "日元", 2 chars)
+          // and consuming a character needed by a longer match at the next position
+          // (e.g. "元始圣人", 4 chars). Only defers when j's match is STRICTLY LONGER —
+          // same-length matches at a later start position lose to the earlier match.
+          let deferToLookahead = false;
+          for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
+            if (isClaimed(tokens[j])) continue;
+            const jMatches = matchesAt(tokens, j);
+            if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
+              deferToLookahead = true;
             }
           }
-
-          if (!hasConflict) {
-            const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
-
-            // Lookahead: if a LONGER match exists starting within our span, defer to it.
-            // Prevents greedy left-to-right from picking a short match (e.g. "日元", 2 chars)
-            // and consuming a character needed by a longer match at the next position
-            // (e.g. "元始圣人", 4 chars). Only defers when j's match is STRICTLY LONGER —
-            // same-length matches at a later start position lose to the earlier match.
-            let deferToLookahead = false;
-            for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
-              if (isClaimed(tokens[j])) continue;
-              const jMatches = matchesAt(tokens, j);
-              if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
-                deferToLookahead = true;
-              }
-            }
-            if (deferToLookahead) {
-              continue;
-            }
-
-            // Apply translation to the matched tokens
-            this.applyMatchToTokens(tokens, i, bestMatch, options);
-
-            processedRanges.push({ start: matchStart, end: matchEnd });
-
-            // Skip ahead past the matched tokens
-            // BUG FIX: Ensure we never go backwards or stay in same place
-            if (tokenSpan > 0) {
-              i += tokenSpan - 1;
-            }
-            // If tokenSpan is 0, just continue to next token (i will increment naturally)
+          if (deferToLookahead) {
+            continue;
           }
+
+          // Apply translation to the matched tokens
+          this.applyMatchToTokens(tokens, i, bestMatch, options);
+
+          // Skip ahead past the matched tokens
+          // BUG FIX: Ensure we never go backwards or stay in same place
+          if (tokenSpan > 0) {
+            i += tokenSpan - 1;
+          }
+          // If tokenSpan is 0, just continue to next token (i will increment naturally)
         }
       }
     } catch (error) {
