@@ -8,16 +8,28 @@
  * src/utils/CLAUDE.md section 4 (positions recorded before cleanup must survive it).
  */
 
-import { QuoteProcessor } from './QuoteProcessor';
+import { QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
+
+// Closing quotes as a regex character-class body, derived so the three rules below cannot drift
+// from QUOTE_CATEGORIES (a hand-typed copy of each left ’ out of two of them).
+const CLOSING_QUOTES = QUOTE_CATEGORIES.CLOSING.join('');
+const SPACE_AFTER_CLOSING_QUOTE = new RegExp(`([${CLOSING_QUOTES}])(?!\\s|$)`, 'g');
+const SPACE_AFTER_PUNCTUATION = new RegExp(
+  `([.!?:;，。！？：；])(?!\\s|$|[“${CLOSING_QUOTES}\\])}】》）])`,
+  'g'
+);
+const SPACE_AFTER_COMMA = new RegExp(`,(?!\\s|$|[“${CLOSING_QUOTES}\\d])`, 'g');
 
 /** Looks up the translation of one punctuation character; null when the dictionary has none. */
 export type PunctuationLookup = (char: string) => string | null | undefined;
 
 export interface CleanupOptions {
-  /** false = Full Translation per-chunk path, which also applies the spacing and capital rules. */
-  useChunking?: boolean;
-  /** Each parallel chunk skips the start-of-text capital; applySmartCapitalization owns it. */
-  isParallelChunk?: boolean;
+  /**
+   * Capitalize the first letter of the text. Character-only passes true; each Full Translation
+   * chunk passes false, because applySmartCapitalization owns the start-of-text capital there
+   * and a per-chunk capital would uppercase every chunk's first letter.
+   */
+  capitalizeStart: boolean;
 }
 
 export interface FormattingChunk {
@@ -84,7 +96,7 @@ export function cleanupFormatting(
   // A ’ with a letter on both sides is an apostrophe inside a word ("Thori’dal", "don’t"),
   // not a closing quote: spacing it split dictionary translations, and the inserted char
   // shifted every click-to-highlight position after it.
-  result = result.replace(/([”’»>])(?!\s|$)/g, (match, quote, offset, string) =>
+  result = result.replace(SPACE_AFTER_CLOSING_QUOTE, (match, quote, offset, string) =>
     quote === '’' &&
     /\p{L}/u.test(string[offset - 1] ?? '') &&
     /\p{L}/u.test(string[offset + 1] ?? '')
@@ -92,60 +104,43 @@ export function cleanupFormatting(
       : quote + ' '
   );
 
-  // Skip detailed spacing rules when called from chunking (chunks handle their own spacing)
-  if (options.useChunking !== false) {
-    // Fix spacing around punctuation - remove spaces before punctuation, but keep any line
-    // break inside that whitespace run: bare \s swallows \n, deleting a paragraph break
-    // whenever the next line starts with punctuation. `(\r?\n|)` and `(\r?\n)?` behave
-    // identically here — a non-participating group interpolates as an empty string in a
-    // string replacement, and only yields `undefined` in a replacer function.
-    result = result.replace(
-      /[^\S\r\n]*(\r?\n|)[^\S\r\n]*([.,!?:;，。！？：；\])}】》）])/g,
-      '$1$2'
-    );
-    // Skip remaining spacing rules when called from chunking
-    return result;
-  } else {
-    // Add space after punctuation (except at end of string, before closing quotes, or when
-    // it's a decimal point inside a converted number's own translated value, e.g.
-    // NumberProcessor's "99.9%" — digits on BOTH sides. Forcing a space there splits the
-    // number into "99. 9%" and, since positions are recorded against this text before
-    // cleanup runs, also corrupts every subsequent click-to-highlight position by the one
-    // inserted char. Checking only the following digit (fixed 2026-08-29) over-excluded: a
-    // real sentence-ending punct followed by a digit-led new sentence (preceding char NOT a
-    // digit) also lost its space, e.g. "...rồi.5 người" stayed unspaced. Checking both
-    // neighbors distinguishes the two cases.
-    result = result.replace(
-      /([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>])/g,
-      (match, punct, offset, string) => {
-        const prevChar = offset > 0 ? string[offset - 1] : '';
-        const nextChar = string[offset + punct.length] || '';
-        if (/\d/.test(prevChar) && /\d/.test(nextChar)) {
-          return punct;
-        }
-        return punct + ' ';
-      }
-    );
-    // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
-    result = result.replace(/,(?!\s|$|[“””\d])/g, ', ');
-    // Note: Line 615 uses mixed quote characters (literal curly + straight quotes)
-
-    // Special case: Add space between colon and opening quote (colon-quote combinations)
-    result = result.replace(/:\u201c/g, ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
-    result = result.replace(/:”(?!\s)/g, ': “'); // Regular quote version
-
-    // Capitalize first word after colon or linebreak, skipping any intervening non-letter chars
-    // \P{L}*? lazily consumes quotes/spaces — no char class needed, works for any quote encoding
-    result = result.replace(/(:\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
-    result = result.replace(/(\n\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
-    // Capitalize start of text only for standalone (non-chunk) translations.
-    // When isParallelChunk=true, applySmartCapitalization handles this via startedBy='start'.
-    // Applying it per-chunk would capitalize the first letter of every chunk, not just the first.
-    if (!options.isParallelChunk) {
-      result = result.replace(/^(\P{L}*)(\p{L})/u, (m, pre, letter) =>
-        /\d/.test(pre) ? m : pre + letter.toUpperCase()
-      );
+  // Add space after punctuation (except at end of string, before closing quotes, or when
+  // it's a decimal point inside a converted number's own translated value, e.g.
+  // NumberProcessor's "99.9%" — digits on BOTH sides. Forcing a space there splits the
+  // number into "99. 9%" and, since positions are recorded against this text before
+  // cleanup runs, also corrupts every subsequent click-to-highlight position by the one
+  // inserted char. Checking only the following digit (fixed 2026-08-29) over-excluded: a
+  // real sentence-ending punct followed by a digit-led new sentence (preceding char NOT a
+  // digit) also lost its space, e.g. "...rồi.5 người" stayed unspaced. Checking both
+  // neighbors distinguishes the two cases.
+  result = result.replace(SPACE_AFTER_PUNCTUATION, (match, punct, offset, string) => {
+    const prevChar = offset > 0 ? string[offset - 1] : '';
+    const nextChar = string[offset + punct.length] || '';
+    if (/\d/.test(prevChar) && /\d/.test(nextChar)) {
+      return punct;
     }
+    return punct + ' ';
+  });
+  // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
+  // or a closing quote (`,’` is a comma closing a quote, not a list comma)
+  result = result.replace(SPACE_AFTER_COMMA, ', ');
+  // Note: Line 615 uses mixed quote characters (literal curly + straight quotes)
+
+  // Special case: Add space between colon and opening quote (colon-quote combinations)
+  result = result.replace(/:\u201c/g, ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
+  result = result.replace(/:”(?!\s)/g, ': “'); // Regular quote version
+
+  // Capitalize first word after colon or linebreak, skipping any intervening non-letter chars
+  // \P{L}*? lazily consumes quotes/spaces — no char class needed, works for any quote encoding
+  result = result.replace(/(:\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
+  result = result.replace(/(\n\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
+  // Capitalize start of text only when the caller owns it (character-only). A Full Translation
+  // chunk leaves it to applySmartCapitalization via startedBy='start'; capitalizing per chunk
+  // would uppercase the first letter of every chunk, not just the first.
+  if (options.capitalizeStart) {
+    result = result.replace(/^(\P{L}*)(\p{L})/u, (m, pre, letter) =>
+      /\d/.test(pre) ? m : pre + letter.toUpperCase()
+    );
   }
 
   // Remove excessive spaces but preserve line breaks
@@ -400,7 +395,7 @@ export function finishFullText(text: string): string {
  */
 export function finishCharOnlyText(text: string, translatePunct: PunctuationLookup): string {
   const formatted = applyCharOnlySupplements(
-    cleanupFormatting(text, { useChunking: false }, translatePunct)
+    cleanupFormatting(text, { capitalizeStart: true }, translatePunct)
   );
   return spaceLettersAndDigits(formatted).normalize('NFC');
 }

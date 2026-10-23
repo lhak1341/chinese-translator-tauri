@@ -30,7 +30,7 @@ Interface (all pure, text in and text out):
 
 - `finishFullText(text)`: `cleanFullText` then NFC. The Full Translation final text.
 - `cleanFullText(text)`: `spaceLettersAndDigits` then `normalizeLineWhitespace`, no NFC. The progressive path cleans each batch with this before the whole text is finished.
-- `finishCharOnlyText(text, translatePunct)`: `cleanupFormatting` (`useChunking: false`), `applyCharOnlySupplements`, `spaceLettersAndDigits`, NFC.
+- `finishCharOnlyText(text, translatePunct)`: `cleanupFormatting` (`capitalizeStart: true`), `applyCharOnlySupplements`, `spaceLettersAndDigits`, NFC.
 - `spaceLettersAndDigits`, `normalizeLineWhitespace`: the two rules, exported for their tests.
 
 **The modes differ on purpose.** Character-only does not run `normalizeLineWhitespace`: a line's leading indentation (a `U+3000` paragraph indent) survives, as `translateWithCharactersOnly` has always said it preserves whitespace, and Full Translation strips it. Character-only's whole-text `trim()` inside `cleanupFormatting` still drops a trailing newline, which Full Translation keeps. Character-only gained the letter/digit spacing (`abc123` → `abc 123`; digits next to Chinese were already spaced at token level by `needsSpaceCharOnly`) and the NFC, so an NFD dictionary value no longer breaks segment boundaries there either.

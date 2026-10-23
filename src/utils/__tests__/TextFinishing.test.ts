@@ -20,6 +20,29 @@ import {
 const noPunctuation = () => null;
 const charOnly = (text: string) => finishCharOnlyText(text, noPunctuation);
 
+describe('a mark before a closing quote', () => {
+  const clean = (text: string) => finishCharOnlyText(text, noPunctuation);
+
+  it.each([
+    ['‘Đi.’Hắn nói', '‘Đi.’ Hắn nói'],
+    ['‘Đi!’Hắn nói', '‘Đi!’ Hắn nói'],
+    ['‘Đi,’Hắn nói', '‘Đi,’ Hắn nói'],
+    ['“Đi.”Hắn nói', '“Đi.” Hắn nói'],
+    ['«Đi,»Hắn nói', '«Đi,» Hắn nói'],
+  ])('%s keeps the mark against the quote', (input, expected) => {
+    expect(clean(input)).toBe(expected);
+  });
+
+  it('still spaces a list comma and a sentence end', () => {
+    expect(clean('a,b')).toBe('A, b');
+    expect(clean('Đi.Hắn')).toBe('Đi. Hắn');
+  });
+
+  it('keeps an apostrophe inside a word', () => {
+    expect(clean('Thori’dal tiếp')).toBe('Thori’dal tiếp');
+  });
+});
+
 describe('spaceLettersAndDigits', () => {
   it.each([
     ['Thứ422giới', 'Thứ 422 giới'],
@@ -107,7 +130,7 @@ describe('engine parity: Full Translation vs character-only', () => {
     patterns: {},
     properNouns: {},
     conversion: {},
-    punctuation: { '，': ',', '。': '.', '！': '!', '：': ':' },
+    punctuation: { '，': ',', '。': '.', '！': '!', '：': ':', '『': '‘', '』': '’' },
   };
 
   async function engine() {
@@ -146,6 +169,27 @@ describe('engine parity: Full Translation vs character-only', () => {
     );
     expect((await e.translateWithSegments(input, {})).translatedText).toBe('Thuyết 1,200 biệt');
   });
+
+  it.each(
+    (['charOnly', 'full'] as const).flatMap((mode) =>
+      [
+        ['。', '.'],
+        ['！', '!'],
+        ['，', ','],
+      ].map(([mark, ascii]) => [mode, mark, ascii])
+    )
+  )(
+    '%s: %s stays glued to a closing single quote, and the next word is spaced',
+    async (mode, mark, ascii) => {
+      const e = await engine();
+      const input = `说『别${mark}』单`;
+      const { translatedText } =
+        mode === 'full'
+          ? await e.translateWithSegments(input, {})
+          : await e.translateWithCharactersOnly(input, {});
+      expect(translatedText).toContain(`‘biệt${ascii}’ `);
+    }
+  );
 
   it('still gives a list comma its space', async () => {
     const e = await engine();

@@ -103,9 +103,6 @@ export interface BatchCompleteEvent {
  * Translation operation options. Only what the engine reads.
  */
 export interface TranslationOptions {
-  /** Chunk-level formatting switch, set per chunk by the batch loop */
-  useChunking?: boolean;
-
   /** Called once per finished batch */
   onBatchComplete?: (event: BatchCompleteEvent) => void;
 

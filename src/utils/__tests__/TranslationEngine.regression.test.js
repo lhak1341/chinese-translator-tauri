@@ -181,9 +181,8 @@ describe('TranslationEngine Regression Tests', () => {
 
   describe('Bug Fix: cleanupFormatting spuriously spacing a decimal point off its digit', () => {
     const cleanup = (text, options) => cleanupFormatting(text, options, () => null);
-    // options.useChunking: false is the Full Translation per-chunk path (translateDirectly
-    // with isParallelChunk: true) — the branch that adds a space after sentence punctuation.
-    const opts = { useChunking: false, isParallelChunk: true };
+    // The Full Translation per-chunk options (translateDirectly's postProcess).
+    const opts = { capitalizeStart: false };
 
     it('does not split a decimal point inside a converted number: "99.9%" stays intact', () => {
       // 百分之九十九点九 → NumberProcessor's "99.9%"; previously became "99. 9%", which also
@@ -199,50 +198,27 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('Bug Fix: cleanupFormatting chunking branch swallowing paragraph breaks', () => {
-    // Same prototype-call setup as the decimal-point block above; the branch under test is
-    // the DEFAULT one (useChunking omitted / not false), which every chunked translation takes.
-    const cleanup = (text) => cleanupFormatting(text, {}, () => null);
-
-    it('keeps a line break that precedes line-leading punctuation', () => {
-      // The remove-spaces-before-punctuation rule used bare \s+, which matches \n — so a
-      // paragraph break landing before a line-leading punctuation mark was deleted outright,
-      // silently dropping a blank line from the Vietnamese output.
-      expect(cleanup('Dòng một\n。')).toBe('Dòng một\n。');
-      expect(cleanup('Dòng một\n) tiếp')).toBe('Dòng một\n) tiếp');
-      expect(cleanup('Dòng một\r\n》')).toBe('Dòng một\r\n》');
-    });
-
-    it('still removes spaces and tabs before punctuation', () => {
-      expect(cleanup('Xin chào .')).toBe('Xin chào.');
-      expect(cleanup('Xin chào\t，')).toBe('Xin chào，');
-    });
-
-    it('strips trailing spaces on a line without eating the break itself', () => {
-      expect(cleanup('Dòng một \n。')).toBe('Dòng một\n。');
-    });
-  });
-
   describe('Bug Fix: cleanupFormatting spacing an apostrophe inside a word', () => {
     // 索瑞达尔 → "Thori’dal" (U+2019 as an apostrophe) came out "Thori’ dal": the
     // space-after-closing-quote rule took every ’ for a closing quote. The inserted char also
     // shifted every click-to-highlight position after it.
-    const cleanup = (text, options = {}) => cleanupFormatting(text, options, () => null);
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
 
-    it.each([{}, { useChunking: false, isParallelChunk: true }])(
-      'keeps a letter-flanked ’ inside its word (options %o)',
-      (options) => {
-        expect(cleanup('Chủ thành Thori’dal tiếp thụ', options)).toBe(
-          'Chủ thành Thori’dal tiếp thụ'
-        );
-        expect(cleanup('don’t', options)).toBe('don’t');
-      }
-    );
+    it('keeps a letter-flanked ’ inside its word', () => {
+      expect(cleanup('Chủ thành Thori’dal tiếp thụ')).toBe('Chủ thành Thori’dal tiếp thụ');
+      expect(cleanup('don’t')).toBe('don’t');
+    });
 
     it('still spaces a closing quote off the word after it', () => {
       expect(cleanup('“Đi.”Hắn nói')).toBe('“Đi.” Hắn nói');
-      expect(cleanup('‘Đi.’Hắn nói')).toBe('‘Đi.’ Hắn nói');
       expect(cleanup('«Sách»hay')).toBe('«Sách» hay');
+    });
+
+    it('capitalizes the first letter only when the caller owns the start of the text', () => {
+      expect(cleanupFormatting('xin chào', { capitalizeStart: true }, () => null)).toBe('Xin chào');
+      expect(cleanupFormatting('xin chào', { capitalizeStart: false }, () => null)).toBe(
+        'xin chào'
+      );
     });
   });
 });

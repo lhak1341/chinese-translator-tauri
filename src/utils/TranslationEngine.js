@@ -184,7 +184,6 @@ const NO_PATTERN_PROCESSOR = 'No pattern processor: no patterns loaded or WASM u
  *                                                 (`TextChunk.startIndex`); added to `originalStart`.
  * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
  * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
- * @property {boolean} [useChunking]             - Enable adaptive chunking for long texts
  */
 
 /**
@@ -1328,7 +1327,9 @@ export class TranslationEngine {
       }
     }
 
-    const cleaned = cleanupFormatting(result, options, (char) => this.lookupPunctuation(char));
+    const cleaned = cleanupFormatting(result, { capitalizeStart: false }, (char) =>
+      this.lookupPunctuation(char)
+    );
 
     return cleaned;
   }
@@ -1547,7 +1548,6 @@ export class TranslationEngine {
           // Each chunk runs in parallel - shared nested objects would cause race conditions
           const chunkOptions = {
             ...options,
-            useChunking: false,
             // Apply global token offset so addUnit entries land at correct positions in the
             // shared semantic builder. Chunks run in parallel on the shared builder — this
             // can produce "all candidates already mapped" debug logs when setPositionByMatch
@@ -1557,7 +1557,6 @@ export class TranslationEngine {
             // The chunk's content starts after any leading punctuation, so token positions
             // are local to it; `originalStart` is an offset into the whole text.
             chunkCharOffset: chunk.startIndex,
-            isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };
 
           chunk.translated = await this.translateDirectly(chunk.content, chunkOptions);
@@ -1810,11 +1809,11 @@ export class TranslationEngine {
   // ============================================================================
 
   /**
-   * Direct translation method (original single-text approach)
+   * Per-chunk translation: runs the full 5-phase pipeline over one chunk's text
    *
-   * Translates text as a single unit without chunking or progressive processing. This is the
-   * core translation method that implements the full 5-phase pipeline. Called per chunk by
-   * processChunksInParallel. Throws when the input is over the device token limit.
+   * Called per chunk by processChunksInParallel, the only caller. Throws when the input is over
+   * the device token limit. It never resets the semantic array builder: translateWithSegments and
+   * translateWithProgressiveBatches reset it once, before their chunks run.
    *
    * Key features:
    * - Full 5-phase translation pipeline
@@ -1830,8 +1829,6 @@ export class TranslationEngine {
    *
    * @param {string} text - Input Chinese text to translate
    * @param {Object} [options={}] - Translation options
-   * @param {boolean} [options.useChunking=true] - Enable chunk-based processing (for standalone calls)
-   * @param {boolean} [options.isParallelChunk=false] - Internal flag for parallel chunk processing
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
    *
@@ -1849,32 +1846,13 @@ export class TranslationEngine {
    * - Small texts (<500 chars): ~50-100ms
    *
    * @critical
-   * When isParallelChunk=true, does NOT reset semantic builder or segments.
-   * This allows accumulation across chunks in parallel processing — all parallel chunks write
-   * to the same this.semanticArrayBuilder; chunkOffset (computed upfront by the caller) keeps
-   * tokenIndex values globally correct regardless of chunk-completion order.
+   * Does NOT reset the semantic builder or segments (a reset would lose the previous chunks'
+   * arrays). All parallel chunks write to the same this.semanticArrayBuilder; chunkOffset
+   * (computed upfront by the caller) keeps tokenIndex values globally correct regardless of
+   * chunk-completion order.
    */
   async translateDirectly(text, options = {}) {
-    // This is the original translate method logic, renamed for chunk-based architecture
     try {
-      // CRITICAL FIX: Only reset segments if this is a standalone translation
-      // DO NOT reset if this is part of multi-chunk translation (would lose semantic arrays from previous chunks)
-      //
-      // Context: When processChunksInParallel() calls translateDirectly() for each chunk:
-      // - Sets useChunking: false (to prevent nested chunking)
-      // - Sets isParallelChunk: true (to prevent reset)
-      // - This allows semantic arrays to accumulate across chunks
-      //
-      // Decision logic:
-      // - If isParallelChunk === true: DON'T RESET (accumulate across chunks)
-      // - If useChunking === false AND isParallelChunk !== true: RESET (standalone translation)
-      // - If useChunking !== false: RESET (standard translation)
-      const isPartOfMultiChunkTranslation = options.isParallelChunk === true;
-      if (!isPartOfMultiChunkTranslation) {
-        // Reset semantic array builder for new translation
-        this.semanticArrayBuilder.reset();
-      }
-
       // Phase 1: Tokenization with memory-based processing limits
       const tokens = this.tokenizer.tokenize(text);
 

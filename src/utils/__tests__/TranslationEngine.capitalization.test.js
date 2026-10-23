@@ -6,7 +6,7 @@
  *   1. WASM TextChunker: consecutive punctuation combined (e.g. "：«") → startedBy contains colon
  *   2. JS TextChunker: empty 「-only chunk between colon chunk and content chunk
  *
- * Also covers the cleanupFormatting else-branch isParallelChunk guard indirectly
+ * Also covers cleanupFormatting's capitalizeStart: false for a chunk indirectly
  * via the applySmartCapitalization comma case (biệt/đan must stay lowercase).
  */
 import { describe, test, expect, beforeAll } from 'vitest';
