@@ -923,7 +923,7 @@ Seven hand-written `.replace('properNouns-', '')` copies on four screens used to
 
 ## Candidate finder
 
-A Reader panel for the open book (design settled in wayfinder map "Candidate finder for new proper nouns"; built so far: the run, ranked table, progress and cancel (#44), the coverage mask and Also-in tag (#45) — no background table, rules, dismissals or Add yet). It lists strings that are probably proper nouns but are not yet in the book's active proper-noun dictionaries, ranked, with context lines and a quick add. It never writes a dictionary on its own: every add is a user action per row (or a batch the user triggers).
+A Reader panel for the open book (design settled in wayfinder map "Candidate finder for new proper nouns"; built so far: the run, ranked table, progress and cancel (#44), the coverage mask and Also-in tag (#45), Add one candidate (#46) — no background table, rules or dismissals yet). It lists strings that are probably proper nouns but are not yet in the book's active proper-noun dictionaries, ranked, with context lines and a quick add. It never writes a dictionary on its own: every add is a user action per row (or a batch the user triggers).
 
 **Run** (`candidate_finder.rs`, `candidate_finder_commands.rs`, `CandidateFinderStore`):
 The pure Rust analysis takes the book's lines, the `phrases` keys and the proper-noun keys (below) and returns every survivor with count and line count, or nothing when cancelled; the command runs it on a blocking thread over the cached book handle, with a frontend-chosen run id for progress events (`candidate-finder-progress`: stage `reading`/`counting`/`scoring`, percent 0-100) and cooperative cancel. Closing the panel cancels a running run and keeps a finished list; unmounting the Reader (switch, Back, encoding prompt) drops it.
@@ -934,6 +934,9 @@ _Avoid_: suggestion, new word, unknown word
 
 **Coverage mask**:
 The spans of the book already matched by the book's active proper-noun dictionaries, taken out before counting so fragments of existing entries and strings glued to them are not candidates. It follows the Phase 2 matching rule (leftmost, longer wins, a strictly longer match starting inside the span defers the earlier one); Phase 1 pattern claims are ignored. Rust has its own matcher (`mask_spans`); `src/test/fixtures/coverage-mask-parity.json` is read by it and by `CoverageMask.parity.test.js` over Phase 2 itself. A run sends the keys of the active proper-noun dictionaries (the mask) read from the Dictionary Store when it starts; an active dictionary that is unread refuses the run and is named. Masking sees Han runs only: a key with a space, Latin letter or digit never masks (Phase 2 can match across a space). A name left over after masking (a deferred occurrence) that an active dictionary holds is dropped too.
+
+**Candidate row Add** (`CandidateAdd.ts`, `useCandidateFinder`'s `adder`):
+A row's translation field is seeded by `initialEntryGuess` (the Add form's guess, re-seeded when the "Add to" target changes); the dropdown is `quickAddChoices` over the book's quick-add view, opening on `quickAddTarget('properNoun')` (the Cmd-5 dictionary). Add calls the Dictionary Store's `addEntry` (`planAdd` + commit) with no dialog; a failure stays on the row. The panel derives which rows are added from the Dictionary Store's snapshot (an active proper-noun dictionary holds the source), so a row leaves on Add and returns on Undo, and "N added since this run, re-run to update" is that count. The view is the one the last run read; the engine is not rebuilt (ADR-106).
 
 **Also-in tag**:
 The mark on a candidate that an inactive proper-noun dictionary already holds ("in X, not active here"). The candidate stays listed; an inactive dictionary never masks.

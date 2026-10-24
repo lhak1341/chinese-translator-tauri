@@ -67,6 +67,10 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 **eslint's `exhaustive-deps` only sees a dependency it can read syntactically at the call site** — a ref from a custom hook, or a callback built by a factory function, are both invisible to it. A ref returned by a custom hook (not `useRef` in the same component) needs listing in the dep array by hand — it's as stable as any other ref (`useReaderPanel`'s `scrollRef`, consumed by `useReaderPanels.ts`). `useCallback(factoryCall(...), deps)` warns "pass an inline function instead" even with a correct deps array, because the first arg isn't a literal — `useMemo(() => factoryCall(...), deps)` keeps the same identity while giving the linter a literal to scan. For a factory whose result never needs rebuilding, `useState(() => factoryCall(...))` sidesteps the dep array entirely (`useReaderEngine`).
 
+**An Enter-to-submit input must also skip `keyCode === 229`, not just `isComposing`** — WebKit (the Tauri WebView) fires `compositionend` before the committing Enter's keydown, so `nativeEvent.isComposing` is already `false` and a Vietnamese/Chinese IME submits half-typed text (the Candidate finder row's translation field, 2026-10-24; jsdom cannot show it).
+
+**A call whose arguments are all `string` (`addEntry(dictionaryId, source, translation)`) is unchecked by `tsc` when two are swapped** — a new caller gets a test asserting the exact argument order against a mocked `addEntry` (`useCandidateFinder.add.test.ts` caught one written the wrong way round).
+
 ## React state updater rules
 
 **Never `throw` inside a state updater** (`setState(prev => { throw … })`): React 18 Concurrent Mode may call updaters more than once, and throws bypass the `await` chain. Do existence checks on the closed-over variable before `setState`.

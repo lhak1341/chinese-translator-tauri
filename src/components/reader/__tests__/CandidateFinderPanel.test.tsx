@@ -4,14 +4,26 @@
  */
 
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import CandidateFinderPanel from '../CandidateFinderPanel';
 import type { CandidateFinderSnapshot } from '../../../utils/reader/CandidateFinderStore';
+import type { CandidateAdder } from '../../../utils/reader/CandidateAdd';
 
-function renderPanel(snapshot: CandidateFinderSnapshot) {
+function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
+  return {
+    opened: 'properNouns-f_Novel',
+    choices: ['properNouns', 'properNouns-f_Novel'],
+    isAdded: () => false,
+    guess: (text) => `guess:${text}`,
+    add: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function renderPanel(snapshot: CandidateFinderSnapshot, adder: CandidateAdder = makeAdder()) {
   const handlers = { onRun: vi.fn(), onCancel: vi.fn(), onClose: vi.fn() };
-  render(<CandidateFinderPanel snapshot={snapshot} {...handlers} />);
+  render(<CandidateFinderPanel snapshot={snapshot} adder={adder} {...handlers} />);
   return handlers;
 }
 
@@ -38,8 +50,13 @@ describe('CandidateFinderPanel', () => {
         { text: '云梦泽', count: 12, lineCount: 12, alsoIn: [] },
       ],
     });
-    const rows = screen.getAllByRole('listitem').map((row) => row.textContent);
-    expect(rows).toEqual(['滕青山3231', '云梦泽1212']);
+    const rows = screen
+      .getAllByRole('listitem')
+      .map((row) => [...row.querySelectorAll(':scope > span')].map((cell) => cell.textContent));
+    expect(rows).toEqual([
+      ['滕青山', '32', '31'],
+      ['云梦泽', '12', '12'],
+    ]);
   });
 
   test('a candidate held by an inactive dictionary carries an "in X, not active here" tag', () => {
@@ -72,5 +89,125 @@ describe('CandidateFinderPanel', () => {
     const { onClose } = renderPanel({ status: 'idle' });
     fireEvent.click(screen.getByLabelText('Close candidate finder'));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  describe('add one candidate', () => {
+    const done = (...texts: string[]): CandidateFinderSnapshot => ({
+      status: 'done',
+      candidates: texts.map((text) => ({ text, count: 5, lineCount: 4, alsoIn: [] })),
+    });
+
+    test('the row is pre-filled with the Add form guess and opens on the fiction dictionary', () => {
+      renderPanel(done('滕青山'));
+      expect((screen.getByLabelText('Translation of 滕青山') as HTMLInputElement).value).toBe(
+        'guess:滕青山'
+      );
+      const select = screen.getByLabelText('Add 滕青山 to') as HTMLSelectElement;
+      expect(select.value).toBe('properNouns-f_Novel');
+      expect([...select.options].map((o) => o.value)).toEqual([
+        'properNouns',
+        'properNouns-f_Novel',
+      ]);
+    });
+
+    test('Add writes the edited translation to the chosen dictionary', () => {
+      const adder = makeAdder();
+      renderPanel(done('滕青山'), adder);
+      fireEvent.change(screen.getByLabelText('Add 滕青山 to'), {
+        target: { value: 'properNouns' },
+      });
+      fireEvent.change(screen.getByLabelText('Translation of 滕青山'), {
+        target: { value: 'Đằng Thanh Sơn' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
+      expect(adder.add).toHaveBeenCalledWith('滕青山', 'properNouns', 'Đằng Thanh Sơn');
+    });
+
+    test('Enter in the translation field adds', () => {
+      const adder = makeAdder();
+      renderPanel(done('滕青山'), adder);
+      fireEvent.keyDown(screen.getByLabelText('Translation of 滕青山'), { key: 'Enter' });
+      expect(adder.add).toHaveBeenCalledWith('滕青山', 'properNouns-f_Novel', 'guess:滕青山');
+    });
+
+    test('nothing is written until Add is pressed', () => {
+      const adder = makeAdder();
+      renderPanel(done('滕青山'), adder);
+      fireEvent.change(screen.getByLabelText('Translation of 滕青山'), { target: { value: 'x' } });
+      expect(adder.add).not.toHaveBeenCalled();
+    });
+
+    test('a refused add keeps the row and shows the message', async () => {
+      const adder = makeAdder({ add: vi.fn().mockRejectedValue(new Error('Cannot save')) });
+      renderPanel(done('滕青山'), adder);
+      fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
+      expect(await screen.findByText('Cannot save')).toBeTruthy();
+      expect(screen.getByLabelText('Translation of 滕青山')).toBeTruthy();
+    });
+
+    test('a row already added leaves the list and is counted, and returns when no longer added', () => {
+      const added = new Set(['云梦泽']);
+      const adder = makeAdder({ isAdded: (text) => added.has(text) });
+      const snapshot = done('滕青山', '云梦泽');
+      const { rerender } = render(
+        <CandidateFinderPanel
+          snapshot={snapshot}
+          adder={adder}
+          onRun={vi.fn()}
+          onCancel={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      expect(screen.queryByLabelText('Translation of 云梦泽')).toBeNull();
+      expect(screen.getByText('1 added since this run, re-run to update')).toBeTruthy();
+
+      added.clear();
+      rerender(
+        <CandidateFinderPanel
+          snapshot={snapshot}
+          adder={{ ...adder }}
+          onRun={vi.fn()}
+          onCancel={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      expect(screen.getByLabelText('Translation of 云梦泽')).toBeTruthy();
+      expect(screen.queryByText(/added since this run/)).toBeNull();
+    });
+
+    test('the notice stays when every row has been added', async () => {
+      renderPanel(done('滕青山'), makeAdder({ isAdded: () => true }));
+      await waitFor(() =>
+        expect(screen.getByText('1 added since this run, re-run to update')).toBeTruthy()
+      );
+    });
+
+    test('an empty translation is refused on the row without calling add', () => {
+      const adder = makeAdder();
+      renderPanel(done('滕青山'), adder);
+      fireEvent.change(screen.getByLabelText('Translation of 滕青山'), { target: { value: ' ' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
+      expect(adder.add).not.toHaveBeenCalled();
+      expect(screen.getByText('Enter a translation first')).toBeTruthy();
+    });
+
+    test('the Enter that commits an IME composition does not add', () => {
+      const adder = makeAdder();
+      renderPanel(done('滕青山'), adder);
+      fireEvent.keyDown(screen.getByLabelText('Translation of 滕青山'), {
+        key: 'Enter',
+        keyCode: 229,
+      });
+      expect(adder.add).not.toHaveBeenCalled();
+    });
+
+    test('two quick Enters add once', () => {
+      const adder = makeAdder({ add: vi.fn(() => new Promise<void>(() => {})) });
+      renderPanel(done('滕青山'), adder);
+      const input = screen.getByLabelText('Translation of 滕青山');
+      fireEvent.keyDown(input, { key: 'Enter' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(adder.add).toHaveBeenCalledOnce();
+    });
   });
 });

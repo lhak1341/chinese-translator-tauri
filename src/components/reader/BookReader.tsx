@@ -352,6 +352,7 @@ const BookReader: React.FC<BookReaderProps> = ({
       {finderOpen && (
         <CandidateFinderPanel
           snapshot={finder.snapshot}
+          adder={finder.adder}
           onRun={finder.run}
           onCancel={finder.cancel}
           onClose={closeFinder}
