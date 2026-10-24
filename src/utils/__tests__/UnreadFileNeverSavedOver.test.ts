@@ -15,6 +15,7 @@ import {
   loadBookRecords,
   invalidateBookRecords,
   setReadingPosition,
+  dismissCandidate,
 } from '../reader/BookRecordsBackend';
 import { reconcileLibraryScan } from '../reader/ReconcileLibrary';
 import { loadAppConfig, saveAppConfig, invalidateAppConfig } from '../appConfig';
@@ -61,6 +62,11 @@ describe('books.json', () => {
 
   test('a write after a failed load saves nothing', async () => {
     await expect(setReadingPosition('fp1', { line: 3, fraction: 0 })).rejects.toThrow();
+    expect(api.saveBookRecords).not.toHaveBeenCalled();
+  });
+
+  test('a dismiss after a failed load saves nothing', async () => {
+    await expect(dismissCandidate('fp1', '滕青山')).rejects.toThrow(/not saving over it/);
     expect(api.saveBookRecords).not.toHaveBeenCalled();
   });
 

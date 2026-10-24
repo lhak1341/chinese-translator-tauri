@@ -171,6 +171,45 @@ export function setBookBinding(fingerprint: string, binding: BookBinding): Promi
 }
 
 /**
+ * One write per dismiss or restore of a Candidate finder name. The list stays sorted and
+ * unique, as `validateBookRecord` would repair it; a name already in (or already out of) the
+ * list changes nothing, so nothing is saved.
+ */
+function changeDismissed(
+  caller: string,
+  fingerprint: string,
+  change: (dismissed: string[]) => string[] | null
+): Promise<void> {
+  return transformRecords((records) => {
+    const existing = records[fingerprint];
+    if (!existing) {
+      logger.warn(`${caller}: no record for ${fingerprint}, skipping`);
+      return { records, result: undefined };
+    }
+    const next = change(existing.dismissedCandidates);
+    if (next === null) return { records, result: undefined };
+    return {
+      records: { ...records, [fingerprint]: { ...existing, dismissedCandidates: next } },
+      result: undefined,
+    };
+  });
+}
+
+/** Stop offering `text` in this book's Candidate finder, across re-runs and restarts. */
+export function dismissCandidate(fingerprint: string, text: string): Promise<void> {
+  return changeDismissed('dismissCandidate', fingerprint, (dismissed) =>
+    dismissed.includes(text) ? null : [...dismissed, text].sort()
+  );
+}
+
+/** Offer a dismissed name again. */
+export function restoreCandidate(fingerprint: string, text: string): Promise<void> {
+  return changeDismissed('restoreCandidate', fingerprint, (dismissed) =>
+    dismissed.includes(text) ? dismissed.filter((name) => name !== text) : null
+  );
+}
+
+/**
  * Carry a fiction dictionary's rename into every book bound to it. The rename itself is
  * Rust's (file, paired patterns file, config); book records are TS-owned, so this runs
  * after it, under the same lock as every other records write.

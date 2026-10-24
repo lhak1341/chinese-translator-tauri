@@ -56,6 +56,7 @@ const ANSWER_SAMPLES = {
   position: { line: 77, fraction: 0.5 },
   manualChapterPattern: 'volume',
   binding: { fictionDictionary: 'properNouns-f_TapDo' },
+  dismissedCandidates: ['滕青山'],
 } as const;
 
 describe('planReconciliation — resolve', () => {

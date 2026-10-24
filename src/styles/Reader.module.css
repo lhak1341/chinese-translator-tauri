@@ -649,6 +649,15 @@
   text-align: right;
 }
 
+.candidateDismissed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  color: var(--text-color);
+}
+
 .candidateText {
   overflow: hidden;
   text-overflow: ellipsis;

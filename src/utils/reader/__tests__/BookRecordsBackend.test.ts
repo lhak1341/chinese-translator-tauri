@@ -8,6 +8,8 @@ import {
   setChapterOutline,
   setManualChapterPattern,
   setBookBinding,
+  dismissCandidate,
+  restoreCandidate,
   renameBoundDictionary,
   unbindDictionary,
   recordBookOpened,
@@ -306,6 +308,53 @@ describe('setBookBinding', () => {
   });
 });
 
+describe('dismissCandidate and restoreCandidate', () => {
+  function recordsWith(dismissedCandidates: string[]) {
+    const existing = makeBookRecord({ dismissedCandidates });
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+    return { existing, saveFn };
+  }
+
+  test('a dismiss adds the name in sorted order in one write, touching nothing else', async () => {
+    const { existing, saveFn } = recordsWith(['云梦泽']);
+
+    await dismissCandidate('fp1', '滕青山');
+
+    expect(saveFn).toHaveBeenCalledOnce();
+    expect(saveFn).toHaveBeenCalledWith({
+      fp1: { ...existing, dismissedCandidates: ['云梦泽', '滕青山'].sort() },
+    });
+  });
+
+  test('dismissing a name already dismissed saves nothing', async () => {
+    const { saveFn } = recordsWith(['滕青山']);
+    await dismissCandidate('fp1', '滕青山');
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+
+  test('a restore removes the name; restoring one not dismissed saves nothing', async () => {
+    const { existing, saveFn } = recordsWith(['云梦泽', '滕青山'].sort());
+
+    await restoreCandidate('fp1', '云梦泽');
+    expect(saveFn).toHaveBeenCalledWith({ fp1: { ...existing, dismissedCandidates: ['滕青山'] } });
+
+    saveFn.mockClear();
+    await restoreCandidate('fp1', '不在');
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+
+  test('skips silently when no record exists yet for the fingerprint', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+    await dismissCandidate('missing-fp', '滕青山');
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
 describe('renameBoundDictionary', () => {
   test('rewrites every record bound to the old name, and only the binding', async () => {
     const boundA = makeBookRecord({
@@ -388,6 +437,7 @@ const ANSWER_SAMPLES = {
   position: { line: 77, fraction: 0.5 },
   manualChapterPattern: 'volume',
   binding: { fictionDictionary: 'properNouns-f_TapDo' },
+  dismissedCandidates: ['滕青山'],
 } as const;
 
 describe('recordBookOpened', () => {

@@ -18,13 +18,14 @@ function rawRecord(overrides: Record<string, unknown> = {}): Record<string, unkn
 // The field validators are not exported: each repair rule is exercised through the record,
 // as the backend reaches it.
 const field = (
-  key: 'position' | 'binding' | 'manualChapterPattern' | 'chapterOutline',
+  key: 'position' | 'binding' | 'manualChapterPattern' | 'chapterOutline' | 'dismissedCandidates',
   value: unknown
 ) => validateBookRecord('fp1', rawRecord({ [key]: value }))?.[key];
 const validateReadingPosition = (v: unknown) => field('position', v);
 const validateBookBinding = (v: unknown) => field('binding', v);
 const validateManualChapterPattern = (v: unknown) => field('manualChapterPattern', v);
 const validateChapterOutline = (v: unknown) => field('chapterOutline', v);
+const validateDismissedCandidates = (v: unknown) => field('dismissedCandidates', v);
 
 describe('validateReadingPosition', () => {
   test('accepts a well-formed position', () => {
@@ -86,6 +87,38 @@ describe('validateBookBinding', () => {
   });
 });
 
+describe('validateDismissedCandidates', () => {
+  test('keeps a well-formed list as it is', () => {
+    expect(validateDismissedCandidates(['云梦泽', '滕青山'])).toEqual(['云梦泽', '滕青山']);
+  });
+
+  test('absent or not an array falls back to none dismissed', () => {
+    expect(validateDismissedCandidates(undefined)).toEqual([]);
+    expect(validateDismissedCandidates('滕青山')).toEqual([]);
+    expect(validateDismissedCandidates(null)).toEqual([]);
+  });
+
+  test('drops non-strings and names outside 2-8 code points, one by one', () => {
+    expect(
+      validateDismissedCandidates([
+        '滕青山',
+        7,
+        null,
+        '滕', // 1 code point
+        '一二三四五六七八九', // 9
+        '一二三四五六七八', // 8: kept
+        '𠀀𠀁', // 2 code points, 4 UTF-16 units: kept
+      ])
+    ).toEqual(['一二三四五六七八', '滕青山', '𠀀𠀁'].sort());
+  });
+
+  test('removes duplicates and sorts', () => {
+    expect(validateDismissedCandidates(['云梦泽', '滕青山', '云梦泽'])).toEqual(
+      ['云梦泽', '滕青山'].sort()
+    );
+  });
+});
+
 describe('validateBookRecord', () => {
   test('round-trips a well-formed record, taking fingerprint from the key not the body', () => {
     const raw = rawRecord({ fingerprint: 'wrong-should-be-ignored' });
@@ -102,6 +135,7 @@ describe('validateBookRecord', () => {
       modifiedMs: 1700000000000,
       available: true,
       chapterOutline: null,
+      dismissedCandidates: [],
     });
   });
 
@@ -127,6 +161,7 @@ describe('validateBookRecord', () => {
       modifiedMs: 1700000000000,
       available: true,
       chapterOutline: null,
+      dismissedCandidates: [],
     });
   });
 

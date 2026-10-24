@@ -3,6 +3,7 @@ import { AlertCircle, X } from 'lucide-react';
 import type { Candidate, CandidateStage } from '../../types/ReaderTypes';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder } from '../../utils/reader/CandidateAdd';
+import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/Reader.module.css';
@@ -10,6 +11,7 @@ import styles from '../../styles/Reader.module.css';
 interface CandidateFinderPanelProps {
   snapshot: CandidateFinderSnapshot;
   adder: CandidateAdder;
+  dismissals: CandidateDismissals;
   onRun: () => void;
   onCancel: () => void;
   onClose: () => void;
@@ -24,14 +26,16 @@ const STAGE_LABELS: Record<CandidateStage, string> = {
 interface CandidateRowProps {
   candidate: Candidate;
   adder: CandidateAdder;
+  dismissals: CandidateDismissals;
 }
 
 /**
  * One candidate and its Add: an editable translation seeded with the Add form's guess (Enter
  * adds) and the dictionary to add to. A failed add keeps the row and says why; a successful
  * one needs no handling here, because the row leaves when the dictionary holds its name.
+ * × dismisses the name for this book; the row leaves when the record holds it.
  */
-const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder }) => {
+const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissals }) => {
   const { text } = candidate;
   const [target, setTarget] = useState(adder.opened);
   const [translation, setTranslation] = useState(() => adder.guess(text, adder.opened));
@@ -62,6 +66,14 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder }) => {
     } finally {
       inFlight.current = false;
       setPending(false);
+    }
+  };
+
+  const dismiss = async (): Promise<void> => {
+    try {
+      await dismissals.dismiss(text);
+    } catch (error) {
+      setMessage(extractErrorMessage(error));
     }
   };
 
@@ -110,6 +122,14 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder }) => {
         >
           Add
         </button>
+        <button
+          onClick={() => void dismiss()}
+          disabled={!dismissals.canDismiss}
+          className={styles.iconButton}
+          aria-label={`Dismiss ${text}`}
+        >
+          <X size={14} />
+        </button>
       </div>
       {message && (
         <div className={styles.error} role="alert">
@@ -124,12 +144,14 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder }) => {
 const CandidateList: React.FC<{
   candidates: Candidate[];
   adder: CandidateAdder;
+  dismissals: CandidateDismissals;
   onRun: () => void;
-}> = ({ candidates, adder, onRun }) => {
+}> = ({ candidates, adder, dismissals, onRun }) => {
   // Rows leave the list as the dictionaries come to hold them, and return on Undo; the list
   // itself is never re-run.
-  const remaining = candidates.filter((candidate) => !adder.isAdded(candidate.text));
-  const added = candidates.length - remaining.length;
+  const notDismissed = candidates.filter((candidate) => !dismissals.names.includes(candidate.text));
+  const remaining = notDismissed.filter((candidate) => !adder.isAdded(candidate.text));
+  const added = notDismissed.length - remaining.length;
   return (
     <>
       {added > 0 && (
@@ -146,7 +168,12 @@ const CandidateList: React.FC<{
           </div>
           <ul className={styles.outlineList}>
             {remaining.map((candidate) => (
-              <CandidateRow key={candidate.text} candidate={candidate} adder={adder} />
+              <CandidateRow
+                key={candidate.text}
+                candidate={candidate}
+                adder={adder}
+                dismissals={dismissals}
+              />
             ))}
           </ul>
         </>
@@ -158,6 +185,46 @@ const CandidateList: React.FC<{
   );
 };
 
+/** Names dismissed for this book, collapsed, each with Restore. Shown in every state, since
+ * Restore doesn't need a run. */
+const DismissedList: React.FC<{ dismissals: CandidateDismissals }> = ({ dismissals }) => {
+  const [message, setMessage] = useState<string | null>(null);
+  if (dismissals.names.length === 0) return null;
+  const restore = async (name: string): Promise<void> => {
+    setMessage(null);
+    try {
+      await dismissals.restore(name);
+    } catch (error) {
+      setMessage(extractErrorMessage(error));
+    }
+  };
+  return (
+    <details>
+      <summary>Dismissed ({dismissals.names.length})</summary>
+      <ul className={styles.outlineList}>
+        {dismissals.names.map((name) => (
+          <li key={name} className={styles.candidateDismissed}>
+            <span>{name}</span>
+            <button
+              onClick={() => void restore(name)}
+              className={styles.secondaryButton}
+              aria-label={`Restore ${name}`}
+            >
+              Restore
+            </button>
+          </li>
+        ))}
+      </ul>
+      {message && (
+        <div className={styles.error} role="alert">
+          <AlertCircle size={14} />
+          {message}
+        </div>
+      )}
+    </details>
+  );
+};
+
 /**
  * Slide-over for the Candidate finder (GLOSSARY.md "Candidate finder"), built like the
  * chapter outline's: not run, running, results, and a clean result. It only reads the
@@ -166,6 +233,7 @@ const CandidateList: React.FC<{
 const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
   snapshot,
   adder,
+  dismissals,
   onRun,
   onCancel,
   onClose,
@@ -177,6 +245,13 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
         <X size={16} />
       </button>
     </div>
+
+    {dismissals.unreadable && (
+      <div className={styles.error}>
+        <AlertCircle size={14} />
+        {dismissals.unreadable}
+      </div>
+    )}
 
     {snapshot.status === 'idle' && (
       <>
@@ -226,8 +301,15 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
     )}
 
     {snapshot.status === 'done' && snapshot.candidates.length > 0 && (
-      <CandidateList candidates={snapshot.candidates} adder={adder} onRun={onRun} />
+      <CandidateList
+        candidates={snapshot.candidates}
+        adder={adder}
+        dismissals={dismissals}
+        onRun={onRun}
+      />
     )}
+
+    <DismissedList dismissals={dismissals} />
   </div>
 );
 

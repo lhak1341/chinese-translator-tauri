@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { useBookBinding } from '../components/BookBindingContext';
 import { useTransformRules } from './useTransformRules';
@@ -11,18 +11,41 @@ import {
 } from '../utils/reader/CandidateAdd';
 import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
 import {
+  dismissCandidate,
+  getBookRecordsSnapshot,
+  loadBookRecords,
+  restoreCandidate,
+  subscribeBookRecords,
+} from '../utils/reader/BookRecordsBackend';
+import { extractErrorMessage } from '../utils/errorHelpers';
+import {
   CandidateFinderStore,
   type CandidateFinderSnapshot,
 } from '../utils/reader/CandidateFinderStore';
 
+/** The names this book's reader dismissed, and the two ways to change them. */
+export interface CandidateDismissals {
+  names: string[];
+  /** Why the book's records can't be saved, or `null`; a run works either way. */
+  unreadable: string | null;
+  /** False until the records have loaded, and for good when they could not. */
+  canDismiss: boolean;
+  dismiss: (text: string) => Promise<void>;
+  restore: (text: string) => Promise<void>;
+}
+
 export interface CandidateFinder {
   snapshot: CandidateFinderSnapshot;
+  dismissals: CandidateDismissals;
   /** What a row's Add reads and writes; follows the Dictionary Store. */
   adder: CandidateAdder;
   run: () => void;
   /** Stops a running run; a finished list stays. */
   cancel: () => void;
 }
+
+/** A stable empty list, so a book with none dismissed does not re-render on every records write. */
+const NONE_DISMISSED: string[] = [];
 
 /**
  * One open book's Candidate finder run, adapted to React from `CandidateFinderStore`.
@@ -68,6 +91,37 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     return () => store.dispose();
   }, [store]);
 
+  // Only this book's list is read, so the position writes that land while reading (each a new
+  // record, the same list) do not re-render the reading view.
+  const names = useSyncExternalStore(
+    subscribeBookRecords,
+    useCallback(
+      () => getBookRecordsSnapshot()[fingerprint]?.dismissedCandidates ?? NONE_DISMISSED,
+      [fingerprint]
+    )
+  );
+  const [loaded, setLoaded] = useState<{ unreadable: string | null } | null>(null);
+  useEffect(() => {
+    let current = true;
+    loadBookRecords().then(
+      () => current && setLoaded({ unreadable: null }),
+      (error: unknown) => current && setLoaded({ unreadable: extractErrorMessage(error) })
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
+  const dismissals = useMemo(
+    (): CandidateDismissals => ({
+      names,
+      unreadable: loaded?.unreadable ?? null,
+      canDismiss: loaded !== null && loaded.unreadable === null,
+      dismiss: (text) => dismissCandidate(fingerprint, text),
+      restore: (text) => restoreCandidate(fingerprint, text),
+    }),
+    [names, loaded, fingerprint]
+  );
+
   const adder = useMemo((): CandidateAdder => {
     const { opened, choices } = candidateAddChoices(view, dictionaries);
     // The guess is the Add form's: Transform Rules for a proper-noun target, else the rough gloss.
@@ -88,6 +142,7 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
 
   return {
     snapshot,
+    dismissals,
     adder,
     run: () => void store.run(),
     cancel: store.cancel,

@@ -9,6 +9,7 @@ import React from 'react';
 import CandidateFinderPanel from '../CandidateFinderPanel';
 import type { CandidateFinderSnapshot } from '../../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder } from '../../../utils/reader/CandidateAdd';
+import type { CandidateDismissals } from '../../../hooks/useCandidateFinder';
 
 function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
   return {
@@ -21,9 +22,26 @@ function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
   };
 }
 
-function renderPanel(snapshot: CandidateFinderSnapshot, adder: CandidateAdder = makeAdder()) {
+function makeDismissals(overrides: Partial<CandidateDismissals> = {}): CandidateDismissals {
+  return {
+    names: [],
+    unreadable: null,
+    canDismiss: true,
+    dismiss: vi.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function renderPanel(
+  snapshot: CandidateFinderSnapshot,
+  adder: CandidateAdder = makeAdder(),
+  dismissals: CandidateDismissals = makeDismissals()
+) {
   const handlers = { onRun: vi.fn(), onCancel: vi.fn(), onClose: vi.fn() };
-  render(<CandidateFinderPanel snapshot={snapshot} adder={adder} {...handlers} />);
+  render(
+    <CandidateFinderPanel snapshot={snapshot} adder={adder} dismissals={dismissals} {...handlers} />
+  );
   return handlers;
 }
 
@@ -153,6 +171,7 @@ describe('CandidateFinderPanel', () => {
         <CandidateFinderPanel
           snapshot={snapshot}
           adder={adder}
+          dismissals={makeDismissals()}
           onRun={vi.fn()}
           onCancel={vi.fn()}
           onClose={vi.fn()}
@@ -166,6 +185,7 @@ describe('CandidateFinderPanel', () => {
         <CandidateFinderPanel
           snapshot={snapshot}
           adder={{ ...adder }}
+          dismissals={makeDismissals()}
           onRun={vi.fn()}
           onCancel={vi.fn()}
           onClose={vi.fn()}
@@ -208,6 +228,67 @@ describe('CandidateFinderPanel', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(adder.add).toHaveBeenCalledOnce();
+    });
+  });
+  describe('dismiss and restore', () => {
+    const done = (...texts: string[]): CandidateFinderSnapshot => ({
+      status: 'done',
+      candidates: texts.map((text) => ({ text, count: 5, lineCount: 4, alsoIn: [] })),
+    });
+
+    test('× dismisses that name', () => {
+      const dismissals = makeDismissals();
+      renderPanel(done('滕青山', '云梦泽'), makeAdder(), dismissals);
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss 滕青山' }));
+      expect(dismissals.dismiss).toHaveBeenCalledWith('滕青山');
+    });
+
+    test('a dismissed name has no row, and sits in a collapsed list with Restore', () => {
+      const dismissals = makeDismissals({ names: ['云梦泽'] });
+      renderPanel(done('滕青山', '云梦泽'), makeAdder(), dismissals);
+      expect(screen.queryByLabelText('Translation of 云梦泽')).toBeNull();
+      expect(screen.getByLabelText('Translation of 滕青山')).toBeTruthy();
+
+      const list = screen.getByText('Dismissed (1)').closest('details') as HTMLDetailsElement;
+      expect(list.open).toBe(false);
+      fireEvent.click(screen.getByRole('button', { name: 'Restore 云梦泽' }));
+      expect(dismissals.restore).toHaveBeenCalledWith('云梦泽');
+    });
+
+    test('with nothing dismissed there is no list', () => {
+      renderPanel(done('滕青山'));
+      expect(screen.queryByText(/Dismissed/)).toBeNull();
+    });
+
+    test('unreadable records: × is disabled and the message is shown', () => {
+      const dismissals = makeDismissals({
+        canDismiss: false,
+        unreadable: "Couldn't read books.json; not saving over it",
+      });
+      renderPanel(done('滕青山'), makeAdder(), dismissals);
+      expect(
+        (screen.getByRole('button', { name: 'Dismiss 滕青山' }) as HTMLButtonElement).disabled
+      ).toBe(true);
+      expect(screen.getByText("Couldn't read books.json; not saving over it")).toBeTruthy();
+    });
+
+    test('a refused restore shows the message', async () => {
+      const dismissals = makeDismissals({
+        names: ['云梦泽'],
+        restore: vi.fn().mockRejectedValue(new Error('Cannot save')),
+      });
+      renderPanel(done('云梦泽'), makeAdder(), dismissals);
+      fireEvent.click(screen.getByRole('button', { name: 'Restore 云梦泽' }));
+      expect(await screen.findByText('Cannot save')).toBeTruthy();
+    });
+
+    test('a refused dismiss shows the message on the row', async () => {
+      const dismissals = makeDismissals({
+        dismiss: vi.fn().mockRejectedValue(new Error('Cannot save')),
+      });
+      renderPanel(done('滕青山'), makeAdder(), dismissals);
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss 滕青山' }));
+      expect(await screen.findByText('Cannot save')).toBeTruthy();
     });
   });
 });

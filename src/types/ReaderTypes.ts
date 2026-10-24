@@ -152,8 +152,9 @@ export interface BookBinding {
  *
  * Two kinds of field, and this is the canonical statement of the split
  * (`src/utils/reader/BookRecord.ts` enforces it):
- * - **The reader's answers** (`position`, `manualChapterPattern`, `binding`) — nothing can
- *   regenerate them, so no refresh from a scan or an open ever writes them.
+ * - **The reader's answers** (`position`, `manualChapterPattern`, `binding`,
+ *   `dismissedCandidates`) — nothing
+ *   can regenerate them, so no refresh from a scan or an open ever writes them.
  * - **Observations** (everything else) — what a scan, an open or chapter election saw,
  *   overwritten whenever that source sees the book again. Includes `sizeBytes`/`modifiedMs`,
  *   the pair the library scan compares to decide whether a file needs re-fingerprinting.
@@ -172,6 +173,9 @@ export interface BookRecord {
   /** Which fiction dictionary this book uses. `null` means never answered — see
    * `BookBinding` for why "answered: none" is a different value, not the same one. */
   binding: BookBinding | null;
+  /** Candidate finder names the reader dismissed for this book: sorted, unique, each 2-8
+   * code points. Never written by a scan, an open or a re-run. */
+  dismissedCandidates: string[];
 
   // ── Observations ──
   title: string;

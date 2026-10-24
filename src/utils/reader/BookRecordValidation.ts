@@ -89,6 +89,18 @@ function validateBookBinding(raw: unknown): BookBinding | null {
   return { fictionDictionary: b.fictionDictionary };
 }
 
+/** Validates persisted `dismissedCandidates` element by element: a non-string or a name
+ * outside 2-8 code points is dropped, duplicates collapse, the rest is sorted. A reader's
+ * answer, so one bad element never costs the others. */
+function validateDismissedCandidates(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const names = raw.filter(
+    (name): name is string =>
+      typeof name === 'string' && [...name].length >= 2 && [...name].length <= 8
+  );
+  return [...new Set(names)].sort();
+}
+
 /** Validates a persisted reading position. Returns `null` (meaning "not started") for
  * anything malformed — a corrupt position is not worth dropping the whole record over,
  * since the record's other fields (and the book itself) are still perfectly good. */
@@ -111,7 +123,8 @@ function validateReadingPosition(raw: unknown): ReadingPosition | null {
  * scan or open observes it again. For a reader's answer it is a real loss, but a smaller
  * one than losing the record's existence: `position` falls back to "not started",
  * `binding` to "never answered" (re-offering the dialog), `manualChapterPattern` to
- * "trust election" — each a repair the reader can see and correct.
+ * "trust election", `dismissedCandidates` to its valid elements — each a repair the reader can
+ * see and correct.
  */
 export function validateBookRecord(fingerprint: string, raw: unknown): BookRecord | null {
   if (!fingerprint) return null;
@@ -124,6 +137,7 @@ export function validateBookRecord(fingerprint: string, raw: unknown): BookRecor
     position: validateReadingPosition(r.position),
     manualChapterPattern: validateManualChapterPattern(r.manualChapterPattern),
     binding: validateBookBinding(r.binding),
+    dismissedCandidates: validateDismissedCandidates(r.dismissedCandidates),
     title: typeof r.title === 'string' ? r.title : empty.title,
     lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : empty.lastKnownPath,
     lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : empty.lineCount,

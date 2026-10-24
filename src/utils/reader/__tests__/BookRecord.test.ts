@@ -7,7 +7,9 @@ describe('emptyBookRecord', () => {
   test('knows nothing: never opened, never answered, nothing observed', () => {
     const record = emptyBookRecord('fp1');
     expect(record.fingerprint).toBe('fp1');
-    for (const field of READER_ANSWER_FIELDS) expect(record[field]).toBeNull();
+    for (const field of READER_ANSWER_FIELDS) {
+      expect(record[field]).toEqual(field === 'dismissedCandidates' ? [] : null);
+    }
     expect(record.chapterOutline).toBeNull();
     expect(record.lineCount).toBe(0);
   });
@@ -39,6 +41,7 @@ describe('refreshBookRecord', () => {
       position: { line: 77, fraction: 0.5 },
       manualChapterPattern: 'volume',
       binding: { fictionDictionary: 'properNouns-f_TapDo' },
+      dismissedCandidates: ['滕青山'],
     });
     // A caller spreading a whole record (or any wider object) into `observed` compiles —
     // structural typing only checks the fields it names.
