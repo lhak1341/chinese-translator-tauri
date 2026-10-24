@@ -1,0 +1,379 @@
+<title>Candidate Finder Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout copies the Reader: header, chapter strip, then Original over Character-only on the left (33%) and Translation on the right.
+   The finder is a slide-over from the right, like the chapter outline (ChapterPanel). Tokens are the app's own from src/index.css. */
+:root{
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --font-mono:'SF Mono','Fira Code','JetBrains Mono',ui-monospace,monospace;
+  --font-cjk:'Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif;
+  --text-color:#111827; --text-secondary:#4b5563; --text-muted:#9ca3af;
+  --background-color:#f3f4f6; --surface-color:#ffffff; --surface-elevated:#ffffff;
+  --border-color:#e5e7eb; --hover-bg:#f9fafb;
+  --primary-color:#10b981; --primary-hover:#059669; --primary-subtle:#ecfdf5;
+  --secondary-button-bg:#ffffff; --secondary-button-hover-bg:#f9fafb; --secondary-button-border:#d1d5db;
+  --warning-color:#b45309; --warning-subtle:#fffbeb;
+  --success-color:#047857; --success-subtle:#ecfdf5;
+  --highlight-bg:#d1fae5; --highlight-text:#047857;
+  --table-header-bg:#f9fafb;
+  --radius-sm:4px; --radius-md:6px; --radius-lg:8px;
+  --t-character:#2563eb; --t-creature:#d97706; --t-location:#059669; --t-organization:#dc2626; --t-concept:#7c3aed; --t-object:#ea580c;
+  --bar-bg:#111827; --bar-fg:#f9fafb;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --text-color:#fafafa; --text-secondary:#d4d4d4; --text-muted:#737373;
+  --background-color:#171717; --surface-color:#262626; --surface-elevated:#404040;
+  --border-color:#404040; --hover-bg:#404040;
+  --primary-hover:#34d399; --primary-subtle:rgba(16,185,129,.15);
+  --secondary-button-bg:#404040; --secondary-button-hover-bg:#525252; --secondary-button-border:#525252;
+  --warning-color:#fbbf24; --warning-subtle:rgba(251,191,36,.15);
+  --success-color:#34d399; --success-subtle:rgba(52,211,153,.15);
+  --highlight-bg:rgba(16,185,129,.2); --highlight-text:#34d399; --table-header-bg:#262626;
+  --bar-bg:#fafafa; --bar-fg:#171717; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --text-color:#fafafa; --text-secondary:#d4d4d4; --text-muted:#737373;
+  --background-color:#171717; --surface-color:#262626; --surface-elevated:#404040;
+  --border-color:#404040; --hover-bg:#404040;
+  --primary-hover:#34d399; --primary-subtle:rgba(16,185,129,.15);
+  --secondary-button-bg:#404040; --secondary-button-hover-bg:#525252; --secondary-button-border:#525252;
+  --warning-color:#fbbf24; --warning-subtle:rgba(251,191,36,.15);
+  --success-color:#34d399; --success-subtle:rgba(52,211,153,.15);
+  --highlight-bg:rgba(16,185,129,.2); --highlight-text:#34d399; --table-header-bg:#262626;
+  --bar-bg:#fafafa; --bar-fg:#171717; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--background-color);color:var(--text-color);font:14px/1.5 var(--font-body);margin:0;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:12px 24px}
+button{font:inherit;font-weight:500;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--primary-color);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+
+.pbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;background:var(--bar-bg);color:var(--bar-fg);border-radius:var(--radius-lg);padding:6px 12px;font-size:12px}
+.pbar .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.pbar b{font:600 10.5px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;opacity:.65;margin-right:4px}
+.pbar button{background:transparent;border:1px solid color-mix(in srgb,var(--bar-fg) 35%,transparent);color:var(--bar-fg);border-radius:var(--radius-sm);padding:2px 9px;font-size:12px}
+.pbar button[aria-pressed=true]{background:var(--bar-fg);color:var(--bar-bg)}
+
+/* Reader */
+.reader{position:relative;display:flex;flex-direction:column;height:min(740px,calc(100vh - 90px));min-height:540px;border:1px solid var(--border-color);border-radius:var(--radius-lg);background:var(--background-color);overflow:hidden}
+.rh{display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem;border-bottom:1px solid var(--border-color);background:var(--surface-color)}
+.rt{flex:1;min-width:0;font-weight:600;font-size:.95rem}
+.rm{display:flex;gap:.35rem;align-items:center;font-size:.75rem;color:var(--text-secondary)}
+.tool{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;padding:.3rem .6rem;border-radius:.3rem;background:transparent;border:1px solid var(--border-color);color:var(--text-color)}
+.tool:hover{background:var(--hover-bg)}
+.tool[aria-pressed=true]{border-color:var(--primary-color);color:var(--primary-color)}
+.strip{display:flex;gap:1rem;padding:.35rem 1rem;border-bottom:1px solid var(--border-color);font-size:.78rem;color:var(--text-secondary);background:var(--surface-color)}
+.strip .l{flex:0 0 33%}
+.body{flex:1;display:flex;gap:1rem;padding:1rem;min-height:0}
+.ref{display:flex;flex-direction:column;flex:0 0 33%;min-width:0;gap:1rem}
+.panel{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow:hidden;background:var(--surface-color);border:1px solid var(--border-color);border-radius:var(--radius-lg)}
+.ptitle{padding:.3rem 1rem;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.scroll{flex:1;min-height:0;overflow-y:auto;padding:0 1rem 1rem;position:relative;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.rl{margin:0;padding:0 0 1rem;line-height:1.5;overflow-wrap:break-word}
+.rl.hot{background:var(--highlight-bg);border-radius:var(--radius-sm);box-shadow:0 0 0 4px var(--highlight-bg)}
+.orig{font-family:var(--font-cjk);font-size:1.25rem}
+.cho{font-size:1.1rem}
+.trans{font-size:1.1rem}
+.rl mark{background:var(--highlight-bg);color:var(--highlight-text);border-radius:3px}
+.rl mark.a{background:var(--success-subtle);color:var(--success-color);box-shadow:inset 0 -2px var(--success-color)}
+
+/* Slide-over (ChapterPanel look) */
+.slide{position:absolute;top:0;right:0;bottom:0;width:min(46rem,100%);display:flex;flex-direction:column;gap:.6rem;padding:.75rem;background:var(--background-color);border-left:1px solid var(--border-color);box-shadow:-.5rem 0 1rem rgba(0,0,0,.08);z-index:5;min-height:0}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.st{font-weight:600;font-size:.9rem}
+.sub{font-size:.75rem;color:var(--text-secondary)}
+.xbtn{border:0;background:transparent;color:var(--text-secondary);font-size:1.1rem;line-height:1;padding:.2rem .4rem;border-radius:var(--radius-sm)}
+.xbtn:hover{background:var(--hover-bg)}
+.sbody{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--surface-color);border:1px solid var(--border-color);border-radius:var(--radius-lg);overflow:hidden}
+.chips{display:flex;gap:.35rem;flex-wrap:wrap;padding:.5rem .75rem;border-bottom:1px solid var(--border-color)}
+.chip{font-size:.8rem;padding:.2rem .65rem;border-radius:999px;border:1px solid var(--border-color);background:var(--secondary-button-bg);color:var(--text-color)}
+.chip[aria-pressed=true]{background:var(--primary-color);border-color:var(--primary-color);color:#fff}
+.chip.mini{font-size:.75rem;padding:.1rem .5rem}
+.checks{padding:.4rem .75rem;border-bottom:1px solid var(--border-color);font-size:.75rem;color:var(--text-secondary)}
+.lst{flex:1;min-height:0;overflow:auto}
+.tb{min-width:41rem}
+.rw{display:grid;grid-template-columns:1.6rem minmax(0,1fr) 3.4rem 4.6rem 8.6rem auto;align-items:center;column-gap:.4rem;padding:.4rem .6rem;border-bottom:1px solid var(--border-color)}
+.rw.hd{position:sticky;top:0;z-index:1;background:var(--table-header-bg);padding-block:.35rem}
+.rw.hd>*{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.rw .xp{grid-column:1/-1}
+.rw .cc{min-width:0;display:flex;flex-direction:column;gap:.25rem}
+.rw input.tin{width:100%;font:500 .82rem var(--font-body);padding:.2rem .4rem;border:1px solid var(--secondary-button-border);border-radius:var(--radius-sm);background:var(--surface-color);color:var(--text-color)}
+.rw .acts{display:flex;gap:.25rem;justify-content:flex-end}
+.rw .acts .btn{padding:.25rem .65rem}
+.rw .acts .x{padding:.25rem .5rem}
+select.tsel,select.dsel{width:100%;font:600 .72rem var(--font-mono);padding:.25rem .3rem;border-radius:var(--radius-sm);background:var(--surface-color);border:1px solid var(--secondary-button-border);color:var(--text-color);text-overflow:ellipsis}
+select.dsel{font:500 .76rem var(--font-body)}
+select.tsel{border-color:currentColor}
+.lst{overflow:auto}
+.th,.td{padding:.45rem .5rem;border-bottom:1px solid var(--border-color);display:flex;align-items:center;min-width:0}
+.th{position:sticky;top:0;z-index:1;background:var(--table-header-bg);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.r{justify-content:flex-end}
+.num{font-variant-numeric:tabular-nums}
+.cand{display:flex;flex-direction:column;align-items:flex-start;gap:.1rem;border:0;background:none;text-align:left;padding:0;font-weight:400;color:var(--text-color);min-width:0}
+.cand:hover .zh{color:var(--primary-color)}
+.zh{font:600 1.1rem/1.3 var(--font-cjk)}
+.gl{display:block;font-size:.74rem;line-height:1.4;color:var(--text-secondary);font-weight:400}
+.badge{display:inline-block;font:600 .65rem var(--font-mono);letter-spacing:.04em;padding:.05rem .4rem;border-radius:var(--radius-sm);border:1px solid currentColor;white-space:nowrap}
+.badge.none{color:var(--text-muted)}
+.tag{display:inline-block;font-size:.68rem;padding:.02rem .4rem;border-radius:var(--radius-sm);background:var(--warning-subtle);color:var(--warning-color);margin-top:.15rem;font-weight:500}
+.xp{grid-column:1/-1;padding:.7rem .75rem .9rem 2.5rem;border-bottom:1px solid var(--border-color);background:var(--background-color);display:grid;gap:.75rem}
+.ctx{display:grid;grid-template-columns:2.8rem minmax(0,1fr);gap:.4rem;border:0;background:transparent;text-align:left;padding:.3rem .4rem;border-radius:var(--radius-sm);width:100%;font-weight:400;color:var(--text-color)}
+.ctx:hover{background:var(--hover-bg)}
+.ctx .no{font:.68rem/1.9 var(--font-mono);color:var(--text-muted)}
+.ctx .tx{font:1rem/1.45 var(--font-cjk)}
+.ctx mark{background:var(--highlight-bg);color:var(--highlight-text);border-radius:3px}
+.more{font-size:.74rem;color:var(--text-muted);padding-left:3.2rem}
+.form{display:grid;gap:.6rem}
+.fl{display:block;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:.25rem}
+.form input[type=text],.sel select{width:100%;font:inherit;font-size:.85rem;padding:.35rem .5rem;border:1px solid var(--secondary-button-border);border-radius:var(--radius-md);background:var(--surface-color);color:var(--text-color)}
+.hint{font-size:.74rem;color:var(--text-secondary);margin-top:.25rem}
+.row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.types{display:flex;flex-wrap:wrap;gap:.3rem}
+.tbtn{font:600 .72rem var(--font-mono);letter-spacing:.03em;padding:.2rem .55rem;border-radius:var(--radius-sm);border:1px solid;background:transparent}
+.tbtn[aria-pressed=true]{color:#fff!important}
+.btn{font-size:.8rem;padding:.35rem .8rem;border-radius:var(--radius-md);border:1px solid var(--secondary-button-border);background:var(--secondary-button-bg);color:var(--text-color)}
+.btn:hover{background:var(--secondary-button-hover-bg)}
+.btn.p{background:var(--primary-color);border-color:var(--primary-color);color:#fff}
+.btn.p:hover{background:var(--primary-hover)}
+.btn.g{border-color:transparent;background:transparent;color:var(--text-secondary)}
+.sel{display:flex;gap:.5rem;align-items:center;padding:.5rem .75rem;border-top:1px solid var(--border-color);background:var(--primary-subtle);flex-wrap:wrap;font-size:.82rem}
+.sel select{font:inherit;font-size:.8rem;padding:.25rem .4rem;border:1px solid var(--secondary-button-border);border-radius:var(--radius-md);background:var(--surface-color);color:var(--text-color);max-width:100%}
+.dis{padding:.5rem .75rem;font-size:.8rem;color:var(--text-secondary)}
+.dis summary{cursor:pointer}
+.dis .dr{display:flex;gap:.5rem;align-items:center;padding:.2rem 0;justify-content:space-between}
+.foot{font-size:.72rem;color:var(--text-secondary);padding:0 .1rem}
+.center{margin:auto;padding:1.5rem;text-align:center;display:flex;flex-direction:column;gap:.7rem;align-items:center;max-width:22rem}
+.center h3{margin:0;font-size:.95rem}
+.center p{margin:0;color:var(--text-secondary);font-size:.85rem}
+.prog{width:15rem;height:6px;background:var(--border-color);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--primary-color);transition:width .2s}
+.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--bar-bg);color:var(--bar-fg);padding:.45rem .9rem;border-radius:var(--radius-md);font-size:.82rem;z-index:30;max-width:calc(100vw - 32px)}
+@media(max-width:820px){
+  .body{flex-direction:column}.ref{flex:1 1 55%}.panel.tr{display:none}.strip .l{flex:1}
+}
+</style>
+
+<div class="wrap">
+  <div class="pbar" role="toolbar" aria-label="Prototype controls">
+    <div class="grp"><b>Prototype · run state</b>
+      <button id="sidle" data-s="idle">Not run</button>
+      <button id="srunning" data-s="running">Running</button>
+      <button id="sdone" data-s="done">Results</button>
+      <button id="sempty" data-s="empty">Empty</button>
+      <button id="sreset" data-s="reset">Reset data</button></div>
+    <div class="grp"><b>Fake data</b> sample text invented for the prototype</div>
+  </div>
+  <div class="reader" id="reader">
+    <div class="rh"><div class="rt">阳神</div><div class="rm"><span>75,412 lines</span><span>·</span><span>UTF-8</span></div>
+      <button class="tool" id="toggle" aria-pressed="true" data-a="toggle">Candidates</button></div>
+    <div class="strip"><div class="l">‹ ›</div><div>Chương 312: Khách của Huyền Minh tông</div></div>
+    <div class="body">
+      <div class="ref">
+        <section class="panel" aria-label="Original"><div class="ptitle">Original</div><div class="scroll orig" id="sOrig"></div></section>
+        <section class="panel" aria-label="Character-only"><div class="ptitle">Character-only</div><div class="scroll cho" id="sCho"></div></section>
+      </div>
+      <section class="panel tr" aria-label="Translation"><div class="ptitle">Translation</div><div class="scroll trans" id="sTr"></div></section>
+    </div>
+    <aside class="slide" id="slide" aria-label="Candidate finder"></aside>
+  </div>
+</div>
+<div id="toastHost"></div>
+
+<script>
+const TYPES=['character','location','organization','object','creature','concept'];
+const ABBR={character:'CHA',creature:'CRE',location:'LOC',organization:'ORG',concept:'CON',object:'OBJ'};
+const LABEL={character:'Character',creature:'Creature',location:'Location',organization:'Organization',concept:'Concept',object:'Object'};
+const BOOK='阳神';
+/* the book's active proper-noun dictionaries, in quick-add order (fiction → custom → generic, then root) */
+const DICTS=[
+ {id:'fiction',name:'阳神',kind:'fiction'},
+ {id:'custom',name:'Tiên hiệp',kind:'custom'},
+ {id:'generic',name:'Generic',kind:'generic'},
+ {id:'root',name:'Root',kind:'root'}
+];
+const DNAME=id=>{const d=DICTS.find(x=>x.id===id);return d.kind==='root'?'Root proper nouns':`${d.name} · ${d.kind}`};
+const LINES=[
+ '第三百一十二章 玄冥宗来客',
+ '山门外云雾翻涌，玄冥宗的执事已在石阶上等了三日。',
+ '“苏映雪还没有消息吗？”他低声问道。',
+ '身后的弟子摇头，手里紧握着那枚青云剑诀的残页。',
+ '落霞山脉深处传来一声长啸，赤炎蟒破雾而出，鳞甲如火。',
+ '布罗德里克站在崖边，披着灰色斗篷，目光落在远处的紫霄殿顶。',
+ '东哥说，天罡阵一旦启动，魔渊的封印便撑不过三日。',
+ '苏映雪握紧了玄铁重剑，剑锋上还带着昨夜的血。',
+ '“凌云门的人到了。”白衣老者缓缓开口。',
+ '布罗德里克冷笑一声：“玄冥宗也不过如此。”',
+ '赤炎蟒盘在落霞山脉的最高处，口中吞吐着炽热的气息。',
+ '他取出血灵丹，却发现丹香早已被魔渊的黑气冲散。',
+ '紫霄殿内灯火通明，凌云门长老们围坐在一张长桌前。',
+ '“天罡阵缺一角，”苏映雪说，“只能用青云剑诀补。”',
+ '白衣老者没有回答，只是望向落霞山脉的方向。',
+ '东哥把玄铁重剑扔到桌上，大笑道：“那就拼了！”'
+];
+const VI=[
+ 'Chương 312: Khách của Huyền Minh tông',
+ 'Ngoài sơn môn mây mù cuộn trào, chấp sự Huyền Minh tông đã đợi trên bậc đá ba ngày.',
+ '“Vẫn chưa có tin của Tô Ánh Tuyết sao?” hắn khẽ hỏi.',
+ 'Đệ tử phía sau lắc đầu, tay siết chặt trang tàn của Thanh Vân kiếm quyết.',
+ 'Từ sâu trong Lạc Hà sơn mạch vang lên một tiếng rống dài, Xích Viêm mãng phá sương lao ra, vảy sáng như lửa.',
+ 'Bố La Đức Lý Khắc đứng bên vách đá, khoác áo choàng xám, ánh mắt dõi về đỉnh Tử Tiêu điện phía xa.',
+ 'Đông ca nói, trận Thiên Cang một khi khởi động, phong ấn Ma Uyên sẽ không chống nổi ba ngày.',
+ 'Tô Ánh Tuyết nắm chặt Huyền Thiết trọng kiếm, mũi kiếm vẫn dính máu đêm qua.',
+ '“Người của Lăng Vân môn đến rồi.” Lão giả áo trắng chậm rãi lên tiếng.',
+ 'Bố La Đức Lý Khắc cười lạnh: “Huyền Minh tông cũng chỉ có vậy.”',
+ 'Xích Viêm mãng cuộn ở đỉnh cao nhất của Lạc Hà sơn mạch, phả ra hơi thở nóng rực.',
+ 'Hắn lấy ra Huyết Linh đan, nhưng mùi đan đã bị hắc khí Ma Uyên xua tan.',
+ 'Trong Tử Tiêu điện đèn đuốc sáng trưng, các trưởng lão Lăng Vân môn ngồi quanh chiếc bàn dài.',
+ '“Thiên Cang trận thiếu một góc,” Tô Ánh Tuyết nói, “chỉ có thể dùng Thanh Vân kiếm quyết bù vào.”',
+ 'Lão giả áo trắng không đáp, chỉ nhìn về phía Lạc Hà sơn mạch.',
+ 'Đông ca ném Huyền Thiết trọng kiếm lên bàn, cười lớn: “Vậy thì liều!”'
+];
+const LINE0=8137,lineNo=i=>(LINE0+i*2).toLocaleString('en-US');
+const RAW=[
+ ['苏映雪',88,52,null,null,'Tô Ánh Tuyết'],
+ ['玄冥宗',31,19,'organization',null,'Huyền Minh tông','宗'],
+ ['布罗德里克',41,23,null,null,'Bố La Đức Lý Khắc'],
+ ['紫霄殿',26,15,'location',null,'Tử Tiêu điện','殿'],
+ ['落霞山脉',22,14,'location',null,'Lạc Hà sơn mạch','山脉'],
+ ['凌云门',19,12,'organization',null,'Lăng Vân môn','门'],
+ ['东哥',120,64,null,'九鼎记','Đông ca'],
+ ['赤炎蟒',17,11,'creature',null,'Xích Viêm mãng','蟒'],
+ ['青云剑诀',14,9,'concept',null,'Thanh Vân kiếm quyết','诀'],
+ ['魔渊',12,8,null,null,'Ma Uyên'],
+ ['血灵丹',11,7,'object',null,'Huyết Linh đan','丹'],
+ ['天罡阵',9,6,'concept',null,'Thiên Cang trận','阵'],
+ ['玄铁重剑',8,5,'object',null,'Huyền Thiết trọng kiếm','剑'],
+ ['白衣老者',6,4,null,null,'Bạch y lão giả']
+];
+const CANDS=RAW.map(([s,n,l,rule,tag,guess,suffix])=>({s,n,l,rule,tag,guess,suffix,ctx:LINES.map((t,i)=>t.includes(s)?i:-1).filter(i=>i>=0)}));
+const BY=Object.fromEntries(CANDS.map(c=>[c.s,c]));
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* character-only gloss: one word per character, like the Reader's Character-only panel */
+const CG={};
+`第 đệ,三 tam,百 bách,一 nhất,十 thập,二 nhị,章 chương,玄 huyền,冥 minh,宗 tông,来 lai,客 khách,山 sơn,门 môn,外 ngoại,云 vân,雾 vụ,翻 phiên,涌 dũng,的 của,执 chấp,事 sự,已 dĩ,在 tại,石 thạch,阶 giai,上 thượng,等 chờ,了 liễu,日 nhật,苏 tô,映 ánh,雪 tuyết,还 còn,没 chưa,有 có,消 tiêu,息 tức,吗 sao,他 hắn,低 thấp,声 thanh,问 hỏi,道 đạo,身 thân,后 hậu,弟 đệ,子 tử,摇 lắc,头 đầu,手 thủ,里 lý,紧 khẩn,握 nắm,着 trước,那 kia,枚 mai,青 thanh,剑 kiếm,诀 quyết,残 tàn,页 trang,落 lạc,霞 hà,脉 mạch,深 sâu,处 xứ,传 truyền,长 trường,啸 khiếu,赤 xích,炎 viêm,蟒 mãng,破 phá,而 mà,出 xuất,鳞 vảy,甲 giáp,如 như,火 hỏa,布 bố,罗 la,德 đức,克 khắc,站 đứng,崖 nhai,边 biên,披 khoác,灰 xám,色 sắc,斗 đẩu,篷 bồng,目 mục,光 quang,远 xa,紫 tử,霄 tiêu,殿 điện,顶 đỉnh,东 đông,哥 ca,说 nói,天 thiên,罡 cương,阵 trận,旦 một,启 khải,动 động,魔 ma,渊 uyên,封 phong,印 ấn,便 liền,撑 chống,不 bất,过 quá,铁 thiết,重 trọng,锋 phong,带 mang,昨 qua,夜 đêm,血 huyết,凌 lăng,人 nhân,到 đến,白 bạch,衣 y,老 lão,者 giả,缓 chậm,开 khai,口 khẩu,冷 lãnh,笑 cười,也 cũng,此 thử,盘 bàn,最 tối,高 cao,中 trung,吞 nuốt,吐 nhả,炽 sí,热 nhiệt,气 khí,取 lấy,灵 linh,丹 đan,却 lại,发 phát,现 hiện,香 hương,早 sớm,被 bị,黑 hắc,冲 xung,散 tán,内 nội,灯 đăng,通 thông,明 minh,们 các,围 vây,坐 ngồi,张 trương,桌 bàn,前 trước,缺 thiếu,角 giác,只 chỉ,能 có thể,用 dùng,补 bổ,回 hồi,答 đáp,是 là,望 vọng,向 hướng,方 phương,把 bả,扔 ném,大 đại,就 tựu,拼 liều`
+ .split(',').forEach(p=>{const [h,...v]=p.split(' ');CG[h]=v.join(' ')});
+const gloss=t=>[...t].map(ch=>CG[ch]||ch).join(' ').replace(/ ([，。：！？”“])/g,'$1').replace(/([“]) /g,'$1');
+const gl=t=>`<span class="gl">${esc(gloss(t))}</span>`;
+
+const fresh=()=>({dismissed:[],added:{},forms:{},filter:'all',open:null,sel:new Set(),showDis:false,focusLine:null,focusStr:null,batchDict:'fiction'});
+const S=Object.assign(fresh(),{run:'done',progress:62,panel:true});
+const hist=[];let timer=null;
+const pending=()=>CANDS.filter(c=>!S.dismissed.includes(c.s)&&!S.added[c.s]);
+const form=c=>S.forms[c.s]||(S.forms[c.s]={tr:c.guess,type:c.rule||'character',dict:'fiction'});
+
+function marks(t){
+  const out=[];
+  for(const c of CANDS.slice().sort((a,b)=>b.s.length-a.s.length)){
+    const on=S.added[c.s]?'a':(c.s===S.focusStr?'f':null);if(!on)continue;
+    let from=0,k;while((k=t.indexOf(c.s,from))>=0){from=k+c.s.length;if(!out.some(r=>k<r.e&&k+c.s.length>r.b))out.push({b:k,e:k+c.s.length,on})}
+  }
+  out.sort((a,b)=>a.b-b.b);let h='',p=0;
+  for(const r of out){h+=esc(t.slice(p,r.b))+`<mark class="${r.on==='a'?'a':''}">${esc(t.slice(r.b,r.e))}</mark>`;p=r.e}
+  return h+esc(t.slice(p));
+}
+function renderReader(){
+  const row=(i,html)=>`<p class="rl${i===S.focusLine?' hot':''}" data-i="${i}">${html}</p>`;
+  document.getElementById('sOrig').innerHTML=LINES.map((t,i)=>row(i,marks(t))).join('');
+  document.getElementById('sCho').innerHTML=LINES.map((t,i)=>row(i,esc(gloss(t)))).join('');
+  document.getElementById('sTr').innerHTML=VI.map((t,i)=>row(i,esc(t))).join('');
+}
+function jump(i,s){
+  S.focusLine=i;S.focusStr=s;renderReader();
+  for(const id of ['sOrig','sCho','sTr']){const sc=document.getElementById(id),el=sc.querySelector(`[data-i="${i}"]`);
+    if(el)sc.scrollTo({top:el.offsetTop-sc.clientHeight/2+el.clientHeight/2,behavior:'smooth'})}
+}
+
+const badge=t=>t?`<span class="badge" style="color:var(--t-${t})" title="${LABEL[t]}, from a Transform Rule">${ABBR[t]}</span>`:`<span class="badge none" title="No rule; Add form default">${ABBR.character}</span>`;
+function addForm(c){
+  const f=form(c);
+  const why=c.rule?`Type from Transform Rule <b class="zh" style="font-size:.85rem">${c.suffix}</b>.`:'No Transform Rule matches, so the Add form default applies: Character (<code>defaultSemanticType</code>).';
+  return `<div class="form">
+   <div class="hint">${why} Translation, type and dictionary are set in the row.</div></div>`;
+}
+function ctxList(c){
+  return c.ctx.slice(0,3).map(i=>`<button class="ctx" data-act="jump" data-i="${i}" data-s="${c.s}" title="Jump to this line"><span class="no">${lineNo(i)}</span><span class="tx">${esc(LINES[i]).split(esc(c.s)).join(`<mark>${esc(c.s)}</mark>`)}${gl(LINES[i])}</span></button>`).join('')
+   +(c.l>3?`<div class="more">${c.l-Math.min(3,c.ctx.length)} more lines in the book</div>`:'');
+}
+function states(){
+  if(S.run==='idle')return `<div class="center"><h3>Find new names in ${BOOK}</h3><p>Reads the whole book and lists repeated names that none of its active proper-noun dictionaries has. Nothing is written to a dictionary.</p><button class="btn p" data-act="run">Find candidates</button><p class="hint">About 4 s for a book this size.</p></div>`;
+  if(S.run==='running'){const st=S.progress<25?'Counting repeated strings':S.progress<55?'Checking word boundaries':S.progress<85?'Comparing with other books':'Ranking';
+    return `<div class="center"><h3>${st}…</h3><div class="prog" role="progressbar" aria-valuenow="${S.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${S.progress}%"></i></div><p class="num">${S.progress}%</p><button class="btn g" data-act="cancel">Cancel</button></div>`}
+  if(S.run==='empty')return `<div class="center"><h3>No new names found</h3><p>Every repeated name in ${BOOK} is already in its dictionaries, or too rare to tell from ordinary text.</p><button class="btn" data-act="run">Run again</button></div>`;
+  return null;
+}
+function renderSlide(){
+  const el=document.getElementById('slide');el.hidden=!S.panel;if(!S.panel)return;
+  const all=pending(),typed=all.filter(c=>c.rule),untyped=all.filter(c=>!c.rule);
+  const rows=S.filter==='typed'?typed:S.filter==='untyped'?untyped:all;
+  const f=(k,l,n)=>`<button class="chip" data-act="filter" data-k="${k}" aria-pressed="${S.filter===k}">${l} ${n}</button>`;
+  let inner;const sv=states();
+  if(sv)inner=`<div class="sbody">${sv}</div>`;
+  else{
+    const tr=rows.map(c=>{const open=S.open===c.s,f=form(c);return `<div class="rw">
+     <input type="checkbox" aria-label="Select ${c.s}" data-act="sel" data-s="${c.s}" ${S.sel.has(c.s)?'checked':''}>
+     <div class="cc"><button class="cand" data-act="open" data-s="${c.s}" aria-expanded="${open}" title="Show where it appears"><span class="zh">${open?'▾':'▸'} ${c.s}</span>${gl(c.s)}${c.tag?`<span class="tag">in ${c.tag}, not active here</span>`:''}</button>
+      <input type="text" class="tin" id="tr-${c.s}" data-s="${c.s}" value="${esc(f.tr)}" aria-label="Translation for ${c.s}" title="Edit the translation. Enter adds."></div>
+     <div class="num" style="text-align:right">${c.n}×<span class="gl">${c.l} lines</span></div>
+     <select class="tsel" style="color:var(--t-${f.type})" data-act="typesel" data-s="${c.s}" aria-label="Type for ${c.s}" title="${c.rule?'From Transform Rule '+c.suffix:'No rule: Add form default'}">${TYPES.map(t=>`<option value="${t}" ${f.type===t?'selected':''}title="${LABEL[t]}">${ABBR[t]}</option>`).join('')}</select>
+     <select class="dsel" data-act="dictsel" data-s="${c.s}" aria-label="Dictionary for ${c.s}">${DICTS.map(d=>`<option value="${d.id}" ${f.dict===d.id?'selected':''}>${d.kind==='root'?'Root':d.name+' · '+d.kind}</option>`).join('')}</select>
+     <div class="acts"><button class="btn p" data-act="add" data-s="${c.s}">Add</button><button class="btn g x" data-act="dismiss" data-s="${c.s}" aria-label="Dismiss ${c.s}" title="Dismiss">×</button></div>
+     ${open?`<div class="xp"><div>${ctxList(c)}</div>${addForm(c)}</div>`:''}</div>`}).join('');
+    const gone=S.dismissed.map(s=>`<div class="dr"><span><span class="zh" style="font-size:.95rem">${s}</span>${gl(s)}</span><button class="btn g" data-act="restore" data-s="${s}">Restore</button></div>`).join('');
+    inner=`<div class="sbody">
+     <div class="chips">${f('all','All',all.length)}${f('typed','Typed by rule',typed.length)}${f('untyped','No rule',untyped.length)}</div>
+     <div class="checks">Checked against ${DICTS.filter(d=>d.kind!=='root').map(d=>d.name+' ('+d.kind+')').join(', ')} and root.</div>
+     <div class="lst"><div class="tb"><div class="rw hd"><input type="checkbox" aria-label="Select all shown" data-act="selall" ${rows.length&&rows.every(c=>S.sel.has(c.s))?'checked':''}><span>Candidate → translation</span><span style="text-align:right">Count</span><span>Type</span><span>Add to</span><span></span></div>${tr||'<div class="xp" style="padding:.75rem">Nothing in this filter.</div>'}</div>
+     ${S.dismissed.length?`<details class="dis" ${S.showDis?'open':''}><summary>Dismissed (${S.dismissed.length})</summary>${gone}</details>`:''}</div>
+     ${S.sel.size?`<div class="sel"><b>${S.sel.size} selected</b><button class="btn p" data-act="batchadd">Add ${S.sel.size}, each as set in its row</button><label for="bd" class="sub">Set all to</label><select id="bd" data-act="bd"><option value="">Dictionary…</option>${DICTS.map(d=>`<option value="${d.id}">${DNAME(d.id)}</option>`).join('')}</select><button class="btn" data-act="batchdis">Dismiss ${S.sel.size}</button></div>`:''}</div>`;
+  }
+  el.innerHTML=`<div class="sh"><div><div class="st">Candidates</div><div class="sub">${S.run==='done'?all_len()+' left · ranked by count, rule match ×3':''}</div></div><button class="xbtn" data-a="toggle" aria-label="Close">×</button></div>${inner}${S.run==='done'?`<div class="foot">Checked 3,918 strings · dismissals are saved with ${BOOK}</div>`:''}`;
+}
+const all_len=()=>pending().length;
+function render(){
+  for(const k of ['idle','running','done','empty'])document.getElementById('s'+k).setAttribute('aria-pressed',S.run===k);
+  document.getElementById('toggle').setAttribute('aria-pressed',S.panel);
+  renderSlide();renderReader();
+}
+function toast(m){const t=document.getElementById('toastHost');t.innerHTML=`<div class="toast">${m}</div>`;clearTimeout(toast.t);toast.t=setTimeout(()=>t.innerHTML='',2200)}
+function doAdd(s,dictOverride){const c=BY[s],f=form(c);if(dictOverride)f.dict=dictOverride;S.added[s]={...f};hist.push({k:'add',s});S.sel.delete(s);if(S.open===s)S.open=null;return f}
+function doDismiss(s){S.dismissed.push(s);hist.push({k:'dis',s});S.sel.delete(s);if(S.open===s)S.open=null}
+function startRun(){clearInterval(timer);S.run='running';S.progress=0;render();
+  timer=setInterval(()=>{S.progress=Math.min(100,S.progress+Math.ceil(Math.random()*9));if(S.progress>=100){clearInterval(timer);S.run='done'}render()},170)}
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act],[data-s],[data-a]');if(!b)return;
+  if(b.dataset.a==='toggle'){S.panel=!S.panel;render();return}
+  if(b.id&&b.id.startsWith('s')&&b.dataset.s&&!b.dataset.act){
+    const k=b.dataset.s;clearInterval(timer);
+    if(k==='reset'){Object.assign(S,fresh(),{run:'done'});hist.length=0}else{S.run=k;S.progress=62;S.focusLine=null;S.focusStr=null}
+    S.panel=true;render();return}
+  const a=b.dataset.act,s=b.dataset.s;
+  if(a==='run')startRun();
+  else if(a==='cancel'){clearInterval(timer);S.run='idle';render()}
+  else if(a==='type'){const f=form(BY[s]);f.type=b.dataset.t;render()}
+  else if(a==='dict'){form(BY[s]).dict=b.dataset.d;render()}
+  else if(a==='add'){const f=doAdd(s);toast(`Added ${s} as ${LABEL[f.type]} to ${DNAME(f.dict)}. The Translator matches it now.`);render()}
+  else if(a==='dismiss'){doDismiss(s);toast(`Dismissed ${s}. Saved with ${BOOK}.`);render()}
+  else if(a==='restore'){S.dismissed=S.dismissed.filter(x=>x!==s);S.showDis=true;render()}
+  else if(a==='jump')jump(+b.dataset.i,s);
+  else if(a==='filter'){S.filter=b.dataset.k;render()}
+  else if(a==='open'){S.open=S.open===s?null:s;S.showDis=false;const c=BY[s];render();if(S.open&&c.ctx.length)jump(c.ctx[0],s)}
+  else if(a==='sel'){e.target.checked?S.sel.add(s):S.sel.delete(s);render()}
+  else if(a==='selall'){const rows=S.filter==='typed'?pending().filter(c=>c.rule):S.filter==='untyped'?pending().filter(c=>!c.rule):pending();
+    if(e.target.checked)rows.forEach(c=>S.sel.add(c.s));else rows.forEach(c=>S.sel.delete(c.s));render()}
+  else if(a==='batchadd'){const n=S.sel.size,by={};[...S.sel].forEach(x=>{const f=doAdd(x);by[f.dict]=(by[f.dict]||0)+1});
+    toast(`Added ${n}: ${Object.entries(by).map(([d,k])=>k+' to '+DNAME(d)).join(', ')}.`);render()}
+  else if(a==='batchdis'){const n=S.sel.size;[...S.sel].forEach(doDismiss);toast(`Dismissed ${n}.`);render()}
+});
+document.addEventListener('input',e=>{const t=e.target;if(t.matches('input[type=text][data-s]'))form(BY[t.dataset.s]).tr=t.value});
+document.addEventListener('change',e=>{
+  const t=e.target,a=t.dataset.act;
+  if(a==='typesel'){form(BY[t.dataset.s]).type=t.value;render()}
+  else if(a==='dictsel'){form(BY[t.dataset.s]).dict=t.value;render()}
+  else if(a==='bd'&&t.value){S.sel.forEach(s=>{form(BY[s]).dict=t.value});toast(`Set ${S.sel.size} to ${DNAME(t.value)}.`);render()}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.matches('input.tin')){const s=e.target.dataset.s,f=doAdd(s);toast(`Added ${s} as ${LABEL[f.type]} to ${DNAME(f.dict)}. The Translator matches it now.`);render();return}if(e.key==='Escape'&&S.panel&&!/INPUT|SELECT/.test(e.target.tagName)){S.panel=false;render()}});
+render();
+</script>
