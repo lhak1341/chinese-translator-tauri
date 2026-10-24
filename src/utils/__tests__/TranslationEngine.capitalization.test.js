@@ -48,12 +48,12 @@ describe('applySmartCapitalization', () => {
     expect(chunks[0].translated).toBe('Nói');
   });
 
-  test('WASM-style combined "：«" startedBy → capitalizes via colon includes() check', () => {
-    // WASM combines ：+ 「 into one punctuation string; startedBy on content chunk is "：«"
-    const chunks = [
-      makeChunk({ content: '道', translated: 'Nói', startedBy: 'start' }),
-      makeChunk({ content: '说', translated: 'thuyết', startedBy: '：«' }),
-    ];
+  test('combined "：「" startedBy from the chunker → capitalizes via colon includes() check', () => {
+    // The chunker merges mid-text marks onto one string; the content chunk's startedBy is "：「"
+    const chunks = new TextChunker().chunkText('道：「说');
+    expect(chunks[1].startedBy).toBe('：「');
+    chunks[0].translated = 'Nói';
+    chunks[1].translated = 'thuyết';
     applySmartCapitalization(chunks, null);
     expect(chunks[1].translated).toBe('Thuyết');
   });
@@ -311,43 +311,50 @@ describe('TranslationEngine calls the formatting passes in order', () => {
 describe('ChunkPostProcessor.fixAngleQuotePositioning', () => {
   const chunker = new ChunkPostProcessor();
 
-  test('「-only chunk: isOpeningQuote returns false → colon NOT propagated', () => {
+  test('「-only chunk: isOpeningQuote returns false → nothing moves', () => {
     const chunks = [
       makeChunk({ content: '', punctuation: '「', startedBy: '：' }),
       makeChunk({ content: '说', punctuation: '，', startedBy: '「' }),
     ];
     chunker.fixAngleQuotePositioning(chunks);
-    // startedBy must remain "「" (not "：«")
-    expect(chunks[1].startedBy).toBe('「');
+    expect(chunks[0].punctuation).toBe('「');
+    expect(chunks[1].openingPunctuation).toBe('');
   });
 
-  test('curly "-only chunk: colon propagated to nextChunk.startedBy', () => {
+  test('curly "-only chunk: the quote moves to the next chunk', () => {
     const curlyOpen = QUOTE_TYPES.CURLY_OPEN_DOUBLE;
     const chunks = [
       makeChunk({ content: '', punctuation: curlyOpen, startedBy: '：' }),
       makeChunk({ content: '说', punctuation: '，', startedBy: curlyOpen }),
     ];
     chunker.fixAngleQuotePositioning(chunks);
-    expect(chunks[1].startedBy).toBe('：' + curlyOpen);
+    expect(chunks[0].punctuation).toBe('');
+    expect(chunks[1].openingPunctuation).toBe(curlyOpen);
   });
 
-  test('《-only chunk: converted to curly double, colon propagated', () => {
+  test('《-only chunk: converted to curly double and moved', () => {
     const chunks = [
       makeChunk({ content: '', punctuation: '《', startedBy: '：' }),
       makeChunk({ content: '说', punctuation: '，', startedBy: QUOTE_TYPES.CURLY_OPEN_DOUBLE }),
     ];
     chunker.fixAngleQuotePositioning(chunks);
-    expect(chunks[1].startedBy).toBe('：' + QUOTE_TYPES.CURLY_OPEN_DOUBLE);
+    expect(chunks[1].openingPunctuation).toBe(QUOTE_TYPES.CURLY_OPEN_DOUBLE);
     expect(chunks[0].punctuation).toBe('');
   });
 
-  test('curly "-only chunk without colon context: startedBy set to quote only', () => {
-    const curlyOpen = QUOTE_TYPES.CURLY_OPEN_DOUBLE;
-    const chunks = [
-      makeChunk({ content: '', punctuation: curlyOpen, startedBy: '，' }),
-      makeChunk({ content: '说', punctuation: '', startedBy: curlyOpen }),
-    ];
-    chunker.fixAngleQuotePositioning(chunks);
-    expect(chunks[1].startedBy).toBe(curlyOpen);
+  // The moved quote leaves the sentence-start context in the quote-only chunk's own startedBy,
+  // which applySmartCapitalization's walk-back reads; nothing is copied onto the content chunk.
+  test.each([
+    ['colon, whitespace, curly quote', '道：　“说', ['Nói', 'Thuyết']],
+    ['colon, whitespace, 《', '道：　《说', ['Nói', 'Thuyết']],
+    ['comma, whitespace, 《', '道，　《说', ['Nói', 'thuyết']],
+  ])('after the quote moves: %s', (_name, text, expected) => {
+    const real = new ChunkPostProcessor();
+    const chunks = new TextChunker().chunkText(text);
+    for (const c of chunks)
+      if (c.content.trim()) c.translated = DICTS.characters[c.content] ?? c.content;
+    real.fixAngleQuotePositioning(chunks);
+    applySmartCapitalization(chunks, null);
+    expect(chunks.filter((c) => c.content.trim()).map((c) => c.translated)).toEqual(expected);
   });
 });

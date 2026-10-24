@@ -258,9 +258,9 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1792821812.71167,
-    "seen": 1792821943.2801769,
-    "ast_hash": "b4e384e536959d6558f47a195f93fa1a",
+    "mtime": 1792824157.2226162,
+    "seen": 1792824229.3063521,
+    "ast_hash": "87495ce3c9a35373e4604868cf2ac245",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -474,9 +474,9 @@
     "semantic_hash": ""
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1792820851.262683,
-    "seen": 1792821026.8446348,
-    "ast_hash": "f256f6f1dd288cdaa68b14d143d37f6e",
+    "mtime": 1792824156.9803023,
+    "seen": 1792824229.306433,
+    "ast_hash": "6355a4d15163c64b3c6293d8a460ccb3",
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
@@ -1176,9 +1176,9 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1792821841.5640984,
-    "seen": 1792821943.280457,
-    "ast_hash": "8bc4e77aec226236adc26a439dbaeb17",
+    "mtime": 1792824171.209354,
+    "seen": 1792824229.3066082,
+    "ast_hash": "353c41e2a513e90be795e8b6b1ac1d75",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1792821812.7121406,
-    "seen": 1792821943.280441,
-    "ast_hash": "ae863289c2228a4c8e2a0989418b83ea",
+    "mtime": 1792822512.9343247,
+    "seen": 1792824229.306593,
+    "ast_hash": "84285f7d76af54c8c6fc9c53df522ee9",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -2436,8 +2436,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/FormattingPasses.ts": {
-    "mtime": 1792821325.2569697,
-    "seen": 1792821401.539534,
+    "mtime": 1792824213.6039758,
+    "seen": 1792824229.3064342,
     "ast_hash": "641565180893b454d2c53d2bd9a5fff2",
     "semantic_hash": ""
   },
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "GLOSSARY.md": {
-    "mtime": 1792820928.9943666,
-    "seen": 1792821026.844691,
-    "ast_hash": "92f5e14d9a600f2ca38512acc76f91c1",
+    "mtime": 1792824171.4829595,
+    "seen": 1792824229.306483,
+    "ast_hash": "31dde67ffedb07e78ec3a4cd1d015410",
     "semantic_hash": ""
   },
   "src/types/TextChunk.d.ts": {

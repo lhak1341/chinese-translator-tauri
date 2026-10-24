@@ -2,19 +2,19 @@
 
 ## Corpus Check
 
-- 458 files · ~407,808 words
+- 458 files · ~407,953 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 35 file(s) not represented in the graph (top: .css 25, (none) 6, .toml 1)
 
 ## Summary
 
-- 4390 nodes · 10349 edges · 249 communities (199 shown, 50 thin omitted)
-- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 1746 edges (avg confidence: 0.94)
+- 4390 nodes · 10350 edges · 249 communities (199 shown, 50 thin omitted)
+- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 1747 edges (avg confidence: 0.94)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `a0ce3304`
+- Built from commit: `2f8ba8b7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1298,7 +1298,7 @@ Nodes (5): Archive, Decisions, Documentation Index, Guides, Reference
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Historical / Deleted {#deleted-symbols}` connect `Historical / Deleted {#deleted-symbols}` to `usePerformanceMonitoring`, `Translator.jsx`, `ReadingAnchor`, `extractErrorMessage`, `TransformRuleEngine.ts`, `All other ADRs`, `TabbedInterface.tsx`, `DictionaryStore.ts`, `useTransformRules.ts`, `DictionaryEntry.tsx`, `DictionaryEdit.ts`, `LineSegments.ts`, `App.jsx`, `Content Security Policy (CSP) and WASM Security`, `WasmProcessorLifecycle`, `logger`, `DictionaryManager.js`, `TranslationEngine.js`, `BookReader.tsx`, `.translateSinglePass`, `SemanticArrayBuilder`, `dictionary/index.ts`, `RuleMatchesModal.tsx`, `BookBindingContext.tsx`, `Historical / Deleted {#deleted-symbols}`, `TwoPhasePatternProcessor.js`, `SemanticToken`, `useDictionaryModals.tsx`, `PatternStore.js`, `SemanticTypePicker.tsx`, `Verifying Claims Before Acting`, `ReaderBinding.tsx`, `DictionaryContext.tsx`, `SemanticArrayBuilder`, `High-Priority Issues 🟠`, `7. Clickable Highlighting Feature Analysis`, `react`, `DictionaryTableView.tsx`, `QuickAddTarget.ts`, `DictionaryManager`, `.translateWithProgressiveBatches`, `appConfig.ts`, `ConfigurationManager.tsx`, `ReconcileLibrary.ts`, `useReaderPanel.ts`, `TranslationEngine`, `ADR-090: Keep the tauriAPI Invoke Shell Narrow`, `Detailed Optimization Tracking`, `mod.rs`, `SemanticTypes.ts`, `cleanupFormatting`, `precomputeOriginalSegments`, `TranslationEngineTypes.d.ts`, `NumberProcessor`, `SelectionMapping.ts`, `hasPairedPatterns`, `EnhancedVirtualizedDictionaryTable.tsx`, `Development Guide`, `BookReader`, `ADR-061: Skip a Shelf Row Module`, `TranslationWindow.ts`, `TokenClaim.ts`, `createAppFile`, `appearanceConfig.ts`, `BookRecordsBackend.ts`, `ADR-006: PatternProcessor Interface — Return Results, No Inline Mutation`, `ADR-102: Keep `utils/toast` as the Notification Seam`?**
-  _High betweenness centrality (0.437) - this node is a cross-community bridge._
+  _High betweenness centrality (0.436) - this node is a cross-community bridge._
 - **Are the 220 inferred relationships involving `Historical / Deleted {#deleted-symbols}` (e.g. with `ClickableOriginalSemantic()` and `BaseSegment`) actually correct?**
   _`Historical / Deleted {#deleted-symbols}` has 220 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `@tauri-apps/plugin-clipboard-manager`, `@tauri-apps/plugin-fs`, `@tauri-apps/plugin-opener` to the rest of the system?**

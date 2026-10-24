@@ -674,7 +674,6 @@ export class TranslationEngine {
       textLength: text.length,
       resultLength: result.translatedText.length,
       semanticArrays: result.semanticArrays?.length ?? 0,
-      segmentsCount: result.segments?.length ?? 0,
       prebuiltSegments: result.prebuiltSegments?.length ?? 0,
     });
 
@@ -1630,7 +1629,8 @@ export class TranslationEngine {
       // natural yield point.
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Only the current batch is processed here, never all chunks again (no O(n²) rework).
+      // Only the current batch is processed here, never all chunks again. (Its comma spacing does
+      // scan `chunks` once per comma to find the neighbour: see ChunkPostProcessor.)
       // Capitalization happens once, at the final level.
       // `chunks`, not translatableChunks: comma spacing reads the non-translatable neighbours.
       const { cumulativeText } = progressiveText.addBatch(currentBatch, chunks);

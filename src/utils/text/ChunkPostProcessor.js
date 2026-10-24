@@ -176,6 +176,11 @@ export class ChunkPostProcessor {
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
         // BUT NOT if the next chunk starts with a quote
         if (chunk.translatedPunctuation && chunk.translatedPunctuation.includes(',')) {
+          // Identity scan, kept on purpose (architecture review 2026-10-24, measured on the
+          // largest real book): quadratic in text length, 10 ms at 30k characters, 108 ms at
+          // 300k, 1.5 s at 1.5M, against 1 ms / 6 ms / 26 ms with the index known. Inputs are
+          // chapters and reader windows. A fix needs a caller-built index: a Map built per call
+          // is O(n) per batch and stays quadratic.
           const chunkIndex = allChunks.indexOf(chunk);
           const nextChunk = chunkIndex >= 0 ? (allChunks[chunkIndex + 1] ?? null) : null;
           const hasNextChunk = nextChunk?.content?.trim();
@@ -267,13 +272,8 @@ export class ChunkPostProcessor {
 
         // Add opening quote to next chunk - store separately to place before content
         nextChunk.openingPunctuation = openingQuote;
-
-        // Update startedBy for capitalization.
-        // The colon context lives in chunk.startedBy (the quote-only chunk), not nextChunk.startedBy.
-        // e.g. for 道：「说 — quote-only chunk has startedBy='：', nextChunk has startedBy='«' (quote).
-        const prevStartedBy = chunk.startedBy || '';
-        const colonInPrev = /[:：]/.exec(prevStartedBy);
-        nextChunk.startedBy = colonInPrev ? colonInPrev[0] + openingQuote : openingQuote;
+        // startedBy is left alone: the sentence-start context stays on the quote-only chunk,
+        // which applySmartCapitalization reads when it walks back through empty chunks.
       }
     }
   }
