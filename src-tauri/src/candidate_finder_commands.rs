@@ -226,6 +226,23 @@ pub async fn prune_book_index(app: AppHandle, known: Vec<String>) -> Result<usiz
         .map_err(|_| "Book index stopped unexpectedly".to_string())
 }
 
+/// The first lines of the open book that hold `text`, for an unfolded candidate row. A scan
+/// of every line, on a blocking thread over the shared book handle.
+#[tauri::command]
+pub async fn candidate_context(
+    cache: State<'_, BookCache>,
+    fingerprint: String,
+    text: String,
+    limit: usize,
+) -> Result<candidate_finder::ContextLines, String> {
+    let book = book_commands::open_book_handle(&cache, &fingerprint)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        candidate_finder::context_lines(&book.line_slices(), &text, limit)
+    })
+    .await
+    .map_err(|_| "Context lookup stopped unexpectedly".to_string())
+}
+
 /// Ask a run to stop. Cooperative: the run returns `null` at its next check.
 #[tauri::command]
 pub async fn cancel_candidate_run(

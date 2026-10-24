@@ -96,6 +96,8 @@ export interface ReaderPanelProps {
   getRow: (index: number) => PanelRow;
   onScroll: () => void;
   onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
+  /** A line the Candidate finder jumped to, lit in every panel. */
+  litLine?: number | null;
   /** The lit unit, shared by every panel — clicking one lights its counterparts. */
   highlight?: ReaderHighlight | null;
   /** Clicking a run. Must be referentially stable, or every span re-renders per click. */
@@ -174,6 +176,7 @@ const ReaderPanelInner: React.FC<ReaderPanelProps> = ({
   onScroll,
   onWheel,
   highlight = null,
+  litLine = null,
   onSegmentClick,
 }) => {
   return (
@@ -211,7 +214,7 @@ const ReaderPanelInner: React.FC<ReaderPanelProps> = ({
                 <p
                   className={`${styles.readerLine} ${isPending ? styles.pending : ''} ${
                     isBlank ? styles.blankLine : ''
-                  }`}
+                  } ${row.index === litLine ? styles.litLine : ''}`}
                   lang={lang}
                 >
                   {isBlank ? (

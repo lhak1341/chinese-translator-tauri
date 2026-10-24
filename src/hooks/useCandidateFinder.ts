@@ -7,6 +7,7 @@ import type { QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import {
   candidateAddChoices,
   isCandidateAdded,
+  typeProvenance,
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
 import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
@@ -146,6 +147,7 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
       choices,
       isAdded: (text) => isCandidateAdded(text, dictionaries, choices),
       guess: (text, dictionaryId) => guess(text, dictionaryId).translation,
+      typeNote: (text, dictionaryId) => typeProvenance(rules, text, dictionaryId),
       add: (text, dictionaryId, translation) =>
         addEntry(dictionaryId, text, translation.trim(), {
           allowAsPatternVariable: false,

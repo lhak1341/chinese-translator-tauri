@@ -1,6 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { AlertCircle, X } from 'lucide-react';
-import type { Candidate, CandidateStage } from '../../types/ReaderTypes';
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
+import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
@@ -12,10 +12,116 @@ interface CandidateFinderPanelProps {
   snapshot: CandidateFinderSnapshot;
   adder: CandidateAdder;
   dismissals: CandidateDismissals;
+  reading: CandidateReading;
   onRun: () => void;
   onCancel: () => void;
   onClose: () => void;
 }
+
+/** What the panel reads from the open book: lines that hold a name, the character-only gloss of
+ * a Chinese string, and the jump that lights a line in the three Reader panels. */
+export interface CandidateReading {
+  context: (text: string) => Promise<CandidateContext>;
+  gloss: (text: string) => Promise<string>;
+  /** `line` is the file's own 0-based number. */
+  jump: (line: number) => void;
+}
+
+/** Whether `ref`'s element has come into view, and stays true after: a gloss is computed for
+ * what the reader has seen, never for a row they have not scrolled to. Without
+ * `IntersectionObserver` (a test DOM) everything counts as in view. */
+function useSeen(ref: React.RefObject<Element | null>): boolean {
+  const [seen, setSeen] = useState(typeof IntersectionObserver === 'undefined');
+  useEffect(() => {
+    const element = ref.current;
+    if (seen || !element) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, seen]);
+  return seen;
+}
+
+/** The character-only gloss of `text`, fetched once `enabled` and then kept. A failed gloss
+ * shows nothing: it is a reading aid, not something to block a row on. */
+const Gloss: React.FC<{ text: string; reading: CandidateReading; enabled: boolean }> = ({
+  text,
+  reading,
+  enabled,
+}) => {
+  const [gloss, setGloss] = useState<string | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let current = true;
+    reading.gloss(text).then(
+      (value) => current && setGloss(value),
+      () => undefined
+    );
+    return () => {
+      current = false;
+    };
+  }, [enabled, reading, text]);
+  return gloss ? <small className={styles.candidateGloss}>{gloss}</small> : null;
+};
+
+/** A candidate's context, fetched when its row first unfolds. */
+const CandidateContextLines: React.FC<{
+  text: string;
+  note: string;
+  reading: CandidateReading;
+}> = ({ text, note, reading }) => {
+  const [result, setResult] = useState<CandidateContext | { error: string } | null>(null);
+  // A ref: `reading` changes with the engine, and each fetch is a scan of the whole book.
+  const contextRef = useRef(reading.context);
+  contextRef.current = reading.context;
+  useEffect(() => {
+    let current = true;
+    contextRef.current(text).then(
+      (value) => current && setResult(value),
+      (error: unknown) => current && setResult({ error: extractErrorMessage(error) })
+    );
+    return () => {
+      current = false;
+    };
+  }, [text]);
+
+  if (result === null) return <div className={styles.candidateContext}>Loading…</div>;
+  if ('error' in result) {
+    return (
+      <div className={styles.error} role="alert">
+        <AlertCircle size={14} />
+        {result.error}
+      </div>
+    );
+  }
+  const more = result.total - result.lines.length;
+  return (
+    <div className={styles.candidateContext}>
+      <ul className={styles.outlineList}>
+        {result.lines.map(({ line, text: content }) => (
+          <li key={line}>
+            <button
+              className={styles.candidateContextLine}
+              aria-label={`Jump to line ${line + 1}`}
+              onClick={() => reading.jump(line)}
+            >
+              <span lang="zh">{content}</span>
+              <Gloss text={content} reading={reading} enabled />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {more > 0 && (
+        <small className={styles.candidateTag}>
+          {more} more {more === 1 ? 'line' : 'lines'} in the book
+        </small>
+      )}
+      <small className={styles.candidateTag}>Type: {note}</small>
+    </div>
+  );
+};
 
 const STAGE_LABELS: Record<CandidateStage, string> = {
   reading: 'Reading',
@@ -28,6 +134,7 @@ interface CandidateRowProps {
   candidate: Candidate;
   adder: CandidateAdder;
   dismissals: CandidateDismissals;
+  reading: CandidateReading;
 }
 
 /**
@@ -36,8 +143,11 @@ interface CandidateRowProps {
  * one needs no handling here, because the row leaves when the dictionary holds its name.
  * × dismisses the name for this book; the row leaves when the record holds it.
  */
-const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissals }) => {
+const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissals, reading }) => {
   const { text } = candidate;
+  const rowRef = useRef<HTMLLIElement>(null);
+  const seen = useSeen(rowRef);
+  const [unfolded, setUnfolded] = useState(false);
   const [target, setTarget] = useState(adder.opened);
   const [translation, setTranslation] = useState(() => adder.guess(text, adder.opened));
   const [pending, setPending] = useState(false);
@@ -79,7 +189,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
   };
 
   return (
-    <li className={styles.candidateRow}>
+    <li ref={rowRef} className={styles.candidateRow}>
       <span className={styles.candidateText}>
         {text}
         {candidate.alsoIn.length > 0 && (
@@ -90,7 +200,16 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
       </span>
       <span>{candidate.count}</span>
       <span>{candidate.lineCount}</span>
+      <Gloss text={text} reading={reading} enabled={seen} />
       <div className={styles.candidateAdd}>
+        <button
+          onClick={() => setUnfolded((open) => !open)}
+          className={styles.iconButton}
+          aria-expanded={unfolded}
+          aria-label={`${unfolded ? 'Hide' : 'Show'} context for ${text}`}
+        >
+          {unfolded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
         <input
           className={styles.candidateInput}
           value={translation}
@@ -132,6 +251,9 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
           <X size={14} />
         </button>
       </div>
+      {unfolded && (
+        <CandidateContextLines text={text} note={adder.typeNote(text, target)} reading={reading} />
+      )}
       {message && (
         <div className={styles.error} role="alert">
           <AlertCircle size={14} />
@@ -146,8 +268,9 @@ const CandidateList: React.FC<{
   candidates: Candidate[];
   adder: CandidateAdder;
   dismissals: CandidateDismissals;
+  reading: CandidateReading;
   onRun: () => void;
-}> = ({ candidates, adder, dismissals, onRun }) => {
+}> = ({ candidates, adder, dismissals, reading, onRun }) => {
   // Rows leave the list as the dictionaries come to hold them, and return on Undo; the list
   // itself is never re-run.
   const notDismissed = candidates.filter((candidate) => !dismissals.names.includes(candidate.text));
@@ -174,6 +297,7 @@ const CandidateList: React.FC<{
                 candidate={candidate}
                 adder={adder}
                 dismissals={dismissals}
+                reading={reading}
               />
             ))}
           </ul>
@@ -186,9 +310,35 @@ const CandidateList: React.FC<{
   );
 };
 
+/** One dismissed name with its gloss and Restore. */
+const DismissedItem: React.FC<{
+  name: string;
+  reading: CandidateReading;
+  onRestore: (name: string) => void;
+}> = ({ name, reading, onRestore }) => {
+  const ref = useRef<HTMLLIElement>(null);
+  const seen = useSeen(ref);
+  return (
+    <li ref={ref} className={styles.candidateDismissed}>
+      <span>{name}</span>
+      <Gloss text={name} reading={reading} enabled={seen} />
+      <button
+        onClick={() => onRestore(name)}
+        className={styles.secondaryButton}
+        aria-label={`Restore ${name}`}
+      >
+        Restore
+      </button>
+    </li>
+  );
+};
+
 /** Names dismissed for this book, collapsed, each with Restore. Shown in every state, since
  * Restore doesn't need a run. */
-const DismissedList: React.FC<{ dismissals: CandidateDismissals }> = ({ dismissals }) => {
+const DismissedList: React.FC<{ dismissals: CandidateDismissals; reading: CandidateReading }> = ({
+  dismissals,
+  reading,
+}) => {
   const [message, setMessage] = useState<string | null>(null);
   if (dismissals.names.length === 0) return null;
   const restore = async (name: string): Promise<void> => {
@@ -204,16 +354,12 @@ const DismissedList: React.FC<{ dismissals: CandidateDismissals }> = ({ dismissa
       <summary>Dismissed ({dismissals.names.length})</summary>
       <ul className={styles.outlineList}>
         {dismissals.names.map((name) => (
-          <li key={name} className={styles.candidateDismissed}>
-            <span>{name}</span>
-            <button
-              onClick={() => void restore(name)}
-              className={styles.secondaryButton}
-              aria-label={`Restore ${name}`}
-            >
-              Restore
-            </button>
-          </li>
+          <DismissedItem
+            key={name}
+            name={name}
+            reading={reading}
+            onRestore={(restored) => void restore(restored)}
+          />
         ))}
       </ul>
       {message && (
@@ -235,6 +381,7 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
   snapshot,
   adder,
   dismissals,
+  reading,
   onRun,
   onCancel,
   onClose,
@@ -312,11 +459,12 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
         candidates={snapshot.candidates}
         adder={adder}
         dismissals={dismissals}
+        reading={reading}
         onRun={onRun}
       />
     )}
 
-    <DismissedList dismissals={dismissals} />
+    <DismissedList dismissals={dismissals} reading={reading} />
   </div>
 );
 

@@ -9,6 +9,7 @@ import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapters } from '../../hooks/useChapters';
 import { useCandidateFinder } from '../../hooks/useCandidateFinder';
+import { useCandidateReading } from '../../hooks/useCandidateReading';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { useReaderCommands } from '../../hooks/useReaderCommands';
@@ -80,9 +81,12 @@ const BookReader: React.FC<BookReaderProps> = ({
   const [finderOpen, setFinderOpen] = useState(false);
   const finder = useCandidateFinder(book.fingerprint);
   const { cancel: cancelFinder } = finder;
+  /** The line a finder jump landed on, lit in all three panels until the finder closes. */
+  const [litLine, setLitLine] = useState<number | null>(null);
   const closeFinder = useCallback((): void => {
     cancelFinder();
     setFinderOpen(false);
+    setLitLine(null);
   }, [cancelFinder]);
   useEffect(() => {
     if (outline) closeFinder();
@@ -165,6 +169,15 @@ const BookReader: React.FC<BookReaderProps> = ({
   // Clamped for the last line's rounding, not for anything the anchor itself can produce.
   const readingProgressPercent =
     book.lineCount > 0 ? Math.min(100, ((anchorLine + 1) / book.lineCount) * 100) : 0;
+
+  const candidateReading = useCandidateReading({
+    fingerprint: book.fingerprint,
+    translateGloss,
+    canTranslate,
+    dictionaryVersion: engineVersion,
+    scrollToLine,
+    onLit: setLitLine,
+  });
 
   const jumpToLine = useCallback(
     (line: number): void => {
@@ -307,6 +320,7 @@ const BookReader: React.FC<BookReaderProps> = ({
             contentVersion={contentVersion}
             getRow={getRow.original}
             highlight={highlight}
+            litLine={litLine}
             onSegmentClick={toggleHighlight}
           />
           <ReaderPanel
@@ -316,6 +330,7 @@ const BookReader: React.FC<BookReaderProps> = ({
             contentVersion={contentVersion}
             getRow={getRow.characterOnly}
             highlight={highlight}
+            litLine={litLine}
             onSegmentClick={toggleHighlight}
           />
         </div>
@@ -328,6 +343,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           // The master's scroll moves the reading anchor as well as the followers.
           onScroll={handleScroll}
           highlight={highlight}
+          litLine={litLine}
           onSegmentClick={toggleHighlight}
         />
       </div>
@@ -354,6 +370,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           snapshot={finder.snapshot}
           adder={finder.adder}
           dismissals={finder.dismissals}
+          reading={candidateReading}
           onRun={finder.run}
           onCancel={finder.cancel}
           onClose={closeFinder}

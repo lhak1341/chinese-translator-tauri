@@ -1,4 +1,6 @@
 import { isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
+import { defaultSemanticType, matchingRule } from '../dictionary/TransformRuleEngine';
+import type { TransformRule } from '../../types/TransformRuleTypes';
 import { quickAddChoices, quickAddTarget } from '../dictionary/QuickAddTarget';
 import type { QuickAddView } from '../dictionary/QuickAddTarget';
 
@@ -36,6 +38,18 @@ export function isCandidateAdded(
   );
 }
 
+/** Where a row's type comes from, for the unfolded row: the matching enabled Transform Rule,
+ * else the target's default. The same lookup `initialEntryGuess` makes, so it says what Add writes. */
+export function typeProvenance(
+  rules: TransformRule[],
+  source: string,
+  dictionaryId: string
+): string {
+  const match = matchingRule(rules, source, dictionaryId);
+  if (match) return `${match.semanticType}, from the rule ${match.key}`;
+  return `${defaultSemanticType(dictionaryId) || 'none'}, the default: no matching rule`;
+}
+
 /** What a row needs to add its candidate: the dropdown, the Add form's first guess, whether the
  * name is in a dictionary now, and the write itself, which rejects with the reason it failed. */
 export interface CandidateAdder {
@@ -45,4 +59,6 @@ export interface CandidateAdder {
   /** The translation the Add form would seed for `text` in `dictionaryId`. */
   guess: (text: string, dictionaryId: string) => string;
   add: (text: string, dictionaryId: string, translation: string) => Promise<void>;
+  /** Where the type `add` writes for `text` in `dictionaryId` comes from. */
+  typeNote: (text: string, dictionaryId: string) => string;
 }

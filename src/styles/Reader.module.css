@@ -683,6 +683,37 @@
   grid-column: 1 / -1;
 }
 
+.candidateGloss {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.candidateContext {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.candidateContextLine {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0.2rem 0.3rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidateContextLine:hover {
+  background: var(--hover-bg, rgba(127, 127, 127, 0.12));
+}
+
 .candidateTag {
   margin-left: 0.5rem;
   font-size: 0.72rem;
@@ -922,6 +953,11 @@
 
 .pending {
   opacity: 0.35;
+}
+
+/* The line a Candidate finder jump landed on. */
+.litLine {
+  background: var(--highlight-bg, rgba(255, 213, 79, 0.28));
 }
 
 /* Quiet progress: a fill is running somewhere in the buffer. Deliberately not a spinner

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { candidateAddChoices, isCandidateAdded } from '../CandidateAdd';
+import { candidateAddChoices, isCandidateAdded, typeProvenance } from '../CandidateAdd';
+import type { TransformRule } from '../../../types/TransformRuleTypes';
 
 const DICTIONARIES = {
   phrases: { 你好: 'xin chào' },
@@ -48,5 +49,31 @@ describe('isCandidateAdded', () => {
   it('counts the fallback root target when no config could be read', () => {
     const { choices: fallback } = candidateAddChoices(null, DICTIONARIES);
     expect(isCandidateAdded('张三', DICTIONARIES, fallback)).toBe(true);
+  });
+});
+
+describe('typeProvenance', () => {
+  const rule = (overrides: Partial<TransformRule>): TransformRule => ({
+    id: 'r',
+    matchKind: 'suffix',
+    key: '剑法',
+    relocate: true,
+    capitalizeExceptN: 1,
+    semanticType: 'object',
+    enabled: true,
+    ...overrides,
+  });
+
+  it('names the matching rule and the type it gives', () => {
+    expect(typeProvenance([rule({})], '青云剑法', 'properNouns')).toBe(
+      'object, from the rule 剑法'
+    );
+  });
+
+  it('says the type is the default when no enabled rule matches', () => {
+    const disabled = rule({ enabled: false });
+    expect(typeProvenance([disabled], '青云剑法', 'properNouns')).toBe(
+      'character, the default: no matching rule'
+    );
   });
 });

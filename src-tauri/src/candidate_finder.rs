@@ -552,6 +552,42 @@ pub fn find_candidates(
     Some(found)
 }
 
+/// One line of the book that holds a candidate: the file's own line number (0-based, as
+/// everywhere else a line number is used) and its text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextLine {
+    pub line: usize,
+    pub text: String,
+}
+
+/// The first lines holding a candidate, and how many lines hold it in all.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextLines {
+    pub lines: Vec<ContextLine>,
+    pub total: usize,
+}
+
+/// Up to `limit` lines of `lines` that contain `text`, in file order, and the number of lines
+/// that contain it. The panel's unfolded row shows these and "N more lines in the book".
+pub fn context_lines(lines: &[&str], text: &str, limit: usize) -> ContextLines {
+    let mut found = Vec::new();
+    let mut total = 0;
+    if text.is_empty() {
+        return ContextLines { lines: found, total };
+    }
+    for (line, content) in lines.iter().enumerate() {
+        if content.contains(text) {
+            total += 1;
+            if found.len() < limit {
+                found.push(ContextLine { line, text: (*content).to_string() });
+            }
+        }
+    }
+    ContextLines { lines: found, total }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,6 +605,27 @@ mod tests {
             spans.extend(mask_spans(run, keys).into_iter().map(|(s, n)| (offset + s, n)));
         }
         spans
+    }
+
+    #[test]
+    fn context_lines_return_the_first_lines_holding_the_text_with_their_file_numbers() {
+        let lines = ["甲", "滕青山来了。", "", "乙滕青山", "丙", "滕青山走了", "滕青山笑"];
+        let found = context_lines(&lines, "滕青山", 3);
+        assert_eq!(found.total, 4);
+        assert_eq!(
+            found.lines,
+            vec![
+                ContextLine { line: 1, text: "滕青山来了。".to_string() },
+                ContextLine { line: 3, text: "乙滕青山".to_string() },
+                ContextLine { line: 5, text: "滕青山走了".to_string() },
+            ]
+        );
+    }
+
+    #[test]
+    fn context_lines_of_a_string_the_book_lacks_are_empty() {
+        let found = context_lines(&["甲乙丙"], "滕青山", 3);
+        assert_eq!((found.total, found.lines.len()), (0, 0));
     }
 
     #[derive(Deserialize)]

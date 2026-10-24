@@ -4,12 +4,14 @@
  */
 
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import CandidateFinderPanel from '../CandidateFinderPanel';
 import type { CandidateFinderSnapshot } from '../../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder } from '../../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../../hooks/useCandidateFinder';
+import type { CandidateReading } from '../CandidateFinderPanel';
+import type { CandidateContext } from '../../../types/ReaderTypes';
 
 function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
   return {
@@ -18,6 +20,16 @@ function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
     isAdded: () => false,
     guess: (text) => `guess:${text}`,
     add: vi.fn().mockResolvedValue(undefined),
+    typeNote: (text) => `type of ${text}`,
+    ...overrides,
+  };
+}
+
+function makeReading(overrides: Partial<CandidateReading> = {}): CandidateReading {
+  return {
+    context: vi.fn().mockResolvedValue({ lines: [], total: 0 }),
+    gloss: vi.fn((text: string) => Promise.resolve(`gloss:${text}`)),
+    jump: vi.fn(),
     ...overrides,
   };
 }
@@ -36,11 +48,18 @@ function makeDismissals(overrides: Partial<CandidateDismissals> = {}): Candidate
 function renderPanel(
   snapshot: CandidateFinderSnapshot,
   adder: CandidateAdder = makeAdder(),
-  dismissals: CandidateDismissals = makeDismissals()
+  dismissals: CandidateDismissals = makeDismissals(),
+  reading: CandidateReading = makeReading()
 ) {
   const handlers = { onRun: vi.fn(), onCancel: vi.fn(), onClose: vi.fn() };
   render(
-    <CandidateFinderPanel snapshot={snapshot} adder={adder} dismissals={dismissals} {...handlers} />
+    <CandidateFinderPanel
+      snapshot={snapshot}
+      adder={adder}
+      dismissals={dismissals}
+      reading={reading}
+      {...handlers}
+    />
   );
   return handlers;
 }
@@ -182,11 +201,13 @@ describe('CandidateFinderPanel', () => {
       const added = new Set(['云梦泽']);
       const adder = makeAdder({ isAdded: (text) => added.has(text) });
       const snapshot = done('滕青山', '云梦泽');
+      const reading = makeReading();
       const { rerender } = render(
         <CandidateFinderPanel
           snapshot={snapshot}
           adder={adder}
           dismissals={makeDismissals()}
+          reading={reading}
           onRun={vi.fn()}
           onCancel={vi.fn()}
           onClose={vi.fn()}
@@ -201,6 +222,7 @@ describe('CandidateFinderPanel', () => {
           snapshot={snapshot}
           adder={{ ...adder }}
           dismissals={makeDismissals()}
+          reading={reading}
           onRun={vi.fn()}
           onCancel={vi.fn()}
           onClose={vi.fn()}
@@ -304,6 +326,101 @@ describe('CandidateFinderPanel', () => {
       renderPanel(done('滕青山'), makeAdder(), dismissals);
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss 滕青山' }));
       expect(await screen.findByText('Cannot save')).toBeTruthy();
+    });
+  });
+
+  describe('context lines, glosses and jump', () => {
+    const done = (...texts: string[]): CandidateFinderSnapshot => ({
+      status: 'done',
+      candidates: texts.map((text) => ({ text, count: 9, lineCount: 7, alsoIn: [] })),
+    });
+    const contextOf = (total: number): CandidateContext => ({
+      lines: [
+        { line: 4, text: '滕青山来了。' },
+        { line: 10, text: '乙滕青山' },
+        { line: 20, text: '滕青山走了' },
+      ],
+      total,
+    });
+    const unfold = async (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name: `Show context for ${name}` }));
+      await screen.findByText('滕青山来了。');
+    };
+
+    test('unfolding shows up to three context lines, how many more the book has, and the type source', async () => {
+      const reading = makeReading({ context: vi.fn().mockResolvedValue(contextOf(7)) });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals(), reading);
+      await unfold('滕青山');
+      expect(reading.context).toHaveBeenCalledWith('滕青山');
+      expect(screen.getAllByRole('button', { name: /^Jump to line/ })).toHaveLength(3);
+      expect(screen.getByText('4 more lines in the book')).toBeTruthy();
+      expect(screen.getByText('Type: type of 滕青山')).toBeTruthy();
+    });
+
+    test('a book with no more lines than shown has no "more lines" note', async () => {
+      const reading = makeReading({ context: vi.fn().mockResolvedValue(contextOf(3)) });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals(), reading);
+      await unfold('滕青山');
+      expect(screen.queryByText(/more lines? in the book/)).toBeNull();
+    });
+
+    test('clicking a context line jumps to that line by its file number', async () => {
+      const reading = makeReading({ context: vi.fn().mockResolvedValue(contextOf(3)) });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals(), reading);
+      await unfold('滕青山');
+      fireEvent.click(screen.getByRole('button', { name: 'Jump to line 11' }));
+      expect(reading.jump).toHaveBeenCalledWith(10);
+    });
+
+    test('a failed context lookup says so and keeps the row', async () => {
+      const reading = makeReading({ context: vi.fn().mockRejectedValue(new Error('no book')) });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals(), reading);
+      fireEvent.click(screen.getByRole('button', { name: 'Show context for 滕青山' }));
+      expect((await screen.findByRole('alert')).textContent).toContain('no book');
+      expect(screen.getByLabelText('Translation of 滕青山')).toBeTruthy();
+    });
+
+    test('the candidate, its context lines and the dismissed list each carry a gloss', async () => {
+      const reading = makeReading({ context: vi.fn().mockResolvedValue(contextOf(3)) });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals({ names: ['云梦泽'] }), reading);
+      await unfold('滕青山');
+      expect(await screen.findByText('gloss:滕青山')).toBeTruthy();
+      expect(await screen.findByText('gloss:滕青山来了。')).toBeTruthy();
+      expect(await screen.findByText('gloss:云梦泽')).toBeTruthy();
+    });
+
+    test('a row scrolled out of view gets no gloss until it comes into view', async () => {
+      const observed: Array<{ target: Element; fire: () => void }> = [];
+      class FakeObserver {
+        constructor(private callback: IntersectionObserverCallback) {}
+        observe(target: Element) {
+          observed.push({
+            target,
+            fire: () =>
+              this.callback(
+                [{ isIntersecting: true, target } as IntersectionObserverEntry],
+                this as unknown as IntersectionObserver
+              ),
+          });
+        }
+        unobserve() {}
+        disconnect() {}
+      }
+      vi.stubGlobal('IntersectionObserver', FakeObserver);
+      try {
+        const reading = makeReading();
+        renderPanel(done('滕青山', '云梦泽'), makeAdder(), makeDismissals(), reading);
+        await Promise.resolve();
+        expect(reading.gloss).not.toHaveBeenCalled();
+
+        const second = observed.find((entry) => entry.target.textContent?.includes('云梦泽'));
+        act(() => second?.fire());
+        expect(await screen.findByText('gloss:云梦泽')).toBeTruthy();
+        expect(reading.gloss).toHaveBeenCalledTimes(1);
+        expect(reading.gloss).toHaveBeenCalledWith('云梦泽');
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 });

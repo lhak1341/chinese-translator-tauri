@@ -26,6 +26,7 @@ import type { AppConfiguration, AppearanceSettings } from './types/ComponentType
 import type {
   BookFingerprint,
   BookLines,
+  CandidateContext,
   BookRecords,
   BackgroundBook,
   CandidateProgress,
@@ -68,6 +69,7 @@ export const CMD = {
   CHAPTER_HEADERS_FOR_PATTERN: 'chapter_headers_for_pattern',
   FIND_CANDIDATES: 'find_candidates',
   CANCEL_CANDIDATE_RUN: 'cancel_candidate_run',
+  CANDIDATE_CONTEXT: 'candidate_context',
   INDEX_OPEN_BOOK: 'index_open_book',
   PRUNE_BOOK_INDEX: 'prune_book_index',
   LOAD_BOOK_RECORDS: 'load_book_records',
@@ -238,6 +240,18 @@ const tauriAPI = {
   /** Delete the index sidecars of books with no record; `known` is every record's fingerprint. */
   pruneBookIndex: async (known: string[]): Promise<number> =>
     callReaderCommand<number>(CMD.PRUNE_BOOK_INDEX, { known }, 'pruneBookIndex'),
+
+  /** The first `limit` lines of the open book that hold `text`, and how many hold it in all. */
+  candidateContext: async (
+    fingerprint: string,
+    text: string,
+    limit: number
+  ): Promise<CandidateContext> =>
+    callReaderCommand<CandidateContext>(
+      CMD.CANDIDATE_CONTEXT,
+      { fingerprint, text, limit },
+      'candidateContext'
+    ),
 
   /** Ask a run to stop; it resolves to `null` at its next check. */
   cancelCandidateRun: async (runId: string): Promise<void> =>

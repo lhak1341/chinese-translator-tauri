@@ -75,6 +75,7 @@ pub fn run() {
             chapter_outline_commands::chapter_headers_for_pattern,
             candidate_finder_commands::find_candidates,
             candidate_finder_commands::cancel_candidate_run,
+            candidate_finder_commands::candidate_context,
             candidate_finder_commands::index_open_book,
             candidate_finder_commands::prune_book_index,
         ]);

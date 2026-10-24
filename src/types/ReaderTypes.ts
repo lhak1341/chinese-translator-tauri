@@ -214,6 +214,18 @@ export interface Candidate {
   alsoIn: string[];
 }
 
+/** One book line that holds a candidate: the file's own 0-based line number and its text. */
+export interface ContextLine {
+  line: number;
+  text: string;
+}
+
+/** The first lines holding a candidate and how many lines hold it in all. */
+export interface CandidateContext {
+  lines: ContextLine[];
+  total: number;
+}
+
 /** Another indexed book, for the spread gate: its encoding label says how to rebuild its
  * sidecar (`book-index/<fingerprint>.bin`) when none is valid. */
 export interface BackgroundBook {

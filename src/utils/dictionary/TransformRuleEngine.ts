@@ -227,6 +227,17 @@ export interface InitialEntryGuess {
   semanticType: SemanticType | '';
 }
 
+/** The rule the Add form's guess for `sourceText` in `targetDictionary` comes from, if any. */
+export function matchingRule(
+  rules: TransformRule[],
+  sourceText: string,
+  targetDictionary: string
+): TransformRule | null {
+  return dictionarySupportsTransformRules(targetDictionary)
+    ? findBestMatch(rules, sourceText)
+    : null;
+}
+
 /** The initial guess and the rule that produced it, if any — the one path behind both
  * `initialEntryGuess` (the Add form) and `previewRuleGuess` (the New Rule dialog). */
 function guessWithRules(
@@ -236,9 +247,7 @@ function guessWithRules(
   targetDictionary: string
 ): { guess: InitialEntryGuess; match: TransformRule | null } {
   const roughGloss = generateRoughTranslation(dictionaries, sourceText, targetDictionary);
-  const match = dictionarySupportsTransformRules(targetDictionary)
-    ? findBestMatch(rules, sourceText)
-    : null;
+  const match = matchingRule(rules, sourceText, targetDictionary);
   if (!match) {
     return {
       guess: {
