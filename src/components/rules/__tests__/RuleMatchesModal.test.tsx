@@ -63,19 +63,19 @@ function getRowForSource(source: string): HTMLElement {
 
 function renderModal(overrides: Partial<React.ComponentProps<typeof RuleMatchesModal>> = {}) {
   const patchEntry = vi.fn().mockResolvedValue(undefined);
-  const deleteEntry = vi.fn().mockResolvedValue(undefined);
+  const bulkDeleteEntries = vi.fn().mockResolvedValue({ count: 1, missing: [] });
   const onClose = vi.fn();
   render(
     <RuleMatchesModal
       rule={RULE}
       dictionaries={DICTIONARIES}
       patchEntry={patchEntry}
-      deleteEntry={deleteEntry}
+      bulkDeleteEntries={bulkDeleteEntries}
       onClose={onClose}
       {...overrides}
     />
   );
-  return { patchEntry, deleteEntry, onClose };
+  return { patchEntry, bulkDeleteEntries, onClose };
 }
 
 describe('RuleMatchesModal — translation edit', () => {
@@ -183,16 +183,18 @@ describe('RuleMatchesModal — right-click menu', () => {
   });
 
   test('Delete needs a second click, then deletes from the row’s own dictionary', async () => {
-    const { deleteEntry } = renderModal();
+    const { bulkDeleteEntries } = renderModal();
     fireEvent.contextMenu(getRowForSource('南京城'));
     await act(async () => {
       fireEvent.click(screen.getByText('Delete Entry'));
     });
-    expect(deleteEntry).not.toHaveBeenCalled();
+    expect(bulkDeleteEntries).not.toHaveBeenCalled();
     await act(async () => {
       fireEvent.click(screen.getByText('Click again to delete'));
     });
-    expect(deleteEntry).toHaveBeenCalledWith('properNouns-f_test', '南京城');
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'properNouns-f_test', key: '南京城' },
+    ]);
   });
 
   test('Move to... opens the move dialog for that entry and dictionary', () => {

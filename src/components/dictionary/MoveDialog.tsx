@@ -45,7 +45,7 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { moveEntry, bulkMoveEntries, dictionaries, loadDictionary } = useDictionary();
+  const { moveEntries, dictionaries, loadDictionary } = useDictionary();
   const { availableDictionaries, sourceLabel: sourceDictionaryLabel } =
     useMoveTargetDictionaries(currentDictionary);
 
@@ -66,7 +66,7 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   }, [entries, dictionaries, currentDictionary]);
 
   // Targets are loaded lazily (fiction dicts are only in memory once opened). Load the chosen
-  // target on selection so the overwrite check below can see it and moveEntry doesn't reject it
+  // target on selection so the overwrite check below can see it and moveEntries doesn't reject it
   // as "does not exist".
   const [isLoadingTarget, setIsLoadingTarget] = useState<boolean>(false);
   const targetLoaded = Boolean(selectedDictionary && dictionaries?.[selectedDictionary]);
@@ -114,21 +114,12 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
     setError(null);
 
     try {
-      if (isSingle) {
-        await moveEntry(
-          currentDictionary,
-          selectedDictionary,
-          fullEntries[0].source,
-          getSelectedLabel()
-        );
-      } else {
-        await bulkMoveEntries(
-          currentDictionary,
-          selectedDictionary,
-          fullEntries.map((e) => e.source),
-          getSelectedLabel()
-        );
-      }
+      await moveEntries(
+        currentDictionary,
+        selectedDictionary,
+        fullEntries.map((e) => e.source),
+        getSelectedLabel()
+      );
       onClose();
       onSuccess?.();
     } catch (err) {
@@ -141,8 +132,7 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
     selectedDictionary,
     fullEntries,
     isSingle,
-    moveEntry,
-    bulkMoveEntries,
+    moveEntries,
     currentDictionary,
     getSelectedLabel,
     onClose,

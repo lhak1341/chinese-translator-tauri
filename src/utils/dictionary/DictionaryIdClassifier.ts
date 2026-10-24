@@ -273,7 +273,7 @@ export function getMoveFamily(id: string): MoveFamily | null {
 }
 
 /** True when an entry in `sourceId` may be moved to `targetId`. The single rule the move
- * dialog's target list, the context menu, and `moveEntry`/`bulkMoveEntries` all enforce. */
+ * dialog's target list, the context menu, and `moveEntries` all enforce. */
 export function canMoveBetween(sourceId: string, targetId: string): boolean {
   if (sourceId === targetId) return false;
   const family = getMoveFamily(sourceId);

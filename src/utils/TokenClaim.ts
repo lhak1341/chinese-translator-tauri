@@ -16,6 +16,10 @@
  *   and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that
  *   leader's followers outside the new span, or they would be silently dropped.
  *
+ * `placeSpan` / `placeGroupedSpan` are the same two shapes plus the match's semantic unit, recorded
+ * from the claim's own `source` and `translated` so the two cannot disagree, with the chunk
+ * offset applied once. Every phase that claims also records through them.
+ *
  * `isClaimed` is the read side: whether any phase has claimed a token. Every phase's skip test and
  * span check uses it. It reads two fields only, because every writer of `isGrouped` or
  * `groupLeader` (this module) and of `translated` (this module, `NumberLiangFix`, the
@@ -150,4 +154,82 @@ export function claimGroupedSpan(
     follower.isGrouped = true;
     follower.groupLeader = startIndex;
   }
+}
+
+/** What a placed match needs of the semantic array builder: `SemanticArrayBuilder.addUnit`. */
+export interface UnitRecorder {
+  addUnit(
+    originalText: string,
+    translatedText: string,
+    source: string,
+    tokenIndex?: number
+  ): boolean;
+}
+
+/**
+ * Where a placed match records its semantic unit. `builder: null` places without recording (the
+ * character-only pass builds its own arrays); `undefined` is a caller that forgot the builder, and
+ * is logged. `chunkOffset` turns the chunk-local `startIndex` into the unit's global token index.
+ */
+export interface UnitSink {
+  builder: UnitRecorder | null;
+  chunkOffset?: number;
+}
+
+function recordUnit(
+  sink: UnitSink,
+  originalText: string,
+  translated: string,
+  source: string,
+  startIndex: number
+): void {
+  if (sink.builder === undefined) {
+    logger.error(
+      `🚨 span placement at token ${startIndex}: no semantic array builder given (pass null to skip recording)`
+    );
+    return;
+  }
+  sink.builder?.addUnit(originalText, translated, source, startIndex + (sink.chunkOffset ?? 0));
+}
+
+/**
+ * `claimSpan`, then the match's semantic unit from the same `source` and `translated`.
+ * `originalText` is the matched source text; the light claim leaves token values alone, so the
+ * caller says what it was.
+ */
+export function placeSpan(
+  tokens: ClaimableToken[],
+  startIndex: number,
+  endIndex: number,
+  source: string,
+  translated: string,
+  originalText: string,
+  sink: UnitSink,
+  activeProperNouns: string[] = []
+): void {
+  claimSpan(tokens, startIndex, endIndex, source, translated, activeProperNouns);
+  recordUnit(sink, originalText, translated, source, startIndex);
+}
+
+/** `claimGroupedSpan`, then the match's semantic unit (original text `groupedText`) from the same `source`. */
+export function placeGroupedSpan(
+  tokens: ClaimableToken[],
+  startIndex: number,
+  tokenSpan: number,
+  source: string,
+  translated: string,
+  groupedText: string,
+  sink: UnitSink,
+  activeProperNouns: string[] = []
+): void {
+  claimGroupedSpan(
+    tokens,
+    startIndex,
+    tokenSpan,
+    source,
+    translated,
+    groupedText,
+    activeProperNouns
+  );
+  recordUnit(sink, groupedText, translated, source, startIndex);
 }

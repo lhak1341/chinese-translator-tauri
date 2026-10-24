@@ -56,11 +56,13 @@ The span claim: the one place a phase writes a match onto the token array (archi
 - `claimSpan(tokens, startIndex, endIndex, source, translated, activeProperNouns?)` — the light shape, for Phase 1 patterns and Phase 3 numbers. No `isGrouped`, no `groupedWith`, the leader's `value` untouched, so a pattern-consumed token keeps its text.
 - `claimGroupedSpan(tokens, startIndex, tokenSpan, source, translated, groupedText, activeProperNouns?)` — the grouped shape, for Phase 2 proper nouns, Phase 4 phrases and Phase 5 characters. Also marks the span `isGrouped`, records `groupedWith` and `originalValue`, and rewrites the leader's `value` and `end` to the grouped text. When it overwrites an earlier phase's leader it releases that leader's followers beyond the new span. A one-token span is a plain leader.
 
-Both log (never throw) a leader with no translation and a source `getSourcePriority` does not rank, which closes the "unknown source ranks 999" gap for the plain-JS callers `tsc` cannot check. The Phase 5 sentinels (`untranslated-chinese`, `preserved-*`) and `NumberLiangFix` write tokens directly and stay outside it. `addUnit` calls stay at the call sites: they differ in `recordMatches`, the builder handle and where the original text comes from.
+Both log (never throw) a leader with no translation and a source `getSourcePriority` does not rank, which closes the "unknown source ranks 999" gap for the plain-JS callers `tsc` cannot check. The Phase 5 sentinels (`untranslated-chinese`, `preserved-*`) and `NumberLiangFix` write tokens directly and stay outside it.
 
 - `isClaimed(token)` — the read side (architecture review round 32, candidate #3): `translated !== null || translationSource`. Every phase's skip test and span check uses it, and so does `NumberProcessor`. Two fields are enough because every writer of `isGrouped`, `groupLeader` or `translated` sets `translationSource` in the same call, and the orphan release clears them together.
 
-Interface: pure mutation of the passed `tokens` array (`isClaimed` only reads); no `this`, no engine state — testable standalone. Entry point: `src/utils/TokenClaim.ts`. Not barrel-exported — callers are `TranslationEngine.js` and `NumberProcessor.js`. Pinned by `TokenClaim.test.ts` and, field by field per phase, `TokenState.characterization.test.js`.
+- `placeSpan(tokens, startIndex, endIndex, source, translated, originalText, sink, activeProperNouns?)` / `placeGroupedSpan(tokens, startIndex, tokenSpan, source, translated, groupedText, sink, activeProperNouns?)` — **Placement** (ADR-109): the claim above, then the match's semantic unit recorded from the same `source` and `translated`, so a token and its unit cannot disagree. `sink` is `{ builder, chunkOffset }`: `builder: null` claims without recording (the character-only pass), and `undefined` is logged. Every phase that claims places; `addUnit` is called directly only where no claim exists (the Phase 5 pass-through branch, `CharOnlyAssembly`).
+
+Interface: pure mutation of the passed `tokens` array and the `sink`'s builder (`isClaimed` only reads); no `this`, no engine state — testable standalone. Entry point: `src/utils/TokenClaim.ts`. Not barrel-exported — callers are `TranslationEngine.js` and `NumberProcessor.js`. Pinned by `TokenClaim.test.ts` and, field by field per phase, `TokenState.characterization.test.js`.
 
 ## UnitHighlightPredicate
 
@@ -273,11 +275,11 @@ Entry point: `src/components/dictionary/useDictionaryHistory.ts`. Used exclusive
 
 ## DictionaryCRUD
 
-All 7 dictionary mutation operations: `addEntry`, `updateEntry`, `patchEntry`, `deleteEntry`, `bulkDeleteEntries`, `moveEntry`, `bulkMoveEntries`. Each plans a Dictionary Edit and commits it through the provider's `EditCommitter`, recording it on success; this module adds error typing and the user-facing message (sanitize, validate and the typed value for `phrases`/`patterns`/`properNouns*` vs plain string dicts belong to the Dictionary Edit plans). `patchEntry` reads the current value inside its commit turn, so two queued patches each start from the other's result.
+All 6 dictionary mutation operations: `addEntry`, `updateEntry`, `patchEntry`, `renameEntry`, `bulkDeleteEntries`, `moveEntries`. Delete and move each take a list, so one entry and many are the same operation with the same outcome policy (ADR-110). Each plans a Dictionary Edit and commits it through the provider's `EditCommitter`, recording it on success; this module adds error typing and the user-facing message (sanitize, validate and the typed value for `phrases`/`patterns`/`properNouns*` vs plain string dicts belong to the Dictionary Edit plans). `patchEntry` reads the current value inside its commit turn, so two queued patches each start from the other's result.
 
-Injected dependencies: the `EditCommitter` and history's `record`, both stable, so all 7 returned callbacks are stable.
+Injected dependencies: the `EditCommitter` and history's `record`, both stable, so all 6 returned callbacks are stable.
 
-Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictionary/` in commit `27a42dd`, superseding ADR-026). Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`. Wiring tests (`src/hooks/__tests__/useDictionaryCRUD.test.ts`, real committer over a fake disk): I1 record-on-success, I3 error-propagates-clean, I4 single-toast-on-error (add/update/patch/delete/bulkDelete only — moveEntry/bulkMoveEntries never toast on failure, by design; `MoveDialog.tsx` owns error display for move ops via its own inline error banner).
+Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictionary/` in commit `27a42dd`, superseding ADR-026). Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`. Wiring tests (`src/hooks/__tests__/useDictionaryCRUD.test.ts`, real committer over a fake disk): I1 record-on-success, I3 error-propagates-clean, I4 single-toast-on-error (add/update/patch/delete only — `moveEntries` never toasts on failure, by design; `MoveDialog.tsx` owns error display for move ops via its own inline error banner).
 
 ## DictionaryTrie
 
@@ -374,7 +376,7 @@ The single dialog for moving dictionary entries to another dictionary — covers
 
 `entries.length === 1` drives the single-entry code paths: named overwrite detail (`Entry "X" already exists ... with translation "Y"`), named metadata-loss detail (lists the specific fields), and an entry preview with metadata tags (Variable/semantic-type chips). `entries.length > 1` drives the bulk paths: aggregate-count warnings (`N entries already exist...`, `N entries have metadata that will be lost`) and a plain first-3-preview with "...and N more" — no per-item metadata tags, kept simple since the aggregate warning already covers the concern.
 
-Backend call is chosen by count — `moveEntry(...)` for `entries.length === 1`, `bulkMoveEntries(...)` otherwise. Both plan the same `planMove` Dictionary Edit, so undo no longer distinguishes them; the two calls remain only because their not-found and return shapes differ (`moveEntry` throws for a missing entry, `bulkMoveEntries` reports it in `errors`).
+One backend call, `moveEntries(...)`, for one entry or many (ADR-110; the single/bulk pair it replaced differed only in not-found handling and return shape). Nothing found rejects, so the dialog's banner shows it; some missing succeeds with a warning toast.
 
 The dialog owns its own close-on-success (calls `onClose()` itself, then `onSuccess?.()` for parent-side cleanup like `resetSelection()`) — the old `BulkMoveDialog` didn't call `onClose` itself and instead relied on the parent's `onMoveSuccess` callback incidentally also flipping `showBulkMoveDialog` false.
 

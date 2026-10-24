@@ -136,7 +136,7 @@ import { cleanupFormatting } from './text/FormattingPasses';
 import { assembleCharOnlyResult } from './text/CharOnlyAssembly';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
-import { claimSpan, claimGroupedSpan, isClaimed } from './TokenClaim.js';
+import { placeSpan, placeGroupedSpan, isClaimed } from './TokenClaim.js';
 import { characterMatchFor } from './dictionary/CharacterMatch';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // Phase 4 conflict resolution — pure JS (the WASM twin was slower, ADR-083)
@@ -773,31 +773,8 @@ export class TranslationEngine {
    * @param {Object} options - Processing options
    */
   applyHierarchicalResults(tokens, hierarchicalResults, options) {
+    const sink = { builder: this.semanticArrayBuilder, chunkOffset: options.chunkOffset };
     for (const result of hierarchicalResults) {
-      // Apply translation to the first token of the span
-      claimSpan(
-        tokens,
-        result.startIndex,
-        result.endIndex,
-        result.translationSource || 'hierarchical_pattern',
-        result.translation,
-        this.activeProperNouns ?? []
-      );
-
-      // Mark the result type for debugging and analysis
-      if (result.type === 'composite') {
-        tokens[result.startIndex].compositePattern = true;
-        tokens[result.startIndex].compositeComponents = result.components;
-      }
-
-      // Store pattern information for debugging
-      if (result.pattern) {
-        tokens[result.startIndex].patternUsed = result.pattern.originalPattern;
-      }
-
-      // Add to semantic array builder for bidirectional highlighting
-      const globalTokenIndex = result.startIndex + (options.chunkOffset || 0);
-
       // Get the actual original text from token positions instead of using result.originalText
       // which may contain corrupted data from pattern processing
       const actualOriginalText = tokens
@@ -805,11 +782,15 @@ export class TranslationEngine {
         .map((token) => token.value)
         .join('');
 
-      this.semanticArrayBuilder.addUnit(
-        actualOriginalText,
-        result.translation,
+      placeSpan(
+        tokens,
+        result.startIndex,
+        result.endIndex,
         result.translationSource || 'hierarchical_pattern',
-        globalTokenIndex
+        result.translation,
+        actualOriginalText,
+        sink,
+        this.activeProperNouns ?? []
       );
     }
   }
@@ -923,24 +904,15 @@ export class TranslationEngine {
       if (resolvedMatch.type === 'phrase') {
         const { startIndex, match, tokenSpan } = resolvedMatch;
 
-        // Apply phrase translation
-        claimGroupedSpan(
+        placeGroupedSpan(
           tokens,
           startIndex,
           tokenSpan,
           'phrases',
           match.translation,
           match.word,
+          { builder: this.semanticArrayBuilder, chunkOffset: options.chunkOffset },
           this.activeProperNouns ?? []
-        );
-
-        // Add to semantic array for bidirectional highlighting
-        const globalTokenIndex = startIndex + (options.chunkOffset || 0);
-        this.semanticArrayBuilder.addUnit(
-          match.word,
-          match.translation,
-          'phrases',
-          globalTokenIndex
         );
       }
     }
@@ -1321,47 +1293,28 @@ export class TranslationEngine {
     if (tokenSpan > 0) {
       // The leader keeps the dictionary's exact translation (a proper noun keeps its capitalization)
       // and the span's followers are consumed by it; see TokenClaim.ts.
-      claimGroupedSpan(
+      //
+      // One semantic unit per match, recorded for the leader only (intentional design): the unit
+      // spans the whole match (e.g. "我的朋友" → "bạn của tôi"), and the consumed tokens have
+      // translated=null, so postProcess() emits one output segment for it. The unit's source is the
+      // claim's `match.dictionary`: a proper noun dictionary name resolves at priority 2, 'phrases'
+      // at 4, 'characters' at 5. `recordMatches: false` (the character-only pass, which builds its
+      // own arrays) places without recording.
+      placeGroupedSpan(
         tokens,
         startIndex,
         tokenSpan,
         match.dictionary,
         match.translation,
         match.word,
+        {
+          builder: options.recordMatches !== false ? this.semanticArrayBuilder : null,
+          chunkOffset: options.chunkOffset,
+        },
         this.activeProperNouns ?? []
       );
       if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
         tokens[startIndex].isProperNoun = true;
-      }
-
-      const recordMatches = options.recordMatches !== false;
-
-      // NEW: Capture semantic relationship for array-based highlighting
-      // Calculate global position accounting for chunk offset
-      //
-      // IMPORTANT: one semantic unit per match, recorded for the leader only (intentional design):
-      // - One semantic unit represents the entire match (e.g., "我的朋友" → "bạn của tôi")
-      // - Consumed tokens (tokens[i+1], tokens[i+2], ...) don't need separate semantic entries
-      // - They have translated=null and are skipped by postProcess() (only first token processed)
-      // - This creates correct one-to-one mapping: 1 match = 1 semantic unit
-      //
-      // Why this works:
-      // - First token (tokens[startIndex]): contains full translation
-      // - Consumed tokens: have translated=null, translationSource set, isGrouped=true
-      // - postProcess() only processes tokens with translated !== null
-      // - Result: One output segment for entire match, clickable highlighting works correctly
-      const globalTokenIndex = startIndex + (options.chunkOffset || 0);
-      // Proper noun dictionaries have their own priority tier — pass match.dictionary as the
-      // source so getSourcePriority() resolves them at priority 2, not phrase priority 4.
-      const isProperNounMatch = isActiveProperNounSource(match.dictionary, this.activeProperNouns);
-      const semanticSource = isProperNounMatch ? match.dictionary : 'phrases';
-      if (recordMatches) {
-        this.semanticArrayBuilder.addUnit(
-          match.word, // original text
-          match.translation, // translated text
-          semanticSource, // source — proper noun dict name or 'phrases'
-          globalTokenIndex // global token index for proper ordering
-        );
       }
     }
   }

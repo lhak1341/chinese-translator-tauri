@@ -85,7 +85,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
   emptyState,
   onSelectionChange,
 }) => {
-  const { dictionaries, deleteEntry, bulkDeleteEntries, renameEntry, patchEntry } = useDictionary();
+  const { dictionaries, bulkDeleteEntries, renameEntry, patchEntry } = useDictionary();
 
   const {
     selectedEntries,
@@ -140,9 +140,11 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
   const withScrollPreservation = scroll.withScrollPreservation;
   const onContextMenuDelete = useCallback(
     async (entry: ContextMenuEntry): Promise<void> => {
-      await withScrollPreservation(() => deleteEntry(entry.dictionaryId, entry.source));
+      await withScrollPreservation(async () => {
+        await bulkDeleteEntries([{ dictionaryId: entry.dictionaryId, key: entry.source }]);
+      });
     },
-    [deleteEntry, withScrollPreservation]
+    [bulkDeleteEntries, withScrollPreservation]
   );
 
   const contextMenuApi = useContextMenu({

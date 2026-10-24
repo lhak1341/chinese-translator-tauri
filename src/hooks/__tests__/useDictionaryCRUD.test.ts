@@ -10,8 +10,8 @@
  *   I1 (history-on-success): `record` fires only after every save succeeded.
  *   I3 (error-propagates-clean): on a failed save the method throws, nothing is recorded, and
  *      memory is back as it was.
- *   I4 (single-toast-on-error): add/update/patch/delete/bulkDelete toast at most once per
- *      failure. moveEntry/bulkMoveEntries toast never on failure — MoveDialog.tsx owns their
+ *   I4 (single-toast-on-error): add/update/patch/delete toast at most once per
+ *      failure. moveEntries toasts never on failure — MoveDialog.tsx owns their
  *      error display (dictionary/CLAUDE.md's CRUD Audit Checklist item 4).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -315,7 +315,7 @@ describe('patchEntry', () => {
   });
 });
 
-// ─── deleteEntry / bulkDeleteEntries ─────────────────────────────────────────
+// ─── bulkDeleteEntries (one entry or many) ─────────────────────────────────────────
 
 // ─── renameEntry ─────────────────────────────────────────────────────────────
 
@@ -359,56 +359,6 @@ describe('renameEntry', () => {
     });
     expect(save).not.toHaveBeenCalled();
     expect(toastCount()).toBe(1);
-  });
-});
-
-describe('deleteEntry', () => {
-  it('deletes and records (I1)', async () => {
-    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-    await act(async () => {
-      await result.current.deleteEntry(DICT_ID, SOURCE);
-    });
-    expect(memory[DICT_ID]).toEqual({});
-    expect(record).toHaveBeenCalledTimes(1);
-  });
-
-  it('warns once (not error) and saves nothing when the entry is not found', async () => {
-    const result = makeHook({ [DICT_ID]: {} });
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow(
-        `Entry '${SOURCE}' not found in dictionary`
-      );
-    });
-    expect(toast.warning).toHaveBeenCalledTimes(1);
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['the dictionary does not exist', () => makeHook({})],
-    [
-      'the save fails',
-      () => {
-        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-        failSaves();
-        return r;
-      },
-    ],
-    [
-      'the save throws',
-      () => {
-        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
-        throwSaves();
-        return r;
-      },
-    ],
-  ])('toasts once and records nothing when %s (I3 + I4)', async (_name, setup) => {
-    const result = setup();
-    await act(async () => {
-      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
-    });
-    expect(toastCount()).toBe(1);
-    expect(record).not.toHaveBeenCalled();
   });
 });
 
@@ -500,6 +450,29 @@ describe('bulkDeleteEntries', () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it('deletes one entry and records one edit (I1)', async () => {
+    const result = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+    await act(async () => {
+      await result.current.bulkDeleteEntries([at(DICT_ID, SOURCE)]);
+    });
+    expect(memory[DICT_ID]).toEqual({});
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('Deleted 1 entry');
+  });
+
+  it('warns once (not error) and saves nothing when the one entry is not found', async () => {
+    const result = makeHook({ [DICT_ID]: {} });
+    let out;
+    await act(async () => {
+      out = await result.current.bulkDeleteEntries([at(DICT_ID, SOURCE)]);
+    });
+    expect(out).toEqual({ count: 0, missing: [at(DICT_ID, SOURCE)] });
+    expect(toast.warning).toHaveBeenCalledWith('The entry was not found');
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['the dictionary does not exist', () => makeHook({})],
     [
@@ -507,6 +480,14 @@ describe('bulkDeleteEntries', () => {
       () => {
         const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
         failSaves();
+        return r;
+      },
+    ],
+    [
+      'the save throws',
+      () => {
+        const r = makeHook({ [DICT_ID]: { [SOURCE]: phraseEntry } });
+        throwSaves();
         return r;
       },
     ],
@@ -522,78 +503,84 @@ describe('bulkDeleteEntries', () => {
   });
 });
 
-// ─── moveEntry / bulkMoveEntries ─────────────────────────────────────────────
+// ─── moveEntries (one entry or many) ─────────────────────────────────────────
 
-describe('moveEntry', () => {
-  it('moves, saves both dictionaries and records one edit (I1)', async () => {
+describe('moveEntries', () => {
+  const both = { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry };
+
+  it('moves one entry, saves both dictionaries and records one edit (I1)', async () => {
     const result = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
     await act(async () => {
-      await result.current.moveEntry(PN_A, PN_B, SOURCE, 'B');
+      await result.current.moveEntries(PN_A, PN_B, [SOURCE], 'B');
     });
     expect(memory[PN_A]).toEqual({});
     expect(memory[PN_B]).toEqual({ [SOURCE]: phraseEntry });
     expect(record).toHaveBeenCalledTimes(1);
     expect(save.mock.calls.map(([id]) => id)).toEqual([PN_A, PN_B]);
+    expect(toast.success).toHaveBeenCalledWith('Moved 1 entry to B');
+  });
+
+  it('moves many entries as one edit', async () => {
+    const result = makeHook({ [PN_A]: both, [PN_B]: {} });
+    await act(async () => {
+      await result.current.moveEntries(PN_A, PN_B, [SOURCE, SOURCE_B], 'B');
+    });
+    expect(memory[PN_A]).toEqual({});
+    expect(Object.keys(memory[PN_B]).sort()).toEqual([SOURCE, SOURCE_B].sort());
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('Moved 2 entries to B');
+  });
+
+  it('does nothing for empty input', async () => {
+    const result = makeHook({ [PN_A]: {}, [PN_B]: {} });
+    await act(async () => {
+      await result.current.moveEntries(PN_A, PN_B, [], 'B');
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('moves what exists and warns about the rest, without a success toast', async () => {
+    const result = makeHook({ [PN_A]: both, [PN_B]: {} });
+    await act(async () => {
+      await result.current.moveEntries(PN_A, PN_B, [SOURCE, SOURCE_B, '无'], 'B');
+    });
+    expect(Object.keys(memory[PN_B]).sort()).toEqual([SOURCE, SOURCE_B].sort());
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledWith('Moved 2 of 3 entries to B; 1 not found');
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it.each([
     [
-      'the entry is not in the source',
+      'the one entry is not in the source',
       () => makeHook({ [PN_A]: {}, [PN_B]: {} }),
+      [SOURCE],
+      PN_B,
       `Entry '${SOURCE}' not found in source dictionary`,
+    ],
+    [
+      'none of several entries is in the source',
+      () => makeHook({ [PN_A]: {}, [PN_B]: {} }),
+      [SOURCE, SOURCE_B],
+      PN_B,
+      'None of the 2 entries were found in the source dictionary',
     ],
     [
       'the target is an incompatible kind',
       () => makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [CHARS_ID]: {} }),
+      [SOURCE],
+      CHARS_ID,
       'incompatible dictionary types',
     ],
     [
-      'the save fails',
-      () => {
-        const r = makeHook({ [PN_A]: { [SOURCE]: phraseEntry }, [PN_B]: {} });
-        failSaves();
-        return r;
-      },
-      'Failed to save dictionaries during move',
+      'the source dictionary is missing',
+      () => makeHook({ [PN_B]: {} }),
+      [SOURCE],
+      PN_B,
+      "Source dictionary 'properNouns-A' does not exist",
     ],
-  ])('throws without toasting when %s (I4)', async (name, setup, message) => {
-    const result = setup();
-    const target = name.includes('incompatible') ? CHARS_ID : PN_B;
-    await act(async () => {
-      await expect(result.current.moveEntry(PN_A, target, SOURCE, 'B')).rejects.toThrow(message);
-    });
-    expect(toastCount()).toBe(0);
-    expect(record).not.toHaveBeenCalled();
-  });
-});
-
-describe('bulkMoveEntries', () => {
-  it('returns zero counts without saving for empty input', async () => {
-    const result = makeHook({ [PN_A]: {}, [PN_B]: {} });
-    let out;
-    await act(async () => {
-      out = await result.current.bulkMoveEntries(PN_A, PN_B, [], 'B');
-    });
-    expect(out).toEqual({ movedCount: 0, errors: [] });
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  it('moves what exists and reports the rest', async () => {
-    const result = makeHook({
-      [PN_A]: { [SOURCE]: phraseEntry, [SOURCE_B]: phraseEntry },
-      [PN_B]: {},
-    });
-    let out;
-    await act(async () => {
-      out = await result.current.bulkMoveEntries(PN_A, PN_B, [SOURCE, SOURCE_B, '无'], 'B');
-    });
-    expect(out).toEqual({ movedCount: 2, errors: ['Entry "无" not found'] });
-    expect(Object.keys(memory[PN_B]).sort()).toEqual([SOURCE, SOURCE_B].sort());
-    expect(record).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    ['the source dictionary is missing', () => makeHook({ [PN_B]: {} })],
     [
       'the save fails',
       () => {
@@ -601,13 +588,16 @@ describe('bulkMoveEntries', () => {
         failSaves();
         return r;
       },
+      [SOURCE],
+      PN_B,
+      'Failed to save dictionaries during move',
     ],
-  ])('throws without toasting when %s (I4)', async (_name, setup) => {
+  ])('throws without toasting when %s (I4)', async (_name, setup, sources, target, message) => {
     const result = setup();
     await act(async () => {
-      await expect(result.current.bulkMoveEntries(PN_A, PN_B, [SOURCE], 'B')).rejects.toThrow();
+      await expect(result.current.moveEntries(PN_A, target, sources, 'B')).rejects.toThrow(message);
     });
-    expect(toastCount()).toBe(0);
+    expect(toastCount() + vi.mocked(toast.success).mock.calls.length).toBe(0);
     expect(record).not.toHaveBeenCalled();
   });
 });

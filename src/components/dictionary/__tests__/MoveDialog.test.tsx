@@ -30,8 +30,7 @@ const mockDictionaryTypes = {
 };
 
 describe('MoveDialog', () => {
-  const mockMoveEntry = vi.fn();
-  const mockBulkMoveEntries = vi.fn();
+  const mockMoveEntries = vi.fn();
   const mockOnClose = vi.fn();
   const mockOnSuccess = vi.fn();
   const mockLoadDictionary = vi.fn();
@@ -62,8 +61,7 @@ describe('MoveDialog', () => {
     mockUseDictionary.mockReturnValue({
       dictionaries: mockDictionaries,
       dictionaryTypes: mockDictionaryTypes,
-      moveEntry: mockMoveEntry,
-      bulkMoveEntries: mockBulkMoveEntries,
+      moveEntries: mockMoveEntries,
       loadDictionary: mockLoadDictionary,
     });
     mockLoadDictionary.mockResolvedValue(undefined);
@@ -110,8 +108,7 @@ describe('MoveDialog', () => {
           phrases: { 再见: { translation: 'tạm biệt' } },
         },
         dictionaryTypes: mockDictionaryTypes,
-        moveEntry: mockMoveEntry,
-        bulkMoveEntries: mockBulkMoveEntries,
+        moveEntries: mockMoveEntries,
         loadDictionary: mockLoadDictionary,
       });
       render(
@@ -224,8 +221,8 @@ describe('MoveDialog', () => {
       expect(mockLoadDictionary).not.toHaveBeenCalled();
     });
 
-    test('calls moveEntry (not bulkMoveEntries) and closes itself on success', async () => {
-      mockMoveEntry.mockResolvedValue(undefined);
+    test('calls moveEntries with the one entry and closes itself on success', async () => {
+      mockMoveEntries.mockResolvedValue(undefined);
       render(
         <MoveDialog
           entries={['你好']}
@@ -241,20 +238,19 @@ describe('MoveDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
       await waitFor(() => {
-        expect(mockMoveEntry).toHaveBeenCalledWith(
+        expect(mockMoveEntries).toHaveBeenCalledWith(
           'phrases',
           'properNouns-NovelName',
-          '你好',
+          ['你好'],
           'Proper Nouns - NovelName'
         );
-        expect(mockBulkMoveEntries).not.toHaveBeenCalled();
         expect(mockOnClose).toHaveBeenCalled();
         expect(mockOnSuccess).toHaveBeenCalled();
       });
     });
 
     test('shows error and does not close on failure', async () => {
-      mockMoveEntry.mockRejectedValue(new Error('disk full'));
+      mockMoveEntries.mockRejectedValue(new Error('disk full'));
       render(
         <MoveDialog
           entries={['你好']}
@@ -324,8 +320,8 @@ describe('MoveDialog', () => {
       );
     });
 
-    test('calls bulkMoveEntries (not moveEntry) and closes itself on success', async () => {
-      mockBulkMoveEntries.mockResolvedValue({ movedCount: 2, errors: [] });
+    test('calls moveEntries with every entry and closes itself on success', async () => {
+      mockMoveEntries.mockResolvedValue(undefined);
       render(
         <MoveDialog
           entries={['你好', '再见']}
@@ -341,20 +337,19 @@ describe('MoveDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Move 2 Entries' }));
 
       await waitFor(() => {
-        expect(mockBulkMoveEntries).toHaveBeenCalledWith(
+        expect(mockMoveEntries).toHaveBeenCalledWith(
           'phrases',
           'properNouns-NovelName',
           expect.arrayContaining(['你好', '再见']),
           'Proper Nouns - NovelName'
         );
-        expect(mockMoveEntry).not.toHaveBeenCalled();
         expect(mockOnClose).toHaveBeenCalled();
         expect(mockOnSuccess).toHaveBeenCalled();
       });
     });
 
     test('shows error and does not close on failure', async () => {
-      mockBulkMoveEntries.mockRejectedValue(new Error('disk full'));
+      mockMoveEntries.mockRejectedValue(new Error('disk full'));
       render(
         <MoveDialog
           entries={['你好', '再见']}
@@ -397,7 +392,7 @@ describe('MoveDialog', () => {
 
     test('shows loading state and disables controls while moving', async () => {
       let resolveMove: () => void;
-      mockMoveEntry.mockReturnValue(
+      mockMoveEntries.mockReturnValue(
         new Promise<void>((resolve) => {
           resolveMove = resolve;
         })
@@ -424,7 +419,7 @@ describe('MoveDialog', () => {
     });
 
     test('Enter key submits when a destination is selected', async () => {
-      mockMoveEntry.mockResolvedValue(undefined);
+      mockMoveEntries.mockResolvedValue(undefined);
       render(
         <MoveDialog
           entries={['你好']}
@@ -439,7 +434,7 @@ describe('MoveDialog', () => {
 
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Enter' });
 
-      await waitFor(() => expect(mockMoveEntry).toHaveBeenCalled());
+      await waitFor(() => expect(mockMoveEntries).toHaveBeenCalled());
     });
 
     test('Escape key closes when not moving', async () => {

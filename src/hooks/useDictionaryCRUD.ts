@@ -22,14 +22,7 @@ type RecordEdit = (edit: DictionaryEdit) => void;
 
 export type DictionaryCRUDAPI = Pick<
   DictionaryContextInterface,
-  | 'addEntry'
-  | 'updateEntry'
-  | 'patchEntry'
-  | 'renameEntry'
-  | 'deleteEntry'
-  | 'bulkDeleteEntries'
-  | 'moveEntry'
-  | 'bulkMoveEntries'
+  'addEntry' | 'updateEntry' | 'patchEntry' | 'renameEntry' | 'bulkDeleteEntries' | 'moveEntries'
 >;
 
 /**
@@ -55,6 +48,9 @@ async function commitOrThrow(
   throw new SaveError(errorMessage);
 }
 
+/** "1 entry", "3 entries". */
+const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
+
 /** An operation threw: log it, tell the user once, and rethrow for the caller. */
 function fail(error: unknown, verb: string, logMessage: string): never {
   logger.error(logMessage, error);
@@ -64,8 +60,8 @@ function fail(error: unknown, verb: string, logMessage: string): never {
 }
 
 /**
- * Owns all dictionary CRUD operations: add, update, patch, delete, bulk-delete, move,
- * bulk-move. Each one plans a Dictionary Edit and commits it through the provider's
+ * Owns all dictionary CRUD operations: add, update, patch, rename, delete and move
+ * (the last two over a list of one or many entries). Each one plans a Dictionary Edit and commits it through the provider's
  * `EditCommitter` (GLOSSARY.md "Dictionary Edit"); this hook adds error typing
  * and the user-facing message. All returned callbacks are stable.
  *
@@ -197,31 +193,6 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     [committer, record]
   );
 
-  const deleteEntry = useCallback(
-    async (dictionaryId: string, source: string): Promise<void> => {
-      try {
-        const edit = await commitOrThrow(
-          committer,
-          record,
-          (d) => planDelete(d, [{ dictionaryId, key: source }]),
-          'Failed to delete dictionary entry'
-        );
-        if (edit.outcome.kind === 'deleted' && edit.outcome.count === 0) {
-          throw new ValidationError(
-            `Entry '${source}' not found in dictionary`,
-            undefined,
-            undefined,
-            'warning'
-          );
-        }
-        toast.success('Entry deleted successfully');
-      } catch (error) {
-        fail(error, 'delete entry', 'Error deleting dictionary entry:');
-      }
-    },
-    [committer, record]
-  );
-
   // One Dictionary Edit for the whole selection, however many dictionaries it spans, so one
   // undo restores it and a failed save rolls all of it back. Owns every message: the caller
   // toasts nothing.
@@ -238,7 +209,6 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         const { count, missing } =
           edit.outcome.kind === 'deleted' ? edit.outcome : { count: 0, missing: [] };
         const total = count + missing.length;
-        const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
         if (count === 0) {
           toast.warning(
             total === 1 ? 'The entry was not found' : `None of the ${total} entries were found`
@@ -254,51 +224,42 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     [committer, record]
   );
 
-  const moveEntry = useCallback(
-    async (
-      sourceDictId: string,
-      targetDictId: string,
-      source: string,
-      targetDictLabel: string
-    ): Promise<void> => {
-      const edit = await commitOrThrow(
-        committer,
-        record,
-        (d) => {
-          const planned = planMove(d, sourceDictId, targetDictId, [source]);
-          if ('invalid' in planned || planned.outcome.kind !== 'moved') return planned;
-          return planned.outcome.count === 0
-            ? { invalid: `Entry '${source}' not found in source dictionary` }
-            : planned;
-        },
-        'Failed to save dictionaries during move',
-        { quiet: true }
-      );
-      if (edit.changes.length > 0) toast.success(`Entry moved to ${targetDictLabel}`);
-    },
-    [committer, record]
-  );
-
-  const bulkMoveEntries = useCallback(
+  // One Dictionary Edit for one entry or many, so one undo restores it. Nothing found is an
+  // invalid plan, which `MoveDialog`'s banner shows; some missing is a success with a warning
+  // toast. A failure toasts nothing here (I4): the dialog owns that display.
+  const moveEntries = useCallback(
     async (
       sourceDictId: string,
       targetDictId: string,
       sources: string[],
       targetDictLabel: string
-    ): Promise<{ movedCount: number; errors: string[] }> => {
-      if (sources.length === 0) return { movedCount: 0, errors: [] };
+    ): Promise<void> => {
+      if (sources.length === 0) return;
 
       const edit = await commitOrThrow(
         committer,
         record,
-        (d) => planMove(d, sourceDictId, targetDictId, sources),
-        'Failed to save dictionaries during bulk move',
+        (d) => {
+          const planned = planMove(d, sourceDictId, targetDictId, sources);
+          if ('invalid' in planned || planned.outcome.kind !== 'moved') return planned;
+          if (planned.outcome.count > 0) return planned;
+          return {
+            invalid:
+              sources.length === 1
+                ? `Entry '${sources[0]}' not found in source dictionary`
+                : `None of the ${sources.length} entries were found in the source dictionary`,
+          };
+        },
+        'Failed to save dictionaries during move',
         { quiet: true }
       );
       const { count, missing } =
         edit.outcome.kind === 'moved' ? edit.outcome : { count: 0, missing: [] };
-      toast.success(`Moved ${count} ${count === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`);
-      return { movedCount: count, errors: missing.map((s) => `Entry "${s}" not found`) };
+      if (missing.length > 0) {
+        toast.warning(
+          `Moved ${count} of ${entries(count + missing.length)} to ${targetDictLabel}; ${missing.length} not found`
+        );
+      } else toast.success(`Moved ${entries(count)} to ${targetDictLabel}`);
     },
     [committer, record]
   );
@@ -308,9 +269,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
     updateEntry,
     patchEntry,
     renameEntry,
-    deleteEntry,
     bulkDeleteEntries,
-    moveEntry,
-    bulkMoveEntries,
+    moveEntries,
   };
 }

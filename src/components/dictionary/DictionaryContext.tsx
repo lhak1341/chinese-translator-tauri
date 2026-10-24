@@ -97,16 +97,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   const { record, undo, redo, clear: clearHistory, canUndo, canRedo } = useDictionaryHistory(store);
 
-  const {
-    addEntry,
-    updateEntry,
-    patchEntry,
-    renameEntry,
-    deleteEntry,
-    bulkDeleteEntries,
-    moveEntry,
-    bulkMoveEntries,
-  } = useDictionaryCRUD(store, record);
+  const { addEntry, updateEntry, patchEntry, renameEntry, bulkDeleteEntries, moveEntries } =
+    useDictionaryCRUD(store, record);
 
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
@@ -178,10 +170,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       updateEntry,
       patchEntry,
       renameEntry,
-      deleteEntry,
       bulkDeleteEntries,
-      moveEntry,
-      bulkMoveEntries,
+      moveEntries,
       undo,
       redo,
       canUndo,
@@ -205,10 +195,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       updateEntry,
       patchEntry,
       renameEntry,
-      deleteEntry,
       bulkDeleteEntries,
-      moveEntry,
-      bulkMoveEntries,
+      moveEntries,
       undo,
       redo,
       canUndo,

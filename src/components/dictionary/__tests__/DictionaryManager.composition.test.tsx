@@ -31,7 +31,6 @@ const {
   unreadRef,
   selectedDictionaryRef,
   setSelectedDictionary,
-  deleteEntry,
   bulkDeleteEntries,
   updateEntry,
   renameEntry,
@@ -58,7 +57,6 @@ const {
   setSelectedDictionary: vi.fn((id: string) => {
     selectedDictionaryRef.current = id;
   }),
-  deleteEntry: vi.fn().mockResolvedValue(undefined),
   bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 0, missing: [] }),
   updateEntry: vi.fn().mockResolvedValue(undefined),
   renameEntry: vi.fn().mockResolvedValue(undefined),
@@ -86,7 +84,6 @@ vi.mock('../DictionaryContext', () => ({
     isLoading: false,
     selectedDictionary: selectedDictionaryRef.current,
     setSelectedDictionary,
-    deleteEntry,
     bulkDeleteEntries,
     updateEntry,
     renameEntry,
@@ -367,12 +364,14 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     await act(async () => {
       fireEvent.click(screen.getByText('Delete Entry'));
     });
-    expect(deleteEntry).not.toHaveBeenCalled();
+    expect(bulkDeleteEntries).not.toHaveBeenCalled();
 
     await act(async () => {
       fireEvent.click(screen.getByText('Click again to delete'));
     });
-    expect(deleteEntry).toHaveBeenCalledWith('properNouns-Test', '你好');
+    expect(bulkDeleteEntries).toHaveBeenCalledWith([
+      { dictionaryId: 'properNouns-Test', key: '你好' },
+    ]);
   });
 
   test('inline translation edit patches the translation', async () => {

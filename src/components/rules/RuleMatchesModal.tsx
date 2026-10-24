@@ -23,8 +23,8 @@ interface RuleMatchesModalProps {
   /** The Dictionary tab's own `patchEntry`: each inline edit changes one field, and the rest
    * of the entry is read from the store, not from this row. */
   patchEntry: PatchEntry;
-  /** Right-click → Delete. Same `deleteEntry` the Dictionary tab uses (it owns the toast). */
-  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
+  /** Right-click → Delete. Same `bulkDeleteEntries` the Dictionary tab uses (it owns the toast). */
+  bulkDeleteEntries: DictionaryContextInterface['bulkDeleteEntries'];
   onClose: () => void;
 }
 
@@ -104,7 +104,7 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
   rule,
   dictionaries,
   patchEntry,
-  deleteEntry,
+  bulkDeleteEntries,
   onClose,
 }) => {
   const matches = useMemo(() => findRuleMatchingEntries(rule, dictionaries), [rule, dictionaries]);
@@ -114,8 +114,10 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
   // out of `matches` on its own, since the list is derived from live `dictionaries`.
   const [moveEntry, setMoveEntry] = useState<ContextMenuEntry | null>(null);
   const onDelete = useCallback(
-    (entry: ContextMenuEntry) => deleteEntry(entry.dictionaryId, entry.source),
-    [deleteEntry]
+    async (entry: ContextMenuEntry) => {
+      await bulkDeleteEntries([{ dictionaryId: entry.dictionaryId, key: entry.source }]);
+    },
+    [bulkDeleteEntries]
   );
   const contextMenuApi = useContextMenu({
     onEdit: () => {},

@@ -453,6 +453,21 @@ describe('TranslationEngine.translateSinglePass — phrases over a whole chunk',
       ['中国', 17],
     ]);
   });
+
+  test("each semantic unit's source is its token's source, Phase 5 characters included", async () => {
+    const tokens = chunk();
+    engine.semanticArrayBuilder = new SemanticArrayBuilder();
+    await engine.translateSinglePass(tokens, {});
+    const { metadata } = engine.semanticArrayBuilder.getArrays();
+    const unitSources = metadata.map((unit) => [unit.tokenIndex, unit.source]);
+    const leaders = tokens
+      .map((token, i) => [i, token.translationSource])
+      .filter(([i, source]) => source && !source.endsWith('_consumed') && tokens[i].translated);
+    expect(unitSources.filter(([, source]) => source === 'characters').length).toBeGreaterThan(0);
+    for (const [tokenIndex, source] of unitSources) {
+      expect(leaders).toContainEqual([tokenIndex, source]);
+    }
+  });
 });
 
 describe('TranslationEngine.initialize — which dictionaries it loads', () => {

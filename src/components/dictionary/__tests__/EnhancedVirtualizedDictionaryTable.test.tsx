@@ -22,29 +22,20 @@ import type { DictionaryData } from '../../../types/DictionaryTypes';
 import type { DuplicateRow } from '../../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
-const {
-  dictionariesRef,
-  isLoadingRef,
-  deleteEntry,
-  bulkDeleteEntries,
-  updateEntry,
-  renameEntry,
-  patchEntry,
-} = vi.hoisted(() => ({
-  dictionariesRef: { current: {} as Record<string, DictionaryData> },
-  isLoadingRef: { current: false },
-  deleteEntry: vi.fn().mockResolvedValue(undefined),
-  bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 0, missing: [] }),
-  updateEntry: vi.fn().mockResolvedValue(undefined),
-  renameEntry: vi.fn().mockResolvedValue(undefined),
-  patchEntry: vi.fn().mockResolvedValue(undefined),
-}));
+const { dictionariesRef, isLoadingRef, bulkDeleteEntries, updateEntry, renameEntry, patchEntry } =
+  vi.hoisted(() => ({
+    dictionariesRef: { current: {} as Record<string, DictionaryData> },
+    isLoadingRef: { current: false },
+    bulkDeleteEntries: vi.fn().mockResolvedValue({ count: 0, missing: [] }),
+    updateEntry: vi.fn().mockResolvedValue(undefined),
+    renameEntry: vi.fn().mockResolvedValue(undefined),
+    patchEntry: vi.fn().mockResolvedValue(undefined),
+  }));
 
 vi.mock('../DictionaryContext', () => ({
   useDictionary: () => ({
     dictionaries: dictionariesRef.current,
     isLoading: isLoadingRef.current,
-    deleteEntry,
     bulkDeleteEntries,
     updateEntry,
     renameEntry,

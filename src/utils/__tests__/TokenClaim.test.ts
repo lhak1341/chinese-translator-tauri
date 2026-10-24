@@ -3,7 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const errorSpy = vi.hoisted(() => vi.fn());
 vi.mock('../logger', () => ({ logger: { error: errorSpy, warn: vi.fn(), log: vi.fn() } }));
 
-import { claimSpan, claimGroupedSpan, isClaimed, type ClaimableToken } from '../TokenClaim';
+import {
+  claimSpan,
+  claimGroupedSpan,
+  isClaimed,
+  placeSpan,
+  placeGroupedSpan,
+  type ClaimableToken,
+} from '../TokenClaim';
 
 function tokens(values: string[]): ClaimableToken[] {
   return values.map((value, i) => ({
@@ -202,5 +209,70 @@ describe('isClaimed (the read side)', () => {
     claimSpan(t, 1, 3, 'pattern', 'BCD');
     claimGroupedSpan(t, 0, 2, 'properNouns', 'N', 'ab', ['properNouns']);
     expect(t.map(isClaimed)).toEqual([true, true, false, false]);
+  });
+});
+
+function recorder() {
+  const calls: unknown[][] = [];
+  return {
+    calls,
+    addUnit: (...args: unknown[]) => {
+      calls.push(args);
+      return true;
+    },
+  };
+}
+
+describe('placeSpan (light claim plus its unit)', () => {
+  it('claims the span and records one unit from the same source and translation', () => {
+    const t = tokens(['a', 'b', 'c']);
+    const builder = recorder();
+    placeSpan(t, 1, 2, 'number_conversion', '2', 'bc', { builder, chunkOffset: 10 });
+    expect(t[1]).toMatchObject({ translated: '2', translationSource: 'number_conversion' });
+    expect(t[2]).toMatchObject({ translated: null, groupLeader: 1 });
+    expect(builder.calls).toEqual([['bc', '2', 'number_conversion', 11]]);
+  });
+
+  it('applies no offset when the sink has none', () => {
+    const builder = recorder();
+    placeSpan(tokens(['a', 'b']), 1, 1, 'pattern', 'X', 'b', { builder });
+    expect(builder.calls).toEqual([['b', 'X', 'pattern', 1]]);
+  });
+
+  it('claims without recording when the builder is null', () => {
+    const t = tokens(['a', 'b']);
+    placeSpan(t, 0, 1, 'pattern', 'X', 'ab', { builder: null });
+    expect(t[0].translated).toBe('X');
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs a missing builder instead of skipping silently, and still claims', () => {
+    const t = tokens(['a', 'b']);
+    placeSpan(t, 0, 1, 'pattern', 'X', 'ab', { builder: undefined as never });
+    expect(t[0].translated).toBe('X');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('placeGroupedSpan (grouped claim plus its unit)', () => {
+  it('claims the span and records the grouped text as the unit, from the claim source', () => {
+    const t = tokens(['a', 'b', 'c']);
+    const builder = recorder();
+    placeGroupedSpan(t, 0, 2, 'characters', 'X', 'ab', { builder, chunkOffset: 5 });
+    expect(t[0]).toMatchObject({ isGrouped: true, value: 'ab', translationSource: 'characters' });
+    expect(builder.calls).toEqual([['ab', 'X', 'characters', 5]]);
+  });
+
+  it('records one unit for the leader, however long the span', () => {
+    const builder = recorder();
+    placeGroupedSpan(tokens(['a', 'b', 'c']), 0, 3, 'phrases', 'X', 'abc', { builder });
+    expect(builder.calls).toHaveLength(1);
+  });
+
+  it('claims without recording when the builder is null', () => {
+    const t = tokens(['a', 'b']);
+    placeGroupedSpan(t, 0, 2, 'phrases', 'X', 'ab', { builder: null });
+    expect(t[0].translated).toBe('X');
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

@@ -102,7 +102,7 @@ describe('DictionaryContext — undo restores what an edit overwrote', () => {
     const result = await ready();
 
     await act(async () => {
-      await result.current.moveEntry(A, B, '张三', 'B');
+      await result.current.moveEntries(A, B, ['张三'], 'B');
     });
     await act(async () => {
       await result.current.undo();
@@ -116,7 +116,7 @@ describe('DictionaryContext — undo restores what an edit overwrote', () => {
   test('a Move undo whose second save fails leaves memory and disk agreeing', async () => {
     const result = await ready();
     await act(async () => {
-      await result.current.moveEntry(A, B, '李四', 'B');
+      await result.current.moveEntries(A, B, ['李四'], 'B');
     });
 
     saveDictionary.mockImplementation(async (id: string, data: DictionaryData) => {

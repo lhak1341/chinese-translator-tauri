@@ -4,7 +4,7 @@
  * Replaces ~90 lines of scattered number conversion with unified approach
  */
 
-import { claimSpan, isClaimed } from './TokenClaim.js';
+import { placeSpan, isClaimed } from './TokenClaim.js';
 
 export class NumberProcessor {
   constructor() {
@@ -246,23 +246,18 @@ export class NumberProcessor {
    * @param {Token[]} tokens - Array of tokens
    * @param {number} startIndex - Starting index
    * @param {Object} matchResult - Match result object
-   * @param {Object} options - Options including semanticArrayBuilder
+   * @param {Object} options - Options: `semanticArrayBuilder` (required; `null` places without recording) and `chunkOffset`
    */
   applyConversionResult(tokens, startIndex, matchResult, options = {}) {
-    // Set result on first token
-    claimSpan(tokens, startIndex, matchResult.endIndex, 'number_conversion', matchResult.result);
-
-    // Add to semantic array builder if provided
-    if (options.semanticArrayBuilder) {
-      // Calculate global position accounting for chunk offset
-      const globalTokenIndex = startIndex + (options.chunkOffset || 0);
-      options.semanticArrayBuilder.addUnit(
-        matchResult.originalText,
-        matchResult.result,
-        'number_conversion',
-        globalTokenIndex
-      );
-    }
+    placeSpan(
+      tokens,
+      startIndex,
+      matchResult.endIndex,
+      'number_conversion',
+      matchResult.result,
+      matchResult.originalText,
+      { builder: options.semanticArrayBuilder, chunkOffset: options.chunkOffset }
+    );
   }
 
   /**

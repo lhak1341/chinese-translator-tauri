@@ -172,6 +172,8 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-106](./ADR-106-a-dictionary-edit-reaches-the-engine-only-through-a-rebuild.md) | An edit reaches the engine only through a rebuild            | Decided                           | Tries are fixed at load; per-edit invalidation cleared nothing.                                                                                      |
 | [ADR-107](./ADR-107-keep-the-transform-rule-pending-overlay-in-the-editor-hook.md)  | Keep the Transform Rule pending overlay in the editor hook   | Decided                           | The Add form must not see unsaved rules; the queue is already a module.                                                                              |
 | [ADR-108](./ADR-108-delete-the-rust-lookup-index.md)                                | Delete the Rust lookup index                                 | Decided                           | 0 of 35,760 real chunks reached it; the trie answers every lookup.                                                                                   |
+| [ADR-109](./ADR-109-a-match-is-placed-as-one-claim-and-one-unit.md)                 | A match is placed as one claim and one unit                  | Decided                           | Claim and unit shared one source in two calls; Phase 5 units said phrases.                                                                           |
+| [ADR-110](./ADR-110-delete-and-move-take-a-list.md)                                 | Delete and move take a list                                  | Decided                           | Single/bulk twins differed only in not-found handling; "Moved 0" toasted.                                                                            |
 
 ## ADR Format
 
@@ -236,4 +238,5 @@ Write an ADR when making decisions about:
 - **2026-10-12**: ADR-105
 - **2026-10-20**: ADR-106; ADR-107
 - **2026-10-21**: ADR-108
+- **2026-10-24**: ADR-109; ADR-110
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

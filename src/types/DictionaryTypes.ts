@@ -125,27 +125,21 @@ export interface DictionaryContextInterface {
    * Like `patchEntry`, it reads the current value itself; callers pass no snapshot.
    */
   renameEntry: (dictionaryId: string, oldSource: string, newSource: string) => Promise<void>;
-  /** Delete an entry from dictionary */
-  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   /**
-   * Delete entries from any number of dictionaries as one Dictionary Edit (one undo, all or
-   * nothing on disk). Toasts its own outcome; rejects, already toasted, on failure.
+   * Delete one entry or many, from any number of dictionaries, as one Dictionary Edit (one undo,
+   * all or nothing on disk). Toasts its own outcome; rejects, already toasted, on failure.
    */
   bulkDeleteEntries: (targets: EntryRef[]) => Promise<{ count: number; missing: EntryRef[] }>;
-  /** Move a single entry between dictionaries atomically */
-  moveEntry: (
-    sourceDictId: string,
-    targetDictId: string,
-    source: string,
-    targetDictLabel: string
-  ) => Promise<void>;
-  /** Move multiple entries between dictionaries atomically */
-  bulkMoveEntries: (
+  /**
+   * Move one entry or many between dictionaries as one Dictionary Edit. Nothing found rejects
+   * (no toast: `MoveDialog` shows it); some missing succeeds with a warning toast.
+   */
+  moveEntries: (
     sourceDictId: string,
     targetDictId: string,
     sources: string[],
     targetDictLabel: string
-  ) => Promise<{ movedCount: number; errors: string[] }>;
+  ) => Promise<void>;
   /** Undo last operation */
   undo: () => Promise<boolean>;
   /** Redo previously undone operation */
