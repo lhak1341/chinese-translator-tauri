@@ -55,6 +55,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **Comparing two WASM builds, or timing a `wasm-core` change:** use the `corpus-ab` skill (`.claude/skills/corpus-ab/`).
 
+**A commit in a fresh `git worktree` (prototype and research branches) fails the pre-commit hook with `ENOENT` on `eslint`/`prettier`**: lint-staged resolves its binaries from the working tree's own `node_modules`, and a worktree has none. `ln -s <main checkout>/node_modules <worktree>/node_modules` before committing (the hook then also prettier-reformats the file), and `rm` the symlink before `git worktree remove`; do not reach for `--no-verify`.
+
 - **Expected `bun run deploy` output, none of it an error:** the PostCSS "did not pass the `from` option" warning (no PostCSS config in the repo, so it comes from Vite or a dependency); "chunks larger than 500 kB" (desktop app loaded from disk; the knob is `build.chunkSizeWarningLimit`); two `INEFFECTIVE_DYNAMIC_IMPORT` notes (`WasmPatternProcessor.js` is also imported statically elsewhere). `import.meta.dirname` replaced `__dirname` in both Vite configs 2026-10-03, so the `configLoader: 'native'` warning should be gone; if it returns, a new `__dirname` crept in.
 
 ## JavaScript / TypeScript
