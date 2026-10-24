@@ -21,12 +21,12 @@ import { useCandidateFinder } from '../useCandidateFinder';
 describe('useCandidateFinder adder', () => {
   it('adds through the Dictionary Store: dictionary first, then source and the edited translation', async () => {
     const { result } = renderHook(() => useCandidateFinder('fp'));
-    await result.current.adder.add('滕青山', 'properNouns-f_Novel', 'Đằng Thanh Sơn');
+    await result.current.adder.add('滕青山', 'properNouns-f_Novel', 'Đằng Thanh Sơn', 'location');
     expect(addEntry).toHaveBeenCalledWith(
       'properNouns-f_Novel',
       '滕青山',
       'Đằng Thanh Sơn',
-      expect.objectContaining({ allowAsPatternVariable: false })
+      expect.objectContaining({ allowAsPatternVariable: false, semanticType: 'location' })
     );
   });
 

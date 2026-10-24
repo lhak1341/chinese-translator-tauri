@@ -3,13 +3,16 @@ import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { useBookBinding } from '../components/BookBindingContext';
 import { useTransformRules } from './useTransformRules';
 import { initialEntryGuess } from '../utils/dictionary/TransformRuleEngine';
+import type { Candidate } from '../types/ReaderTypes';
 import type { QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import {
   candidateAddChoices,
   isCandidateAdded,
+  candidateType,
   typeProvenance,
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
+import { rankCandidates } from '../utils/reader/CandidateRanking';
 import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
 import { loadAppConfig } from '../utils/appConfig';
 import { backgroundBooks } from '../utils/reader/CandidateBackground';
@@ -137,8 +140,17 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     [names, loaded, fingerprint]
   );
 
+  const { opened, choices } = useMemo(
+    () => candidateAddChoices(view, dictionaries),
+    [view, dictionaries]
+  );
+  // Apart from the adder so adding an entry (new dictionaries) does not re-rank the list.
+  const rank = useCallback(
+    (candidates: readonly Candidate[]) => rankCandidates(candidates, rules, opened),
+    [rules, opened]
+  );
+
   const adder = useMemo((): CandidateAdder => {
-    const { opened, choices } = candidateAddChoices(view, dictionaries);
     // The guess is the Add form's: Transform Rules for a proper-noun target, else the rough gloss.
     const guess = (text: string, dictionaryId: string) =>
       initialEntryGuess(rules, dictionaries, text, dictionaryId);
@@ -148,13 +160,15 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
       isAdded: (text) => isCandidateAdded(text, dictionaries, choices),
       guess: (text, dictionaryId) => guess(text, dictionaryId).translation,
       typeNote: (text, dictionaryId) => typeProvenance(rules, text, dictionaryId),
-      add: (text, dictionaryId, translation) =>
+      typeFor: (text, dictionaryId) => candidateType(rules, text, dictionaryId),
+      rank,
+      add: (text, dictionaryId, translation, semanticType) =>
         addEntry(dictionaryId, text, translation.trim(), {
           allowAsPatternVariable: false,
-          semanticType: guess(text, dictionaryId).semanticType || undefined,
+          semanticType: semanticType || undefined,
         }),
     };
-  }, [view, dictionaries, rules, addEntry]);
+  }, [opened, choices, dictionaries, rules, rank, addEntry]);
 
   return {
     snapshot,

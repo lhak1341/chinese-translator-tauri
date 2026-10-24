@@ -1,6 +1,9 @@
 import { isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
 import { defaultSemanticType, matchingRule } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
+import type { Candidate } from '../../types/ReaderTypes';
+import type { RankedCandidate } from './CandidateRanking';
 import { quickAddChoices, quickAddTarget } from '../dictionary/QuickAddTarget';
 import type { QuickAddView } from '../dictionary/QuickAddTarget';
 
@@ -50,6 +53,20 @@ export function typeProvenance(
   return `${defaultSemanticType(dictionaryId) || 'none'}, the default: no matching rule`;
 }
 
+/** The type a row arrives with for `target`: the matching enabled rule's, else the default.
+ * `initialEntryGuess(...).semanticType` by construction, without building its gloss; `ruled`
+ * says which of the two it is. */
+export function candidateType(
+  rules: TransformRule[],
+  source: string,
+  target: string
+): { semanticType: SemanticType | ''; ruled: boolean } {
+  const match = matchingRule(rules, source, target);
+  return match
+    ? { semanticType: match.semanticType, ruled: true }
+    : { semanticType: defaultSemanticType(target), ruled: false };
+}
+
 /** What a row needs to add its candidate: the dropdown, the Add form's first guess, whether the
  * name is in a dictionary now, and the write itself, which rejects with the reason it failed. */
 export interface CandidateAdder {
@@ -58,7 +75,21 @@ export interface CandidateAdder {
   isAdded: (text: string) => boolean;
   /** The translation the Add form would seed for `text` in `dictionaryId`. */
   guess: (text: string, dictionaryId: string) => string;
-  add: (text: string, dictionaryId: string, translation: string) => Promise<void>;
+  /** Writes `semanticType` (the type the row shows) with the entry; '' writes none. */
+  add: (
+    text: string,
+    dictionaryId: string,
+    translation: string,
+    semanticType: SemanticType | ''
+  ) => Promise<void>;
   /** Where the type `add` writes for `text` in `dictionaryId` comes from. */
   typeNote: (text: string, dictionaryId: string) => string;
+  /** The type a row arrives with for `dictionaryId`, and whether a rule gave it. */
+  typeFor: (
+    text: string,
+    dictionaryId: string
+  ) => { semanticType: SemanticType | ''; ruled: boolean };
+  /** A run's survivors with the Transform Rules' boost, order and cut applied, typed for the
+   * opened dictionary. Changes identity only when the rules do, so the panel re-ranks then. */
+  rank: (candidates: readonly Candidate[]) => RankedCandidate[];
 }

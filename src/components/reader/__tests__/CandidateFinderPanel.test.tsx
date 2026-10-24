@@ -21,6 +21,9 @@ function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
     guess: (text) => `guess:${text}`,
     add: vi.fn().mockResolvedValue(undefined),
     typeNote: (text) => `type of ${text}`,
+    typeFor: () => ({ semanticType: 'character', ruled: false }),
+    rank: (candidates) =>
+      candidates.map((candidate) => ({ candidate, semanticType: 'character', ruled: false })),
     ...overrides,
   };
 }
@@ -172,14 +175,24 @@ describe('CandidateFinderPanel', () => {
         target: { value: 'Đằng Thanh Sơn' },
       });
       fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
-      expect(adder.add).toHaveBeenCalledWith('滕青山', 'properNouns', 'Đằng Thanh Sơn');
+      expect(adder.add).toHaveBeenCalledWith(
+        '滕青山',
+        'properNouns',
+        'Đằng Thanh Sơn',
+        'character'
+      );
     });
 
     test('Enter in the translation field adds', () => {
       const adder = makeAdder();
       renderPanel(done('滕青山'), adder);
       fireEvent.keyDown(screen.getByLabelText('Translation of 滕青山'), { key: 'Enter' });
-      expect(adder.add).toHaveBeenCalledWith('滕青山', 'properNouns-f_Novel', 'guess:滕青山');
+      expect(adder.add).toHaveBeenCalledWith(
+        '滕青山',
+        'properNouns-f_Novel',
+        'guess:滕青山',
+        'character'
+      );
     });
 
     test('nothing is written until Add is pressed', () => {
@@ -421,6 +434,119 @@ describe('CandidateFinderPanel', () => {
       } finally {
         vi.unstubAllGlobals();
       }
+    });
+  });
+  describe('Transform Rules type, boost and chips', () => {
+    const SWORD = { text: '青云剑法', count: 4, lineCount: 4, alsoIn: [] };
+    const NAME = { text: '滕青山', count: 10, lineCount: 10, alsoIn: [] };
+    const snapshot = (): CandidateFinderSnapshot => ({
+      status: 'done',
+      candidates: [NAME, SWORD],
+      weakFiltering: false,
+    });
+    // A one-rule adder: names ending 剑法 are objects, ranked first.
+    const ruledAdder = (overrides: Partial<CandidateAdder> = {}): CandidateAdder =>
+      makeAdder({
+        typeFor: (text) =>
+          text.endsWith('剑法')
+            ? { semanticType: 'object', ruled: true }
+            : { semanticType: 'character', ruled: false },
+        rank: (candidates) =>
+          [...candidates]
+            .sort((a, b) => Number(b.text.endsWith('剑法')) - Number(a.text.endsWith('剑法')))
+            .map((candidate) => ({
+              candidate,
+              semanticType: candidate.text.endsWith('剑法') ? 'object' : 'character',
+              ruled: candidate.text.endsWith('剑法'),
+            })),
+        ...overrides,
+      });
+    const order = () =>
+      screen
+        .getAllByLabelText(/^Translation of /)
+        .map((input) => input.getAttribute('aria-label')?.replace('Translation of ', ''));
+
+    test('each row has a type dropdown of abbreviations, pre-selected from the rule', () => {
+      renderPanel(snapshot(), ruledAdder());
+      const sword = screen.getByLabelText('Type of 青云剑法') as HTMLSelectElement;
+      expect(sword.value).toBe('object');
+      expect(Array.from(sword.options).map((option) => option.textContent)).toEqual([
+        'CHA',
+        'CRE',
+        'LOC',
+        'ORG',
+        'CON',
+        'OBJ',
+      ]);
+    });
+
+    test('a row with no rule shows character, muted; a ruled row is not muted', () => {
+      renderPanel(snapshot(), ruledAdder());
+      const plain = screen.getByLabelText('Type of 滕青山') as HTMLSelectElement;
+      expect(plain.value).toBe('character');
+      expect(plain.className).toMatch(/Muted/);
+      expect(screen.getByLabelText('Type of 青云剑法').className).not.toMatch(/Muted/);
+    });
+
+    test('rows follow the adder ranking, and a new ranking re-orders them without a run', () => {
+      const handlers = { onRun: vi.fn(), onCancel: vi.fn(), onClose: vi.fn() };
+      const props = {
+        snapshot: snapshot(),
+        dismissals: makeDismissals(),
+        reading: makeReading(),
+        ...handlers,
+      };
+      const { rerender } = render(<CandidateFinderPanel {...props} adder={makeAdder()} />);
+      expect(order()[0]).toBe('滕青山');
+      rerender(<CandidateFinderPanel {...props} adder={ruledAdder()} />);
+      expect(order()[0]).toBe('青云剑法');
+      expect(handlers.onRun).not.toHaveBeenCalled();
+    });
+
+    test('chips filter: All, Typed by rule, No rule', () => {
+      renderPanel(snapshot(), ruledAdder());
+      expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true');
+      fireEvent.click(screen.getByRole('button', { name: 'Typed by rule' }));
+      expect(screen.queryByLabelText('Translation of 滕青山')).toBeNull();
+      expect(screen.getByLabelText('Translation of 青云剑法')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'No rule' }));
+      expect(screen.getByLabelText('Translation of 滕青山')).toBeTruthy();
+      expect(screen.queryByLabelText('Translation of 青云剑法')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'All' }));
+      expect(screen.getByLabelText('Translation of 青云剑法')).toBeTruthy();
+    });
+
+    test('Add writes the type shown in the row, including one the reader changed', () => {
+      const adder = ruledAdder();
+      renderPanel(snapshot(), adder);
+      fireEvent.click(screen.getByRole('button', { name: 'Add 青云剑法' }));
+      expect(adder.add).toHaveBeenLastCalledWith(
+        '青云剑法',
+        'properNouns-f_Novel',
+        'guess:青云剑法',
+        'object'
+      );
+      fireEvent.change(screen.getByLabelText('Type of 滕青山'), { target: { value: 'location' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
+      expect(adder.add).toHaveBeenLastCalledWith(
+        '滕青山',
+        'properNouns-f_Novel',
+        'guess:滕青山',
+        'location'
+      );
+    });
+
+    test('switching the Add-to dictionary re-seeds the type like the translation', () => {
+      const typeFor = vi.fn((text: string, target: string) =>
+        target === 'properNouns'
+          ? { semanticType: 'location' as const, ruled: true }
+          : { semanticType: 'character' as const, ruled: false }
+      );
+      renderPanel(snapshot(), ruledAdder({ typeFor }));
+      fireEvent.change(screen.getByLabelText('Add 滕青山 to'), {
+        target: { value: 'properNouns' },
+      });
+      expect((screen.getByLabelText('Type of 滕青山') as HTMLSelectElement).value).toBe('location');
     });
   });
 });

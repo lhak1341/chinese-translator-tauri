@@ -1,6 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
+import {
+  SEMANTIC_TYPE_ABBREVIATIONS,
+  SEMANTIC_TYPE_LIST,
+  type SemanticType,
+} from '../../constants/SemanticTypes';
+import { filterByRule, type RuleFilter } from '../../utils/reader/CandidateRanking';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
@@ -150,6 +156,11 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
   const [unfolded, setUnfolded] = useState(false);
   const [target, setTarget] = useState(adder.opened);
   const [translation, setTranslation] = useState(() => adder.guess(text, adder.opened));
+  // The reader's pick, if any: otherwise the row shows what the rules give for the target, so a
+  // rule edit retypes the row and switching the target re-seeds it, like the translation.
+  const [pickedType, setPickedType] = useState<SemanticType | null>(null);
+  const seeded = adder.typeFor(text, target);
+  const shownType = pickedType ?? seeded.semanticType;
   const [pending, setPending] = useState(false);
   // A ref, not `pending`: two Enters before the re-render would both see `false`.
   const inFlight = useRef(false);
@@ -158,6 +169,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
   // Like the Add form's dropdown, switching the target re-seeds the guess for it.
   const changeTarget = (next: string): void => {
     setTarget(next);
+    setPickedType(null);
     setTranslation(adder.guess(text, next));
   };
 
@@ -171,7 +183,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
     setPending(true);
     setMessage(null);
     try {
-      await adder.add(text, target, translation);
+      await adder.add(text, target, translation, shownType);
     } catch (error) {
       setMessage(extractErrorMessage(error));
     } finally {
@@ -223,6 +235,20 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
           }}
         />
         <select
+          className={`${styles.candidateType} ${
+            pickedType === null && !seeded.ruled ? styles.candidateTypeMuted : ''
+          }`}
+          value={shownType}
+          aria-label={`Type of ${text}`}
+          onChange={(event) => setPickedType(event.target.value as SemanticType)}
+        >
+          {SEMANTIC_TYPE_LIST.map((type) => (
+            <option key={type} value={type}>
+              {SEMANTIC_TYPE_ABBREVIATIONS[type]}
+            </option>
+          ))}
+        </select>
+        <select
           className={styles.candidateSelect}
           value={target}
           aria-label={`Add ${text} to`}
@@ -264,6 +290,12 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
   );
 };
 
+const FILTER_CHIPS: { filter: RuleFilter; label: string }[] = [
+  { filter: 'all', label: 'All' },
+  { filter: 'rule', label: 'Typed by rule' },
+  { filter: 'none', label: 'No rule' },
+];
+
 const CandidateList: React.FC<{
   candidates: Candidate[];
   adder: CandidateAdder;
@@ -273,9 +305,14 @@ const CandidateList: React.FC<{
 }> = ({ candidates, adder, dismissals, reading, onRun }) => {
   // Rows leave the list as the dictionaries come to hold them, and return on Undo; the list
   // itself is never re-run.
-  const notDismissed = candidates.filter((candidate) => !dismissals.names.includes(candidate.text));
-  const remaining = notDismissed.filter((candidate) => !adder.isAdded(candidate.text));
-  const added = notDismissed.length - remaining.length;
+  const [filter, setFilter] = useState<RuleFilter>('all');
+  // Ranked from the cached survivors: only a rule edit (a new `adder.rank`) re-ranks.
+  const { rank } = adder;
+  const ranked = useMemo(() => rank(candidates), [rank, candidates]);
+  const notDismissed = ranked.filter((row) => !dismissals.names.includes(row.candidate.text));
+  const unadded = notDismissed.filter((row) => !adder.isAdded(row.candidate.text));
+  const remaining = filterByRule(unadded, filter);
+  const added = notDismissed.length - unadded.length;
   return (
     <>
       {added > 0 && (
@@ -283,6 +320,18 @@ const CandidateList: React.FC<{
           {added} added since this run, re-run to update
         </div>
       )}
+      <div className={styles.candidateChips} role="group" aria-label="Filter by rule">
+        {FILTER_CHIPS.map(({ filter: value, label }) => (
+          <button
+            key={value}
+            onClick={() => setFilter(value)}
+            aria-pressed={filter === value}
+            className={styles.secondaryButton}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {remaining.length > 0 && (
         <>
           <div className={styles.candidateHeaderRow}>
@@ -291,7 +340,7 @@ const CandidateList: React.FC<{
             <span>Lines</span>
           </div>
           <ul className={styles.outlineList}>
-            {remaining.map((candidate) => (
+            {remaining.map(({ candidate }) => (
               <CandidateRow
                 key={candidate.text}
                 candidate={candidate}

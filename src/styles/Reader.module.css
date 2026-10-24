@@ -679,6 +679,26 @@
   max-width: 9rem;
 }
 
+.candidateType {
+  width: 4rem;
+}
+
+/* No rule matched: the proper-noun default, not something the finder inferred. */
+.candidateTypeMuted {
+  color: var(--text-secondary);
+}
+
+.candidateChips {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.candidateChips > [aria-pressed='true'] {
+  border-color: var(--accent-color, currentColor);
+  font-weight: 600;
+}
+
 .candidateRow > .error {
   grid-column: 1 / -1;
 }
