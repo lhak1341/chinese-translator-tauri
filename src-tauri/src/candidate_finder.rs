@@ -27,8 +27,10 @@
 //! Every Han character the finder reads (U+3400..=U+9FFF) is three bytes in UTF-8, so an
 //! n-gram of a run is the byte slice `[3*i, 3*(i+n))` and no offset table is needed.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap as StdHashMap, HashSet};
+use std::hash::{BuildHasherDefault, Hasher};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 const MIN_COUNT: u32 = 3;
@@ -50,7 +52,8 @@ const FUNCTION_WORDS: &str =
 /// Dropped only at the start: 一个/一丝/一声/一片.
 const START_ONLY_FUNCTION_WORDS: &str = "一";
 
-/// How often the analysis polls for cancel: every this many runs or lines.
+/// How often the reading and scoring stages poll for cancel: every this many runs. Counting
+/// polls once per level.
 const CHUNK: usize = 2048;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -151,13 +154,41 @@ impl Background {
             return false;
         }
         let hash = string_hash(g);
-        self.sidecars.iter().filter(|s| s.binary_search(&hash).is_ok()).count() > SPREAD_BOOKS
+        self.sidecars.iter().filter(|s| s.binary_search(&hash).is_ok()).nth(SPREAD_BOOKS).is_some()
     }
 }
 
 /// FNV-1a over the UTF-8 bytes: stable across runs and builds, which a sidecar on disk needs.
 pub fn string_hash(s: &str) -> u32 {
     s.bytes().fold(0x811c_9dc5u32, |hash, b| (hash ^ u32::from(b)).wrapping_mul(0x0100_0193))
+}
+
+/// FxHash-style hasher for the finder's n-gram tables: millions of short `&str` lookups per run,
+/// where the default SipHash dominated the scoring stage. Keys are the book's own text, so
+/// hash-flooding resistance buys nothing here.
+#[derive(Default)]
+struct FastHasher(u64);
+
+impl Hasher for FastHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.0 = (self.0.rotate_left(5) ^ u64::from_le_bytes(word)).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+type HashMap<K, V> = StdHashMap<K, V, BuildHasherDefault<FastHasher>>;
+
+fn shard_of(gram: &str, shards: u64) -> u64 {
+    let mut hasher = FastHasher::default();
+    hasher.write(gram.as_bytes());
+    (hasher.finish() >> 32) % shards
 }
 
 /// Percent ranges of the three stages; counting is the long one.
@@ -251,6 +282,20 @@ struct Neighbours {
     right: Seen,
 }
 
+/// What the scoring pass gathers for one pre-filtered string.
+struct Tally {
+    count: u32,
+    neighbours: Neighbours,
+    line_count: u32,
+    last_line: u32,
+}
+
+impl Default for Tally {
+    fn default() -> Self {
+        Self { count: 0, neighbours: Neighbours::default(), line_count: 0, last_line: u32::MAX }
+    }
+}
+
 /// Run start and end as neighbours; neither is a Han character, so neither collides.
 const RUN_START: char = '\u{0}';
 const RUN_END: char = '\u{1}';
@@ -318,38 +363,61 @@ fn unmasked_pieces<'a>(run: &'a str, keys: &KeySet) -> Vec<&'a str> {
 
 /// Frequent strings by length: `counts[n]` holds the n-grams (n = 1..=`MAX_LEN` + 1) seen at
 /// least `MIN_COUNT` times. Level n counts only n-grams whose (n-1)-grams are frequent.
-/// `tick(done, total)` reports progress; `None` when cancelled.
+/// `tick(done, total)` reports progress; `None` when cancelled. `parallel` counts each level in hash
+/// shards, one per worker, for the open book; a sidecar build counts in one pass because its
+/// caller already builds several books at once.
 fn count_frequent<'a>(
     runs: &[Run<'a>],
+    parallel: bool,
     is_cancelled: &dyn Fn() -> bool,
     tick: &mut dyn FnMut(usize, usize),
 ) -> Option<Vec<HashMap<&'a str, u32>>> {
-    let mut counts: Vec<HashMap<&str, u32>> = vec![HashMap::new()];
+    let mut counts: Vec<HashMap<&str, u32>> = vec![HashMap::default()];
     for n in 1..=MAX_LEN + 1 {
-        let mut level: HashMap<&str, u32> = HashMap::new();
+        // Cancel and progress are per level: a level is a fraction of a second, and the workers
+        // below need no handle on the caller's closures.
+        if is_cancelled() {
+            return None;
+        }
+        tick((n - 1) * runs.len(), (MAX_LEN + 1) * runs.len());
+        let mut level: HashMap<&str, u32> = HashMap::default();
         if n == 1 || !counts[n - 1].is_empty() {
-            for (index, run) in runs.iter().enumerate() {
-                if index % CHUNK == 0 {
-                    if is_cancelled() {
-                        return None;
-                    }
-                    tick((n - 1) * runs.len() + index, (MAX_LEN + 1) * runs.len());
-                }
-                if run.len() < n {
-                    continue;
-                }
-                for i in 0..=run.len() - n {
-                    // Both (n-1)-grams inside it must be frequent, or it cannot be.
-                    if n > 1
-                        && !(counts[n - 1].contains_key(run.gram(i, n - 1))
-                            && counts[n - 1].contains_key(run.gram(i + 1, n - 1)))
-                    {
+            let previous = &counts[n - 1];
+            // Each worker scans every run but keeps only the n-grams of its own hash shard, so
+            // the tables are disjoint (no merge, no per-worker copies of the same string).
+            let shards = if parallel { rayon::current_num_threads().max(1) as u64 } else { 1 };
+            let scan = |shard: u64| {
+                let mut part: HashMap<&str, u32> = HashMap::default();
+                for run in runs {
+                    if run.len() < n {
                         continue;
                     }
-                    *level.entry(run.gram(i, n)).or_insert(0) += 1;
+                    for i in 0..=run.len() - n {
+                        let gram = run.gram(i, n);
+                        if shards > 1 && shard_of(gram, shards) != shard {
+                            continue;
+                        }
+                        // Both (n-1)-grams inside it must be frequent, or it cannot be.
+                        if n > 1
+                            && !(previous.contains_key(run.gram(i, n - 1))
+                                && previous.contains_key(run.gram(i + 1, n - 1)))
+                        {
+                            continue;
+                        }
+                        *part.entry(gram).or_insert(0) += 1;
+                    }
                 }
+                part.retain(|_, count| *count >= MIN_COUNT);
+                // `retain` keeps the capacity of every string it dropped.
+                part.shrink_to_fit();
+                part
+            };
+            let parts: Vec<HashMap<&str, u32>> =
+                if shards > 1 { (0..shards).into_par_iter().map(scan).collect() } else { vec![scan(0)] };
+            level.reserve(parts.iter().map(HashMap::len).sum());
+            for part in parts {
+                level.extend(part);
             }
-            level.retain(|_, count| *count >= MIN_COUNT);
         }
         counts.push(level);
     }
@@ -360,7 +428,7 @@ fn count_frequent<'a>(
 /// unmasked (it describes the book, not one run's dictionaries). `None` when cancelled.
 pub fn build_sidecar(lines: &[&str], is_cancelled: &dyn Fn() -> bool) -> Option<Vec<u32>> {
     let runs: Vec<Run> = han_runs(lines).into_iter().map(|(line, text)| Run { line, text }).collect();
-    let counts = count_frequent(&runs, is_cancelled, &mut |_, _| {})?;
+    let counts = count_frequent(&runs, false, is_cancelled, &mut |_, _| {})?;
     let mut hashes: Vec<u32> = (MIN_LEN..=MAX_LEN)
         .flat_map(|n| counts[n].keys().map(|g| string_hash(g)))
         .collect();
@@ -402,7 +470,7 @@ pub fn find_candidates(
     reporter.report(Stage::Reading, 1, 1);
 
     // ---- counting ----
-    let counts = count_frequent(&runs, is_cancelled, &mut |done, total| {
+    let counts = count_frequent(&runs, true, is_cancelled, &mut |done, total| {
         reporter.report(Stage::Counting, done, total)
     })?;
     reporter.report(Stage::Counting, 1, 1);
@@ -411,39 +479,9 @@ pub fn find_candidates(
     }
 
     // ---- scoring ----
-    // Nothing longer than the longest frequent string can be a neighbour-set or survivor key.
-    let longest = (MIN_LEN..=MAX_LEN).rev().find(|&n| !counts[n].is_empty()).unwrap_or(0);
-    // Neighbours of every frequent string of 2-8 characters.
-    let mut neighbours: HashMap<&str, Neighbours> = HashMap::new();
-    for (index, run) in runs.iter().enumerate() {
-        if index % CHUNK == 0 {
-            if is_cancelled() {
-                return None;
-            }
-            reporter.report(Stage::Scoring, index, runs.len() * 2);
-        }
-        for n in MIN_LEN..=longest.min(run.len()) {
-            for i in 0..=run.len() - n {
-                let g = run.gram(i, n);
-                if !counts[n].contains_key(g) {
-                    continue;
-                }
-                let entry = neighbours.entry(g).or_default();
-                let left = if i == 0 { RUN_START } else { run.gram(i - 1, 1).chars().next().unwrap_or(RUN_START) };
-                let right = if i + n == run.len() {
-                    RUN_END
-                } else {
-                    run.gram(i + n, 1).chars().next().unwrap_or(RUN_END)
-                };
-                entry.left.insert(left);
-                entry.right.insert(right);
-            }
-        }
-    }
-
     // The largest count of any one-character extension on each side.
-    let mut max_left: HashMap<&str, u32> = HashMap::new();
-    let mut max_right: HashMap<&str, u32> = HashMap::new();
+    let mut max_left: HashMap<&str, u32> = HashMap::default();
+    let mut max_right: HashMap<&str, u32> = HashMap::default();
     for n in MIN_LEN + 1..=MAX_LEN + 1 {
         for (g, &count) in &counts[n] {
             let suffix = &g[HAN_BYTES..];
@@ -471,26 +509,62 @@ pub fn find_candidates(
         worst
     };
 
-    let mut survivors: HashMap<&str, u32> = HashMap::new();
+    // Every filter but accessor variety reads only the string and its count, so they run first
+    // and the one pass over the text below looks up just their few survivors.
+    let mut seen: HashMap<&str, Tally> = HashMap::default();
     for n in MIN_LEN..=MAX_LEN {
         for (&g, &count) in &counts[n] {
             let c = f64::from(count);
             let dominated = f64::from(max_left.get(g).copied().unwrap_or(0)) / c >= DOMINANCE
                 || f64::from(max_right.get(g).copied().unwrap_or(0)) / c >= DOMINANCE;
-            let variety = neighbours.get(g).map_or(0, |n| n.left.len.min(n.right.len));
             if dominated
-                || variety < MIN_ACCESSOR_VARIETY
                 || has_function_word_edge(g)
                 || phrases.contains(g)
                 || coverage.active.contains(g)
-                || background.is_common(g)
                 || !(weakest_npmi(g, count) >= MIN_NPMI)
+                || background.is_common(g)
             {
                 continue;
             }
-            survivors.insert(g, count);
+            seen.insert(g, Tally { count, ..Tally::default() });
         }
     }
+
+    // One pass: the neighbours and the line count of each of those strings.
+    let shortest = seen.keys().map(|g| g.len() / HAN_BYTES).min().unwrap_or(0);
+    let longest = seen.keys().map(|g| g.len() / HAN_BYTES).max().unwrap_or(0);
+    for (index, run) in runs.iter().enumerate() {
+        if index % CHUNK == 0 {
+            if is_cancelled() {
+                return None;
+            }
+            reporter.report(Stage::Scoring, index, runs.len());
+        }
+        for n in shortest.max(MIN_LEN)..=longest.min(run.len()) {
+            for i in 0..=run.len() - n {
+                let Some(entry) = seen.get_mut(run.gram(i, n)) else { continue };
+                let left = if i == 0 { RUN_START } else { run.gram(i - 1, 1).chars().next().unwrap_or(RUN_START) };
+                let right = if i + n == run.len() {
+                    RUN_END
+                } else {
+                    run.gram(i + n, 1).chars().next().unwrap_or(RUN_END)
+                };
+                entry.neighbours.left.insert(left);
+                entry.neighbours.right.insert(right);
+                if entry.last_line != run.line {
+                    entry.last_line = run.line;
+                    entry.line_count += 1;
+                }
+            }
+        }
+    }
+    reporter.report(Stage::Scoring, 1, 1);
+
+    let survivors: HashMap<&str, u32> = seen
+        .iter()
+        .filter(|(_, e)| e.neighbours.left.len.min(e.neighbours.right.len) >= MIN_ACCESSOR_VARIETY)
+        .map(|(&g, e)| (g, e.count))
+        .collect();
 
     // Glued edge, judged against the survivors before any glued one is removed.
     let glued: Vec<&str> = survivors
@@ -507,39 +581,17 @@ pub fn find_candidates(
         })
         .map(|(g, _)| *g)
         .collect();
+    let mut survivors = survivors;
     for g in glued {
         survivors.remove(g);
     }
-
-    // Line counts for the survivors only.
-    let mut lines_seen: HashMap<&str, (u32, u32)> =
-        survivors.keys().map(|&g| (g, (0, u32::MAX))).collect();
-    for (index, run) in runs.iter().enumerate() {
-        if index % CHUNK == 0 {
-            if is_cancelled() {
-                return None;
-            }
-            reporter.report(Stage::Scoring, runs.len() + index, runs.len() * 2);
-        }
-        for n in MIN_LEN..=longest.min(run.len()) {
-            for i in 0..=run.len() - n {
-                if let Some((line_count, last_line)) = lines_seen.get_mut(run.gram(i, n)) {
-                    if *last_line != run.line {
-                        *last_line = run.line;
-                        *line_count += 1;
-                    }
-                }
-            }
-        }
-    }
-    reporter.report(Stage::Scoring, 1, 1);
 
     let mut found: Vec<Candidate> = survivors
         .into_iter()
         .map(|(g, count)| Candidate {
             text: g.to_string(),
             count,
-            line_count: lines_seen.get(g).map_or(0, |&(line_count, _)| line_count),
+            line_count: seen.get(g).map_or(0, |e| e.line_count),
             also_in: coverage
                 .inactive
                 .iter()
@@ -973,5 +1025,23 @@ mod tests {
         let lines = plain("滕青山", 30);
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         assert_eq!(build_sidecar(&slices, &|| true), None);
+    }
+
+    #[test]
+    fn counting_in_parallel_shards_gives_the_same_counts_as_counting_in_one_pass() {
+        let words = ["滕青山", "赤焰山庄", "李珺来了", "天地玄黄宇宙洪荒", "他说道", "一二三四五六七"];
+        let lines: Vec<String> = (0..400)
+            .map(|i| format!("{}，{}。{}", words[i % 6], words[(i * 7 + 1) % 6], words[(i / 3) % 6]))
+            .collect();
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let runs: Vec<Run> = han_runs(&slices).into_iter().map(|(line, text)| Run { line, text }).collect();
+        let once = count_frequent(&runs, false, &|| false, &mut |_, _| {}).expect("not cancelled");
+        // A pool of its own, so the shard count does not depend on the machine running the test.
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().expect("pool");
+        let sharded = pool
+            .install(|| count_frequent(&runs, true, &|| false, &mut |_, _| {}))
+            .expect("not cancelled");
+        assert!(once.iter().map(HashMap::len).sum::<usize>() > 50, "the text must have strings to count");
+        assert_eq!(once, sharded);
     }
 }

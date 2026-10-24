@@ -13,11 +13,16 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
 use serde::Deserialize;
 
 use crate::book_loader::BookContent;
 use crate::candidate_finder::{build_sidecar, Progress, Stage};
 use crate::dictionary_commands::{sanitize_io_error, write_atomic};
+
+/// Sidecars built at once. Each worker holds a decoded book and its n-gram tables, so this bounds
+/// the memory of a first run as well as its speed.
+const BUILD_THREADS: usize = 3;
 
 /// Bump when the hashing, the string set or the file layout changes: older sidecars rebuild.
 const FORMAT_VERSION: u32 = 1;
@@ -116,9 +121,9 @@ pub fn prune(dir: &Path, known: &HashSet<String>) -> usize {
 pub fn load_background(
     dir: &Path,
     books: &[BackgroundBook],
-    read_book: &dyn Fn(&BackgroundBook) -> Option<BookContent>,
+    read_book: &(dyn Fn(&BackgroundBook) -> Option<BookContent> + Sync),
     progress: &mut dyn FnMut(Progress),
-    is_cancelled: &dyn Fn() -> bool,
+    is_cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Vec<Vec<u32>>> {
     let mut sidecars = Vec::with_capacity(books.len());
     let mut missing = Vec::new();
@@ -128,7 +133,17 @@ pub fn load_background(
             None => missing.push(book),
         }
     }
-    for (done, book) in missing.iter().enumerate() {
+    // `Err` is a cancelled build; `Ok(None)` a book that could not be read.
+    let build = |book: &&BackgroundBook| -> Result<Option<Vec<u32>>, ()> {
+        let Some(content) = read_book(book) else { return Ok(None) };
+        let hashes = build_sidecar(&content.line_slices(), is_cancelled).ok_or(())?;
+        // A sidecar that cannot be stored still counts for this run; the next run rebuilds it.
+        let _ = write(dir, &book.fingerprint, &book.encoding_label, &hashes);
+        Ok(Some(hashes))
+    };
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(BUILD_THREADS).build().ok();
+    let mut done = 0;
+    for window in missing.chunks(BUILD_THREADS * 2) {
         if is_cancelled() {
             return None;
         }
@@ -136,11 +151,16 @@ pub fn load_background(
             stage: Stage::BackgroundTable,
             percent: (100 * done / missing.len()) as u8,
         });
-        let Some(content) = read_book(book) else { continue };
-        let hashes = build_sidecar(&content.line_slices(), is_cancelled)?;
-        // A sidecar that cannot be stored still counts for this run; the next run rebuilds it.
-        let _ = write(dir, &book.fingerprint, &book.encoding_label, &hashes);
-        sidecars.push(hashes);
+        let built: Vec<Result<Option<Vec<u32>>, ()>> = match &pool {
+            Some(pool) => pool.install(|| window.par_iter().map(build).collect()),
+            None => window.iter().map(build).collect(),
+        };
+        for result in built {
+            if let Some(hashes) = result.ok()? {
+                sidecars.push(hashes);
+            }
+        }
+        done += window.len();
     }
     if !missing.is_empty() {
         progress(Progress { stage: Stage::BackgroundTable, percent: 100 });
@@ -152,7 +172,7 @@ pub fn load_background(
 mod tests {
     use super::*;
     use crate::book_loader::{load_book, LoadOutcome};
-    use std::cell::Cell;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TempDir(PathBuf);
 
@@ -252,23 +272,23 @@ mod tests {
     fn the_background_is_built_and_stored_on_the_first_run_with_progress_and_reused_after() {
         let dir = TempDir::new("backfill");
         let books = [background_book("aaa"), background_book("bbb")];
-        let reads = Cell::new(0);
+        let reads = AtomicUsize::new(0);
         let read = |_: &BackgroundBook| {
-            reads.set(reads.get() + 1);
+            reads.fetch_add(1, Ordering::SeqCst);
             Some(book_with("滕青山"))
         };
 
         let mut events = Vec::new();
         let first = load_background(&dir.0, &books, &read, &mut |p| events.push(p), &|| false).unwrap();
         assert_eq!(first.len(), 2);
-        assert_eq!(reads.get(), 2);
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
         assert!(events.iter().all(|p| p.stage == Stage::BackgroundTable));
         assert_eq!(events.last().map(|p| p.percent), Some(100));
 
         let mut events = Vec::new();
         let again = load_background(&dir.0, &books, &read, &mut |p| events.push(p), &|| false).unwrap();
         assert_eq!(again, first);
-        assert_eq!(reads.get(), 2, "valid sidecars are not rebuilt");
+        assert_eq!(reads.load(Ordering::SeqCst), 2, "valid sidecars are not rebuilt");
         assert!(events.is_empty(), "nothing to build, nothing to report");
     }
 
@@ -276,15 +296,15 @@ mod tests {
     fn a_stale_sidecar_is_rebuilt_and_a_deleted_folder_is_recovered_from() {
         let dir = TempDir::new("recover");
         let books = [background_book("aaa")];
-        let reads = Cell::new(0);
+        let reads = AtomicUsize::new(0);
         let read = |_: &BackgroundBook| {
-            reads.set(reads.get() + 1);
+            reads.fetch_add(1, Ordering::SeqCst);
             Some(book_with("滕青山"))
         };
 
         write(&dir.0, "aaa", "Big5", &[7]).unwrap();
         let rebuilt = load_background(&dir.0, &books, &read, &mut |_| {}, &|| false).unwrap();
-        assert_eq!(reads.get(), 1, "an encoding mismatch rebuilds");
+        assert_eq!(reads.load(Ordering::SeqCst), 1, "an encoding mismatch rebuilds");
         assert_ne!(rebuilt[0], vec![7]);
 
         fs::remove_dir_all(&dir.0).unwrap();
@@ -300,10 +320,9 @@ mod tests {
         let read = |_: &BackgroundBook| Some(book_with("滕青山"));
         assert_eq!(load_background(&dir.0, &books, &read, &mut |_| {}, &|| true), None);
 
-        let polls = Cell::new(0);
+        let polls = AtomicUsize::new(0);
         let cancel_mid_build = || {
-            polls.set(polls.get() + 1);
-            polls.get() > 1
+            polls.fetch_add(1, Ordering::SeqCst) >= 1
         };
         assert_eq!(load_background(&dir.0, &books, &read, &mut |_| {}, &cancel_mid_build), None);
         let left = fs::read_dir(&dir.0).map(|d| d.flatten().count()).unwrap_or(0);

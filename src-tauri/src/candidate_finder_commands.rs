@@ -89,7 +89,7 @@ fn analyse(
     coverage: &Coverage,
     index_dir: &Path,
     background_books: &[BackgroundBook],
-    read_other: &dyn Fn(&BackgroundBook) -> Option<BookContent>,
+    read_other: &(dyn Fn(&BackgroundBook) -> Option<BookContent> + Sync),
     emit: &mut dyn FnMut(Progress),
 ) -> Option<FindOutcome> {
     let cancelled = || flag.load(Ordering::Relaxed);
@@ -391,14 +391,14 @@ mod tests {
         let mut listed = others(1);
         listed.push(listed[0].clone());
         listed.push(BackgroundBook { fingerprint: fingerprint.clone(), ..listed[0].clone() });
-        let reads = std::cell::Cell::new(0);
+        let reads = std::sync::atomic::AtomicUsize::new(0);
         let read_other = |_: &BackgroundBook| {
-            reads.set(reads.get() + 1);
+            reads.fetch_add(1, Ordering::SeqCst);
             None
         };
         analyse(&book, &fingerprint, &AtomicBool::new(false), &HashSet::new(), &Coverage::default(), &index.0, &listed, &read_other, &mut |_| {})
             .expect("not cancelled");
-        assert_eq!(reads.get(), 1);
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
     }
 
     #[test]

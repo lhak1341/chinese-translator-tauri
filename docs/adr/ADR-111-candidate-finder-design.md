@@ -1,6 +1,6 @@
 # ADR-111: Candidate Finder Design
 
-**Status:** Decided (design only; the build is a later effort)
+**Status:** Decided (built #44-#51; measured and tuned #52)
 **Date:** 2026-10-24
 
 ## Context
@@ -13,7 +13,7 @@ The Reader has no way to find proper nouns missing from a book's dictionaries; t
 
 **Library background table.** The "other books" gate needs a per-book sidecar of sorted 32-bit hashes of frequent strings, in a regenerable `book-index/` folder keyed by fingerprint, encoding and format version. It is built on open and backfilled on first run, and skipped below 4 other books. Books bound to the same fiction dictionary are not background (#42).
 
-**Where it runs.** Tauri Rust, beside `BookCache`, in a pure module that also builds the sidecar. TS sends the dictionary keys; the finder never calls the JS trie. Targets: first run ≤15 s, re-run ≤3 s, ≤300 MB extra, all to be measured at build. Cancel is cooperative with staged progress events; a cancelled run leaves no partial sidecar, and a book or encoding change cancels and discards the run (#40).
+**Where it runs.** Tauri Rust, beside `BookCache`, in a pure module that also builds the sidecar. TS sends the dictionary keys; the finder never calls the JS trie. Budget, as measured at #52 (Measured, below): re-run ≤3 s and ≤300 MB extra, first run ≤25 s and ≤350 MB extra. Cancel is cooperative with staged progress events; a cancelled run leaves no partial sidecar, and a book or encoding change cancels and discards the run (#40).
 
 **Mask follows Phase 2.** Spans matched by the book's active proper-noun dictionaries are masked before counting, using Phase 2's rule (leftmost, longer wins, a strictly longer match starting inside the span defers the earlier). Rust has its own matcher; one shared fixture is read by a JS test over `findMatchesAtToken` and a Rust test, so they cannot drift. Phase 1 pattern claims are ignored. An unread active dictionary refuses the run. Inactive proper-noun dictionaries only tag a candidate "also in X" (#41).
 
@@ -34,9 +34,41 @@ The Reader has no way to find proper nouns missing from a book's dictionaries; t
 
 ## Consequences
 
-- **Known limits, accepted.** About 40% of findable hidden entries have too few distinct contexts for the neighbour gate and never reach the ranking; long transliterated names with no suffix are found only when cohesion and boundary evidence suffice. Measured on the held-out books: recall@1000 49% and 35%, precision@100 82% and 88% (#42). A looser second pass is a tuning question for after the build.
+- **Known limits, accepted.** About 40% of findable hidden entries have too few distinct contexts for the neighbour gate and never reach the ranking; long transliterated names with no suffix are found only when cohesion and boundary evidence suffice. Measured on the held-out books by the prototype: recall@1000 49% and 35%, precision@100 82% and 88% (#42); the built finder reproduces that within noise (Measured, below). No looser second pass: the cutoff sweep found nothing that gains without losing reach.
 - **Variants of one entity** (`东哥`, `东子`) stay separate rows. Merging them is a later improvement.
 - **The mask can disagree with the Translator** where a Phase 1 pattern claimed tokens a proper noun would have matched. Accepted: the effect is a few over- or under-masked strings.
 - **Adding does not rebuild the engine** (ADR-106); the Reader's translated panels update at the next engine rebuild, as for every other Add.
 - **Disk.** `books.json` gains one field, validated per element; `book-index/` is regenerable and safe to delete.
-- **Not yet verified.** `planAddAll` and its outcome kind are inferred from `planDelete` and `planMove` taking lists, not probed against the history code.
+- **`planAddAll`** is a plan like `planDelete` and `planMove` and its outcome kind is `addedAll { count, overwritten }` (`DictionaryEdit.ts`; probed at #52): all or nothing, one edit, one undo, a repeated dictionary and key written once.
+
+## Measured (#52)
+
+Real library (55 books, 47 other indexed books as background), real app dictionaries, release build, 4 performance and 4 efficiency cores, run while the machine was loaded (load average 8-14), so read times as ±10%. A throwaway Rust test over `analyse()` took the numbers; it is not kept. Dictionaries were read, never written; sidecars went to a scratch folder.
+
+**Budget on 凡人修仙传** (the largest book, 15 MB, 144,874 lines, 52 MB resident once loaded):
+
+|                               | Before tuning      | Built                                                                               | Budget                                                |
+| ----------------------------- | ------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Re-run (sidecars present)     | 6.8-8.5 s, +263 MB | 2.6-2.8 s, +207-235 MB                                                              | ≤3 s, ≤300 MB: met                                    |
+| First run (47 sidecars built) | 53 s, +357 MB      | 24 s, about +345 MB                                                                 | ≤15 s, ≤300 MB: **missed, relaxed to ≤25 s, ≤350 MB** |
+| Sidecars on disk              |                    | 61 MB for 47 books                                                                  |                                                       |
+| Jump, backend part            |                    | `read_book_lines` slice of 200 lines: 4-5 µs at line 1, 50%, 90% and the last lines |                                                       |
+
+What changed to get there, none of it changing a result (the 18,012 candidates and all 47 sidecars were byte-identical before and after): n-gram counting is split into hash shards, one per worker (sidecar builds count in one pass); the scoring stage runs every filter that needs only a string and its count first, so one pass over the text looks up only those survivors (it was two passes over every frequent string, with the spread gate's 47 binary searches run before the cheap tests); a faster hasher for the n-gram tables; sidecars are built 3 books at a time. A miss was a choice between tightening and relaxing: the re-run was tightened to the budget; the first run builds one sidecar per book from scratch at about 1 s of CPU each, so it was relaxed. Cancel is polled once per counting level, not every chunk of runs: a level takes under half a second on 凡人修仙传. Four builds at once took 20-26 s but 440-780 MB, so 3 is the setting. In use a book's sidecar is built when it opens, so a first run that finds all 47 missing is the worst case.
+
+Not measured: that memory is **freed** when a run ends (the process keeps 180-280 MB resident afterwards because the allocator holds its pages; live heap was not inspected), and the end-to-end jump latency (line 1 to the last 10%: the webview scroll, the window read and the first paint cannot be driven from the build session; the backend part is the 4-5 µs above, the 0.1-0.3 s for the Vietnamese to fill in is still inferred).
+
+**Quality** (bound dictionary hidden, ranked by count; the rule boost is TS-side and not in this harness, so the reference's boost is the likely, unmeasured, reason for the shortfall on 阳神; findable = hidden entries of 2-8 characters seen at least 3 times, 856 on 九鼎记 and 1,528 on 阳神, 35 and 172 of them long):
+
+|                          | 九鼎记 | 阳神  | ADR reference (九鼎记 / 阳神) |
+| ------------------------ | ------ | ----- | ----------------------------- |
+| recall@1000              | 49.4%  | 33.2% | 49% / 35%                     |
+| long (5-8) recall@1000   | 48.6%  | 27.3% | 40% / 33%                     |
+| precision@100            | 85%    | 88%   | 82% / 88%                     |
+| ceiling (every survivor) | 60.2%  | 56.7% |                               |
+
+With the other active proper-noun dictionaries masked as in a real run: recall@1000 47.7% and 32.1%, long 42.9% and 25.6%, precision@100 87% and 87%.
+
+**Top false positives, read by hand** (top 100, 12-15 per book; what each is was judged by reading, not checked against the book): real names or groups the dictionary lacks (金蛛, 银鲨, 桃神, 百圣, 大乾皇, 赫连昊, 嬴氏家族, 傅家, 八大宗派); cultivation terms a reader may want (先天金丹, 洞虚, 灵肉合一, 粉碎真空); fragments glued to a neighbour (大千世界之中, 九州大地上, 滕青山和李珺, 达到虚境, 次雷劫高手, 渡过雷劫, 军军士); one plain verb (出壳). So roughly half the "false positives" are findings the held-out dictionary does not hold, and the glued fragments are the real noise.
+
+**Cutoffs kept.** Swept one at a time on both books (recall@1000, 九鼎记 / 阳神): spread gate 1, 2, 3, 4, 6 books 48.6 / 49.4 / 49.9 / 49.2 / 48.4 and 32.8 / 33.2 / 32.6 / 32.4 / 32.1; NPMI 0.2-0.4 46.8-50.0 and 31.9-33.8; glued ratio 5-40 48.6-49.3 and 33.0-33.1; maximal-repeat dominance 0.3-0.9 47.7-50.1 and 32.4-33.9. Every cutoff moves recall@1000 by under 2 points around the built value, and long recall by whole entries (one entry is 2.9 points on 九鼎记). Dominance 0.5 was the only candidate (recall +0.1 and +0.7, precision@100 85% and 91%, long recall +5.7 and +2.4) and was refused: it removes names that are followed by one character half the time, so the ceiling falls 2.1 and 3.4 points, names the reader can then never reach for under a point at the top. The spread gate of 2 stays (the sidecar's "frequent in a book" now agrees with the prototype's pick).
