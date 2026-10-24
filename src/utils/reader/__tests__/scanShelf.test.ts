@@ -22,6 +22,7 @@ const missingBook: UnavailableBook = {
 let deps: ScanShelfDeps & {
   scanLibrary: ReturnType<typeof vi.fn>;
   reconcile: ReturnType<typeof vi.fn>;
+  pruneBookIndex: ReturnType<typeof vi.fn>;
 };
 
 beforeEach(() => {
@@ -34,6 +35,7 @@ beforeEach(() => {
       shelfBooks: books.map((b) => ({ ...b, fingerprint: `fp-${b.title}` })),
       unavailableBooks: [missingBook],
     })),
+    pruneBookIndex: vi.fn(async () => 0),
   };
 });
 
@@ -74,6 +76,23 @@ describe('scanShelf', () => {
   test('every scan reconciles, so a rescan after a failed one is loaded again', async () => {
     deps.reconcile.mockRejectedValueOnce(new Error("Couldn't read books.json"));
     expect((await scanShelf('/saved', deps)).kind).toBe('recordsUnknown');
+    expect((await scanShelf('/saved', deps)).kind).toBe('loaded');
+  });
+
+  test('a reconciled scan prunes the book index; an unreconciled or failed one does not', async () => {
+    await scanShelf('/saved', deps);
+    expect(deps.pruneBookIndex).toHaveBeenCalledTimes(1);
+
+    deps.pruneBookIndex.mockClear();
+    deps.reconcile.mockRejectedValueOnce(new Error("Couldn't read books.json"));
+    await scanShelf('/saved', deps);
+    deps.scanLibrary.mockRejectedValueOnce(new Error('folder gone'));
+    await scanShelf('/saved', deps);
+    expect(deps.pruneBookIndex).not.toHaveBeenCalled();
+  });
+
+  test('a failed prune does not change the outcome', async () => {
+    deps.pruneBookIndex.mockRejectedValue(new Error('disk'));
     expect((await scanShelf('/saved', deps)).kind).toBe('loaded');
   });
 });

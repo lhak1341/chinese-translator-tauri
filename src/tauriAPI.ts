@@ -27,8 +27,9 @@ import type {
   BookFingerprint,
   BookLines,
   BookRecords,
-  Candidate,
+  BackgroundBook,
   CandidateProgress,
+  CandidateRunResult,
   InactiveProperNounDictionary,
   ChapterHeader,
   ChapterOutline,
@@ -67,6 +68,8 @@ export const CMD = {
   CHAPTER_HEADERS_FOR_PATTERN: 'chapter_headers_for_pattern',
   FIND_CANDIDATES: 'find_candidates',
   CANCEL_CANDIDATE_RUN: 'cancel_candidate_run',
+  INDEX_OPEN_BOOK: 'index_open_book',
+  PRUNE_BOOK_INDEX: 'prune_book_index',
   LOAD_BOOK_RECORDS: 'load_book_records',
   SAVE_BOOK_RECORDS: 'save_book_records',
 } as const;
@@ -207,21 +210,34 @@ const tauriAPI = {
   /**
    * Run the Candidate finder over the open book. `phrases` are the keys of the `phrases`
    * dictionary, `activeKeys` those of the book's active proper-noun dictionaries (the coverage
-   * mask) and `inactive` the other proper-noun dictionaries (the Also-in tag only). Resolves to `null` when the run was cancelled; progress arrives through
-   * `onCandidateProgress`, tagged with `runId`.
+   * mask) and `inactive` the other proper-noun dictionaries (the Also-in tag only).
+   * `background` lists the other indexed books for the spread gate; a missing sidecar is
+   * built from the book under `libraryPath` (stage `background table`). Resolves to `null`
+   * when the run was cancelled; progress arrives through `onCandidateProgress`, tagged with
+   * `runId`.
    */
   findCandidates: async (
     fingerprint: string,
     runId: string,
     phrases: string[],
     activeKeys: string[],
-    inactive: InactiveProperNounDictionary[]
-  ): Promise<Candidate[] | null> =>
-    callReaderCommand<Candidate[] | null>(
+    inactive: InactiveProperNounDictionary[],
+    libraryPath: string | null,
+    background: BackgroundBook[]
+  ): Promise<CandidateRunResult | null> =>
+    callReaderCommand<CandidateRunResult | null>(
       CMD.FIND_CANDIDATES,
-      { fingerprint, runId, phrases, activeKeys, inactive },
+      { fingerprint, runId, phrases, activeKeys, inactive, libraryPath, background },
       'findCandidates'
     ),
+
+  /** Store the open book's index sidecar unless a valid one exists (the text is in memory). */
+  indexOpenBook: async (fingerprint: string): Promise<void> =>
+    callReaderCommand<void>(CMD.INDEX_OPEN_BOOK, { fingerprint }, 'indexOpenBook'),
+
+  /** Delete the index sidecars of books with no record; `known` is every record's fingerprint. */
+  pruneBookIndex: async (known: string[]): Promise<number> =>
+    callReaderCommand<number>(CMD.PRUNE_BOOK_INDEX, { known }, 'pruneBookIndex'),
 
   /** Ask a run to stop; it resolves to `null` at its next check. */
   cancelCandidateRun: async (runId: string): Promise<void> =>

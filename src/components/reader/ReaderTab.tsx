@@ -199,6 +199,16 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         rememberReading({ lastBook: result.book.fingerprint, resumeOnLaunch: true });
         setLastBook(result.book.fingerprint);
         setIsReading(true);
+        // The Candidate finder's spread gate counts this book from now on. Its text is in
+        // memory, so this is the cheap moment; a failure only defers it to the first run.
+        const openedFingerprint = result.book.fingerprint;
+        void (async () => {
+          try {
+            await window.electronAPI.indexOpenBook(openedFingerprint);
+          } catch (cause) {
+            logger.warn('Failed to index the opened book:', cause);
+          }
+        })();
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
         if (openId !== latestOpenRef.current) return;

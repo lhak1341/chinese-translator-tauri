@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { CandidateFinderStore } from '../CandidateFinderStore';
+import { CandidateFinderStore, type FinderBackground } from '../CandidateFinderStore';
 import type { FinderDictionaries } from '../CandidateDictionaries';
-import type { Candidate, CandidateProgress } from '../../../types/ReaderTypes';
+import type { Candidate, CandidateProgress, CandidateRunResult } from '../../../types/ReaderTypes';
 
 const findCandidates = vi.fn();
 const cancelCandidateRun = vi.fn();
@@ -17,6 +17,11 @@ global.window.electronAPI = {
 } as unknown as typeof window.electronAPI;
 
 const NAMES: Candidate[] = [{ text: '滕青山', count: 32, lineCount: 31, alsoIn: [] }];
+const RESULT: CandidateRunResult = { candidates: NAMES, weakFiltering: true };
+const BACKGROUND: FinderBackground = {
+  libraryPath: '/library',
+  books: [{ fingerprint: 'other', fileName: 'other.txt', encodingLabel: 'GBK' }],
+};
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -36,7 +41,11 @@ const DICTIONARIES: FinderDictionaries = {
 };
 
 function makeStore() {
-  return new CandidateFinderStore({ fingerprint: 'fp', getDictionaries: async () => DICTIONARIES });
+  return new CandidateFinderStore({
+    fingerprint: 'fp',
+    getDictionaries: async () => DICTIONARIES,
+    getBackground: async () => BACKGROUND,
+  });
 }
 
 beforeEach(() => {
@@ -54,7 +63,7 @@ describe('CandidateFinderStore', () => {
   });
 
   it('runs on the open book with the dictionary snapshot and keeps the ranked list', async () => {
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const store = makeStore();
     await store.run();
 
@@ -63,14 +72,16 @@ describe('CandidateFinderStore', () => {
       expect.any(String),
       ['phrase'],
       ['active'],
-      [{ id: 'properNouns-f_Other', keys: ['other'] }]
+      [{ id: 'properNouns-f_Other', keys: ['other'] }],
+      '/library',
+      BACKGROUND.books
     );
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
     expect(unlisten).toHaveBeenCalled();
   });
 
   it('shows the stage and percent of its own run while it runs', async () => {
-    const pending = deferred<Candidate[] | null>();
+    const pending = deferred<CandidateRunResult | null>();
     findCandidates.mockReturnValue(pending.promise);
     const store = makeStore();
     const running = store.run();
@@ -82,12 +93,12 @@ describe('CandidateFinderStore', () => {
     emitProgress({ runId, stage: 'counting', percent: 40 });
     expect(store.getSnapshot()).toEqual({ status: 'running', stage: 'counting', percent: 40 });
 
-    pending.resolve(NAMES);
+    pending.resolve(RESULT);
     await running;
   });
 
   it('a cancelled run returns to idle and its late result is ignored', async () => {
-    const pending = deferred<Candidate[] | null>();
+    const pending = deferred<CandidateRunResult | null>();
     findCandidates.mockReturnValue(pending.promise);
     const store = makeStore();
     const running = store.run();
@@ -98,14 +109,14 @@ describe('CandidateFinderStore', () => {
     expect(cancelCandidateRun).toHaveBeenCalledWith(runId);
     expect(store.getSnapshot()).toEqual({ status: 'idle' });
 
-    pending.resolve(NAMES);
+    pending.resolve(RESULT);
     await running;
     expect(store.getSnapshot()).toEqual({ status: 'idle' });
   });
 
   it('a cancelled run finishing late leaves the next run listening', async () => {
-    const first = deferred<Candidate[] | null>();
-    const second = deferred<Candidate[] | null>();
+    const first = deferred<CandidateRunResult | null>();
+    const second = deferred<CandidateRunResult | null>();
     findCandidates.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const unlistenFirst = vi.fn();
     const unlistenSecond = vi.fn();
@@ -124,7 +135,7 @@ describe('CandidateFinderStore', () => {
 
     expect(unlistenFirst).toHaveBeenCalledTimes(1);
     expect(unlistenSecond).not.toHaveBeenCalled();
-    second.resolve(NAMES);
+    second.resolve(RESULT);
     await secondRun;
     expect(unlistenSecond).toHaveBeenCalledTimes(1);
   });
@@ -139,12 +150,12 @@ describe('CandidateFinderStore', () => {
   });
 
   it('runs again after dispose then open, as StrictMode re-mounts the same store', async () => {
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const store = makeStore();
     store.dispose();
     store.open();
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
   });
 
   it('a refused snapshot ends the run with its message and starts nothing', async () => {
@@ -162,10 +173,14 @@ describe('CandidateFinderStore', () => {
     expect(cancelCandidateRun).not.toHaveBeenCalled();
 
     // The refusal does not wedge the store: a later run goes through.
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const recovering = makeStore();
     await recovering.run();
-    expect(recovering.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+    expect(recovering.getSnapshot()).toEqual({
+      status: 'done',
+      candidates: NAMES,
+      weakFiltering: true,
+    });
   });
 
   it('a null result (cancelled in Rust) is idle, not an empty list', async () => {
@@ -176,29 +191,29 @@ describe('CandidateFinderStore', () => {
   });
 
   it('cancel keeps a finished list, so reopening the panel shows it at once', async () => {
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const store = makeStore();
     await store.run();
     store.cancel();
 
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
     expect(cancelCandidateRun).not.toHaveBeenCalled();
   });
 
   it('dispose cancels a running run and drops a finished list', async () => {
-    const pending = deferred<Candidate[] | null>();
+    const pending = deferred<CandidateRunResult | null>();
     findCandidates.mockReturnValue(pending.promise);
     const store = makeStore();
     const running = store.run();
     await flush();
     store.dispose();
-    pending.resolve(NAMES);
+    pending.resolve(RESULT);
     await running;
 
     expect(cancelCandidateRun).toHaveBeenCalledTimes(1);
     expect(store.getSnapshot()).toEqual({ status: 'idle' });
 
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const finished = makeStore();
     await finished.run();
     finished.dispose();
@@ -211,13 +226,13 @@ describe('CandidateFinderStore', () => {
     await store.run();
     expect(store.getSnapshot()).toEqual({ status: 'error', message: 'A different book is open' });
 
-    findCandidates.mockResolvedValue([]);
+    findCandidates.mockResolvedValue({ candidates: [], weakFiltering: false });
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: [] });
+    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: [], weakFiltering: false });
   });
 
   it('a second run call while one is running starts nothing', async () => {
-    const pending = deferred<Candidate[] | null>();
+    const pending = deferred<CandidateRunResult | null>();
     findCandidates.mockReturnValue(pending.promise);
     const store = makeStore();
     const first = store.run();
@@ -230,9 +245,9 @@ describe('CandidateFinderStore', () => {
 
   it('still runs when the progress listener cannot be set up', async () => {
     onCandidateProgress.mockRejectedValue(new Error('no events'));
-    findCandidates.mockResolvedValue(NAMES);
+    findCandidates.mockResolvedValue(RESULT);
     const store = makeStore();
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
   });
 });

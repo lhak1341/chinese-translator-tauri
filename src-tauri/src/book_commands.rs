@@ -191,7 +191,7 @@ fn default_library_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String
 /// copied into app data. The untrusted half is the *book name*, which `resolve_book_path`
 /// pins to a single path component — that is what stops "open a book" from becoming
 /// "read any file". Scanning only ever lists `.txt` files and only ever returns names.
-fn resolve_library_path(
+pub(crate) fn resolve_library_path(
     app_handle: &tauri::AppHandle,
     library_path: Option<String>,
 ) -> Result<PathBuf, String> {
@@ -204,7 +204,7 @@ fn resolve_library_path(
 /// Join a caller-supplied file name onto the library root, rejecting anything that is
 /// not a plain name. The file name crosses the IPC boundary, so it is untrusted: a
 /// separator or a `..` component would turn "open a book" into "read any file".
-fn resolve_book_path(library_path: &Path, file_name: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve_book_path(library_path: &Path, file_name: &str) -> Result<PathBuf, String> {
     // A bare ".." or "." is exactly one `Path` component, so the count check alone lets
     // it through — `components().count() != 1` was written to reject "sub/book.txt" and
     // "../secrets.txt" (2 components each), not a single traversal segment on its own.
@@ -285,7 +285,7 @@ fn scan_library_impl(library_path: &Path) -> Result<LibraryScan, String> {
     })
 }
 
-fn read_book_bytes(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_book_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let metadata = std::fs::metadata(path).map_err(|e| sanitize_io_error(e, "the book"))?;
     if !metadata.is_file() {
         return Err("That book is not a file".to_string());

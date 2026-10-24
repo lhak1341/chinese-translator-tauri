@@ -90,8 +90,23 @@ describe('CandidateFinderPanel', () => {
     ]);
   });
 
+  test('running the backfill names the stage', () => {
+    renderPanel({ status: 'running', stage: 'background table', percent: 12 });
+    expect(screen.getByRole('status').textContent).toBe('Building the library index · 12%');
+  });
+
+  test('a run that skipped the spread gate says common-word filtering is weak, listed or not', () => {
+    renderPanel({ status: 'done', candidates: [], weakFiltering: true });
+    expect(screen.getByText(/Common-word filtering is weak/)).toBeTruthy();
+  });
+
+  test('a run with the spread gate shows no such notice', () => {
+    renderPanel({ status: 'done', candidates: [], weakFiltering: false });
+    expect(screen.queryByText(/Common-word filtering is weak/)).toBeNull();
+  });
+
   test('empty result: says no new names were found, and offers Run again', () => {
-    const { onRun } = renderPanel({ status: 'done', candidates: [] });
+    const { onRun } = renderPanel({ status: 'done', candidates: [], weakFiltering: false });
     expect(screen.getByText('No new names found.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRun).toHaveBeenCalledOnce();

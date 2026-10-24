@@ -19,6 +19,7 @@ interface CandidateFinderPanelProps {
 
 const STAGE_LABELS: Record<CandidateStage, string> = {
   reading: 'Reading',
+  'background table': 'Building the library index',
   counting: 'Counting',
   scoring: 'Scoring',
 };
@@ -289,6 +290,12 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
           Run again
         </button>
       </>
+    )}
+
+    {snapshot.status === 'done' && snapshot.weakFiltering && (
+      <div className={styles.outlineEmpty} role="status">
+        Common-word filtering is weak: fewer than 4 other books are indexed.
+      </div>
     )}
 
     {snapshot.status === 'done' && snapshot.candidates.length === 0 && (

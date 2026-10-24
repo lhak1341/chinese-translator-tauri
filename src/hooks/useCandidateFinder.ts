@@ -10,6 +10,8 @@ import {
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
 import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
+import { loadAppConfig } from '../utils/appConfig';
+import { backgroundBooks } from '../utils/reader/CandidateBackground';
 import {
   dismissCandidate,
   getBookRecordsSnapshot,
@@ -69,6 +71,18 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     () =>
       new CandidateFinderStore({
         fingerprint,
+        getBackground: async () => {
+          // A failed read of either leaves the finder with fewer background books (or the
+          // default library folder), so the gate skips or the sidecars rebuild; the run goes on.
+          const [config, records] = await Promise.all([
+            loadAppConfig().catch(() => null),
+            loadBookRecords().catch(() => null),
+          ]);
+          return {
+            libraryPath: config?.reader.libraryPath ?? null,
+            books: records ? backgroundBooks(records.records, fingerprint) : [],
+          };
+        },
         getDictionaries: async () => {
           const view = await loadQuickAddView();
           if (!view) {

@@ -201,7 +201,7 @@ export type BookRecords = Record<string, BookRecord>;
 // ── Candidate finder ──────────────────────────────────────────────────────────
 
 /** The stages a run reports, in order. */
-export type CandidateStage = 'reading' | 'counting' | 'scoring';
+export type CandidateStage = 'reading' | 'background table' | 'counting' | 'scoring';
 
 /** A string the book repeats like a proper noun and no active proper-noun dictionary or
  * `phrases` entry holds. */
@@ -212,6 +212,21 @@ export interface Candidate {
   lineCount: number;
   /** Ids of the inactive proper-noun dictionaries that hold it (the Also-in tag). */
   alsoIn: string[];
+}
+
+/** Another indexed book, for the spread gate: its encoding label says how to rebuild its
+ * sidecar (`book-index/<fingerprint>.bin`) when none is valid. */
+export interface BackgroundBook {
+  fingerprint: string;
+  fileName: string;
+  encodingLabel: string;
+}
+
+/** What a run returns. `weakFiltering`: fewer than 4 other indexed books, so the spread
+ * gate was skipped. */
+export interface CandidateRunResult {
+  candidates: Candidate[];
+  weakFiltering: boolean;
 }
 
 /** A proper-noun dictionary the book does not use: it tags a candidate, never masks. */

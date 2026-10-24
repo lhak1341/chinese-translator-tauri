@@ -537,7 +537,7 @@ fn validate_dictionary_payload(data: &serde_json::Value) -> Result<(), String> {
 ///
 /// `context` names what is being written ("dictionary file", "config file"); it is the noun in
 /// every error the caller reports, so a failed config save does not claim a dictionary failed.
-fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| format!("Invalid {} path", context))?;
@@ -671,7 +671,7 @@ fn read_dictionary_file(
     Ok(data)
 }
 
-fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+pub(crate) fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     app_handle
         .path()
         .app_data_dir()

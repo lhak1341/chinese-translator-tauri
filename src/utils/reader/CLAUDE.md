@@ -82,3 +82,7 @@ Writes to `books.json` run later, queued; `loadBookRecords()` returns the cache 
 ## A store a hook creates in `useState` must survive its effect cleanup running twice
 
 `main.jsx` wraps the app in `StrictMode`, which in dev runs an effect's cleanup and then its setup again on the same instance, so a teardown that cannot be undone leaves the store dead and the feature does nothing (production is fine, so it only shows in `tauri:dev`). Pair `close`/`dispose` with an `open()` that lifts it, called from the effect's setup, as `ChapterOutlineStore` does and `CandidateFinderStore` did not until review caught it (2026-10-24). Pin it with a dispose, open, then act test.
+
+## The book index's validity key is the record's `encodingLabel` — keep it the same field the open writes
+
+A sidecar is valid only for the encoding label it was built with. `index_open_book` stores the open book's `encoding.label`; the backfill compares against `BookRecord.encodingLabel`, which `ReaderTab.openBook` fills from that same `result.encoding.label`. Fill the record from any other source (a detected-vs-chosen label, a different casing) and every backfilled sidecar reads stale and rebuilds on every run, with no error. A book never opened has `encodingLabel: ''`, so `backgroundBooks` leaves it out of the background (inferred as acceptable, not decided with the user).

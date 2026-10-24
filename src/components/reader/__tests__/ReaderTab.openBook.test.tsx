@@ -22,6 +22,7 @@ import type {
 const tauriAPI = vi.hoisted(() => ({
   scanLibrary: vi.fn(),
   openBook: vi.fn(),
+  indexOpenBook: vi.fn(),
 }));
 global.window.electronAPI = tauriAPI as unknown as typeof window.electronAPI;
 
@@ -68,6 +69,7 @@ vi.mock('../../../utils/reader/ReconcileLibrary', async () => {
       actual.scanShelf(path, {
         scanLibrary: (p) => tauriAPI.scanLibrary(p),
         reconcile: (books, p) => reconcile.reconcileLibraryScan(books, p),
+        pruneBookIndex: async () => 0,
       }),
   };
 });
@@ -198,6 +200,7 @@ beforeEach(() => {
   readerMounts.length = 0;
   appConfig.loadAppConfig.mockResolvedValue({ reader: { libraryPath: null } });
   tauriAPI.scanLibrary.mockResolvedValue({ libraryPath: '/lib', books: [libraryBook] });
+  tauriAPI.indexOpenBook.mockResolvedValue(undefined);
   reconcile.reconcileLibraryScan.mockResolvedValue({
     shelfBooks: [{ ...libraryBook, fingerprint: 'fp-1' }],
     unavailableBooks: [],
@@ -228,6 +231,23 @@ describe('ReaderTab openBook', () => {
       { fictionDictionary: 'properNouns-f_Novel' }
     );
     expect(screen.getByText('position:{"line":5,"fraction":0}')).toBeInTheDocument();
+  });
+
+  it('fresh-open: indexes the book for the Candidate finder, and a failed index does not block reading', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    tauriAPI.indexOpenBook.mockRejectedValue(new Error('disk full'));
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      position: null,
+      chapterOutline: null,
+      manualChapterPattern: null,
+      binding: null,
+    });
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+
+    await screen.findByText('reading:novel.txt');
+    expect(tauriAPI.indexOpenBook).toHaveBeenCalledWith('fp-1');
   });
 
   it('reopen: skips the decode round trip and re-reads the record instead', async () => {

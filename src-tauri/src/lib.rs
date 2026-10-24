@@ -1,5 +1,6 @@
 // Dictionary commands module
 mod book_commands;
+mod book_index;
 mod candidate_finder_commands;
 mod chapter_outline_commands;
 mod dictionary_commands;
@@ -74,6 +75,8 @@ pub fn run() {
             chapter_outline_commands::chapter_headers_for_pattern,
             candidate_finder_commands::find_candidates,
             candidate_finder_commands::cancel_candidate_run,
+            candidate_finder_commands::index_open_book,
+            candidate_finder_commands::prune_book_index,
         ]);
 
     // macOS only: Tauri reloads the page when WebKit kills its web-content process. Our handler

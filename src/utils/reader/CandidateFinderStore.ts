@@ -1,6 +1,11 @@
 import { extractErrorMessage } from '../errorHelpers';
 import { logger } from '../logger';
-import type { Candidate, CandidateProgress, CandidateStage } from '../../types/ReaderTypes';
+import type {
+  BackgroundBook,
+  Candidate,
+  CandidateProgress,
+  CandidateStage,
+} from '../../types/ReaderTypes';
 import type { FinderDictionaries } from './CandidateDictionaries';
 
 /**
@@ -17,8 +22,16 @@ import type { FinderDictionaries } from './CandidateDictionaries';
  * resolve after the reader has started another, or after the store is gone.
  */
 
+/** The other indexed books of a run and the library folder to rebuild their sidecars from. */
+export interface FinderBackground {
+  libraryPath: string | null;
+  books: BackgroundBook[];
+}
+
 export interface CandidateFinderInputs {
   fingerprint: string;
+  /** The spread gate's books, read when a run starts like the dictionaries. */
+  getBackground: () => Promise<FinderBackground>;
   /** The dictionaries a run reads, snapshotted at the moment it starts. A refusal (an unread
    * active dictionary) ends the run with its message. */
   getDictionaries: () => Promise<FinderDictionaries>;
@@ -27,7 +40,7 @@ export interface CandidateFinderInputs {
 export type CandidateFinderSnapshot =
   | { status: 'idle' }
   | { status: 'running'; stage: CandidateStage; percent: number }
-  | { status: 'done'; candidates: Candidate[] }
+  | { status: 'done'; candidates: Candidate[]; weakFiltering: boolean }
   | { status: 'error'; message: string };
 
 const IDLE: CandidateFinderSnapshot = { status: 'idle' };
@@ -82,16 +95,20 @@ export class CandidateFinderStore {
         this.set({ status: 'error', message: dictionaries.message });
         return;
       }
+      const background = await this.inputs.getBackground();
+      if (this.currentRunId !== runId) return;
       this.invoked = true;
-      const candidates = await window.electronAPI.findCandidates(
+      const result = await window.electronAPI.findCandidates(
         this.inputs.fingerprint,
         runId,
         dictionaries.phrases,
         dictionaries.activeKeys,
-        dictionaries.inactive
+        dictionaries.inactive,
+        background.libraryPath,
+        background.books
       );
       if (this.currentRunId !== runId) return;
-      this.set(candidates === null ? IDLE : { status: 'done', candidates });
+      this.set(result === null ? IDLE : { status: 'done', ...result });
     } catch (error) {
       if (this.currentRunId !== runId) return;
       logger.error('Candidate finder run failed:', error);

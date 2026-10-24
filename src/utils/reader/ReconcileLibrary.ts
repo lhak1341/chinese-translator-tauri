@@ -7,7 +7,7 @@ import type {
 } from '../../types/ReaderTypes';
 import { logger } from '../logger';
 import { extractErrorMessage } from '../errorHelpers';
-import { loadBookRecords, transformRecords } from './BookRecordsBackend';
+import { getBookRecordsSnapshot, loadBookRecords, transformRecords } from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
@@ -230,11 +230,18 @@ export type ShelfOutcome =
 export interface ScanShelfDeps {
   scanLibrary: (libraryPath: string | null) => Promise<LibraryScan>;
   reconcile: (books: LibraryBook[], libraryPath: string | null) => Promise<ReconcileResult>;
+  /** Deletes the Candidate finder's index sidecars that no book record owns. */
+  pruneBookIndex: () => Promise<unknown>;
 }
 
 const defaultScanShelfDeps: ScanShelfDeps = {
   scanLibrary: (libraryPath) => window.electronAPI.scanLibrary(libraryPath),
   reconcile: (books, libraryPath) => reconcileLibraryScan(books, libraryPath),
+  pruneBookIndex: async () => {
+    // An unpopulated cache reads as no records, which would call every sidecar an orphan.
+    const known = Object.keys(getBookRecordsSnapshot());
+    return known.length === 0 ? 0 : window.electronAPI.pruneBookIndex(known);
+  },
 };
 
 /**
@@ -255,6 +262,13 @@ export async function scanShelf(
   }
   try {
     const { shelfBooks, unavailableBooks } = await deps.reconcile(scan.books, libraryPath);
+    // Only after the records were read and saved: a scan that knows no records must not call
+    // every sidecar an orphan. The sidecars are a cache, so a failure here costs nothing.
+    try {
+      await deps.pruneBookIndex();
+    } catch (cause) {
+      logger.warn('Failed to prune the book index:', cause);
+    }
     return { kind: 'loaded', libraryPath: scan.libraryPath, books: shelfBooks, unavailableBooks };
   } catch (cause) {
     logger.error('Failed to reconcile book records:', cause);

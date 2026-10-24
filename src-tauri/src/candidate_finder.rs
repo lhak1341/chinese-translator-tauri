@@ -3,8 +3,9 @@
 //! state and no filesystem, so every stage is tested on a small constructed text.
 //!
 //! The signal stack and its starting values come from the ADR-111 prototype (wayfinder
-//! ticket #38); the cross-book spread gate and the background table are later tickets and
-//! are not here.
+//! ticket #38). The cross-book spread gate reads **sidecars**: per book, the sorted 32-bit
+//! hashes of its frequent 2-8 character strings (`build_sidecar`), kept on disk by
+//! `book_index.rs`.
 //!
 //! Before counting, the **coverage mask** takes out the spans the book's active
 //! proper-noun dictionaries match, by Phase 2's rule (see `mask_spans`).
@@ -18,7 +19,9 @@
 //! 4. No function word at either edge, and no leading 一.
 //! 5. NPMI of the weakest split >= `MIN_NPMI`.
 //! 6. Not a `phrases` key.
-//! 7. Glued edge: dropped when 1-2 characters plus a surviving string whose count is >=
+//! 7. Spread: dropped when frequent in more than `SPREAD_BOOKS` other indexed books
+//!    (`Background`); skipped below `MIN_BACKGROUND_BOOKS` of them.
+//! 8. Glued edge: dropped when 1-2 characters plus a surviving string whose count is >=
 //!    `GLUED_RATIO` times its own.
 //!
 //! Every Han character the finder reads (U+3400..=U+9FFF) is three bytes in UTF-8, so an
@@ -35,6 +38,10 @@ const DOMINANCE: f64 = 0.7;
 const MIN_ACCESSOR_VARIETY: usize = 3;
 const MIN_NPMI: f64 = 0.3;
 const GLUED_RATIO: u32 = 20;
+/// A string frequent in more than this many other books is common vocabulary.
+const SPREAD_BOOKS: usize = 2;
+/// Fewer other indexed books than this and the spread gate is skipped (the notice shows).
+pub const MIN_BACKGROUND_BOOKS: usize = 4;
 const HAN_BYTES: usize = 3;
 
 /// Hand-written, tuned on one book (ADR-111). Strings starting or ending in one are dropped.
@@ -50,6 +57,8 @@ const CHUNK: usize = 2048;
 #[serde(rename_all = "lowercase")]
 pub enum Stage {
     Reading,
+    #[serde(rename = "background table")]
+    BackgroundTable,
     Counting,
     Scoring,
 }
@@ -120,9 +129,42 @@ pub struct Coverage {
     pub inactive: Vec<InactiveDictionary>,
 }
 
+/// The other indexed books' sidecars: sorted hashes of each book's frequent strings.
+#[derive(Debug, Default)]
+pub struct Background {
+    sidecars: Vec<Vec<u32>>,
+}
+
+impl Background {
+    /// Each sidecar must be sorted (`build_sidecar` and `book_index::decode` guarantee it).
+    pub fn new(sidecars: Vec<Vec<u32>>) -> Self {
+        Self { sidecars }
+    }
+
+    /// Too few books for the spread gate to mean anything.
+    pub fn is_weak(&self) -> bool {
+        self.sidecars.len() < MIN_BACKGROUND_BOOKS
+    }
+
+    fn is_common(&self, g: &str) -> bool {
+        if self.is_weak() {
+            return false;
+        }
+        let hash = string_hash(g);
+        self.sidecars.iter().filter(|s| s.binary_search(&hash).is_ok()).count() > SPREAD_BOOKS
+    }
+}
+
+/// FNV-1a over the UTF-8 bytes: stable across runs and builds, which a sidecar on disk needs.
+pub fn string_hash(s: &str) -> u32 {
+    s.bytes().fold(0x811c_9dc5u32, |hash, b| (hash ^ u32::from(b)).wrapping_mul(0x0100_0193))
+}
+
 /// Percent ranges of the three stages; counting is the long one.
 fn stage_range(stage: Stage) -> (u32, u32) {
     match stage {
+        // Reported by the command that builds the sidecars, which scales it itself.
+        Stage::BackgroundTable => (0, 100),
         Stage::Reading => (0, 5),
         Stage::Counting => (5, 70),
         Stage::Scoring => (70, 100),
@@ -152,12 +194,12 @@ struct Run<'a> {
     text: &'a str,
 }
 
-impl Run<'_> {
+impl<'a> Run<'a> {
     fn len(&self) -> usize {
         self.text.len() / HAN_BYTES
     }
 
-    fn gram(&self, start: usize, n: usize) -> &str {
+    fn gram(&self, start: usize, n: usize) -> &'a str {
         &self.text[HAN_BYTES * start..HAN_BYTES * (start + n)]
     }
 }
@@ -274,12 +316,66 @@ fn unmasked_pieces<'a>(run: &'a str, keys: &KeySet) -> Vec<&'a str> {
     pieces
 }
 
+/// Frequent strings by length: `counts[n]` holds the n-grams (n = 1..=`MAX_LEN` + 1) seen at
+/// least `MIN_COUNT` times. Level n counts only n-grams whose (n-1)-grams are frequent.
+/// `tick(done, total)` reports progress; `None` when cancelled.
+fn count_frequent<'a>(
+    runs: &[Run<'a>],
+    is_cancelled: &dyn Fn() -> bool,
+    tick: &mut dyn FnMut(usize, usize),
+) -> Option<Vec<HashMap<&'a str, u32>>> {
+    let mut counts: Vec<HashMap<&str, u32>> = vec![HashMap::new()];
+    for n in 1..=MAX_LEN + 1 {
+        let mut level: HashMap<&str, u32> = HashMap::new();
+        if n == 1 || !counts[n - 1].is_empty() {
+            for (index, run) in runs.iter().enumerate() {
+                if index % CHUNK == 0 {
+                    if is_cancelled() {
+                        return None;
+                    }
+                    tick((n - 1) * runs.len() + index, (MAX_LEN + 1) * runs.len());
+                }
+                if run.len() < n {
+                    continue;
+                }
+                for i in 0..=run.len() - n {
+                    // Both (n-1)-grams inside it must be frequent, or it cannot be.
+                    if n > 1
+                        && !(counts[n - 1].contains_key(run.gram(i, n - 1))
+                            && counts[n - 1].contains_key(run.gram(i + 1, n - 1)))
+                    {
+                        continue;
+                    }
+                    *level.entry(run.gram(i, n)).or_insert(0) += 1;
+                }
+            }
+            level.retain(|_, count| *count >= MIN_COUNT);
+        }
+        counts.push(level);
+    }
+    Some(counts)
+}
+
+/// A book's sidecar: the sorted, deduplicated hashes of its frequent 2-8 character strings,
+/// unmasked (it describes the book, not one run's dictionaries). `None` when cancelled.
+pub fn build_sidecar(lines: &[&str], is_cancelled: &dyn Fn() -> bool) -> Option<Vec<u32>> {
+    let runs: Vec<Run> = han_runs(lines).into_iter().map(|(line, text)| Run { line, text }).collect();
+    let counts = count_frequent(&runs, is_cancelled, &mut |_, _| {})?;
+    let mut hashes: Vec<u32> = (MIN_LEN..=MAX_LEN)
+        .flat_map(|n| counts[n].keys().map(|g| string_hash(g)))
+        .collect();
+    hashes.sort_unstable();
+    hashes.dedup();
+    Some(hashes)
+}
+
 /// Candidates of `lines`, most frequent first, or `None` when `is_cancelled` says so.
 /// Cancel is checked between stages and every `CHUNK` runs or lines.
 pub fn find_candidates(
     lines: &[&str],
     phrases: &HashSet<String>,
     coverage: &Coverage,
+    background: &Background,
     progress: &mut dyn FnMut(Progress),
     is_cancelled: &dyn Fn() -> bool,
 ) -> Option<Vec<Candidate>> {
@@ -305,40 +401,10 @@ pub fn find_candidates(
     let total_chars: usize = runs.iter().map(Run::len).sum();
     reporter.report(Stage::Reading, 1, 1);
 
-    // ---- counting: level n counts only n-grams whose (n-1)-prefix is frequent ----
-    let mut counts: Vec<HashMap<&str, u32>> = vec![HashMap::new()];
-    for n in 1..=MAX_LEN + 1 {
-        let mut level: HashMap<&str, u32> = HashMap::new();
-        if n == 1 || !counts[n - 1].is_empty() {
-            for (index, run) in runs.iter().enumerate() {
-                if index % CHUNK == 0 {
-                    if is_cancelled() {
-                        return None;
-                    }
-                    reporter.report(
-                        Stage::Counting,
-                        (n - 1) * runs.len() + index,
-                        (MAX_LEN + 1) * runs.len(),
-                    );
-                }
-                if run.len() < n {
-                    continue;
-                }
-                for i in 0..=run.len() - n {
-                    // Both (n-1)-grams inside it must be frequent, or it cannot be.
-                    if n > 1
-                        && !(counts[n - 1].contains_key(run.gram(i, n - 1))
-                            && counts[n - 1].contains_key(run.gram(i + 1, n - 1)))
-                    {
-                        continue;
-                    }
-                    *level.entry(run.gram(i, n)).or_insert(0) += 1;
-                }
-            }
-            level.retain(|_, count| *count >= MIN_COUNT);
-        }
-        counts.push(level);
-    }
+    // ---- counting ----
+    let counts = count_frequent(&runs, is_cancelled, &mut |done, total| {
+        reporter.report(Stage::Counting, done, total)
+    })?;
     reporter.report(Stage::Counting, 1, 1);
     if is_cancelled() {
         return None;
@@ -417,6 +483,7 @@ pub fn find_candidates(
                 || has_function_word_edge(g)
                 || phrases.contains(g)
                 || coverage.active.contains(g)
+                || background.is_common(g)
                 || !(weakest_npmi(g, count) >= MIN_NPMI)
             {
                 continue;
@@ -558,7 +625,7 @@ mod tests {
                 })
                 .collect(),
         };
-        find_candidates(&slices, &HashSet::new(), &coverage, &mut |_| {}, &|| false)
+        find_candidates(&slices, &HashSet::new(), &coverage, &Background::default(), &mut |_| {}, &|| false)
             .expect("not cancelled")
     }
 
@@ -617,7 +684,7 @@ mod tests {
     fn run(lines: &[String], phrases: &[&str]) -> Vec<Candidate> {
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let phrases = phrases.iter().map(|p| p.to_string()).collect();
-        find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &|| false).expect("not cancelled")
+        find_candidates(&slices, &phrases, &Coverage::default(), &Background::default(), &mut |_| {}, &|| false).expect("not cancelled")
     }
 
     fn texts(found: &[Candidate]) -> Vec<&str> {
@@ -747,14 +814,14 @@ mod tests {
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let phrases = HashSet::new();
 
-        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &|| true), None);
+        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &Background::default(), &mut |_| {}, &|| true), None);
 
         let polls = Cell::new(0);
         let cancel_on_fourth = || {
             polls.set(polls.get() + 1);
             polls.get() >= 4
         };
-        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &cancel_on_fourth), None);
+        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &Background::default(), &mut |_| {}, &cancel_on_fourth), None);
     }
 
     #[test]
@@ -762,7 +829,7 @@ mod tests {
         let lines = plain("滕青山", 30);
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let mut events = Vec::new();
-        find_candidates(&slices, &HashSet::new(), &Coverage::default(), &mut |p| events.push(p), &|| false).unwrap();
+        find_candidates(&slices, &HashSet::new(), &Coverage::default(), &Background::default(), &mut |p| events.push(p), &|| false).unwrap();
 
         let stages: Vec<Stage> = events.iter().map(|p| p.stage).collect();
         let mut sorted = stages.clone();
@@ -770,5 +837,84 @@ mod tests {
         assert_eq!(sorted, vec![Stage::Reading, Stage::Counting, Stage::Scoring]);
         assert!(events.windows(2).all(|w| w[0].percent <= w[1].percent));
         assert_eq!(events.last().map(|p| p.percent), Some(100));
+    }
+
+    /// Sidecars as the book index would hold them: each book frequent in the given strings.
+    fn background_of(books: &[&[&str]]) -> Background {
+        Background::new(
+            books
+                .iter()
+                .map(|strings| {
+                    let mut hashes: Vec<u32> = strings.iter().map(|s| string_hash(s)).collect();
+                    hashes.sort_unstable();
+                    hashes
+                })
+                .collect(),
+        )
+    }
+
+    fn run_with_background(lines: &[String], background: &Background) -> Vec<String> {
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        find_candidates(&slices, &HashSet::new(), &Coverage::default(), background, &mut |_| {}, &|| false)
+            .expect("not cancelled")
+            .into_iter()
+            .map(|c| c.text)
+            .collect()
+    }
+
+    #[test]
+    fn the_spread_gate_drops_a_string_frequent_in_three_other_books_and_keeps_one_in_two() {
+        let mut lines = plain("滕青山", 30);
+        lines.extend(plain("云梦泽", 30));
+        let other: &[&str] = &["无关"];
+        let background = background_of(&[
+            &["滕青山", "云梦泽"],
+            &["滕青山", "云梦泽"],
+            &["滕青山"],
+            other,
+        ]);
+        let found = run_with_background(&lines, &background);
+        assert!(!found.contains(&"滕青山".to_string()), "frequent in 3 other books");
+        assert!(found.contains(&"云梦泽".to_string()), "frequent in 2 other books");
+    }
+
+    #[test]
+    fn with_fewer_than_four_other_books_the_spread_gate_is_skipped() {
+        let lines = plain("滕青山", 30);
+        let three = background_of(&[&["滕青山"], &["滕青山"], &["滕青山"]]);
+        assert!(three.is_weak());
+        assert!(run_with_background(&lines, &three).contains(&"滕青山".to_string()));
+        let four = background_of(&[&["滕青山"], &["滕青山"], &["滕青山"], &["滕青山"]]);
+        assert!(!four.is_weak());
+        assert!(!run_with_background(&lines, &four).contains(&"滕青山".to_string()));
+    }
+
+    #[test]
+    fn the_phrases_filter_still_runs_when_the_spread_gate_is_skipped() {
+        let lines = plain("滕青山", 30);
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let phrases: HashSet<String> = ["滕青山".to_string()].into();
+        let found = find_candidates(&slices, &phrases, &Coverage::default(), &Background::default(), &mut |_| {}, &|| false)
+            .unwrap();
+        assert!(found.iter().all(|c| c.text != "滕青山"));
+    }
+
+    #[test]
+    fn a_sidecar_is_the_sorted_hashes_of_the_books_frequent_strings_and_is_deterministic() {
+        let mut lines = plain("滕青山", 30);
+        lines.extend(plain("赤焰山", 2));
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let sidecar = build_sidecar(&slices, &|| false).expect("not cancelled");
+        assert_eq!(build_sidecar(&slices, &|| false), Some(sidecar.clone()));
+        assert!(sidecar.windows(2).all(|w| w[0] < w[1]), "sorted, no duplicates");
+        assert!(sidecar.binary_search(&string_hash("滕青山")).is_ok());
+        assert!(sidecar.binary_search(&string_hash("赤焰山")).is_err(), "seen twice only");
+    }
+
+    #[test]
+    fn a_cancelled_sidecar_build_returns_nothing() {
+        let lines = plain("滕青山", 30);
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        assert_eq!(build_sidecar(&slices, &|| true), None);
     }
 }
