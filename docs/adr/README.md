@@ -174,6 +174,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-108](./ADR-108-delete-the-rust-lookup-index.md)                                | Delete the Rust lookup index                                 | Decided                           | 0 of 35,760 real chunks reached it; the trie answers every lookup.                                                                                   |
 | [ADR-109](./ADR-109-a-match-is-placed-as-one-claim-and-one-unit.md)                 | A match is placed as one claim and one unit                  | Decided                           | Claim and unit shared one source in two calls; Phase 5 units said phrases.                                                                           |
 | [ADR-110](./ADR-110-delete-and-move-take-a-list.md)                                 | Delete and move take a list                                  | Decided                           | Single/bulk twins differed only in not-found handling; "Moved 0" toasted.                                                                            |
+| [ADR-111](./ADR-111-candidate-finder-design.md)                                     | Candidate finder design                                      | Decided                           | Repeat-string signal, Rust run, TS applies rules, no auto-write, no cache.                                                                           |
 
 ## ADR Format
 
@@ -238,5 +239,5 @@ Write an ADR when making decisions about:
 - **2026-10-12**: ADR-105
 - **2026-10-20**: ADR-106; ADR-107
 - **2026-10-21**: ADR-108
-- **2026-10-24**: ADR-109; ADR-110
+- **2026-10-24**: ADR-109; ADR-110; ADR-111
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

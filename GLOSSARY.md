@@ -920,3 +920,24 @@ Entry point: `src/components/dictionary/CommitFeedback.ts`. Used by `useDictiona
 What a dictionary is called on each screen, from `src/utils/dictionary/DictionaryLabels.ts`. Four names, on purpose, because what stands next to the name differs: `getDictionaryLabel` (short, for a provenance column: `f_X`), `getDictionaryDropdownLabel` (the move dialogs: `Proper Nouns - f_X`, root `Proper Nouns (Base)`, `Patterns - f_X`), `dictionarySelectorLabel` (the Dictionary tab's selector: root `Proper Nouns`, `Patterns - f_X`) and `configurationDictionaryName` (the Configuration screen: root `General Purpose Dictionary`, otherwise the bare name). All four build on `bareNameOf(id)` in `DictionaryIdClassifier.ts`, the inverse of `toProperNounsDictionaryId`: a name after the kind prefix, or the id itself for a root.
 
 Seven hand-written `.replace('properNouns-', '')` copies on four screens used to decide this, and disagreed: the selector said "Pattern - X" where the move dialogs said "Patterns - X". `SourceConventionScan.test.js` now fails on any `.replace('properNouns-'` or `.replace('patterns-'` outside the classifier. The rename field's seed and the tier menu's text use `bareNameOf` directly, since they show the name as text, not as a label. `getDictionaryLabel`'s old doc example claimed `'Harry Potter'`; it returns `HarryPotter`.
+
+## Candidate finder
+
+A Reader panel for the open book (design settled in wayfinder map "Candidate finder for new proper nouns", build not started). It lists strings that are probably proper nouns but are not yet in the book's active proper-noun dictionaries, ranked, with context lines and a quick add. It never writes a dictionary on its own: every add is a user action per row (or a batch the user triggers).
+
+**Candidate**:
+A string of 2-8 characters in the open book that the finder judges likely to be a proper noun and that no active proper-noun dictionary holds. Phrases and characters do not count as holding it.
+_Avoid_: suggestion, new word, unknown word
+
+**Coverage mask**:
+The spans of the book already matched by the book's active proper-noun dictionaries, taken out before counting so fragments of existing entries and strings glued to them are not candidates. It follows the Phase 2 matching rule (leftmost, longer wins, a strictly longer match starting inside the span defers the earlier one); Phase 1 pattern claims are ignored.
+
+**Also-in tag**:
+The mark on a candidate that an inactive proper-noun dictionary already holds. The candidate stays listed.
+
+**Dismissed candidate**:
+A candidate the reader has rejected for this book. It is a reader's answer kept in the book's record, so no scan, open or re-run ever writes or clears it.
+_Avoid_: ignored, blacklisted
+
+**Rule boost**:
+The ranking weight a candidate gets when an enabled Transform Rule matches it. The same rule match pre-selects its `semanticType` in the row; with no rule match the row arrives with the proper-noun default type.
