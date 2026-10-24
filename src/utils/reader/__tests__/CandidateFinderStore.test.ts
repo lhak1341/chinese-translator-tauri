@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { CandidateFinderStore } from '../CandidateFinderStore';
+import type { FinderDictionaries } from '../CandidateDictionaries';
 import type { Candidate, CandidateProgress } from '../../../types/ReaderTypes';
 
 const findCandidates = vi.fn();
@@ -15,7 +16,7 @@ global.window.electronAPI = {
     onCandidateProgress(handler),
 } as unknown as typeof window.electronAPI;
 
-const NAMES: Candidate[] = [{ text: '滕青山', count: 32, lineCount: 31 }];
+const NAMES: Candidate[] = [{ text: '滕青山', count: 32, lineCount: 31, alsoIn: [] }];
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -27,8 +28,15 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+const DICTIONARIES: FinderDictionaries = {
+  ok: true,
+  phrases: ['phrase'],
+  activeKeys: ['active'],
+  inactive: [{ id: 'properNouns-f_Other', keys: ['other'] }],
+};
+
 function makeStore() {
-  return new CandidateFinderStore({ fingerprint: 'fp', getPhrases: () => ['phrase'] });
+  return new CandidateFinderStore({ fingerprint: 'fp', getDictionaries: async () => DICTIONARIES });
 }
 
 beforeEach(() => {
@@ -45,12 +53,18 @@ describe('CandidateFinderStore', () => {
     expect(makeStore().getSnapshot()).toEqual({ status: 'idle' });
   });
 
-  it('runs on the open book with the phrases keys and keeps the ranked list', async () => {
+  it('runs on the open book with the dictionary snapshot and keeps the ranked list', async () => {
     findCandidates.mockResolvedValue(NAMES);
     const store = makeStore();
     await store.run();
 
-    expect(findCandidates).toHaveBeenCalledWith('fp', expect.any(String), ['phrase']);
+    expect(findCandidates).toHaveBeenCalledWith(
+      'fp',
+      expect.any(String),
+      ['phrase'],
+      ['active'],
+      [{ id: 'properNouns-f_Other', keys: ['other'] }]
+    );
     expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
     expect(unlisten).toHaveBeenCalled();
   });
@@ -131,6 +145,27 @@ describe('CandidateFinderStore', () => {
     store.open();
     await store.run();
     expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
+  });
+
+  it('a refused snapshot ends the run with its message and starts nothing', async () => {
+    const store = new CandidateFinderStore({
+      fingerprint: 'fp',
+      getDictionaries: async () => ({ ok: false, message: "Can't run: Novel couldn't be read." }),
+    });
+    await store.run();
+
+    expect(store.getSnapshot()).toEqual({
+      status: 'error',
+      message: "Can't run: Novel couldn't be read.",
+    });
+    expect(findCandidates).not.toHaveBeenCalled();
+    expect(cancelCandidateRun).not.toHaveBeenCalled();
+
+    // The refusal does not wedge the store: a later run goes through.
+    findCandidates.mockResolvedValue(NAMES);
+    const recovering = makeStore();
+    await recovering.run();
+    expect(recovering.getSnapshot()).toEqual({ status: 'done', candidates: NAMES });
   });
 
   it('a null result (cancelled in Rust) is idle, not an empty list', async () => {

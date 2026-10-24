@@ -3,8 +3,11 @@
 //! state and no filesystem, so every stage is tested on a small constructed text.
 //!
 //! The signal stack and its starting values come from the ADR-111 prototype (wayfinder
-//! ticket #38); the coverage mask, the cross-book spread gate and the background table
-//! are later tickets and are not here.
+//! ticket #38); the cross-book spread gate and the background table are later tickets and
+//! are not here.
+//!
+//! Before counting, the **coverage mask** takes out the spans the book's active
+//! proper-noun dictionaries match, by Phase 2's rule (see `mask_spans`).
 //!
 //! 1. Frequent strings (count >= `MIN_COUNT`), grown Apriori-style over runs of Han
 //!    characters; any other character is a boundary.
@@ -23,7 +26,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const MIN_COUNT: u32 = 3;
 const MIN_LEN: usize = 2;
@@ -66,6 +69,55 @@ pub struct Candidate {
     pub count: u32,
     /// Lines the string occurs in.
     pub line_count: u32,
+    /// Ids of the inactive proper-noun dictionaries that hold this string (the Also-in tag).
+    pub also_in: Vec<String>,
+}
+
+/// Dictionary keys with the prefixes of every key, so a longest-match scan stops at the first
+/// prefix no key starts with.
+#[derive(Debug, Default)]
+pub struct KeySet {
+    keys: HashSet<String>,
+    prefixes: HashSet<String>,
+    max_len: usize,
+}
+
+impl KeySet {
+    pub fn new(keys: impl IntoIterator<Item = String>) -> Self {
+        let mut set = KeySet::default();
+        for key in keys {
+            let chars: Vec<usize> = key.char_indices().map(|(at, _)| at).collect();
+            set.max_len = set.max_len.max(chars.len());
+            for &end in chars.iter().skip(1) {
+                set.prefixes.insert(key[..end].to_string());
+            }
+            set.keys.insert(key);
+        }
+        set
+    }
+
+    fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
+    fn contains(&self, key: &str) -> bool {
+        self.keys.contains(key)
+    }
+}
+
+/// An inactive proper-noun dictionary: only tags a candidate, never masks.
+#[derive(Debug, Clone, Deserialize)]
+pub struct InactiveDictionary {
+    pub id: String,
+    pub keys: HashSet<String>,
+}
+
+/// The proper-noun dictionaries of the run, snapshotted when it started.
+#[derive(Debug, Default)]
+pub struct Coverage {
+    /// Keys of the book's active proper-noun dictionaries: the mask.
+    pub active: KeySet,
+    pub inactive: Vec<InactiveDictionary>,
 }
 
 /// Percent ranges of the three stages; counting is the long one.
@@ -169,11 +221,65 @@ fn has_function_word_edge(g: &str) -> bool {
         || START_ONLY_FUNCTION_WORDS.contains(first)
 }
 
+/// Characters in the longest key that starts at char `at` of `run` (Han only), 0 for none.
+fn longest_key_at(run: &str, at: usize, keys: &KeySet) -> usize {
+    let len = run.len() / HAN_BYTES;
+    let mut longest = 0;
+    for n in 1..=keys.max_len.min(len - at) {
+        let gram = &run[HAN_BYTES * at..HAN_BYTES * (at + n)];
+        if keys.contains(gram) {
+            longest = n;
+        }
+        if !keys.prefixes.contains(gram) {
+            break;
+        }
+    }
+    longest
+}
+
+/// The `(start, length)` char spans of the Han run `run` that `keys` cover, by Phase 2's rule
+/// (`TranslationEngine.applyProperNouns`): left to right, the longest key at a position wins,
+/// unless a position inside its span starts a strictly longer key, which defers it; the
+/// deferred position then moves on one char. Shared fixture:
+/// `src/test/fixtures/coverage-mask-parity.json`.
+fn mask_spans(run: &str, keys: &KeySet) -> Vec<(usize, usize)> {
+    let len = run.len() / HAN_BYTES;
+    let mut spans = Vec::new();
+    let mut i = 0;
+    while i < len {
+        let n = longest_key_at(run, i, keys);
+        if n == 0 || (i + 1..i + n).any(|j| longest_key_at(run, j, keys) > n) {
+            i += 1;
+            continue;
+        }
+        spans.push((i, n));
+        i += n;
+    }
+    spans
+}
+
+/// `run` without the spans `keys` cover: the pieces between them.
+fn unmasked_pieces<'a>(run: &'a str, keys: &KeySet) -> Vec<&'a str> {
+    let mut pieces = Vec::new();
+    let mut from = 0;
+    for (start, length) in mask_spans(run, keys) {
+        if start > from {
+            pieces.push(&run[HAN_BYTES * from..HAN_BYTES * start]);
+        }
+        from = start + length;
+    }
+    if HAN_BYTES * from < run.len() {
+        pieces.push(&run[HAN_BYTES * from..]);
+    }
+    pieces
+}
+
 /// Candidates of `lines`, most frequent first, or `None` when `is_cancelled` says so.
 /// Cancel is checked between stages and every `CHUNK` runs or lines.
 pub fn find_candidates(
     lines: &[&str],
     phrases: &HashSet<String>,
+    coverage: &Coverage,
     progress: &mut dyn FnMut(Progress),
     is_cancelled: &dyn Fn() -> bool,
 ) -> Option<Vec<Candidate>> {
@@ -185,7 +291,17 @@ pub fn find_candidates(
     if is_cancelled() {
         return None;
     }
-    let runs: Vec<Run> = raw.into_iter().map(|(line, text)| Run { line, text }).collect();
+    let mut runs: Vec<Run> = Vec::with_capacity(raw.len());
+    for (index, (line, text)) in raw.into_iter().enumerate() {
+        if index % CHUNK == 0 && is_cancelled() {
+            return None;
+        }
+        if coverage.active.is_empty() {
+            runs.push(Run { line, text });
+        } else {
+            runs.extend(unmasked_pieces(text, &coverage.active).into_iter().map(|text| Run { line, text }));
+        }
+    }
     let total_chars: usize = runs.iter().map(Run::len).sum();
     reporter.report(Stage::Reading, 1, 1);
 
@@ -300,6 +416,7 @@ pub fn find_candidates(
                 || variety < MIN_ACCESSOR_VARIETY
                 || has_function_word_edge(g)
                 || phrases.contains(g)
+                || coverage.active.contains(g)
                 || !(weakest_npmi(g, count) >= MIN_NPMI)
             {
                 continue;
@@ -356,6 +473,12 @@ pub fn find_candidates(
             text: g.to_string(),
             count,
             line_count: lines_seen.get(g).map_or(0, |&(line_count, _)| line_count),
+            also_in: coverage
+                .inactive
+                .iter()
+                .filter(|dictionary| dictionary.keys.contains(g))
+                .map(|dictionary| dictionary.id.clone())
+                .collect(),
         })
         .collect();
     found.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.text.cmp(&b.text)));
@@ -366,6 +489,119 @@ pub fn find_candidates(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    fn keyset(keys: &[&str]) -> KeySet {
+        KeySet::new(keys.iter().map(|k| k.to_string()))
+    }
+
+    /// Mask spans of one line in chars of the whole line, as the shared fixture states them.
+    fn line_mask_spans(line: &str, keys: &KeySet) -> Vec<(usize, usize)> {
+        let mut spans = Vec::new();
+        for (_, run) in han_runs(&[line]) {
+            let offset = line[..run.as_ptr() as usize - line.as_ptr() as usize].chars().count();
+            spans.extend(mask_spans(run, keys).into_iter().map(|(s, n)| (offset + s, n)));
+        }
+        spans
+    }
+
+    #[derive(Deserialize)]
+    struct MaskSpan {
+        start: usize,
+        length: usize,
+    }
+
+    #[derive(Deserialize)]
+    struct MaskCase {
+        name: String,
+        text: String,
+        keys: Vec<String>,
+        masked: Vec<MaskSpan>,
+    }
+
+    #[derive(Deserialize)]
+    struct MaskFixture {
+        cases: Vec<MaskCase>,
+    }
+
+    #[test]
+    fn mask_spans_match_the_shared_fixture() {
+        let raw = include_str!("../../src/test/fixtures/coverage-mask-parity.json");
+        let fixture: MaskFixture = serde_json::from_str(raw)
+            .expect("coverage-mask-parity.json must be valid JSON matching the fixture shape");
+        assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+        let mut diverged = Vec::new();
+        for case in &fixture.cases {
+            let keys = KeySet::new(case.keys.iter().cloned());
+            let expected: Vec<(usize, usize)> =
+                case.masked.iter().map(|s| (s.start, s.length)).collect();
+            let spans = line_mask_spans(&case.text, &keys);
+            if spans != expected {
+                diverged.push(format!(
+                    "\"{}\" ({}): fixture {:?}, matcher {:?}",
+                    case.name, case.text, expected, spans
+                ));
+            }
+        }
+        assert!(diverged.is_empty(), "mask diverges from the fixture:\n{}", diverged.join("\n"));
+    }
+
+    fn with_coverage(lines: &[String], active: &[&str], inactive: &[(&str, &[&str])]) -> Vec<Candidate> {
+        let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let coverage = Coverage {
+            active: keyset(active),
+            inactive: inactive
+                .iter()
+                .map(|(id, keys)| InactiveDictionary {
+                    id: id.to_string(),
+                    keys: keys.iter().map(|k| k.to_string()).collect(),
+                })
+                .collect(),
+        };
+        find_candidates(&slices, &HashSet::new(), &coverage, &mut |_| {}, &|| false)
+            .expect("not cancelled")
+    }
+
+    #[test]
+    fn a_name_held_by_an_active_dictionary_is_not_listed() {
+        let mut lines = plain("滕青山", 30);
+        lines.extend(plain("云梦泽", 30));
+        let found = texts(&with_coverage(&lines, &["滕青山"], &[])).into_iter().map(String::from).collect::<Vec<_>>();
+        assert!(!found.contains(&"滕青山".to_string()));
+        assert!(found.contains(&"云梦泽".to_string()));
+    }
+
+    #[test]
+    fn fragments_of_an_active_entry_and_strings_glued_to_it_are_not_listed() {
+        // 东哥笑 is a candidate on its own (东哥 is dominated by it); masking 东哥 removes both.
+        let lines: Vec<String> = (0..30)
+            .map(|i| format!("{}{}{}", ctx(i), "东哥笑", ctx(i + 1)))
+            .collect();
+        assert!(texts(&with_coverage(&lines, &[], &[])).contains(&"东哥笑"));
+        let covered = with_coverage(&lines, &["东哥"], &[]);
+        assert!(texts(&covered).iter().all(|t| !t.contains('东') && !t.contains('哥')));
+    }
+
+    #[test]
+    fn a_name_in_an_inactive_dictionary_stays_listed_with_its_ids() {
+        let lines = plain("滕青山", 30);
+        let found = with_coverage(
+            &lines,
+            &[],
+            &[("properNouns-f_A", &["滕青山"]), ("properNouns-f_B", &["云梦泽"]), ("properNouns", &["滕青山"])],
+        );
+        let name = found.iter().find(|c| c.text == "滕青山").expect("listed");
+        assert_eq!(name.also_in, vec!["properNouns-f_A".to_string(), "properNouns".to_string()]);
+    }
+
+    #[test]
+    fn an_inactive_dictionary_never_masks() {
+        let lines: Vec<String> = (0..30)
+            .map(|i| format!("{}{}{}", ctx(i), "东哥笑", ctx(i + 1)))
+            .collect();
+        let found = with_coverage(&lines, &[], &[("properNouns-f_A", &["东哥"])]);
+        assert!(texts(&found).contains(&"东哥笑"));
+    }
 
     const CONTEXT: [&str; 6] = ["甲", "乙", "丙", "丁", "戊", "己"];
 
@@ -381,7 +617,7 @@ mod tests {
     fn run(lines: &[String], phrases: &[&str]) -> Vec<Candidate> {
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let phrases = phrases.iter().map(|p| p.to_string()).collect();
-        find_candidates(&slices, &phrases, &mut |_| {}, &|| false).expect("not cancelled")
+        find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &|| false).expect("not cancelled")
     }
 
     fn texts(found: &[Candidate]) -> Vec<&str> {
@@ -399,8 +635,8 @@ mod tests {
         assert_eq!(
             top,
             vec![
-                &Candidate { text: "滕青山".into(), count: 32, line_count: 31 },
-                &Candidate { text: "云梦泽".into(), count: 12, line_count: 12 },
+                &Candidate { text: "滕青山".into(), count: 32, line_count: 31, also_in: vec![] },
+                &Candidate { text: "云梦泽".into(), count: 12, line_count: 12, also_in: vec![] },
             ]
         );
     }
@@ -511,14 +747,14 @@ mod tests {
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let phrases = HashSet::new();
 
-        assert_eq!(find_candidates(&slices, &phrases, &mut |_| {}, &|| true), None);
+        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &|| true), None);
 
         let polls = Cell::new(0);
         let cancel_on_fourth = || {
             polls.set(polls.get() + 1);
             polls.get() >= 4
         };
-        assert_eq!(find_candidates(&slices, &phrases, &mut |_| {}, &cancel_on_fourth), None);
+        assert_eq!(find_candidates(&slices, &phrases, &Coverage::default(), &mut |_| {}, &cancel_on_fourth), None);
     }
 
     #[test]
@@ -526,7 +762,7 @@ mod tests {
         let lines = plain("滕青山", 30);
         let slices: Vec<&str> = lines.iter().map(String::as_str).collect();
         let mut events = Vec::new();
-        find_candidates(&slices, &HashSet::new(), &mut |p| events.push(p), &|| false).unwrap();
+        find_candidates(&slices, &HashSet::new(), &Coverage::default(), &mut |p| events.push(p), &|| false).unwrap();
 
         let stages: Vec<Stage> = events.iter().map(|p| p.stage).collect();
         let mut sorted = stages.clone();

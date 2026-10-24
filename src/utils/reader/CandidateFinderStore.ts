@@ -1,6 +1,7 @@
 import { extractErrorMessage } from '../errorHelpers';
 import { logger } from '../logger';
 import type { Candidate, CandidateProgress, CandidateStage } from '../../types/ReaderTypes';
+import type { FinderDictionaries } from './CandidateDictionaries';
 
 /**
  * One open book's Candidate finder run: starts it, relays its progress, cancels it, and
@@ -18,8 +19,9 @@ import type { Candidate, CandidateProgress, CandidateStage } from '../../types/R
 
 export interface CandidateFinderInputs {
   fingerprint: string;
-  /** Keys of the `phrases` dictionary, read at the moment a run starts. */
-  getPhrases: () => string[];
+  /** The dictionaries a run reads, snapshotted at the moment it starts. A refusal (an unread
+   * active dictionary) ends the run with its message. */
+  getDictionaries: () => Promise<FinderDictionaries>;
 }
 
 export type CandidateFinderSnapshot =
@@ -74,11 +76,19 @@ export class CandidateFinderStore {
     }
 
     try {
+      const dictionaries = await this.inputs.getDictionaries();
+      if (this.currentRunId !== runId) return;
+      if (!dictionaries.ok) {
+        this.set({ status: 'error', message: dictionaries.message });
+        return;
+      }
       this.invoked = true;
       const candidates = await window.electronAPI.findCandidates(
         this.inputs.fingerprint,
         runId,
-        this.inputs.getPhrases()
+        dictionaries.phrases,
+        dictionaries.activeKeys,
+        dictionaries.inactive
       );
       if (this.currentRunId !== runId) return;
       this.set(candidates === null ? IDLE : { status: 'done', candidates });

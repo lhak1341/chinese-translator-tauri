@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, X } from 'lucide-react';
 import type { CandidateStage } from '../../types/ReaderTypes';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
+import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/Reader.module.css';
 
 interface CandidateFinderPanelProps {
@@ -93,7 +94,14 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
         <ul className={styles.outlineList}>
           {snapshot.candidates.map((candidate) => (
             <li key={candidate.text} className={styles.candidateRow}>
-              <span className={styles.candidateText}>{candidate.text}</span>
+              <span className={styles.candidateText}>
+                {candidate.text}
+                {candidate.alsoIn.length > 0 && (
+                  <small className={styles.candidateTag}>
+                    in {candidate.alsoIn.map(getDictionaryLabel).join(', ')}, not active here
+                  </small>
+                )}
+              </span>
               <span>{candidate.count}</span>
               <span>{candidate.lineCount}</span>
             </li>

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
+import { useBookBinding } from '../components/BookBindingContext';
+import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
 import {
   CandidateFinderStore,
   type CandidateFinderSnapshot,
@@ -17,19 +19,32 @@ export interface CandidateFinder {
  *
  * One book per instance (`BookReader` is keyed by fingerprint, ADR-050): unmounting — a
  * book switch, Back, or the encoding prompt — cancels the run and drops the list. The
- * `phrases` keys are read from the Dictionary Store's memory when a run starts, never
- * before, so opening the panel costs nothing.
+ * dictionaries are read from the Dictionary Store's memory when a run starts, never before,
+ * so opening the panel costs nothing; the active proper-noun list is the open book's
+ * (`loadQuickAddView`, the same view the Add form uses).
  */
 export function useCandidateFinder(fingerprint: string): CandidateFinder {
-  const { dictionaries } = useDictionary();
-  const dictionariesRef = useRef(dictionaries);
-  dictionariesRef.current = dictionaries;
+  const { dictionaries, unreadDictionaryIds } = useDictionary();
+  const { loadQuickAddView } = useBookBinding();
+  const dictionariesRef = useRef({ dictionaries, unreadDictionaryIds });
+  dictionariesRef.current = { dictionaries, unreadDictionaryIds };
 
   const [store] = useState(
     () =>
       new CandidateFinderStore({
         fingerprint,
-        getPhrases: () => Object.keys(dictionariesRef.current.phrases ?? {}),
+        getDictionaries: async () => {
+          const view = await loadQuickAddView();
+          if (!view) {
+            return { ok: false, message: "Can't run: the configuration couldn't be read." };
+          }
+          const { dictionaries, unreadDictionaryIds } = dictionariesRef.current;
+          return snapshotFinderDictionaries(
+            dictionaries,
+            unreadDictionaryIds,
+            view.activeProperNouns
+          );
+        },
       })
   );
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);

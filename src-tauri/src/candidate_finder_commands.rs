@@ -14,7 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::book_commands::{self, BookCache};
 use crate::book_loader::BookContent;
-use crate::candidate_finder::{self, Candidate, Progress};
+use crate::candidate_finder::{self, Candidate, Coverage, InactiveDictionary, KeySet, Progress};
 
 const PROGRESS_EVENT: &str = "candidate-finder-progress";
 
@@ -65,15 +65,18 @@ fn analyse(
     book: &BookContent,
     flag: &AtomicBool,
     phrases: &HashSet<String>,
+    coverage: &Coverage,
     progress: &mut dyn FnMut(Progress),
 ) -> Option<Vec<Candidate>> {
-    candidate_finder::find_candidates(&book.line_slices(), phrases, progress, &|| {
+    candidate_finder::find_candidates(&book.line_slices(), phrases, coverage, progress, &|| {
         flag.load(Ordering::Relaxed)
     })
 }
 
-/// Run the finder over the open book. `phrases` are the keys of the `phrases` dictionary
-/// (the finder never calls the JS trie). Resolves to `null` when the run was cancelled.
+/// Run the finder over the open book. `phrases` are the keys of the `phrases` dictionary;
+/// `active_keys` are the keys of the book's active proper-noun dictionaries (the coverage
+/// mask) and `inactive` the other proper-noun dictionaries, used only for the Also-in tag.
+/// The finder never calls the JS trie. Resolves to `null` when the run was cancelled.
 #[tauri::command]
 pub async fn find_candidates(
     app: AppHandle,
@@ -82,14 +85,17 @@ pub async fn find_candidates(
     fingerprint: String,
     run_id: String,
     phrases: Vec<String>,
+    active_keys: Vec<String>,
+    inactive: Vec<InactiveDictionary>,
 ) -> Result<Option<Vec<Candidate>>, String> {
     let book = book_commands::open_book_handle(&cache, &fingerprint)?;
     let flag = runs.flag_for(&run_id);
     let phrases: HashSet<String> = phrases.into_iter().collect();
+    let coverage = Coverage { active: KeySet::new(active_keys), inactive };
 
     let event_run_id = run_id.clone();
     let joined = tauri::async_runtime::spawn_blocking(move || {
-        analyse(&book, &flag, &phrases, &mut |progress| {
+        analyse(&book, &flag, &phrases, &coverage, &mut |progress| {
             // A lost event only skips a progress tick.
             let _ = app.emit(
                 PROGRESS_EVENT,
@@ -128,7 +134,7 @@ mod tests {
     fn analyse_open_book(flag: &AtomicBool, events: &mut Vec<Progress>) -> Option<Vec<Candidate>> {
         let (cache, fingerprint) = cache_with_open_book(&book_with_a_name());
         let book = book_commands::open_book_handle(&cache, &fingerprint).expect("book is open");
-        analyse(&book, flag, &HashSet::new(), &mut |p| events.push(p))
+        analyse(&book, flag, &HashSet::new(), &Coverage::default(), &mut |p| events.push(p))
     }
 
     #[test]

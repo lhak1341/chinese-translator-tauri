@@ -34,12 +34,25 @@ describe('CandidateFinderPanel', () => {
     renderPanel({
       status: 'done',
       candidates: [
-        { text: '滕青山', count: 32, lineCount: 31 },
-        { text: '云梦泽', count: 12, lineCount: 12 },
+        { text: '滕青山', count: 32, lineCount: 31, alsoIn: [] },
+        { text: '云梦泽', count: 12, lineCount: 12, alsoIn: [] },
       ],
     });
     const rows = screen.getAllByRole('listitem').map((row) => row.textContent);
     expect(rows).toEqual(['滕青山3231', '云梦泽1212']);
+  });
+
+  test('a candidate held by an inactive dictionary carries an "in X, not active here" tag', () => {
+    renderPanel({
+      status: 'done',
+      candidates: [
+        { text: '滕青山', count: 32, lineCount: 31, alsoIn: ['properNouns-f_Novel'] },
+        { text: '云梦泽', count: 12, lineCount: 12, alsoIn: [] },
+      ],
+    });
+    expect(screen.getAllByText(/not active here/).map((tag) => tag.textContent)).toEqual([
+      'in f_Novel, not active here',
+    ]);
   });
 
   test('empty result: says no new names were found, and offers Run again', () => {

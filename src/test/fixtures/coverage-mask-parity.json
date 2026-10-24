@@ -1,0 +1,67 @@
+{
+  "_comment": "Shared contract for the Candidate finder's coverage mask (GLOSSARY.md). Each case is read by src/utils/__tests__/CoverageMask.parity.test.js (TranslationEngine.applyProperNouns, Phase 2, over DictionaryManager.findMatchesAtToken: the product) and by src-tauri/src/candidate_finder.rs (mod tests, mask_spans through line_mask_spans). `keys` are the active proper-noun dictionary keys; `masked` lists the spans Phase 2 claims in `text`, as `start` and `length` in characters (code points), left to right. Phase 1 pattern claims are not modeled on either side. Rule: left to right, the longest key at a position wins, unless a position inside its span starts a strictly longer key, which defers it.",
+  "cases": [
+    {
+      "name": "a key in running text",
+      "text": "他见到东哥说",
+      "keys": ["东哥"],
+      "masked": [{ "start": 3, "length": 2 }]
+    },
+    { "name": "nothing matches", "text": "他见到东子说", "keys": ["东哥"], "masked": [] },
+    { "name": "no keys", "text": "他见到东哥说", "keys": [], "masked": [] },
+    {
+      "name": "the longer key at the same start wins",
+      "text": "张三丰来了",
+      "keys": ["张三", "张三丰"],
+      "masked": [{ "start": 0, "length": 3 }]
+    },
+    {
+      "name": "a strictly longer match starting inside the span defers the earlier one",
+      "text": "日元始圣人",
+      "keys": ["日元", "元始圣人"],
+      "masked": [{ "start": 1, "length": 4 }]
+    },
+    {
+      "name": "a same-length match starting later loses to the earlier one",
+      "text": "甲乙丙",
+      "keys": ["甲乙", "乙丙"],
+      "masked": [{ "start": 0, "length": 2 }]
+    },
+    {
+      "name": "a deferral chain ends at the last longer match",
+      "text": "子丑寅卯辰巳",
+      "keys": ["子丑", "丑寅卯", "寅卯辰巳"],
+      "masked": [{ "start": 2, "length": 4 }]
+    },
+    {
+      "name": "a longer match starting after the span does not defer",
+      "text": "甲乙丙丁戊",
+      "keys": ["甲乙", "丙丁戊"],
+      "masked": [
+        { "start": 0, "length": 2 },
+        { "start": 2, "length": 3 }
+      ]
+    },
+    {
+      "name": "a single-character key matches",
+      "text": "龙在天",
+      "keys": ["龙"],
+      "masked": [{ "start": 0, "length": 1 }]
+    },
+    {
+      "name": "a match never spans punctuation",
+      "text": "张。三张三。张三",
+      "keys": ["张三"],
+      "masked": [
+        { "start": 3, "length": 2 },
+        { "start": 6, "length": 2 }
+      ]
+    },
+    {
+      "name": "the longer match at the end of the run defers the earlier one",
+      "text": "甲乙丙丁",
+      "keys": ["甲乙", "乙丙丁"],
+      "masked": [{ "start": 1, "length": 3 }]
+    }
+  ]
+}

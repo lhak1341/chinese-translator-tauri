@@ -655,6 +655,12 @@
   white-space: nowrap;
 }
 
+.candidateTag {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
 /*
   Three panels: the two reference panels stacked on the left, the translation on the right.
   The gap is the container's own background showing through, so there is a hairline between

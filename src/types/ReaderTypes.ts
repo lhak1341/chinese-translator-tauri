@@ -199,12 +199,21 @@ export type BookRecords = Record<string, BookRecord>;
 /** The stages a run reports, in order. */
 export type CandidateStage = 'reading' | 'counting' | 'scoring';
 
-/** A string the book repeats like a proper noun and no `phrases` entry holds. */
+/** A string the book repeats like a proper noun and no active proper-noun dictionary or
+ * `phrases` entry holds. */
 export interface Candidate {
   text: string;
   count: number;
   /** Lines the string occurs in. */
   lineCount: number;
+  /** Ids of the inactive proper-noun dictionaries that hold it (the Also-in tag). */
+  alsoIn: string[];
+}
+
+/** A proper-noun dictionary the book does not use: it tags a candidate, never masks. */
+export interface InactiveProperNounDictionary {
+  id: string;
+  keys: string[];
 }
 
 /** One progress event of a run; `percent` is 0-100 over the whole run. */

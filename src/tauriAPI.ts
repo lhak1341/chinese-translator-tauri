@@ -29,6 +29,7 @@ import type {
   BookRecords,
   Candidate,
   CandidateProgress,
+  InactiveProperNounDictionary,
   ChapterHeader,
   ChapterOutline,
   ChapterPatternId,
@@ -205,17 +206,20 @@ const tauriAPI = {
 
   /**
    * Run the Candidate finder over the open book. `phrases` are the keys of the `phrases`
-   * dictionary. Resolves to `null` when the run was cancelled; progress arrives through
+   * dictionary, `activeKeys` those of the book's active proper-noun dictionaries (the coverage
+   * mask) and `inactive` the other proper-noun dictionaries (the Also-in tag only). Resolves to `null` when the run was cancelled; progress arrives through
    * `onCandidateProgress`, tagged with `runId`.
    */
   findCandidates: async (
     fingerprint: string,
     runId: string,
-    phrases: string[]
+    phrases: string[],
+    activeKeys: string[],
+    inactive: InactiveProperNounDictionary[]
   ): Promise<Candidate[] | null> =>
     callReaderCommand<Candidate[] | null>(
       CMD.FIND_CANDIDATES,
-      { fingerprint, runId, phrases },
+      { fingerprint, runId, phrases, activeKeys, inactive },
       'findCandidates'
     ),
 
