@@ -18,6 +18,7 @@ import { loadAppConfig } from '../utils/appConfig';
 import { backgroundBooks } from '../utils/reader/CandidateBackground';
 import {
   dismissCandidate,
+  dismissCandidates,
   getBookRecordsSnapshot,
   loadBookRecords,
   restoreCandidate,
@@ -37,6 +38,8 @@ export interface CandidateDismissals {
   /** False until the records have loaded, and for good when they could not. */
   canDismiss: boolean;
   dismiss: (text: string) => Promise<void>;
+  /** Several names in one records write. */
+  dismissAll: (texts: string[]) => Promise<void>;
   restore: (text: string) => Promise<void>;
 }
 
@@ -63,7 +66,7 @@ const NONE_DISMISSED: string[] = [];
  * (`loadQuickAddView`, the same view the Add form uses).
  */
 export function useCandidateFinder(fingerprint: string): CandidateFinder {
-  const { dictionaries, unreadDictionaryIds, addEntry } = useDictionary();
+  const { dictionaries, unreadDictionaryIds, addEntry, addEntries } = useDictionary();
   const { rules } = useTransformRules();
   // The book's quick-add view as of the last run: it says which dictionaries are active.
   const [view, setView] = useState<QuickAddView | null>(null);
@@ -135,6 +138,7 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
       unreadable: loaded?.unreadable ?? null,
       canDismiss: loaded !== null && loaded.unreadable === null,
       dismiss: (text) => dismissCandidate(fingerprint, text),
+      dismissAll: (texts) => dismissCandidates(fingerprint, texts),
       restore: (text) => restoreCandidate(fingerprint, text),
     }),
     [names, loaded, fingerprint]
@@ -167,8 +171,20 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
           allowAsPatternVariable: false,
           semanticType: semanticType || undefined,
         }),
+      addAll: (rows) =>
+        addEntries(
+          rows.map(({ text, dictionaryId, translation, semanticType }) => ({
+            dictionaryId,
+            source: text,
+            translation: translation.trim(),
+            metadata: {
+              allowAsPatternVariable: false,
+              semanticType: semanticType || undefined,
+            },
+          }))
+        ),
     };
-  }, [opened, choices, dictionaries, rules, rank, addEntry]);
+  }, [opened, choices, dictionaries, rules, rank, addEntry, addEntries]);
 
   return {
     snapshot,

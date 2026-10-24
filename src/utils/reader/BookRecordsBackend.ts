@@ -195,11 +195,18 @@ function changeDismissed(
   });
 }
 
+/** Stop offering `texts` in this book's Candidate finder, across re-runs and restarts: one write
+ * for the lot, none when all are already dismissed. */
+export function dismissCandidates(fingerprint: string, texts: readonly string[]): Promise<void> {
+  return changeDismissed('dismissCandidates', fingerprint, (dismissed) => {
+    const fresh = [...new Set(texts)].filter((text) => !dismissed.includes(text));
+    return fresh.length === 0 ? null : [...dismissed, ...fresh].sort();
+  });
+}
+
 /** Stop offering `text` in this book's Candidate finder, across re-runs and restarts. */
 export function dismissCandidate(fingerprint: string, text: string): Promise<void> {
-  return changeDismissed('dismissCandidate', fingerprint, (dismissed) =>
-    dismissed.includes(text) ? null : [...dismissed, text].sort()
-  );
+  return dismissCandidates(fingerprint, [text]);
 }
 
 /** Offer a dismissed name again. */

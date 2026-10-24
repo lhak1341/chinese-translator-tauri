@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
 const addEntry = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const addEntries = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dictionaries = vi.hoisted(() => ({
   properNouns: {},
   'properNouns-f_Novel': {},
@@ -9,7 +10,7 @@ const dictionaries = vi.hoisted(() => ({
 }));
 
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries, unreadDictionaryIds: [], addEntry }),
+  useDictionary: () => ({ dictionaries, unreadDictionaryIds: [], addEntry, addEntries }),
 }));
 vi.mock('../../components/BookBindingContext', () => ({
   useBookBinding: () => ({ loadQuickAddView: vi.fn().mockResolvedValue(null) }),
@@ -28,6 +29,39 @@ describe('useCandidateFinder adder', () => {
       'Đằng Thanh Sơn',
       expect.objectContaining({ allowAsPatternVariable: false, semanticType: 'location' })
     );
+  });
+
+  it('adds a batch through one addEntries call, each row to its own dictionary', async () => {
+    const { result } = renderHook(() => useCandidateFinder('fp'));
+    await result.current.adder.addAll([
+      {
+        text: '滕青山',
+        dictionaryId: 'properNouns',
+        translation: ' Đằng Thanh Sơn ',
+        semanticType: 'location',
+      },
+      {
+        text: '云梦泽',
+        dictionaryId: 'properNouns-f_Novel',
+        translation: 'Vân Mộng Trạch',
+        semanticType: '',
+      },
+    ]);
+    expect(addEntries).toHaveBeenCalledOnce();
+    expect(addEntries).toHaveBeenCalledWith([
+      {
+        dictionaryId: 'properNouns',
+        source: '滕青山',
+        translation: 'Đằng Thanh Sơn',
+        metadata: { allowAsPatternVariable: false, semanticType: 'location' },
+      },
+      {
+        dictionaryId: 'properNouns-f_Novel',
+        source: '云梦泽',
+        translation: 'Vân Mộng Trạch',
+        metadata: { allowAsPatternVariable: false, semanticType: undefined },
+      },
+    ]);
   });
 
   it('offers only proper-noun dictionaries, never characters', () => {

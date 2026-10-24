@@ -41,6 +41,17 @@ describe('useCandidateFinder dismissals', () => {
     expect((disk.data as BookRecords).fp1.dismissedCandidates).toEqual([]);
   });
 
+  it('a batch dismiss persists every name in one write', async () => {
+    const { disk, save } = install({ fp1: makeBookRecord() });
+    const { result } = renderHook(() => useCandidateFinder('fp1'));
+    await waitFor(() => expect(result.current.dismissals.canDismiss).toBe(true));
+    save.mockClear();
+
+    await act(() => result.current.dismissals.dismissAll(['滕青山', '云梦泽']));
+    expect(save).toHaveBeenCalledOnce();
+    expect((disk.data as BookRecords).fp1.dismissedCandidates).toEqual(['滕青山', '云梦泽'].sort());
+  });
+
   it('a name dismissed earlier is still dismissed after a restart', async () => {
     install({ fp1: makeBookRecord({ dismissedCandidates: ['滕青山'] }) });
     const { result } = renderHook(() => useCandidateFinder('fp1'));

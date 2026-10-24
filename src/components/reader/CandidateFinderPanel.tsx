@@ -8,7 +8,7 @@ import {
 } from '../../constants/SemanticTypes';
 import { filterByRule, type RuleFilter } from '../../utils/reader/CandidateRanking';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
-import type { CandidateAdder } from '../../utils/reader/CandidateAdd';
+import type { CandidateAdder, CandidateAddRow } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
@@ -136,12 +136,47 @@ const STAGE_LABELS: Record<CandidateStage, string> = {
   scoring: 'Scoring',
 };
 
+/** What the reader has changed in a row. Held by the list, so a batch reads and sets it. */
+interface RowDraft {
+  target?: string;
+  translation?: string;
+  /** The reader's type pick; absent means the type the rules give for the target. */
+  pickedType?: SemanticType;
+}
+
 interface CandidateRowProps {
   candidate: Candidate;
   adder: CandidateAdder;
   dismissals: CandidateDismissals;
   reading: CandidateReading;
+  draft: RowDraft;
+  onDraft: (patch: Partial<RowDraft>) => void;
+  selected: boolean;
+  onSelect: (selected: boolean) => void;
 }
+
+const NO_DRAFT: RowDraft = {};
+
+/** What a row would add: its draft over the target's guess and the rules' type. */
+function rowState(candidate: Candidate, adder: CandidateAdder, draft: RowDraft) {
+  const { text } = candidate;
+  const target = draft.target ?? adder.opened;
+  const seeded = adder.typeFor(text, target);
+  return {
+    target,
+    translation: draft.translation ?? adder.guess(text, target),
+    seeded,
+    shownType: draft.pickedType ?? seeded.semanticType,
+  };
+}
+
+/** A row's draft after its target changes: re-seeded for the new dictionary, the way the Add
+ * form's dropdown re-seeds its guess. */
+const retarget = (adder: CandidateAdder, text: string, target: string): RowDraft => ({
+  target,
+  translation: adder.guess(text, target),
+  pickedType: undefined,
+});
 
 /**
  * One candidate and its Add: an editable translation seeded with the Add form's guess (Enter
@@ -149,29 +184,31 @@ interface CandidateRowProps {
  * one needs no handling here, because the row leaves when the dictionary holds its name.
  * × dismisses the name for this book; the row leaves when the record holds it.
  */
-const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissals, reading }) => {
+const CandidateRow: React.FC<CandidateRowProps> = ({
+  candidate,
+  adder,
+  dismissals,
+  reading,
+  draft,
+  onDraft,
+  selected,
+  onSelect,
+}) => {
   const { text } = candidate;
   const rowRef = useRef<HTMLLIElement>(null);
   const seen = useSeen(rowRef);
   const [unfolded, setUnfolded] = useState(false);
-  const [target, setTarget] = useState(adder.opened);
-  const [translation, setTranslation] = useState(() => adder.guess(text, adder.opened));
-  // The reader's pick, if any: otherwise the row shows what the rules give for the target, so a
-  // rule edit retypes the row and switching the target re-seeds it, like the translation.
-  const [pickedType, setPickedType] = useState<SemanticType | null>(null);
-  const seeded = adder.typeFor(text, target);
-  const shownType = pickedType ?? seeded.semanticType;
+  // The reader's edits live in the list's draft, so a batch reads them. Otherwise the row shows
+  // what the rules give for the target, so a rule edit retypes the row and switching the target
+  // re-seeds it, like the translation.
+  const { target, translation, seeded, shownType } = rowState(candidate, adder, draft);
   const [pending, setPending] = useState(false);
   // A ref, not `pending`: two Enters before the re-render would both see `false`.
   const inFlight = useRef(false);
   const [message, setMessage] = useState<string | null>(null);
 
   // Like the Add form's dropdown, switching the target re-seeds the guess for it.
-  const changeTarget = (next: string): void => {
-    setTarget(next);
-    setPickedType(null);
-    setTranslation(adder.guess(text, next));
-  };
+  const changeTarget = (next: string): void => onDraft(retarget(adder, text, next));
 
   const add = async (): Promise<void> => {
     if (inFlight.current) return;
@@ -202,6 +239,12 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
 
   return (
     <li ref={rowRef} className={styles.candidateRow}>
+      <input
+        type="checkbox"
+        checked={selected}
+        aria-label={`Select ${text}`}
+        onChange={(event) => onSelect(event.target.checked)}
+      />
       <span className={styles.candidateText}>
         {text}
         {candidate.alsoIn.length > 0 && (
@@ -226,7 +269,7 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
           className={styles.candidateInput}
           value={translation}
           aria-label={`Translation of ${text}`}
-          onChange={(event) => setTranslation(event.target.value)}
+          onChange={(event) => onDraft({ translation: event.target.value })}
           onKeyDown={(event) => {
             // WebKit ends a composition before this keydown, so `isComposing` is already false;
             // the committing Enter still carries keyCode 229.
@@ -236,11 +279,11 @@ const CandidateRow: React.FC<CandidateRowProps> = ({ candidate, adder, dismissal
         />
         <select
           className={`${styles.candidateType} ${
-            pickedType === null && !seeded.ruled ? styles.candidateTypeMuted : ''
+            draft.pickedType === undefined && !seeded.ruled ? styles.candidateTypeMuted : ''
           }`}
           value={shownType}
           aria-label={`Type of ${text}`}
-          onChange={(event) => setPickedType(event.target.value as SemanticType)}
+          onChange={(event) => onDraft({ pickedType: event.target.value as SemanticType })}
         >
           {SEMANTIC_TYPE_LIST.map((type) => (
             <option key={type} value={type}>
@@ -313,6 +356,78 @@ const CandidateList: React.FC<{
   const unadded = notDismissed.filter((row) => !adder.isAdded(row.candidate.text));
   const remaining = filterByRule(unadded, filter);
   const added = notDismissed.length - unadded.length;
+
+  const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
+  const patchDraft = (text: string, patch: Partial<RowDraft>): void =>
+    setDrafts((all) => ({ ...all, [text]: { ...all[text], ...patch } }));
+  // Only rows still listed count, so a row that leaves (added by hand, dismissed, filtered out)
+  // drops out of the selection with no bookkeeping.
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const selected = remaining.filter(({ candidate }) => picked.has(candidate.text));
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  // A ref, not state: two clicks before the re-render would both see `false`.
+  const batching = useRef(false);
+
+  const select = (text: string, on: boolean): void =>
+    setPicked((before) => {
+      const next = new Set(before);
+      if (on) next.add(text);
+      else next.delete(text);
+      return next;
+    });
+  const allSelected = remaining.length > 0 && selected.length === remaining.length;
+  const selectAll = (on: boolean): void =>
+    setPicked(on ? new Set(remaining.map(({ candidate }) => candidate.text)) : new Set());
+
+  const setAllTo = (target: string): void => {
+    setBatchMessage(null);
+    setDrafts((all) => {
+      const next = { ...all };
+      for (const { candidate } of selected) {
+        next[candidate.text] = {
+          ...next[candidate.text],
+          ...retarget(adder, candidate.text, target),
+        };
+      }
+      return next;
+    });
+  };
+
+  // The rows leave on success because the dictionaries or the record come to hold them; a
+  // refusal rejects having written nothing, and the rows stay with the message.
+  const runBatch = async (work: () => Promise<void>): Promise<void> => {
+    if (batching.current) return;
+    batching.current = true;
+    setBatchMessage(null);
+    try {
+      await work();
+      setPicked(new Set());
+    } catch (error) {
+      setBatchMessage(extractErrorMessage(error));
+    } finally {
+      batching.current = false;
+    }
+  };
+
+  const addSelected = (): Promise<void> =>
+    runBatch(async () => {
+      const rows: CandidateAddRow[] = selected.map(({ candidate }) => {
+        const state = rowState(candidate, adder, drafts[candidate.text] ?? {});
+        if (!state.translation.trim()) {
+          throw new Error(`Enter a translation for ${candidate.text} first`);
+        }
+        return {
+          text: candidate.text,
+          dictionaryId: state.target,
+          translation: state.translation,
+          semanticType: state.shownType,
+        };
+      });
+      await adder.addAll(rows);
+    });
+  const dismissSelected = (): Promise<void> =>
+    runBatch(() => dismissals.dismissAll(selected.map(({ candidate }) => candidate.text)));
+
   return (
     <>
       {added > 0 && (
@@ -332,9 +447,53 @@ const CandidateList: React.FC<{
           </button>
         ))}
       </div>
+      {selected.length > 0 && (
+        <div className={styles.candidateBatch} role="group" aria-label="Selected candidates">
+          <button
+            onClick={() => void addSelected()}
+            className={styles.primaryButton}
+            aria-label={`Add ${selected.length}, each as set in its row`}
+          >
+            Add {selected.length}, each as set in its row
+          </button>
+          <select
+            className={styles.candidateSelect}
+            value=""
+            aria-label="Set all to"
+            onChange={(event) => event.target.value && setAllTo(event.target.value)}
+          >
+            <option value="">Set all to…</option>
+            {adder.choices.map((id) => (
+              <option key={id} value={id}>
+                {getDictionaryLabel(id)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => void dismissSelected()}
+            disabled={!dismissals.canDismiss}
+            className={styles.secondaryButton}
+            aria-label={`Dismiss ${selected.length}`}
+          >
+            Dismiss {selected.length}
+          </button>
+          {batchMessage && (
+            <div className={styles.error} role="alert">
+              <AlertCircle size={14} />
+              {batchMessage}
+            </div>
+          )}
+        </div>
+      )}
       {remaining.length > 0 && (
         <>
           <div className={styles.candidateHeaderRow}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              aria-label="Select all"
+              onChange={(event) => selectAll(event.target.checked)}
+            />
             <span>Candidate</span>
             <span>Count</span>
             <span>Lines</span>
@@ -347,6 +506,10 @@ const CandidateList: React.FC<{
                 adder={adder}
                 dismissals={dismissals}
                 reading={reading}
+                draft={drafts[candidate.text] ?? NO_DRAFT}
+                onDraft={(patch) => patchDraft(candidate.text, patch)}
+                selected={picked.has(candidate.text)}
+                onSelect={(on) => select(candidate.text, on)}
               />
             ))}
           </ul>

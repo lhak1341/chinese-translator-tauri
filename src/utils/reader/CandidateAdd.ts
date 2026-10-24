@@ -67,6 +67,14 @@ export function candidateType(
     : { semanticType: defaultSemanticType(target), ruled: false };
 }
 
+/** One selected row, as its Add would write it. */
+export interface CandidateAddRow {
+  text: string;
+  dictionaryId: string;
+  translation: string;
+  semanticType: SemanticType | '';
+}
+
 /** What a row needs to add its candidate: the dropdown, the Add form's first guess, whether the
  * name is in a dictionary now, and the write itself, which rejects with the reason it failed. */
 export interface CandidateAdder {
@@ -82,6 +90,9 @@ export interface CandidateAdder {
     translation: string,
     semanticType: SemanticType | ''
   ) => Promise<void>;
+  /** Writes every row, each to its own dictionary, as one edit (one Undo); rejects with the
+   * reason, writing nothing, when any row is refused. */
+  addAll: (rows: CandidateAddRow[]) => Promise<void>;
   /** Where the type `add` writes for `text` in `dictionaryId` comes from. */
   typeNote: (text: string, dictionaryId: string) => string;
   /** The type a row arrives with for `dictionaryId`, and whether a rule gave it. */

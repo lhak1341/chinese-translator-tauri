@@ -7,7 +7,7 @@ import type { EntryFields, EntryPatch } from '../utils/dictionary/EntryValue';
 import type { DictionaryTypesCollection } from './ComponentTypes';
 import type { ImportOutcome } from '../components/dictionary/DictionaryStore';
 import type { LoadOutcome } from '../utils/dictionary/DictionaryLoadClassifier';
-import type { EntryRef } from '../utils/dictionary/DictionaryEdit';
+import type { EntryRef, NewEntry } from '../utils/dictionary/DictionaryEdit';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -99,6 +99,11 @@ export interface DictionaryContextInterface {
     translation: string,
     metadata?: DictionaryEntryMetadata
   ) => Promise<void>;
+  /**
+   * Add many entries, each to its own dictionary, as one Dictionary Edit (one undo, all or
+   * nothing on disk). Toasts its own outcome; rejects, already toasted, on failure.
+   */
+  addEntries: (rows: NewEntry[]) => Promise<void>;
   /** Update an existing entry */
   updateEntry: (
     dictionaryId: string,

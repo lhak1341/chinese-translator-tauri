@@ -4,11 +4,18 @@ import { logger } from '../utils/logger';
 import { ValidationError, SaveError } from '../utils/errors';
 import { entryFields, applyEntryPatch, buildEntryMetadata } from '../utils/dictionary';
 import type { EntryFields, EntryPatch } from '../utils/dictionary';
-import { planAdd, planUpdate, planDelete, planMove } from '../utils/dictionary/DictionaryEdit';
+import {
+  planAdd,
+  planAddAll,
+  planUpdate,
+  planDelete,
+  planMove,
+} from '../utils/dictionary/DictionaryEdit';
 import type {
   Dictionaries,
   DictionaryEdit,
   EntryRef,
+  NewEntry,
   PlanResult,
 } from '../utils/dictionary/DictionaryEdit';
 import type { EditCommitter } from '../components/dictionary/EditCommitter';
@@ -22,7 +29,13 @@ type RecordEdit = (edit: DictionaryEdit) => void;
 
 export type DictionaryCRUDAPI = Pick<
   DictionaryContextInterface,
-  'addEntry' | 'updateEntry' | 'patchEntry' | 'renameEntry' | 'bulkDeleteEntries' | 'moveEntries'
+  | 'addEntry'
+  | 'addEntries'
+  | 'updateEntry'
+  | 'patchEntry'
+  | 'renameEntry'
+  | 'bulkDeleteEntries'
+  | 'moveEntries'
 >;
 
 /**
@@ -90,6 +103,32 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
         }
       } catch (error) {
         fail(error, 'add entry', 'Error adding dictionary entry:');
+      }
+    },
+    [committer, record]
+  );
+
+  // One Dictionary Edit for the whole batch, however many dictionaries it spans: one undo, and a
+  // refused row or a failed save leaves every dictionary as it was. Owns its messages.
+  const addEntries = useCallback(
+    async (rows: NewEntry[]): Promise<void> => {
+      if (rows.length === 0) return;
+      try {
+        const edit = await commitOrThrow(
+          committer,
+          record,
+          (d) => planAddAll(d, rows),
+          'Failed to save dictionary changes'
+        );
+        const { count, overwritten } =
+          edit.outcome.kind === 'addedAll' ? edit.outcome : { count: 0, overwritten: 0 };
+        if (overwritten > 0) {
+          toast.warning(
+            `Added ${entries(count)}; ${overwritten} overwrote an existing ${overwritten === 1 ? 'entry' : 'entries'}`
+          );
+        } else toast.success(`Added ${entries(count)}`);
+      } catch (error) {
+        fail(error, 'add entries', 'Error adding dictionary entries:');
       }
     },
     [committer, record]
@@ -266,6 +305,7 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
 
   return {
     addEntry,
+    addEntries,
     updateEntry,
     patchEntry,
     renameEntry,

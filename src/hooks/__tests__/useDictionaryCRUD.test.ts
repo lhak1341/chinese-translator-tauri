@@ -362,6 +362,74 @@ describe('renameEntry', () => {
   });
 });
 
+describe('addEntries', () => {
+  const row = (dictionaryId: string, source: string, translation = TRANSLATION) => ({
+    dictionaryId,
+    source,
+    translation,
+  });
+
+  it('writes rows into their own dictionaries as one edit that one undo reverses', async () => {
+    const result = makeHook({ [PN_A]: {}, [PN_B]: {} });
+    await act(async () => {
+      await result.current.addEntries([row(PN_A, SOURCE), row(PN_B, SOURCE_B)]);
+    });
+    expect(memory[PN_A][SOURCE]).toEqual(phraseEntry);
+    expect(memory[PN_B][SOURCE_B]).toEqual(phraseEntry);
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith('Added 2 entries');
+
+    const edit = record.mock.calls[0][0] as DictionaryEdit;
+    const undone = { ...memory } as Dictionaries;
+    for (const c of invert(edit).changes) {
+      if (c.after === undefined) delete undone[c.dictionaryId][c.key];
+    }
+    expect(undone).toEqual({ [PN_A]: {}, [PN_B]: {} });
+  });
+
+  it('warns when rows overwrote entries', async () => {
+    const result = makeHook({ [PN_A]: { [SOURCE]: phraseEntry } });
+    await act(async () => {
+      await result.current.addEntries([row(PN_A, SOURCE, 'mới'), row(PN_A, SOURCE_B)]);
+    });
+    expect(toast.warning).toHaveBeenCalledWith('Added 2 entries; 1 overwrote an existing entry');
+  });
+
+  it('does nothing for an empty list', async () => {
+    const result = makeHook({ [PN_A]: {} });
+    await act(async () => {
+      await result.current.addEntries([]);
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it('a refused row writes nothing, saves nothing, records nothing, and rejects once', async () => {
+    const result = makeHook({ [PN_A]: {} });
+    await act(async () => {
+      await expect(
+        result.current.addEntries([row(PN_A, SOURCE), row(PN_A, SOURCE_B, '  ')])
+      ).rejects.toThrow(SOURCE_B);
+    });
+    expect(memory[PN_A]).toEqual({});
+    expect(save).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+    expect(toastCount()).toBe(1);
+  });
+
+  it('a failed save rolls the whole batch back and records nothing (I3)', async () => {
+    const result = makeHook({ [PN_A]: {}, [PN_B]: {} });
+    failSaves();
+    await act(async () => {
+      await expect(
+        result.current.addEntries([row(PN_A, SOURCE), row(PN_B, SOURCE_B)])
+      ).rejects.toThrow();
+    });
+    expect(memory).toEqual({ [PN_A]: {}, [PN_B]: {} });
+    expect(record).not.toHaveBeenCalled();
+  });
+});
+
 describe('bulkDeleteEntries', () => {
   const at = (dictionaryId: string, key: string) => ({ dictionaryId, key });
 

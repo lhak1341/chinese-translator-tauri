@@ -20,6 +20,7 @@ function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
     isAdded: () => false,
     guess: (text) => `guess:${text}`,
     add: vi.fn().mockResolvedValue(undefined),
+    addAll: vi.fn().mockResolvedValue(undefined),
     typeNote: (text) => `type of ${text}`,
     typeFor: () => ({ semanticType: 'character', ruled: false }),
     rank: (candidates) =>
@@ -43,6 +44,7 @@ function makeDismissals(overrides: Partial<CandidateDismissals> = {}): Candidate
     unreadable: null,
     canDismiss: true,
     dismiss: vi.fn().mockResolvedValue(undefined),
+    dismissAll: vi.fn().mockResolvedValue(undefined),
     restore: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -547,6 +549,176 @@ describe('CandidateFinderPanel', () => {
         target: { value: 'properNouns' },
       });
       expect((screen.getByLabelText('Type of 滕青山') as HTMLSelectElement).value).toBe('location');
+    });
+  });
+
+  describe('batch add and batch dismiss', () => {
+    const three: CandidateFinderSnapshot = {
+      status: 'done',
+      candidates: ['滕青山', '云梦泽', '青云剑法'].map((text) => ({
+        text,
+        count: 5,
+        lineCount: 4,
+        alsoIn: [],
+      })),
+    };
+    const tick = (name: string) => fireEvent.click(screen.getByLabelText(`Select ${name}`));
+
+    test('no bar until a row is selected; the bar counts the selection', () => {
+      renderPanel(three);
+      expect(screen.queryByRole('button', { name: /^Add \d/ })).toBeNull();
+      tick('滕青山');
+      tick('云梦泽');
+      expect(screen.getByRole('button', { name: 'Add 2, each as set in its row' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Dismiss 2' })).toBeTruthy();
+    });
+
+    test('select all ticks every listed row, and unticks them again', () => {
+      renderPanel(three);
+      fireEvent.click(screen.getByLabelText('Select all'));
+      expect(screen.getByRole('button', { name: 'Dismiss 3' })).toBeTruthy();
+      fireEvent.click(screen.getByLabelText('Select all'));
+      expect(screen.queryByRole('button', { name: /^Dismiss \d/ })).toBeNull();
+    });
+
+    test('batch add sends one addAll with each row as set, each to its own dictionary', async () => {
+      const adder = makeAdder();
+      renderPanel(three, adder);
+      fireEvent.change(screen.getByLabelText('Add 云梦泽 to'), {
+        target: { value: 'properNouns' },
+      });
+      fireEvent.change(screen.getByLabelText('Translation of 滕青山'), {
+        target: { value: 'Đằng Thanh Sơn' },
+      });
+      fireEvent.change(screen.getByLabelText('Type of 云梦泽'), { target: { value: 'location' } });
+      tick('滕青山');
+      tick('云梦泽');
+      fireEvent.click(screen.getByRole('button', { name: 'Add 2, each as set in its row' }));
+      await waitFor(() => expect(adder.addAll).toHaveBeenCalledOnce());
+      expect(adder.addAll).toHaveBeenCalledWith([
+        {
+          text: '滕青山',
+          dictionaryId: 'properNouns-f_Novel',
+          translation: 'Đằng Thanh Sơn',
+          semanticType: 'character',
+        },
+        {
+          text: '云梦泽',
+          dictionaryId: 'properNouns',
+          translation: 'guess:云梦泽',
+          semanticType: 'location',
+        },
+      ]);
+      expect(adder.add).not.toHaveBeenCalled();
+    });
+
+    test('a batch add clears the selection', async () => {
+      renderPanel(three);
+      tick('滕青山');
+      fireEvent.click(screen.getByRole('button', { name: 'Add 1, each as set in its row' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: /^Dismiss \d/ })).toBeNull());
+    });
+
+    test('Set all to retargets the selected rows only, and re-seeds them like a row does', () => {
+      renderPanel(three, makeAdder({ guess: (text, id) => `${id}:${text}` }));
+      tick('滕青山');
+      tick('云梦泽');
+      fireEvent.change(screen.getByLabelText('Set all to'), { target: { value: 'properNouns' } });
+      const target = (name: string) =>
+        (screen.getByLabelText(`Add ${name} to`) as HTMLSelectElement).value;
+      expect([target('滕青山'), target('云梦泽'), target('青云剑法')]).toEqual([
+        'properNouns',
+        'properNouns',
+        'properNouns-f_Novel',
+      ]);
+      expect((screen.getByLabelText('Translation of 滕青山') as HTMLInputElement).value).toBe(
+        'properNouns:滕青山'
+      );
+    });
+
+    test('a refused batch keeps the rows and the selection, shows the message, writes nothing', async () => {
+      const adder = makeAdder({
+        addAll: vi.fn().mockRejectedValue(new Error("'云梦泽': translation is empty")),
+      });
+      renderPanel(three, adder);
+      tick('滕青山');
+      tick('云梦泽');
+      fireEvent.click(screen.getByRole('button', { name: 'Add 2, each as set in its row' }));
+      expect((await screen.findByRole('alert')).textContent).toContain(
+        "'云梦泽': translation is empty"
+      );
+      expect(screen.getAllByRole('listitem')).toHaveLength(3);
+      expect(screen.getByRole('button', { name: 'Dismiss 2' })).toBeTruthy();
+    });
+
+    test('a selected row with no translation stops the batch before any write', async () => {
+      const adder = makeAdder();
+      renderPanel(three, adder);
+      fireEvent.change(screen.getByLabelText('Translation of 云梦泽'), { target: { value: ' ' } });
+      tick('滕青山');
+      tick('云梦泽');
+      fireEvent.click(screen.getByRole('button', { name: 'Add 2, each as set in its row' }));
+      expect((await screen.findByRole('alert')).textContent).toContain('云梦泽');
+      expect(adder.addAll).not.toHaveBeenCalled();
+    });
+
+    test('batch dismiss is one dismissAll with the selected names', async () => {
+      const dismissals = makeDismissals();
+      renderPanel(three, makeAdder(), dismissals);
+      tick('滕青山');
+      tick('青云剑法');
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss 2' }));
+      await waitFor(() => expect(dismissals.dismissAll).toHaveBeenCalledOnce());
+      expect(dismissals.dismissAll).toHaveBeenCalledWith(['滕青山', '青云剑法']);
+      expect(dismissals.dismiss).not.toHaveBeenCalled();
+    });
+
+    test('a failed batch dismiss keeps the rows and says why', async () => {
+      const dismissals = makeDismissals({
+        dismissAll: vi.fn().mockRejectedValue(new Error('disk full')),
+      });
+      renderPanel(three, makeAdder(), dismissals);
+      tick('滕青山');
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss 1' }));
+      expect((await screen.findByRole('alert')).textContent).toContain('disk full');
+      expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    });
+
+    test('Dismiss is disabled while the records cannot be saved', () => {
+      renderPanel(three, makeAdder(), makeDismissals({ canDismiss: false }));
+      tick('滕青山');
+      expect(
+        (screen.getByRole('button', { name: 'Dismiss 1' }) as HTMLButtonElement).disabled
+      ).toBe(true);
+    });
+
+    test('a row that leaves the list drops out of the selection', () => {
+      const adder = makeAdder();
+      const { rerender } = render(
+        <CandidateFinderPanel
+          snapshot={three}
+          adder={adder}
+          dismissals={makeDismissals()}
+          reading={makeReading()}
+          onRun={vi.fn()}
+          onCancel={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      tick('滕青山');
+      tick('云梦泽');
+      rerender(
+        <CandidateFinderPanel
+          snapshot={three}
+          adder={{ ...adder, isAdded: (text) => text === '滕青山' }}
+          dismissals={makeDismissals()}
+          reading={makeReading()}
+          onRun={vi.fn()}
+          onCancel={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Dismiss 1' })).toBeTruthy();
     });
   });
 });

@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   planAdd,
+  planAddAll,
   planUpdate,
   planDelete,
   planMove,
@@ -41,6 +42,15 @@ const plans: Array<[string, (d: Dictionaries) => PlanResult]> = [
   ['add new key', (d) => planAdd(d, A, '赵六', 'Triệu Lục')],
   ['add over existing key', (d) => planAdd(d, A, '张三', 'Trương Tam mới')],
   ['add to a lookup table', (d) => planAdd(d, 'characters', '你', 'ngươi')],
+  [
+    'add all, into two dictionaries, one over an existing key',
+    (d) =>
+      planAddAll(d, [
+        { dictionaryId: A, source: '赵六', translation: 'Triệu Lục' },
+        { dictionaryId: B, source: '孙七', translation: 'Tôn Thất' },
+        { dictionaryId: B, source: '张三', translation: 'Trương Tam mới' },
+      ]),
+  ],
   ['update in place', (d) => planUpdate(d, A, '张三', '张三', 'Trương Tam 2')],
   ['update renamed to a free key', (d) => planUpdate(d, A, '李四', '赵六', 'Lý Tứ')],
   ['update renamed onto an existing key', (d) => planUpdate(d, A, '李四', '张三', 'Lý Tứ')],
@@ -149,6 +159,72 @@ describe('DictionaryEdit — plans', () => {
     });
     expect(isInvalidPlan(planMove(dicts(), A, 'characters', ['张三']))).toBe(true);
     expect(isInvalidPlan(planMove(dicts(), A, A, ['张三']))).toBe(true);
+  });
+});
+
+describe('DictionaryEdit — planAddAll', () => {
+  const row = (dictionaryId: string, source: string, translation = 'x') => ({
+    dictionaryId,
+    source,
+    translation,
+  });
+
+  test('writes each entry into its own dictionary as one edit, with its metadata', () => {
+    const e = edit(
+      planAddAll(dicts(), [
+        { ...row(A, '赵六', 'Triệu Lục'), metadata: { semanticType: 'character' } },
+        row(B, '孙七', 'Tôn Thất'),
+      ])
+    );
+    expect(e.outcome).toEqual({ kind: 'addedAll', count: 2, overwritten: 0 });
+    expect(e.changes).toEqual([
+      {
+        dictionaryId: A,
+        key: '赵六',
+        before: undefined,
+        after: {
+          translation: 'Triệu Lục',
+          allowAsPatternVariable: false,
+          semanticType: 'character',
+        },
+      },
+      {
+        dictionaryId: B,
+        key: '孙七',
+        before: undefined,
+        after: { translation: 'Tôn Thất', allowAsPatternVariable: false },
+      },
+    ]);
+  });
+
+  test('counts the entries it overwrites', () => {
+    const e = edit(planAddAll(dicts(), [row(A, '张三'), row(A, '赵六')]));
+    expect(e.outcome).toEqual({ kind: 'addedAll', count: 2, overwritten: 1 });
+    expect(e.changes[0].before).toEqual(entry('Trương Tam'));
+  });
+
+  test('a repeated dictionary and key is written once, the first wins', () => {
+    const e = edit(planAddAll(dicts(), [row(A, '赵六', 'một'), row(A, '赵六', 'hai')]));
+    expect(e.changes).toHaveLength(1);
+    expect(e.outcome).toEqual({ kind: 'addedAll', count: 1, overwritten: 0 });
+    expect((e.changes[0].after as { translation: string }).translation).toBe('một');
+  });
+
+  test('an empty list is an empty edit', () => {
+    const e = edit(planAddAll(dicts(), []));
+    expect(e.changes).toEqual([]);
+    expect(e.outcome).toEqual({ kind: 'addedAll', count: 0, overwritten: 0 });
+  });
+
+  test('one entry the dictionary rules refuse refuses the whole batch, naming it', () => {
+    const plan = planAddAll(dicts(), [row(A, '赵六', 'ok'), row(A, '孙七', '   ')]);
+    expect(isInvalidPlan(plan)).toBe(true);
+    expect((plan as { invalid: string }).invalid).toContain('孙七');
+  });
+
+  test('a dictionary that is not in memory refuses the whole batch', () => {
+    const plan = planAddAll(dicts(), [row(A, '赵六'), row('properNouns-Z', '孙七')]);
+    expect(plan).toMatchObject({ missingDictionaryId: 'properNouns-Z' });
   });
 });
 

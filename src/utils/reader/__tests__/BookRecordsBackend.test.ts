@@ -9,6 +9,7 @@ import {
   setManualChapterPattern,
   setBookBinding,
   dismissCandidate,
+  dismissCandidates,
   restoreCandidate,
   renameBoundDictionary,
   unbindDictionary,
@@ -328,6 +329,23 @@ describe('dismissCandidate and restoreCandidate', () => {
     expect(saveFn).toHaveBeenCalledWith({
       fp1: { ...existing, dismissedCandidates: ['云梦泽', '滕青山'].sort() },
     });
+  });
+
+  test('a batch dismiss adds every new name, sorted and unique, in one write', async () => {
+    const { existing, saveFn } = recordsWith(['云梦泽']);
+
+    await dismissCandidates('fp1', ['滕青山', '云梦泽', '滕青山', '赵六']);
+
+    expect(saveFn).toHaveBeenCalledOnce();
+    expect(saveFn).toHaveBeenCalledWith({
+      fp1: { ...existing, dismissedCandidates: ['云梦泽', '滕青山', '赵六'].sort() },
+    });
+  });
+
+  test('a batch of names already dismissed saves nothing', async () => {
+    const { saveFn } = recordsWith(['云梦泽', '滕青山'].sort());
+    await dismissCandidates('fp1', ['滕青山', '云梦泽']);
+    expect(saveFn).not.toHaveBeenCalled();
   });
 
   test('dismissing a name already dismissed saves nothing', async () => {

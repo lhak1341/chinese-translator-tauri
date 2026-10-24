@@ -44,6 +44,7 @@ export interface EntryRef {
 export type EditOutcome =
   | { kind: 'added' }
   | { kind: 'overwritten' }
+  | { kind: 'addedAll'; count: number; overwritten: number }
   | { kind: 'updated' }
   | { kind: 'deleted'; count: number; missing: EntryRef[] }
   | { kind: 'moved'; count: number; missing: string[] };
@@ -118,6 +119,37 @@ export function planAdd(
     changes: [{ dictionaryId, key, before, after: value }],
     outcome: { kind: before === undefined ? 'added' : 'overwritten' },
   };
+}
+
+/** One entry of a batch add: where it goes and what it is. */
+export interface NewEntry {
+  dictionaryId: string;
+  source: string;
+  translation: string;
+  metadata?: DictionaryEntryMetadata;
+}
+
+/** Writes each entry into its own dictionary as one edit. All or nothing: an entry the
+ * dictionary's rules refuse (the message names its source) or a dictionary not in memory makes
+ * the whole plan invalid. A repeated dictionary and key is written once, the first winning;
+ * `outcome.overwritten` counts the keys that already held a value. */
+export function planAddAll(dicts: Dictionaries, entries: NewEntry[]): PlanResult {
+  const changes: EntryChange[] = [];
+  const seen = new Set<string>();
+  let overwritten = 0;
+  for (const { dictionaryId, source, translation, metadata = {} } of entries) {
+    const entry = prepareEntry(dictionaryId, source, translation, metadata);
+    if ('invalid' in entry) return { invalid: `'${source}': ${entry.invalid}` };
+    const dict = dicts[dictionaryId];
+    if (!dict) return missingDictionary(dictionaryId);
+    const id = JSON.stringify([dictionaryId, entry.key]);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const before = dict[entry.key];
+    if (before !== undefined) overwritten++;
+    changes.push({ dictionaryId, key: entry.key, before, after: entry.value });
+  }
+  return { changes, outcome: { kind: 'addedAll', count: changes.length, overwritten } };
 }
 
 /** Replaces the entry at `oldKey` with the entry at the sanitized `newSource`. A rename onto
