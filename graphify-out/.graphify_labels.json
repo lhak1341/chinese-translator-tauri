@@ -34,7 +34,6 @@
   "170": "wasm-core Pattern Processor",
   "178": "AI Readiness Evaluation: chinese-translator-tauri",
   "181": "ReaderBinding.tsx",
-  "183": "text_tokenizer.rs",
   "184": "ADR-013: Skip PrecomputedTokenStrings Extraction, Keep It Inline",
   "194": "Integration #3: V8 Optimization for Memory Tracking (Task #8)",
   "199": "DevicePerformanceDetector",

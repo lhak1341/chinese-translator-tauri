@@ -30,9 +30,9 @@
     "semantic_hash": "1be34a5c61c2c35365de3dab14298f0b"
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1792535998.302492,
-    "seen": 1792776572.25631,
-    "ast_hash": "ad56f629b7a53536e7284cc9b96a3666",
+    "mtime": 1792852540.2771993,
+    "seen": 1792852919.964681,
+    "ast_hash": "f25e19b14db76533de5e808c49233b5e",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -120,9 +120,9 @@
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
   "src/tauriAPI.ts": {
-    "mtime": 1792536248.9998443,
-    "seen": 1792776572.256417,
-    "ast_hash": "911c9112dbbea043e20ccc4ff8ef64b1",
+    "mtime": 1792852709.5554295,
+    "seen": 1792852919.964808,
+    "ast_hash": "820598f4008de91f28a171dc880294f3",
     "semantic_hash": ""
   },
   "src/App.jsx": {
@@ -258,9 +258,9 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1792824157.2226162,
-    "seen": 1792824229.3063521,
-    "ast_hash": "87495ce3c9a35373e4604868cf2ac245",
+    "mtime": 1792824407.209669,
+    "seen": 1792852919.964828,
+    "ast_hash": "bf6413aa158119f116562604008b9ade",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -474,9 +474,9 @@
     "semantic_hash": ""
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1792824156.9803023,
-    "seen": 1792824229.306433,
-    "ast_hash": "6355a4d15163c64b3c6293d8a460ccb3",
+    "mtime": 1792824406.9619465,
+    "seen": 1792852919.9649112,
+    "ast_hash": "194e0a820a8daf8212b56e4f9880e6d7",
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
@@ -978,9 +978,9 @@
     "semantic_hash": "57c02c843189880ee7c8a979574041ff"
   },
   "docs/adr/README.md": {
-    "mtime": 1792820199.4920003,
-    "seen": 1792820275.989634,
-    "ast_hash": "70d822d767fbbef4c8bd36434d419d91",
+    "mtime": 1792851349.319252,
+    "seen": 1792852919.965068,
+    "ast_hash": "a091c69a629299a4b91ac71c8f52a35d",
     "semantic_hash": ""
   },
   "docs/adr/ADR-003-typescript-hybrid-architecture.md": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1792818657.1386106,
-    "seen": 1792819894.146113,
-    "ast_hash": "7e4f3df464fb056815f4d5d64b4c6f98",
+    "mtime": 1792824542.1919456,
+    "seen": 1792852919.965076,
+    "ast_hash": "5de4df88653e5b26b7c8a1325eddbbab",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1792822512.9343247,
-    "seen": 1792824229.306593,
-    "ast_hash": "84285f7d76af54c8c6fc9c53df522ee9",
+    "mtime": 1792828375.3100624,
+    "seen": 1792852919.965075,
+    "ast_hash": "28dd8b3643db5300e62449361e38554e",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1710,9 +1710,9 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1791048124.5806673,
-    "seen": 1792776572.256356,
-    "ast_hash": "109f0ce49673decd50e32df8b1327ae1",
+    "mtime": 1792852797.024262,
+    "seen": 1792852919.9647338,
+    "ast_hash": "3a859bc1323b9cc60b346829fbb9338f",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1746,9 +1746,9 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1790702518.1904864,
-    "seen": 1792776572.256423,
-    "ast_hash": "e5eb12eae361a56fe98e8b80674dbf51",
+    "mtime": 1792852709.5558252,
+    "seen": 1792852919.9648142,
+    "ast_hash": "3238ab507104dd7641c9f896b3a6b611",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "GLOSSARY.md": {
-    "mtime": 1792824171.4829595,
-    "seen": 1792824229.306483,
-    "ast_hash": "31dde67ffedb07e78ec3a4cd1d015410",
+    "mtime": 1792852829.122939,
+    "seen": 1792852919.964962,
+    "ast_hash": "c0c0bc02f420aa0e61793206e1b1702c",
     "semantic_hash": ""
   },
   "src/types/TextChunk.d.ts": {
@@ -2859,6 +2859,54 @@
     "mtime": 1792820199.467447,
     "seen": 1792820275.989633,
     "ast_hash": "989025ec5ea40eb37e2c331a96d8d158",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/candidate_finder.rs": {
+    "mtime": 1792852688.3105597,
+    "seen": 1792852919.9646752,
+    "ast_hash": "3d148d1f99d0130dd82a6a32e0162bf0",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/candidate_finder_commands.rs": {
+    "mtime": 1792852539.7935834,
+    "seen": 1792852919.964677,
+    "ast_hash": "767a4633ca8372b3f4a81eb7651f6e46",
+    "semantic_hash": ""
+  },
+  "src/components/reader/CandidateFinderPanel.tsx": {
+    "mtime": 1792852797.0049868,
+    "seen": 1792852919.964736,
+    "ast_hash": "9b3112716476bf505b7727b91abde06d",
+    "semantic_hash": ""
+  },
+  "src/hooks/useCandidateFinder.ts": {
+    "mtime": 1792852796.9937317,
+    "seen": 1792852919.964767,
+    "ast_hash": "94a1e9e2f5dfebf8b8abf9528d0c83eb",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/CandidateFinderStore.ts": {
+    "mtime": 1792852763.8144727,
+    "seen": 1792852919.964891,
+    "ast_hash": "598428e464d20416ca698f4bc867838c",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-111-candidate-finder-design.md": {
+    "mtime": 1792851358.617736,
+    "seen": 1792852919.965067,
+    "ast_hash": "7ba1d9b9d91a845cb26f8e2eed5aabda",
+    "semantic_hash": ""
+  },
+  "docs/prototypes/README.md": {
+    "mtime": 1792850574.4140642,
+    "seen": 1792852919.965083,
+    "ast_hash": "fc7d86c80e5a2028214a9bd8d3fa5d50",
+    "semantic_hash": ""
+  },
+  "docs/prototypes/candidate-finder-panel.html": {
+    "mtime": 1792850568.7587953,
+    "seen": 1792852919.9650838,
+    "ast_hash": "c85ce32b45454e24f5aa6eb5c4ffbc2d",
     "semantic_hash": ""
   }
 }
