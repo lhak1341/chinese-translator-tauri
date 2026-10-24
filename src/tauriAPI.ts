@@ -6,6 +6,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { logger } from './utils/logger.js';
 import { extractErrorMessage } from './utils/errorHelpers';
 import { isValidDictionaryId } from './utils/dictionary/DictionaryIdClassifier';
@@ -26,6 +27,8 @@ import type {
   BookFingerprint,
   BookLines,
   BookRecords,
+  Candidate,
+  CandidateProgress,
   ChapterHeader,
   ChapterOutline,
   ChapterPatternId,
@@ -61,6 +64,8 @@ export const CMD = {
   FINGERPRINT_BOOK: 'fingerprint_book',
   DETECT_CHAPTER_OUTLINE: 'detect_chapter_outline',
   CHAPTER_HEADERS_FOR_PATTERN: 'chapter_headers_for_pattern',
+  FIND_CANDIDATES: 'find_candidates',
+  CANCEL_CANDIDATE_RUN: 'cancel_candidate_run',
   LOAD_BOOK_RECORDS: 'load_book_records',
   SAVE_BOOK_RECORDS: 'save_book_records',
 } as const;
@@ -197,6 +202,30 @@ const tauriAPI = {
       { fingerprint, pattern },
       'chapterHeadersForPattern'
     ),
+
+  /**
+   * Run the Candidate finder over the open book. `phrases` are the keys of the `phrases`
+   * dictionary. Resolves to `null` when the run was cancelled; progress arrives through
+   * `onCandidateProgress`, tagged with `runId`.
+   */
+  findCandidates: async (
+    fingerprint: string,
+    runId: string,
+    phrases: string[]
+  ): Promise<Candidate[] | null> =>
+    callReaderCommand<Candidate[] | null>(
+      CMD.FIND_CANDIDATES,
+      { fingerprint, runId, phrases },
+      'findCandidates'
+    ),
+
+  /** Ask a run to stop; it resolves to `null` at its next check. */
+  cancelCandidateRun: async (runId: string): Promise<void> =>
+    callReaderCommand<void>(CMD.CANCEL_CANDIDATE_RUN, { runId }, 'cancelCandidateRun'),
+
+  /** Progress of every run, tagged with its run id. Resolves to the unsubscribe function. */
+  onCandidateProgress: (handler: (progress: CandidateProgress) => void): Promise<() => void> =>
+    listen<CandidateProgress>('candidate-finder-progress', (event) => handler(event.payload)),
 
   readClipboard: async (): Promise<string> => {
     try {

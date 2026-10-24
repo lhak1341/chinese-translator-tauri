@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List, ScanSearch } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
 import { useBookLines } from '../../hooks/useBookLines';
@@ -8,6 +8,7 @@ import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapters } from '../../hooks/useChapters';
+import { useCandidateFinder } from '../../hooks/useCandidateFinder';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { useReaderCommands } from '../../hooks/useReaderCommands';
@@ -15,6 +16,7 @@ import { useSelectionMapper } from '../../hooks/useSelectionMapper';
 import { mapReaderSelection } from '../../utils/highlighting/SelectionMapping';
 import { useBookBinding } from '../BookBindingContext';
 import { BindingButton, BindingNotices, BookBindingDialog } from './ReaderBinding';
+import CandidateFinderPanel from './CandidateFinderPanel';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { ShelfNavigation } from '../../utils/reader/PaletteCommands';
@@ -73,6 +75,18 @@ const BookReader: React.FC<BookReaderProps> = ({
    * jump-to-chapter shortcut opens it ready to type; the chapter-strip button opens it
    * for the eye, leaving the keyboard where it was. */
   const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
+  /** The Candidate finder slide-over. It sits where the outline does, so they exclude each
+   * other. Closing it cancels a running run; a finished list stays for the session. */
+  const [finderOpen, setFinderOpen] = useState(false);
+  const finder = useCandidateFinder(book.fingerprint);
+  const { cancel: cancelFinder } = finder;
+  const closeFinder = useCallback((): void => {
+    cancelFinder();
+    setFinderOpen(false);
+  }, [cancelFinder]);
+  useEffect(() => {
+    if (outline) closeFinder();
+  }, [outline, closeFinder]);
   const { enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
   // The palette's "Bind dictionaries" opens the dialog; everything else about the binding
@@ -194,6 +208,17 @@ const BookReader: React.FC<BookReaderProps> = ({
           {book.title}
         </span>
         <BindingButton fileName={book.fileName} />
+        <button
+          onClick={() => {
+            setOutline(null);
+            setFinderOpen(true);
+          }}
+          className={styles.secondaryButton}
+          title="Find proper nouns missing from the dictionaries"
+        >
+          <ScanSearch size={14} />
+          Candidates
+        </button>
         <span className={styles.readerMeta}>
           {book.lineCount.toLocaleString()} lines · {encoding.label}
           {encoding.label === 'GBK' && !encoding.strictlyClean && (
@@ -321,6 +346,15 @@ const BookReader: React.FC<BookReaderProps> = ({
           onJump={jumpToLine}
           autoFocusSearch={outline.focusSearch}
           onClose={() => setOutline(null)}
+        />
+      )}
+
+      {finderOpen && (
+        <CandidateFinderPanel
+          snapshot={finder.snapshot}
+          onRun={finder.run}
+          onCancel={finder.cancel}
+          onClose={closeFinder}
         />
       )}
 

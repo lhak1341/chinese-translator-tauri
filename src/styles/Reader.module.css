@@ -621,6 +621,40 @@
   line-height: 1.5;
 }
 
+/* ── Candidate finder panel (reuses the outline slide-over chrome) ─────────── */
+
+.candidateHeaderRow,
+.candidateRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.5rem 3.5rem;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.83rem;
+  align-items: baseline;
+}
+
+.candidateHeaderRow {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.candidateRow {
+  color: var(--text-color);
+}
+
+.candidateRow > span:not(:first-child),
+.candidateHeaderRow > span:not(:first-child) {
+  text-align: right;
+}
+
+.candidateText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
   Three panels: the two reference panels stacked on the left, the translation on the right.
   The gap is the container's own background showing through, so there is a hairline between

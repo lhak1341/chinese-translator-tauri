@@ -923,7 +923,10 @@ Seven hand-written `.replace('properNouns-', '')` copies on four screens used to
 
 ## Candidate finder
 
-A Reader panel for the open book (design settled in wayfinder map "Candidate finder for new proper nouns", build not started). It lists strings that are probably proper nouns but are not yet in the book's active proper-noun dictionaries, ranked, with context lines and a quick add. It never writes a dictionary on its own: every add is a user action per row (or a batch the user triggers).
+A Reader panel for the open book (design settled in wayfinder map "Candidate finder for new proper nouns"; built so far: the run, ranked table, progress and cancel, ticket #44 — no coverage mask, background table, rules, dismissals or Add yet). It lists strings that are probably proper nouns but are not yet in the book's active proper-noun dictionaries, ranked, with context lines and a quick add. It never writes a dictionary on its own: every add is a user action per row (or a batch the user triggers).
+
+**Run** (`candidate_finder.rs`, `candidate_finder_commands.rs`, `CandidateFinderStore`):
+The pure Rust analysis takes the book's lines and the `phrases` keys and returns every survivor with count and line count, or nothing when cancelled; the command runs it on a blocking thread over the cached book handle, with a frontend-chosen run id for progress events (`candidate-finder-progress`: stage `reading`/`counting`/`scoring`, percent 0-100) and cooperative cancel. Closing the panel cancels a running run and keeps a finished list; unmounting the Reader (switch, Back, encoding prompt) drops it.
 
 **Candidate**:
 A string of 2-8 characters in the open book that the finder judges likely to be a proper noun and that no active proper-noun dictionary holds. Phrases and characters do not count as holding it.

@@ -1,14 +1,17 @@
 // Dictionary commands module
 mod book_commands;
+mod candidate_finder_commands;
 mod chapter_outline_commands;
 mod dictionary_commands;
 mod lru_cache;
 mod poison_report;
 pub mod book_loader;
+pub mod candidate_finder;
 pub mod chapter_outline;
 mod webview_diagnostics;
 
 use book_commands::BookCache;
+use candidate_finder_commands::CandidateRuns;
 use dictionary_commands::DictionaryCache;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -33,6 +36,8 @@ pub fn run() {
         .manage(DictionaryCache::new())
         // Reader: one decoded book at a time (see book_commands.rs)
         .manage(BookCache::new())
+        // Candidate finder: cancel flags of the runs in flight
+        .manage(CandidateRuns::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
         .setup(|app| {
             poison_report::init_app_handle(app.handle().clone());
@@ -67,6 +72,8 @@ pub fn run() {
             book_commands::fingerprint_book,
             chapter_outline_commands::detect_chapter_outline,
             chapter_outline_commands::chapter_headers_for_pattern,
+            candidate_finder_commands::find_candidates,
+            candidate_finder_commands::cancel_candidate_run,
         ]);
 
     // macOS only: Tauri reloads the page when WebKit kills its web-content process. Our handler

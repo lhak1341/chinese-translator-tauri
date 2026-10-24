@@ -193,3 +193,23 @@ export interface BookRecord {
 
 /** The on-disk shape of `books.json`: every known book record, keyed by fingerprint. */
 export type BookRecords = Record<string, BookRecord>;
+
+// ── Candidate finder ──────────────────────────────────────────────────────────
+
+/** The stages a run reports, in order. */
+export type CandidateStage = 'reading' | 'counting' | 'scoring';
+
+/** A string the book repeats like a proper noun and no `phrases` entry holds. */
+export interface Candidate {
+  text: string;
+  count: number;
+  /** Lines the string occurs in. */
+  lineCount: number;
+}
+
+/** One progress event of a run; `percent` is 0-100 over the whole run. */
+export interface CandidateProgress {
+  runId: string;
+  stage: CandidateStage;
+  percent: number;
+}
