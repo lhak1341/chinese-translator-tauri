@@ -1,8 +1,9 @@
 /**
  * Dictionary entry validation — the one home for "is this entry valid for this dictionary".
  *
- * The Add/Edit form and the persist path (`useDictionaryCRUD`'s `prepareMutationEntry()`, which
- * add, update, patch, rename and move all pass through) call the same `checkEntry`. The form
+ * The Add/Edit form and the persist path (`planAdd`/`planUpdate` in `DictionaryEdit.ts`, which
+ * add, update, patch and rename all pass through; a move writes no new value) call the same
+ * `checkEntry`. The form
  * reads the per-rule results to drive its live flags; the persist path takes the first error.
  * The rules, in the order their errors win:
  *   base      — empty check + 10 000-char DoS limit, and an unknown dictionary id

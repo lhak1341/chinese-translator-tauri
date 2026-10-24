@@ -541,14 +541,6 @@ export class TranslationEngine {
    */
   processCharacterOnlyTokens(tokens, options) {
     const stampOptions = { ...options, recordMatches: false };
-    const dictionary = this.dictionaryManager.getDictionary('characters');
-
-    if (!dictionary) {
-      // MEDIUM-8 FIX: Standardize error logging with logger.error
-      logger.error('🚨 Character-only processing - No character dictionary found');
-      return;
-    }
-
     // Process each token individually
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
@@ -563,7 +555,7 @@ export class TranslationEngine {
 
       // Handle different token types - ensure ALL tokens get processed
       if (token.type === 'chinese_char') {
-        const match = characterMatchFor(dictionary, token);
+        const match = characterMatchFor(this.dictionaryManager, token);
 
         if (match) {
           this.applyMatchToTokens(tokens, i, match, stampOptions);
@@ -1171,13 +1163,10 @@ export class TranslationEngine {
 
         if (isOrphaned) {
           // Orphaned consumed Chinese token — fall back to character dict rather than drop silently.
-          const charTranslation = this.dictionaryManager.translate(
-            token.originalValue ?? token.value,
-            ['characters']
-          );
-          output = charTranslation
-            ? charTranslation.translation
-            : (token.originalValue ?? token.value);
+          output =
+            this.dictionaryManager.lookupCharacter(token.originalValue ?? token.value) ??
+            token.originalValue ??
+            token.value;
           logger.warn(
             `⚠️ Orphaned consumed token recovered via char fallback: "${token.originalValue ?? token.value}" (src: ${token.translationSource})`
           );
@@ -1214,8 +1203,7 @@ export class TranslationEngine {
           case TokenType.CHINESE_CHAR:
           case TokenType.CHINESE_WORD: {
             // Apply fallback character translation if available
-            const charTranslation = this.dictionaryManager.translate(token.value, ['characters']);
-            output = charTranslation ? charTranslation.translation : token.value;
+            output = this.dictionaryManager.lookupCharacter(token.value) ?? token.value;
             break;
           }
           case TokenType.NUMBER:
@@ -1560,9 +1548,6 @@ export class TranslationEngine {
    * @param {Object} options - Translation options
    */
   async processRemainingTokens(tokens, options) {
-    const dictionary = this.dictionaryManager.getDictionary('characters');
-    if (!dictionary) return;
-
     try {
       let characterPhaseYieldTime = performance.now();
 
@@ -1578,7 +1563,7 @@ export class TranslationEngine {
         // Skip guard: a token an earlier phase claimed
         if (isClaimed(tokens[i])) continue;
 
-        const match = characterMatchFor(dictionary, tokens[i]);
+        const match = characterMatchFor(this.dictionaryManager, tokens[i]);
         if (match) {
           this.applyMatchToTokens(tokens, i, match, options);
         }

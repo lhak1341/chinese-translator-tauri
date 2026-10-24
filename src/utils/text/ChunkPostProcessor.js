@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { TextChunk } from '../../types/TextChunk' */
 import { PunctuationProcessor } from './PunctuationProcessor.js';
 import { QuoteProcessor, QUOTE_TYPES } from './QuoteProcessor';
 
@@ -141,7 +143,7 @@ export class ChunkPostProcessor {
   /**
    * Translate punctuation for all chunks using punctuation dictionary
    * @param {TextChunk[]} chunks - Array of chunks to translate (a progressive batch, or all of them)
-   * @param {Object} punctuationDict - Punctuation translation dictionary
+   * @param {Record<string, string>} punctuationDict - Punctuation translation dictionary
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk, in text order. A progressive batch holds
    *   only the translatable chunks, so its neighbours are not the text's: a digit-only chunk
    *   ("700" in "2,700") is missing from it, and the comma before it would look at the wrong chunk.
@@ -161,7 +163,7 @@ export class ChunkPostProcessor {
    * multi-character key (……) matches where a per-character lookup cannot. A missing or falsy
    * value leaves the character as it is.
    * @param {string} text
-   * @param {Object} dict - Punctuation translation dictionary
+   * @param {Record<string, string>} dict - Punctuation translation dictionary
    * @param {number} maxKeyLength - Longest key in `dict`, in code points
    * @returns {string}
    */
@@ -173,7 +175,7 @@ export class ChunkPostProcessor {
       let matched = false;
       for (let length = Math.min(maxKeyLength, codePoints.length - i); length >= 1; length--) {
         const key = codePoints.slice(i, i + length).join('');
-        if (Object.hasOwn(dict, key) && dict[key]) {
+        if (Object.prototype.hasOwnProperty.call(dict, key) && dict[key]) {
           result += dict[key];
           i += length;
           matched = true;
@@ -196,7 +198,7 @@ export class ChunkPostProcessor {
    * its own output would change an entry like ……→… (a second run gave …) or a chain like 「→“
    * with “→".
    * @param {TextChunk[]} chunks - Array of chunks to translate
-   * @param {Object} punctuationDict - Punctuation translation dictionary
+   * @param {Record<string, string>} punctuationDict - Punctuation translation dictionary
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk in text order, for neighbour lookups
    */
   translatePunctuationNormally(chunks, punctuationDict, allChunks = chunks) {

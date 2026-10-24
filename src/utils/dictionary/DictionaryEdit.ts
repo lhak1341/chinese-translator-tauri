@@ -12,8 +12,14 @@
  * history, engine invalidation) is `commitEdit` in `DictionaryContext`.
  */
 
-import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
-import { canMoveBetween } from './DictionaryIdClassifier';
+import type {
+  DictionaryData,
+  DictionaryEntryMetadata,
+  DictionaryEntryValue,
+} from '../../types/DictionaryTypes';
+import { canMoveBetween, isLookupTableDict } from './DictionaryIdClassifier';
+import { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';
+import { validatePersistEntry } from './PersistTimeValidator';
 import { entryFields } from './EntryValue';
 
 type StoredValue = DictionaryEntryValue | string;
@@ -68,15 +74,45 @@ function missingDictionary(dictionaryId: string): InvalidPlan {
   };
 }
 
-/** Writes `value` at `key`, over whatever is there. */
+/**
+ * The key and stored value a write request becomes: sanitized, checked against the
+ * dictionary's entry rules (PersistTimeValidator), then shaped for its kind: an object for
+ * complex-entry dictionaries, a plain string for lookup tables (which drop `metadata`).
+ * Every plan that writes a value goes through here, so no caller can skip a rule. A failed
+ * rule wins over a missing dictionary, as it did when the hook ran these first.
+ */
+function prepareEntry(
+  dictionaryId: string,
+  source: string,
+  translation: string,
+  metadata: DictionaryEntryMetadata
+): InvalidPlan | { key: string; value: StoredValue } {
+  const clean = sanitizeDictionaryEntry(source, translation);
+  const error = validatePersistEntry(dictionaryId, clean.source, clean.translation);
+  if (error) return { invalid: error };
+  if (isLookupTableDict(dictionaryId)) return { key: clean.source, value: clean.translation };
+  const value: DictionaryEntryValue = {
+    translation: clean.translation,
+    allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
+  };
+  if (metadata.semanticType) value.semanticType = metadata.semanticType;
+  if (metadata.allowedVariableTypes) value.allowedVariableTypes = metadata.allowedVariableTypes;
+  return { key: clean.source, value };
+}
+
+/** Writes the entry at its sanitized `source`, over whatever is there. */
 export function planAdd(
   dicts: Dictionaries,
   dictionaryId: string,
-  key: string,
-  value: StoredValue
+  source: string,
+  translation: string,
+  metadata: DictionaryEntryMetadata = {}
 ): PlanResult {
+  const entry = prepareEntry(dictionaryId, source, translation, metadata);
+  if ('invalid' in entry) return entry;
   const dict = dicts[dictionaryId];
   if (!dict) return missingDictionary(dictionaryId);
+  const { key, value } = entry;
   const before = dict[key];
   return {
     changes: [{ dictionaryId, key, before, after: value }],
@@ -84,17 +120,21 @@ export function planAdd(
   };
 }
 
-/** Replaces the entry at `oldKey` with `value` at `newKey`. A rename onto an existing key
- * overwrites it, and the edit records the overwritten value. */
+/** Replaces the entry at `oldKey` with the entry at the sanitized `newSource`. A rename onto
+ * an existing key overwrites it, and the edit records the overwritten value. */
 export function planUpdate(
   dicts: Dictionaries,
   dictionaryId: string,
   oldKey: string,
-  newKey: string,
-  value: StoredValue
+  newSource: string,
+  translation: string,
+  metadata: DictionaryEntryMetadata = {}
 ): PlanResult {
+  const entry = prepareEntry(dictionaryId, newSource, translation, metadata);
+  if ('invalid' in entry) return entry;
   const dict = dicts[dictionaryId];
   if (!dict) return missingDictionary(dictionaryId);
+  const { key: newKey, value } = entry;
   const changes: EntryChange[] = [];
   if (oldKey !== newKey && dict[oldKey] !== undefined) {
     changes.push({ dictionaryId, key: oldKey, before: dict[oldKey], after: undefined });

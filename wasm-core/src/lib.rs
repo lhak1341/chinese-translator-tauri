@@ -5,7 +5,7 @@
 // ✅ ACTIVE SYSTEMS:
 // 1. NumberProcessor - Rust-side parity spec for JS NumberProcessor.js
 //    - No WASM export (#[wasm_bindgen] intentionally removed, see wasm-core/CLAUDE.md)
-//    - 155 tests validate parity against the JS implementation, which runs in production
+//    - Tests validate parity against the JS implementation, which runs in production
 //    - Converts: 三千万 → "3,000 vạn", 百分之三十 → "30%"
 //
 // (A DictionaryEngine and its trie were deleted 2026-10-04 with the JS dictionary tier that

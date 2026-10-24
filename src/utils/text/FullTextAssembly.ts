@@ -5,7 +5,7 @@ import { logger } from '../logger';
 import { applySmartCapitalization, finishFullText } from './FormattingPasses';
 import type { FormattingChunk } from './FormattingPasses';
 
-/** The chunk fields the finishing pass reads; the chunk shape itself belongs to TextChunker. */
+/** The chunk fields the finishing pass reads (`TextChunk`, src/types/TextChunk.d.ts). */
 export type FullTextChunk = FormattingChunk;
 
 /** The two ChunkPostProcessor calls the finishing pass needs. Injected so tests need no engine. */

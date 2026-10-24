@@ -26,3 +26,23 @@ describe('exact dictionary lookup', () => {
     expect(result?.translation ?? null).toBe(expected);
   });
 });
+
+describe('lookupCharacter', () => {
+  test('answers a characters member with its bare translation, and a miss with null', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ characters: { 我: 'tôi' }, phrases: { 你好: 'xin chào' } });
+
+    expect(manager.lookupCharacter('我')).toBe('tôi');
+    expect(manager.lookupCharacter('他')).toBeNull();
+    // Only `characters` is read, whatever the other dictionaries hold.
+    expect(manager.lookupCharacter('你好')).toBeNull();
+  });
+
+  test('reads as a miss before load and with no characters dictionary', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    expect(manager.lookupCharacter('我')).toBeNull();
+
+    await manager.loadDictionaries({ phrases: { 你好: 'xin chào' } });
+    expect(manager.lookupCharacter('我')).toBeNull();
+  });
+});

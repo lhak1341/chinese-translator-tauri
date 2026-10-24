@@ -148,6 +148,18 @@ describe('engine parity: Full Translation vs character-only', () => {
     expect(full.translatedText).toBe('Thuyết 2,700! Biệt');
   });
 
+  it('leaves the text untranslated, and throws nothing, when there is no characters dictionary', async () => {
+    const e = createTranslationEngine();
+    const { characters: _characters, ...withoutCharacters } = dictionaries;
+    await e.initialize(withoutCharacters, { activeProperNouns: ['properNouns'] });
+
+    const untranslated = (text: string) => text.replace(/\s+/g, '');
+    expect(untranslated((await e.translateWithCharactersOnly('说别', {})).translatedText)).toBe(
+      '说别'
+    );
+    expect(untranslated((await e.translateWithSegments('说别', {})).translatedText)).toBe('说别');
+  });
+
   it('gives every character-only unit a position that slices to its own text', async () => {
     const e = await engine();
     const { translatedText, semanticArrays } = await e.translateWithCharactersOnly('说别说', {});

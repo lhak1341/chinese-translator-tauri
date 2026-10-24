@@ -54,7 +54,7 @@ describe('the startup load', () => {
   test('an edit made before it finishes waits for it, and plans against what it loaded', async () => {
     const fresh = createDictionaryStore(fake.deps);
     const loading = fresh.loadAll();
-    const result = await fresh.commit((d) => planAdd(d, A, '王五', entry('Vương Ngũ')));
+    const result = await fresh.commit((d) => planAdd(d, A, '王五', 'Vương Ngũ'));
     await loading;
 
     expect(result.status).toBe('ok');
@@ -84,7 +84,7 @@ describe('import', () => {
     importRewritesB({ 李四: entry('imported'), 赵六: entry('imported too') });
 
     const outcome = await store.importAll();
-    await store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
+    await store.commit((d) => planAdd(d, B, '王五', 'Vương Ngũ'));
 
     expect(outcome).toEqual({ status: 'imported', message: 'Imported 1 dictionary' });
     expect(fake.files[B]).toEqual({
@@ -102,7 +102,7 @@ describe('import', () => {
     );
     const committing = store.commit((d) => {
       order.push('planned');
-      return planAdd(d, A, '王五', entry('Vương Ngũ'));
+      return planAdd(d, A, '王五', 'Vương Ngũ');
     });
     await Promise.all([importing, committing]);
 
@@ -119,7 +119,7 @@ describe('import', () => {
     });
     importRewritesB({ 李四: entry('imported') });
 
-    const committing = store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
+    const committing = store.commit((d) => planAdd(d, B, '王五', 'Vương Ngũ'));
     const importing = store.importAll();
     await flush();
     expect(fake.deps.importFiles).not.toHaveBeenCalled();
@@ -135,7 +135,7 @@ describe('import', () => {
     importRewritesB({ 李四: entry('imported') });
 
     const importing = store.importAll();
-    const committing = store.commit((d) => planAdd(d, B, '王五', entry('Vương Ngũ')));
+    const committing = store.commit((d) => planAdd(d, B, '王五', 'Vương Ngũ'));
     await Promise.all([importing, committing]);
 
     expect(fake.files[B]).toEqual({ 李四: entry('imported'), 王五: entry('Vương Ngũ') });
@@ -154,7 +154,7 @@ describe('import', () => {
     fake.deps.importFiles.mockRejectedValue(new Error('ipc down'));
 
     expect(await store.importAll()).toEqual({ status: 'failed', error: 'ipc down' });
-    await store.commit((d) => planAdd(d, A, '王五', entry('Vương Ngũ')));
+    await store.commit((d) => planAdd(d, A, '王五', 'Vương Ngũ'));
     expect(fake.files[A]).toHaveProperty('王五');
   });
 
@@ -179,7 +179,7 @@ describe('a full reload', () => {
     const reloading = store.loadAll({ onApplied: () => order.push('applied') });
     const committing = store.commit((d) => {
       order.push('planned');
-      return planAdd(d, A, '王五', entry('Vương Ngũ'));
+      return planAdd(d, A, '王五', 'Vương Ngũ');
     });
     await Promise.all([reloading, committing]);
 
@@ -197,7 +197,7 @@ describe('reload of one dictionary', () => {
       return { success: true };
     });
 
-    const committing = store.commit((d) => planAdd(d, A, '王五', entry('Vương Ngũ')));
+    const committing = store.commit((d) => planAdd(d, A, '王五', 'Vương Ngũ'));
     const reloading = store.reload(A);
     await flush();
     expect(fake.deps.load).not.toHaveBeenCalled();
@@ -222,7 +222,7 @@ describe('reload of one dictionary', () => {
 
     expect(A in memory()).toBe(false);
     expect(store.getSnapshot().unreadDictionaryIds).toEqual([A]);
-    const result = await store.commit((d) => planAdd(d, A, '王五', entry('x')));
+    const result = await store.commit((d) => planAdd(d, A, '王五', 'x'));
     expect(result).toEqual({
       status: 'invalid',
       reason: `Couldn't read ${A}.json; not saving over it`,
@@ -264,7 +264,7 @@ describe('rename', () => {
     const renaming = store.rename([[A, 'properNouns-A2']], onApplied);
     const committing = store.commit((d) => {
       seen.push(Object.keys(d).sort());
-      return planAdd(d, 'properNouns-A2', '王五', entry('Vương Ngũ'));
+      return planAdd(d, 'properNouns-A2', '王五', 'Vương Ngũ');
     });
     const [, result] = await Promise.all([renaming, committing]);
 
@@ -348,7 +348,7 @@ describe('the outcome of the last full load (lastLoad)', () => {
 test('subscribers hear every change', async () => {
   const listener = vi.fn();
   const unsubscribe = store.subscribe(listener);
-  await store.commit((d) => planAdd(d, A, '王五', entry('Vương Ngũ')));
+  await store.commit((d) => planAdd(d, A, '王五', 'Vương Ngũ'));
   expect(listener).toHaveBeenCalled();
 
   unsubscribe();

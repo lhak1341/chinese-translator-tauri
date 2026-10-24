@@ -1,3 +1,5 @@
+// @ts-check
+/** @import { TextChunk as TextChunkShape } from '../../types/TextChunk' */
 /**
  * Text Chunker for punctuation-based text segmentation
  * Splits text into chunks by punctuation boundaries to prevent cross-punctuation matching
@@ -6,7 +8,15 @@
 
 import { containsHan } from './TextTokenizer.js';
 
+/** @implements {TextChunkShape} */
 class TextChunk {
+  /**
+   * @param {string} content
+   * @param {string} [punctuation]
+   * @param {number} [startIndex]
+   * @param {string} [lineBreaks]
+   * @param {string} [startedBy]
+   */
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
     this.content = content.trim(); // The actual text content
     this.punctuation = punctuation; // The punctuation that follows this chunk (will be translated later)
@@ -15,7 +25,9 @@ class TextChunk {
     // separator, an indent included, so skip the whitespace the trim dropped.
     this.startIndex = startIndex + (content.length - content.trimStart().length);
     this.startedBy = startedBy; // What precedes this chunk (for capitalization rules)
+    /** @type {string | null} */
     this.translated = null; // Will hold the translated result
+    /** @type {string | null} */
     this.translatedPunctuation = null; // Will hold the translated punctuation
   }
 
@@ -65,6 +77,7 @@ export class TextChunker {
       return [];
     }
 
+    /** @type {TextChunk[]} */
     const chunks = [];
     const chars = Array.from(text);
     let currentContent = '';

@@ -13,8 +13,8 @@
  * snapshot of the rest.
  *
  * `buildEntryMetadata` was unified from 3 reimplementations (architecture review 2026-08-28,
- * candidate #3 grilling). It carries no dictionary-type gate: `prepareMutationEntry` in
- * `useDictionaryCRUD.ts` is the sole authority on whether metadata is kept (it decides
+ * candidate #3 grilling). It carries no dictionary-type gate: `planAdd`/`planUpdate` in
+ * `DictionaryEdit.ts` are the sole authority on whether metadata is kept (it decides
  * object-vs-string storage purely from `dictionaryId`, discarding whatever this returns for
  * lookup tables).
  */

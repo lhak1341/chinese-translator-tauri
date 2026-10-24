@@ -256,6 +256,18 @@ export class DictionaryManager {
     return this.dictionaries.get(name) ?? null;
   }
 
+  /**
+   * The `characters` translation of one token's text, or null. A point lookup (ADR-087), so a
+   * manager that is not ready and a missing `characters` dictionary both read as a miss: the
+   * caller translates nothing and logs nothing per token.
+   * @param {string} word
+   * @returns {string|null}
+   */
+  lookupCharacter(word) {
+    if (!this.ready) return null;
+    return this.dictionaries.get('characters')?.get(word) ?? null;
+  }
+
   getMemoryUsage() {
     return {
       dictionaries: this.dictionaries?.size ?? 0,

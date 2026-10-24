@@ -1,7 +1,7 @@
 /**
  * Tests for EntryValue — reading an entry's fields, building its metadata, and the pure
  * pieces of patching one field. buildEntryMetadata is the single metadata-shape builder
- * (architecture review 2026-08-28, candidate #3 grilling). No dictionary-type gate — prepareMutationEntry (useDictionaryCRUD.ts) is the
+ * (architecture review 2026-08-28, candidate #3 grilling). No dictionary-type gate — planAdd/planUpdate (DictionaryEdit.ts) is the
  * sole real authority on whether metadata is kept, discarding it for non-complex dicts
  * regardless of shape.
  */
@@ -63,7 +63,7 @@ describe('buildEntryMetadata', () => {
     // The old per-call-site gates (isPatterns||isPhrases||isProperNouns / raw dictionaryId
     // check) are gone; this function has no dictionary-type awareness at all. Callers that
     // write to a pure lookup-table dict (characters/conversion/punctuation) still get the
-    // full shape back — prepareMutationEntry discards it into a plain string on write.
+    // full shape back — planAdd/planUpdate discard it into a plain string on write.
     const metadata = buildEntryMetadata({
       allowAsPatternVariable: true,
       semanticType: 'location',

@@ -38,12 +38,12 @@ function edit(result: PlanResult): DictionaryEdit {
 
 // Every plan type, including each overwrite case the old history records lost.
 const plans: Array<[string, (d: Dictionaries) => PlanResult]> = [
-  ['add new key', (d) => planAdd(d, A, '赵六', entry('Triệu Lục'))],
-  ['add over existing key', (d) => planAdd(d, A, '张三', entry('Trương Tam mới'))],
+  ['add new key', (d) => planAdd(d, A, '赵六', 'Triệu Lục')],
+  ['add over existing key', (d) => planAdd(d, A, '张三', 'Trương Tam mới')],
   ['add to a lookup table', (d) => planAdd(d, 'characters', '你', 'ngươi')],
-  ['update in place', (d) => planUpdate(d, A, '张三', '张三', entry('Trương Tam 2'))],
-  ['update renamed to a free key', (d) => planUpdate(d, A, '李四', '赵六', entry('Lý Tứ'))],
-  ['update renamed onto an existing key', (d) => planUpdate(d, A, '李四', '张三', entry('Lý Tứ'))],
+  ['update in place', (d) => planUpdate(d, A, '张三', '张三', 'Trương Tam 2')],
+  ['update renamed to a free key', (d) => planUpdate(d, A, '李四', '赵六', 'Lý Tứ')],
+  ['update renamed onto an existing key', (d) => planUpdate(d, A, '李四', '张三', 'Lý Tứ')],
   ['delete one', (d) => planDelete(d, [at(A, '张三')])],
   [
     'delete several, one missing',
@@ -81,8 +81,8 @@ describe('DictionaryEdit — undo restores the dictionaries exactly', () => {
 
 describe('DictionaryEdit — plans', () => {
   test('add reports added vs overwritten', () => {
-    expect(edit(planAdd(dicts(), A, '赵六', entry('x'))).outcome).toEqual({ kind: 'added' });
-    expect(edit(planAdd(dicts(), A, '张三', entry('x'))).outcome).toEqual({
+    expect(edit(planAdd(dicts(), A, '赵六', 'x')).outcome).toEqual({ kind: 'added' });
+    expect(edit(planAdd(dicts(), A, '张三', 'x')).outcome).toEqual({
       kind: 'overwritten',
     });
   });
@@ -135,7 +135,7 @@ describe('DictionaryEdit — plans', () => {
   });
 
   test('invalid requests', () => {
-    expect(planAdd(dicts(), 'properNouns-X', 'k', entry('v'))).toEqual({
+    expect(planAdd(dicts(), 'properNouns-X', 'k', 'v')).toEqual({
       invalid: "Dictionary 'properNouns-X' does not exist",
       missingDictionaryId: 'properNouns-X',
     });
@@ -152,10 +152,61 @@ describe('DictionaryEdit — plans', () => {
   });
 });
 
+describe('DictionaryEdit — entry rules in the write plans', () => {
+  const after = (result: PlanResult) => edit(result).changes.map((c) => [c.key, c.after]);
+
+  test('add sanitizes the source and translation', () => {
+    expect(after(planAdd(dicts(), A, '  赵六  ', '  Triệu Lục \u0000'))).toEqual([
+      ['赵六', entry('Triệu Lục')],
+    ]);
+  });
+
+  test('add keeps only the metadata fields that are set', () => {
+    expect(
+      after(
+        planAdd(dicts(), A, '赵六', 'x', {
+          allowAsPatternVariable: true,
+          semanticType: 'concept',
+        })
+      )
+    ).toEqual([['赵六', entry('x', { allowAsPatternVariable: true, semanticType: 'concept' })]]);
+  });
+
+  test('a lookup table stores a plain string and drops the metadata', () => {
+    expect(
+      after(planAdd(dicts(), 'characters', '你', 'ngươi', { semanticType: 'concept' }))
+    ).toEqual([['你', 'ngươi']]);
+  });
+
+  test('update sanitizes the new key and leaves the old key as given', () => {
+    const e = edit(planUpdate(dicts(), A, '李四', ' 赵六 ', 'Lý Tứ'));
+    expect(e.changes.map((c) => c.key)).toEqual(['李四', '赵六']);
+  });
+
+  test.each([
+    ['add', (d: Dictionaries) => planAdd(d, A, '赵六', '   ')],
+    ['update', (d: Dictionaries) => planUpdate(d, A, '李四', '赵六', '')],
+    [
+      'add of a multi-character key to characters',
+      (d: Dictionaries) => planAdd(d, 'characters', '你好', 'xin chào'),
+    ],
+  ])('%s that breaks an entry rule is an invalid plan with the rule’s message', (_name, plan) => {
+    const result = plan(dicts());
+    expect(isInvalidPlan(result)).toBe(true);
+    expect(isInvalidPlan(result) && result.missingDictionaryId).toBeUndefined();
+  });
+
+  test('a rule failure wins over a missing dictionary', () => {
+    expect(planAdd(dicts(), 'notADictionary', 'k', 'v')).toEqual({
+      invalid: 'Invalid dictionary type',
+    });
+  });
+});
+
 describe('DictionaryEdit — changedKeys', () => {
   test('names a key another edit changed since', () => {
     const before = dicts();
-    const e = edit(planAdd(before, A, '张三', entry('Trương Tam mới')));
+    const e = edit(planAdd(before, A, '张三', 'Trương Tam mới'));
     const after = applyEdit(before, e);
     const drifted = { ...after, [A]: { ...after[A], 张三: entry('someone else') } };
 
@@ -163,7 +214,7 @@ describe('DictionaryEdit — changedKeys', () => {
   });
 
   test('a missing dictionary counts as changed', () => {
-    const e = edit(planAdd(dicts(), A, '张三', entry('x')));
+    const e = edit(planAdd(dicts(), A, '张三', 'x'));
     const withoutA: Dictionaries = { ...dicts() };
     delete withoutA[A];
     expect(changedKeys(e, withoutA)).toEqual(['张三']);

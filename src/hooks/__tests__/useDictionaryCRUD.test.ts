@@ -22,7 +22,6 @@ import type { EditCommitter } from '../../components/dictionary/EditCommitter';
 import { invert } from '../../utils/dictionary/DictionaryEdit';
 import type { Dictionaries, DictionaryEdit } from '../../utils/dictionary/DictionaryEdit';
 import toast from '../../utils/toast';
-import { validatePersistEntry } from '../../utils/dictionary/PersistTimeValidator';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
 
 vi.mock('../../utils/toast', () => ({
@@ -30,9 +29,6 @@ vi.mock('../../utils/toast', () => ({
 }));
 vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-vi.mock('../../utils/dictionary/PersistTimeValidator', () => ({
-  validatePersistEntry: vi.fn().mockReturnValue(null),
 }));
 vi.mock('../../utils/dictionary', async () => ({
   // Real classifier: pure, and the CRUD rules under test depend on it.
@@ -43,10 +39,6 @@ vi.mock('../../utils/dictionary', async () => ({
   ...(await vi.importActual<typeof import('../../utils/dictionary/EntryValue')>(
     '../../utils/dictionary/EntryValue'
   )),
-  sanitizeDictionaryEntry: vi.fn().mockImplementation((s: string, t: string) => ({
-    source: s,
-    translation: t,
-  })),
   sortDictionaryEntries: vi.fn().mockImplementation((dict: DictionaryData) => ({ ...dict })),
 }));
 
@@ -129,6 +121,18 @@ describe('addEntry', () => {
     expect(memory[DICT_ID][SOURCE]).toEqual({ ...phraseEntry, semanticType: 'concept' });
   });
 
+  it('toasts once and writes nothing when the entry breaks a dictionary rule (I4)', async () => {
+    const result = makeHook({ [CHARS_ID]: {} });
+    await act(async () => {
+      await expect(result.current.addEntry(CHARS_ID, '你好', 'xin chào')).rejects.toThrow(
+        'Character dictionary entries must be exactly 1 character long'
+      );
+    });
+    expect(toastCount()).toBe(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
+  });
+
   it('throws, records nothing and restores memory when the save fails (I3)', async () => {
     const result = makeHook({ [DICT_ID]: {} });
     failSaves();
@@ -143,13 +147,6 @@ describe('addEntry', () => {
 
   it.each([
     ['the dictionary does not exist', () => makeHook({})],
-    [
-      'validation fails',
-      () => {
-        vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
-        return makeHook({ [DICT_ID]: {} });
-      },
-    ],
     [
       'the save fails',
       () => {
@@ -285,14 +282,14 @@ describe('patchEntry', () => {
   });
 
   it('keeps only the translation for a lookup table', async () => {
-    const result = makeHook({ [CHARS_ID]: { [SOURCE]: 'tốt' } });
+    const result = makeHook({ [CHARS_ID]: { 好: 'tốt' } });
     await act(async () => {
-      await result.current.patchEntry(CHARS_ID, SOURCE, {
+      await result.current.patchEntry(CHARS_ID, '好', {
         translation: 'hay',
         semanticType: 'concept',
       });
     });
-    expect(memory[CHARS_ID][SOURCE]).toBe('hay');
+    expect(memory[CHARS_ID]['好']).toBe('hay');
   });
 
   it('throws ValidationError and writes nothing for an entry that does not exist', async () => {
@@ -308,11 +305,10 @@ describe('patchEntry', () => {
 
   it('toasts once when the patched value fails validation', async () => {
     const result = makeHook({ [PROPER_ID]: { [SOURCE]: stored } });
-    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
     await act(async () => {
       await expect(
         result.current.patchEntry(PROPER_ID, SOURCE, { translation: '' })
-      ).rejects.toThrow('bad entry');
+      ).rejects.toThrow('Both source and translation are required');
     });
     expect(toastCount()).toBe(1);
     expect(save).not.toHaveBeenCalled();

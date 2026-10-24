@@ -1,9 +1,8 @@
+import type { TextChunk } from '../../types/TextChunk';
 import { cleanFullText } from './FormattingPasses';
 
-/** The chunk fields the batch step touches; the chunk shape itself belongs to TextChunker. */
-interface BatchChunk {
-  content: string;
-}
+/** The chunk fields the batch step touches (`TextChunk`, src/types/TextChunk.d.ts). */
+type BatchChunk = Pick<TextChunk, 'content'>;
 
 /** The two ChunkPostProcessor calls a batch needs. Injected so tests need no engine. */
 interface BatchChunkPostProcessor {

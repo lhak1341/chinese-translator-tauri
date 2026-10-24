@@ -8,6 +8,7 @@
  * src/utils/CLAUDE.md section 4 (positions recorded before cleanup must survive it).
  */
 
+import type { TextChunk } from '../../types/TextChunk';
 import { QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
 
 // Closing quotes as a regex character-class body, derived so the three rules below cannot drift
@@ -32,12 +33,11 @@ export interface CleanupOptions {
   capitalizeStart: boolean;
 }
 
-export interface FormattingChunk {
-  content: string;
-  translated: string | null;
-  startedBy: string;
-  lineBreaks?: string | boolean;
-}
+/** The chunk fields the formatting passes read; the shape is `TextChunk` (src/types/TextChunk.d.ts). */
+export type FormattingChunk = Pick<
+  TextChunk,
+  'content' | 'translated' | 'startedBy' | 'lineBreaks'
+>;
 
 export function cleanupFormatting(
   text: string,

@@ -1,15 +1,8 @@
 import { useCallback } from 'react';
 import toast from '../utils/toast';
-import { validatePersistEntry } from '../utils/dictionary/PersistTimeValidator';
 import { logger } from '../utils/logger';
 import { ValidationError, SaveError } from '../utils/errors';
-import {
-  isLookupTableDict,
-  sanitizeDictionaryEntry,
-  entryFields,
-  applyEntryPatch,
-  buildEntryMetadata,
-} from '../utils/dictionary';
+import { entryFields, applyEntryPatch, buildEntryMetadata } from '../utils/dictionary';
 import type { EntryFields, EntryPatch } from '../utils/dictionary';
 import { planAdd, planUpdate, planDelete, planMove } from '../utils/dictionary/DictionaryEdit';
 import type {
@@ -23,11 +16,7 @@ import {
   describeFreshFailure,
   describeOperationError,
 } from '../components/dictionary/CommitFeedback';
-import type {
-  DictionaryEntryValue,
-  DictionaryEntryMetadata,
-  DictionaryContextInterface,
-} from '../types/DictionaryTypes';
+import type { DictionaryEntryMetadata, DictionaryContextInterface } from '../types/DictionaryTypes';
 
 type RecordEdit = (edit: DictionaryEdit) => void;
 
@@ -42,40 +31,6 @@ export type DictionaryCRUDAPI = Pick<
   | 'moveEntry'
   | 'bulkMoveEntries'
 >;
-
-// Sanitizes, validates, and builds the typed entry value for addEntry/updateEntry/patchEntry.
-// Throws ValidationError (no toast — caller's catch block handles UI feedback).
-function prepareMutationEntry(
-  dictionaryId: string,
-  source: string,
-  translation: string,
-  metadata: DictionaryEntryMetadata
-): { cleanSource: string; targetValue: string | DictionaryEntryValue } {
-  const sanitized = sanitizeDictionaryEntry(source, translation);
-  const cleanSource = sanitized.source;
-  const cleanTranslation = sanitized.translation;
-
-  const validationError = validatePersistEntry(dictionaryId, cleanSource, cleanTranslation);
-  if (validationError) {
-    throw new ValidationError(validationError);
-  }
-
-  // Complex-entry dicts (phrases, patterns, properNouns) use object format.
-  // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
-  let targetValue: string | DictionaryEntryValue = cleanTranslation;
-  if (!isLookupTableDict(dictionaryId)) {
-    const entryValue: DictionaryEntryValue = {
-      translation: cleanTranslation,
-      allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
-    };
-    if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
-    if (metadata.allowedVariableTypes)
-      entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
-    targetValue = entryValue;
-  }
-
-  return { cleanSource, targetValue };
-}
 
 /**
  * Commits a plan, recording it in history on success. Turns every other outcome into a typed
@@ -111,8 +66,8 @@ function fail(error: unknown, verb: string, logMessage: string): never {
 /**
  * Owns all dictionary CRUD operations: add, update, patch, delete, bulk-delete, move,
  * bulk-move. Each one plans a Dictionary Edit and commits it through the provider's
- * `EditCommitter` (GLOSSARY.md "Dictionary Edit"); this hook adds input clean-up, error
- * typing and the user-facing message. All returned callbacks are stable.
+ * `EditCommitter` (GLOSSARY.md "Dictionary Edit"); this hook adds error typing
+ * and the user-facing message. All returned callbacks are stable.
  *
  * @param committer - The provider's EditCommitter (stable)
  * @param record - Records a committed edit for undo (stable, from useDictionaryHistory)
@@ -126,16 +81,10 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
       try {
-        const { cleanSource, targetValue } = prepareMutationEntry(
-          dictionaryId,
-          source,
-          translation,
-          metadata
-        );
         const edit = await commitOrThrow(
           committer,
           record,
-          (d) => planAdd(d, dictionaryId, cleanSource, targetValue),
+          (d) => planAdd(d, dictionaryId, source, translation, metadata),
           'Failed to save dictionary changes'
         );
         if (edit.outcome.kind === 'overwritten') {
@@ -159,16 +108,10 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
       try {
-        const { cleanSource, targetValue } = prepareMutationEntry(
-          dictionaryId,
-          newSource,
-          translation,
-          metadata
-        );
         await commitOrThrow(
           committer,
           record,
-          (d) => planUpdate(d, dictionaryId, oldSource, cleanSource, targetValue),
+          (d) => planUpdate(d, dictionaryId, oldSource, newSource, translation, metadata),
           'Failed to save dictionary changes'
         );
         toast.success('Entry updated successfully');
@@ -201,13 +144,14 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
               current,
               typeof patch === 'function' ? patch(current) : patch
             );
-            const { targetValue } = prepareMutationEntry(
+            return planUpdate(
+              d,
               dictionaryId,
+              source,
               source,
               next.translation,
               buildEntryMetadata(next)
             );
-            return planUpdate(d, dictionaryId, source, source, targetValue);
           },
           'Failed to save dictionary changes'
         );
@@ -234,13 +178,14 @@ export function useDictionaryCRUD(committer: EditCommitter, record: RecordEdit):
               return { invalid: `Entry '${oldSource}' does not exist in '${dictionaryId}'` };
             }
             const current = entryFields(value);
-            const { cleanSource, targetValue } = prepareMutationEntry(
+            return planUpdate(
+              d,
               dictionaryId,
+              oldSource,
               newSource,
               current.translation,
               buildEntryMetadata(current)
             );
-            return planUpdate(d, dictionaryId, oldSource, cleanSource, targetValue);
           },
           'Failed to save dictionary changes'
         );

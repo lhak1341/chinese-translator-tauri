@@ -7,13 +7,13 @@
  * point lookup: no span, no overlap, no `findMatchesAtToken`. This is the one
  * place that rule is applied; a multi-character key never matches here.
  *
- * Interface: `characterMatchFor(dictionary, token) → match | null`. The caller still owns the
+ * Interface: `characterMatchFor(source, token) → match | null`. The caller still owns the
  * skip guard and `applyMatchToTokens`.
  */
 
-/** The one method of the characters trie this reads. */
+/** The one method of the Dictionary Manager this reads (`DictionaryManager.lookupCharacter`). */
 export interface CharacterLookup {
-  get(word: string): string | null | undefined;
+  lookupCharacter(word: string): string | null;
 }
 
 export interface CharacterMatch {
@@ -24,10 +24,10 @@ export interface CharacterMatch {
 }
 
 export function characterMatchFor(
-  dictionary: CharacterLookup,
+  source: CharacterLookup,
   token: { value: string }
 ): CharacterMatch | null {
-  const translation = dictionary.get(token.value);
+  const translation = source.lookupCharacter(token.value);
   if (!translation) return null;
   return { word: token.value, translation, dictionary: 'characters', tokenLength: 1 };
 }
