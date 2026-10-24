@@ -116,6 +116,44 @@ export class DictionaryManager {
   }
 
   /**
+   * `text` with every punctuation-dictionary key replaced by its value, longest key first at each
+   * position. One pass over the text, so a value is never looked up again: an entry whose value
+   * is another entry's key (「→“ beside “→") translates once, not twice. A key maps by code point,
+   * so a multi-character key (……) matches where a per-character lookup cannot. A key whose value
+   * is empty leaves the character as it is. Without a punctuation dictionary the text is returned
+   * as it is.
+   * @param {string} text
+   * @returns {string}
+   */
+  translatePunctuationText(text) {
+    const trie = this.ready ? this.dictionaries.get('punctuation') : undefined;
+    if (!trie) return text;
+
+    let result = '';
+    let i = 0;
+    while (i < text.length) {
+      const matches = trie.findMatches(text, i);
+      let match;
+      for (let m = matches.length - 1; m >= 0; m--) {
+        if (matches[m].translation) {
+          match = matches[m];
+          break;
+        }
+      }
+      if (match) {
+        result += match.translation;
+        i = match.endPos;
+      } else {
+        const codePoint = text.codePointAt(i);
+        const length = codePoint > 0xffff ? 2 : 1;
+        result += text.slice(i, i + length);
+        i += length;
+      }
+    }
+    return result;
+  }
+
+  /**
    * Every match starting at `startPos`, from the dictionaries in `dictionaryOrder`, longest
    * first, lower priority number on a tie. Synchronous: PatternVariableCache's per-position
    * loop cannot await. A dictionary whose walk throws is logged and skipped.

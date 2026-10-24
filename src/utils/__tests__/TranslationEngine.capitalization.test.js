@@ -14,6 +14,7 @@ import { createTranslationEngine } from '../TranslationEngine.js';
 import { applyCharOnlySupplements, applySmartCapitalization } from '../text/FormattingPasses';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
+import { TextChunker } from '../text/TextChunker.js';
 
 // Minimal dictionaries — only characters needed; capitalization is punctuation-driven
 const DICTS = {
@@ -88,6 +89,37 @@ describe('applySmartCapitalization', () => {
     const chunks = [makeChunk({ content: '别', translated: 'biệt', startedBy: '，' })];
     applySmartCapitalization(chunks, null);
     expect(chunks[0].translated).toBe('biệt');
+  });
+
+  // Sentence-start context passes through every consecutive empty chunk, not one. Adjacent marks
+  // merge into one chunk, so a run of empties needs whitespace between the marks (`《 “你`: the
+  // chunker gives an empty chunk for 《 and another for the space-separated “).
+  describe('a run of empty chunks', () => {
+    const WORDS = { 说: 'shuo', 你: 'ni' };
+    /** The chunker's own chunks for `text`, each content chunk translated to a lowercase word. */
+    function capitalized(text) {
+      const chunks = new TextChunker().chunkText(text).map((chunk) => ({
+        ...chunk,
+        translated: chunk.content.trim() ? WORDS[chunk.content] : null,
+      }));
+      applySmartCapitalization(chunks, null);
+      return chunks.filter((chunk) => chunk.translated).map((chunk) => chunk.translated);
+    }
+
+    test.each([
+      ['two empty chunks at the start of the text', '《\u3000“你', ['Ni']],
+      ['three empty chunks at the start of the text', '《\u3000「\u3000“你', ['Ni']],
+      ['empty chunks after a period', '说。《\u3000“你', ['Shuo', 'Ni']],
+      ['empty chunks after a comma', '说，《\u3000“你', ['Shuo', 'ni']],
+      ['a whitespace chunk after a comma before an opening quote', '说，\u3000“你', ['Shuo', 'ni']],
+      [
+        'a whitespace chunk after a period before an opening quote',
+        '说。\u3000“你',
+        ['Shuo', 'Ni'],
+      ],
+    ])('%s', (_name, text, expected) => {
+      expect(capitalized(text)).toEqual(expected);
+    });
   });
 
   // BUG FIX (2026-08-29 review): the fallback block used to hand-copy its own punctuation

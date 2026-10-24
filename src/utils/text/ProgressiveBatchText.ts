@@ -8,14 +8,15 @@ type BatchChunk = Pick<TextChunk, 'content'>;
 interface BatchChunkPostProcessor {
   translatePunctuation(
     chunks: BatchChunk[],
-    punctuationDict: Record<string, unknown>,
+    translateText: (text: string) => string,
     allChunks: BatchChunk[]
   ): void;
   reconstructText(chunks: BatchChunk[]): string;
 }
 
 export interface ProgressiveBatchTextDeps {
-  punctuationDict: Record<string, unknown>;
+  /** The punctuation dictionary applied to a text (`DictionaryManager.translatePunctuationText`). */
+  translatePunctuationText: (text: string) => string;
   chunkPostProcessor: BatchChunkPostProcessor;
 }
 
@@ -40,14 +41,14 @@ export interface ProgressiveBatchText {
  * final one, not a prefix of it.
  */
 export function createProgressiveBatchText({
-  punctuationDict,
+  translatePunctuationText,
   chunkPostProcessor,
 }: ProgressiveBatchTextDeps): ProgressiveBatchText {
   let cumulativeText = '';
 
   return {
     addBatch(batch, allChunks) {
-      chunkPostProcessor.translatePunctuation(batch, punctuationDict, allChunks);
+      chunkPostProcessor.translatePunctuation(batch, translatePunctuationText, allChunks);
       const batchText = cleanFullText(chunkPostProcessor.reconstructText(batch));
       cumulativeText += batchText;
       return { batchText, cumulativeText };

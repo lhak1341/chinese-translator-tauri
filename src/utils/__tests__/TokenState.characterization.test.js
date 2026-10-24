@@ -79,7 +79,7 @@ describe('token state per phase', () => {
           endIndex: 2,
           translation: 'PAT',
           semanticType: 'concept',
-          translationSource: 'pattern',
+          translationSource: 'hierarchical_pattern',
           type: 'simple',
         },
       ],
@@ -90,20 +90,20 @@ describe('token state per phase', () => {
         value: '不',
         end: 1,
         translated: 'PAT',
-        translationSource: 'pattern',
+        translationSource: 'hierarchical_pattern',
       },
       {
         value: '知',
         end: 2,
         translated: null,
-        translationSource: 'pattern_consumed',
+        translationSource: 'hierarchical_pattern_consumed',
         groupLeader: 0,
       },
       {
         value: '道',
         end: 3,
         translated: null,
-        translationSource: 'pattern_consumed',
+        translationSource: 'hierarchical_pattern_consumed',
         groupLeader: 0,
       },
       { value: '在', end: 4, translated: null, translationSource: null },
@@ -173,10 +173,10 @@ describe('token state per phase', () => {
     // [张, 三(pattern leader), 里, 在 (its followers)]: the proper noun 张三 takes 0-1.
     const tokens = [tok('张', 0), tok('三', 1), tok('里', 2), tok('在', 3)];
     tokens[1].translated = 'PAT';
-    tokens[1].translationSource = 'pattern';
+    tokens[1].translationSource = 'hierarchical_pattern';
     for (const i of [2, 3]) {
       tokens[i].translated = null;
-      tokens[i].translationSource = 'pattern_consumed';
+      tokens[i].translationSource = 'hierarchical_pattern_consumed';
       tokens[i].groupLeader = 1;
     }
     engine.applyMatchToTokens(

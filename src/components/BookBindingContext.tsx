@@ -8,7 +8,6 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import type { BookBinding } from '../types/ReaderTypes';
-import type { DictionaryCreateResult } from '../types/ElectronTypes';
 import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
 import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
@@ -21,6 +20,7 @@ import {
 } from '../utils/reader/BookRecordsBackend';
 import {
   createBookBindingStore,
+  type DictionaryCreateOutcome,
   type DictionaryRenameResult,
   type OpenBookIdentity,
   type TierMoveResult,
@@ -78,7 +78,7 @@ export interface BookBindingContextValue {
   /** Create a proper-nouns dictionary (the pair, for a `properNouns-f_*` id) and load it,
    * binding nothing. The Configuration tab's create, for every kind. Runs on the binding
    * queue, behind any apply still in flight. */
-  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateResult>;
+  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateOutcome>;
   /**
    * The quick-add view every Add in the app decides over — Translator, Dictionary tab and
    * Reader alike. With a book open: config as its binding implies it

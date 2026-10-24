@@ -13,7 +13,7 @@ const chunk = (content: string, translated: string, punctuation = '', startedBy 
 describe('createProgressiveBatchText', () => {
   test('appends each cleaned batch to the cumulative text', () => {
     const text = createProgressiveBatchText({
-      punctuationDict: {},
+      translatePunctuationText: (text) => text,
       chunkPostProcessor: new ChunkPostProcessor(),
     });
     const a = chunk('甲', 'xin');
@@ -31,13 +31,20 @@ describe('createProgressiveBatchText', () => {
       translatePunctuation: vi.fn(),
       reconstructText: vi.fn(() => 'abc'),
     };
-    const dict = { '，': ',' };
+    const translatePunctuationText = (text: string) => text.replace('，', ',');
     const a = chunk('甲', 'a');
     const b = chunk('乙', 'b');
 
-    createProgressiveBatchText({ punctuationDict: dict, chunkPostProcessor }).addBatch([b], [a, b]);
+    createProgressiveBatchText({ translatePunctuationText, chunkPostProcessor }).addBatch(
+      [b],
+      [a, b]
+    );
 
-    expect(chunkPostProcessor.translatePunctuation).toHaveBeenCalledWith([b], dict, [a, b]);
+    expect(chunkPostProcessor.translatePunctuation).toHaveBeenCalledWith(
+      [b],
+      translatePunctuationText,
+      [a, b]
+    );
     const [translateOrder] = chunkPostProcessor.translatePunctuation.mock.invocationCallOrder;
     const [reconstructOrder] = chunkPostProcessor.reconstructText.mock.invocationCallOrder;
     expect(translateOrder).toBeLessThan(reconstructOrder);
@@ -49,7 +56,7 @@ describe('createProgressiveBatchText', () => {
       reconstructText: vi.fn(() => 'a   b'),
     };
     const { batchText } = createProgressiveBatchText({
-      punctuationDict: {},
+      translatePunctuationText: (text) => text,
       chunkPostProcessor,
     }).addBatch([chunk('甲', 'a')], []);
 
@@ -65,7 +72,10 @@ describe('createProgressiveBatchText', () => {
         return 'ok';
       }),
     };
-    const text = createProgressiveBatchText({ punctuationDict: {}, chunkPostProcessor });
+    const text = createProgressiveBatchText({
+      translatePunctuationText: (text) => text,
+      chunkPostProcessor,
+    });
     text.addBatch([chunk('甲', 'a')], []);
 
     fail = true;

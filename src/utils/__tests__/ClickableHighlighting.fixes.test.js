@@ -100,7 +100,7 @@ describe('CRITICAL-7: Greedy Match Validation', () => {
     // the logic handles edge cases correctly
 
     const builder = new SemanticArrayBuilder();
-    builder.addUnit('在天空中', 'ở trong bầu trời', 'pattern', 0);
+    builder.addUnit('在天空中', 'ở trong bầu trời', 'hierarchical_pattern', 0);
 
     // Set position to near end of text
     const result = builder.setPositionByMatch(0, 'ở trong bầu trời', 0, 17);

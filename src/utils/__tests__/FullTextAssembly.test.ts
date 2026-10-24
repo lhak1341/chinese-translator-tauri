@@ -29,10 +29,14 @@ function builderWith(units: Array<[string, string]>): SemanticArrayBuilder {
   return builder;
 }
 
-function assemble(chunks: FullTextChunk[], builder: SemanticArrayBuilder, dict = {}) {
+function assemble(
+  chunks: FullTextChunk[],
+  builder: SemanticArrayBuilder,
+  translatePunctuationText = (text: string) => text
+) {
   return assembleFullText(chunks, {
     chunkPostProcessor: new ChunkPostProcessor(),
-    punctuationDict: dict,
+    translatePunctuationText,
     properNounTranslations: null,
     builder,
   });
@@ -133,16 +137,19 @@ describe('assembleFullText', () => {
       reconstructText: vi.fn(() => 'a'),
     };
     const chunks = [chunk('说', 'a')];
-    const dict = { '，': ',' };
+    const translatePunctuationText = (text: string) => text.replace('，', ',');
 
     assembleFullText(chunks, {
       chunkPostProcessor,
-      punctuationDict: dict,
+      translatePunctuationText,
       properNounTranslations: null,
       builder: new SemanticArrayBuilder(),
     });
 
-    expect(chunkPostProcessor.translatePunctuation).toHaveBeenCalledWith(chunks, dict);
+    expect(chunkPostProcessor.translatePunctuation).toHaveBeenCalledWith(
+      chunks,
+      translatePunctuationText
+    );
     const [translateOrder] = chunkPostProcessor.translatePunctuation.mock.invocationCallOrder;
     const [reconstructOrder] = chunkPostProcessor.reconstructText.mock.invocationCallOrder;
     expect(translateOrder).toBeLessThan(reconstructOrder);

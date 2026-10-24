@@ -42,13 +42,11 @@ export interface ProperNounsListResult extends ElectronResult {
 }
 
 /**
- * Proper-nouns dictionary creation result. The command only creates files. Activating the
- * dictionary is a separate step (`BookBindingStore.createDictionary`), and `warning` is
- * what that step reports when the dictionary exists but could not be activated.
+ * Proper-nouns dictionary creation result. The command only creates files; activating the
+ * dictionary is a separate step whose outcome is `DictionaryCreateOutcome`
+ * (`components/BookBindingStore.ts`).
  */
-export interface DictionaryCreateResult extends ElectronResult {
-  warning?: string;
-}
+export type DictionaryCreateResult = ElectronResult;
 
 /**
  * Configuration load result

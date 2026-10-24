@@ -10,13 +10,14 @@ export type FullTextChunk = FormattingChunk;
 
 /** The two ChunkPostProcessor calls the finishing pass needs. Injected so tests need no engine. */
 interface FinishChunkPostProcessor {
-  translatePunctuation(chunks: FullTextChunk[], punctuationDict: Record<string, unknown>): void;
+  translatePunctuation(chunks: FullTextChunk[], translateText: (text: string) => string): void;
   reconstructText(chunks: FullTextChunk[]): string;
 }
 
 export interface FullTextAssemblyDeps {
   chunkPostProcessor: FinishChunkPostProcessor;
-  punctuationDict: Record<string, unknown>;
+  /** The punctuation dictionary applied to a text (`DictionaryManager.translatePunctuationText`). */
+  translatePunctuationText: (text: string) => string;
   properNounTranslations: ReadonlyMap<string, string> | null;
   /** The engine's shared builder, already filled by every batch. Mutated once, at the end. */
   builder: SemanticArrayBuilder;
@@ -73,9 +74,14 @@ export interface FullTextAssemblyResult {
  */
 export function assembleFullText(
   chunks: FullTextChunk[],
-  { chunkPostProcessor, punctuationDict, properNounTranslations, builder }: FullTextAssemblyDeps
+  {
+    chunkPostProcessor,
+    translatePunctuationText,
+    properNounTranslations,
+    builder,
+  }: FullTextAssemblyDeps
 ): FullTextAssemblyResult {
-  chunkPostProcessor.translatePunctuation(chunks, punctuationDict);
+  chunkPostProcessor.translatePunctuation(chunks, translatePunctuationText);
   applySmartCapitalization(chunks, properNounTranslations);
 
   // reconstructText builds no segments: prebuiltSegments is built below via matchWordSegments,

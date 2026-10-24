@@ -80,7 +80,9 @@ impl PatternProcessingResult {
         let original_text: String = matched_tokens.iter().map(|t| t.value.as_str()).collect();
 
         // Determine translation source based on the source type.
-        // These strings must match the JS PHASE_PRIORITIES table in TranslationEngine.js.
+        // JS ranks these in PHASE_PRIORITIES (src/utils/TranslationSourcePriority.ts); a string it
+        // does not know ranks below the character fallback, so TranslationSourcePriority.sourceScan.test.js
+        // holds every literal emitted here to that table.
         let translation_source = if source.starts_with("phaseA") {
             Some("hierarchical_pattern".to_string())
         } else if source.starts_with("phaseB") {

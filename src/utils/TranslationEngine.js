@@ -191,14 +191,14 @@ const NO_PATTERN_PROCESSOR = 'No pattern processor: no patterns loaded or WASM u
  * Valid translationSource strings for addUnit() — must be a PHASE_PRIORITIES key.
  * Any unrecognised string returns priority 999, silently ranking below character fallback.
  *
- * Phase 1 — Pattern:  'pattern' | 'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite'
+ * Phase 1 — Pattern:  'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite'
  * Phase 2 — ProperNoun: dynamic dictionary name (e.g. 'properNouns-MyNovel') — NOT a static key
  * Phase 3 — Number:   'number_conversion' | 'number_plus_liang_fix'
  * Phase 4 — Phrase:   'phrases'
  * Phase 5 — Char:     'characters'
  * Consumed tokens:    source ends with '_consumed' (e.g. 'phrases_consumed') — getSourcePriority returns null
  *
- * @typedef {'pattern'|'hierarchical_pattern'|'hierarchical_patterns'|'hierarchical_patterns_composite'|'number_conversion'|'number_plus_liang_fix'|'phrases'|'characters'|string} TranslationSource
+ * @typedef {'hierarchical_pattern'|'hierarchical_patterns'|'hierarchical_patterns_composite'|'number_conversion'|'number_plus_liang_fix'|'phrases'|'characters'|string} TranslationSource
  */
 
 // PatternProcessorResult and PatternProcessorAdapter — canonical types in src/types/PatternProcessingTypes.d.ts
@@ -236,7 +236,6 @@ export class TranslationEngine {
     // PERFORMANCE OPTIMIZATION: Reduce default logging to prevent console spam
     // Per-phase contract checks run only on an engine that was never initialized, outside production
     this.validatePhaseContracts = process.env.NODE_ENV !== 'production';
-    this.punctuationDict = {}; // Store punctuation translation dictionary
 
     // MEMORY MANAGEMENT: Bounded collection limits
     this.MAX_PROPER_NOUN_TRANSLATIONS = MEMORY_MANAGEMENT.MAX_PROPER_NOUN_TRANSLATIONS; // Maximum proper noun cache size (prevents unbounded growth)
@@ -405,11 +404,6 @@ export class TranslationEngine {
       // (with a toast) when WASM cannot run
       if (dictionaries.patterns) {
         await this.patternStore.initializePatterns(dictionaries.patterns);
-      }
-
-      // Load punctuation dictionary for post-processing
-      if (dictionaries.punctuation) {
-        this.punctuationDict = dictionaries.punctuation;
       }
 
       this.isInitialized = true;
@@ -732,7 +726,7 @@ export class TranslationEngine {
    * await this.applyPatterns(tokens, options);
    * // Tokens with pattern matches now have:
    * // - translated: "ở trong X Y"
-   * // - translationSource: "pattern"
+   * // - translationSource: "hierarchical_pattern"
    *
    * @see translateSinglePass - Calls this method as Phase 1
    * @see PatternStore - Holds the parsed patterns and the WASM processor's lifetime
@@ -1576,7 +1570,7 @@ export class TranslationEngine {
 
     // The running text the batch event carries; see ProgressiveBatchText.ts
     const progressiveText = createProgressiveBatchText({
-      punctuationDict: this.punctuationDict,
+      translatePunctuationText: (text) => this.dictionaryManager.translatePunctuationText(text),
       chunkPostProcessor: this.chunkPostProcessor,
     });
 
@@ -1665,7 +1659,7 @@ export class TranslationEngine {
     // Final processing over all chunks: the finishing order lives in FullTextAssembly.ts
     return assembleFullText(chunks, {
       chunkPostProcessor: this.chunkPostProcessor,
-      punctuationDict: this.punctuationDict,
+      translatePunctuationText: (text) => this.dictionaryManager.translatePunctuationText(text),
       properNounTranslations: this.properNounTranslations,
       builder: this.semanticArrayBuilder,
     });

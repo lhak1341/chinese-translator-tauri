@@ -21,6 +21,12 @@ import { loadQuickAddConfig, type QuickAddView } from '../utils/dictionary/Quick
 
 /** What renaming a dictionary did. `filesMoved` with `success: false` means a fiction pair
  * was renamed but the book records could not be updated to match. */
+/**
+ * What creating a dictionary came to: the command's result, plus `warning` when the files exist
+ * but activating the dictionary failed. Only the store sets it; Rust never sends one.
+ */
+export type DictionaryCreateOutcome = DictionaryCreateResult & { warning?: string };
+
 export interface DictionaryRenameResult {
   success: boolean;
   error?: string;
@@ -94,7 +100,7 @@ export interface BookBindingStore {
    * binding nothing. With a book open the fiction slice stays the book's: an unbound fiction
    * dictionary is created but not activated. `warning` when it exists but could not be
    * activated. */
-  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateResult>;
+  createDictionary: (dictionaryId: string) => Promise<DictionaryCreateOutcome>;
   /** Rename a dictionary. A fiction pair's new name is also carried into every book bound to it. */
   renameDictionary: (oldId: string, newId: string) => Promise<DictionaryRenameResult>;
   moveDictionaryTier: (dictionaryId: string) => Promise<TierMoveResult>;

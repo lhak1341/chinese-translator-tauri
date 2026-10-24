@@ -16,9 +16,9 @@ import type { WordSegment } from '../utils/highlighting';
 // Translation Source Strings
 // ============================================================================
 
-/** Phase 1 leader source strings (JS adapter + WASM paths) */
+/** Phase 1 leader source strings, as the WASM pattern processor writes them */
 type TranslationPhase1Source =
-  'pattern' | 'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite';
+  'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite';
 
 /** Phase 3 number conversion source strings */
 type TranslationPhase3Source = 'number_conversion' | 'number_plus_liang_fix';

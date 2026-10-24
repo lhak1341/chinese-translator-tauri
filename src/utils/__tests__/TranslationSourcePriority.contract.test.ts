@@ -50,16 +50,22 @@ describe('consumedSource / isConsumedSource', () => {
 });
 
 describe('isPatternSource', () => {
-  it.each([
-    'pattern',
-    'hierarchical_pattern',
-    'hierarchical_patterns',
-    'hierarchical_patterns_composite',
-  ])('accepts %s', (source) => expect(isPatternSource(source)).toBe(true));
+  it.each(['hierarchical_pattern', 'hierarchical_patterns', 'hierarchical_patterns_composite'])(
+    'accepts %s',
+    (source) => expect(isPatternSource(source)).toBe(true)
+  );
 
-  it.each(['phrases', 'characters', 'number_conversion', 'pattern_consumed', '', null, undefined])(
-    'rejects %s',
-    (source) => expect(isPatternSource(source as string | null | undefined)).toBe(false)
+  it.each([
+    'phrases',
+    'characters',
+    'number_conversion',
+    'pattern',
+    'pattern_consumed',
+    '',
+    null,
+    undefined,
+  ])('rejects %s', (source) =>
+    expect(isPatternSource(source as string | null | undefined)).toBe(false)
   );
 });
 

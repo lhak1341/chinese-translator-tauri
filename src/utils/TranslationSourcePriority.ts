@@ -27,8 +27,7 @@ type StaticLeaderSource = Exclude<TranslationLeaderSource, ProperNounSource>;
 const CONSUMED_SUFFIX = '_consumed';
 
 export const PHASE_PRIORITIES: Record<string, number> = {
-  // Phase 1 — Pattern (all source strings from JS and WASM paths)
-  pattern: 1,
+  // Phase 1 — Pattern (the source strings the WASM processor writes)
   hierarchical_pattern: 1,
   hierarchical_patterns: 1,
   hierarchical_patterns_composite: 1,
@@ -42,7 +41,7 @@ export const PHASE_PRIORITIES: Record<string, number> = {
   characters: 5,
 } satisfies Record<StaticLeaderSource, number>; // a source added to the type but not here fails tsc
 
-/** The leader sources a Phase 1 pattern match writes (JS adapter and WASM paths). */
+/** The leader sources a Phase 1 pattern match writes. */
 const PATTERN_SOURCES: ReadonlySet<string> = new Set(
   Object.keys(PHASE_PRIORITIES).filter((source) => PHASE_PRIORITIES[source] === 1)
 );

@@ -26,12 +26,12 @@ beforeEach(() => errorSpy.mockClear());
 describe('claimSpan (light shape)', () => {
   it('gives the leader the translation and consumes each follower, pointing back at the leader', () => {
     const t = tokens(['a', 'b', 'c', 'd']);
-    claimSpan(t, 1, 3, 'pattern', 'X');
-    expect(t[1]).toMatchObject({ translated: 'X', translationSource: 'pattern' });
+    claimSpan(t, 1, 3, 'hierarchical_pattern', 'X');
+    expect(t[1]).toMatchObject({ translated: 'X', translationSource: 'hierarchical_pattern' });
     for (const i of [2, 3]) {
       expect(t[i]).toMatchObject({
         translated: null,
-        translationSource: 'pattern_consumed',
+        translationSource: 'hierarchical_pattern_consumed',
         groupLeader: 1,
       });
     }
@@ -55,18 +55,18 @@ describe('claimSpan (light shape)', () => {
 
   it('skips an index past the end of the tokens', () => {
     const t = tokens(['a', 'b']);
-    expect(() => claimSpan(t, 0, 4, 'pattern', 'X')).not.toThrow();
-    expect(t[1].translationSource).toBe('pattern_consumed');
+    expect(() => claimSpan(t, 0, 4, 'hierarchical_pattern', 'X')).not.toThrow();
+    expect(t[1].translationSource).toBe('hierarchical_pattern_consumed');
   });
 
   it('logs a leader with no translation', () => {
-    claimSpan(tokens(['a']), 0, 0, 'pattern', null as unknown as string);
+    claimSpan(tokens(['a']), 0, 0, 'hierarchical_pattern', null as unknown as string);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('has no translation'));
   });
 
   it('logs a source that ranks 999, and one that is a consumed source', () => {
     claimSpan(tokens(['a']), 0, 0, 'patterns', 'X');
-    claimSpan(tokens(['a']), 0, 0, 'pattern_consumed', 'X');
+    claimSpan(tokens(['a']), 0, 0, 'hierarchical_pattern_consumed', 'X');
     expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not a ranked leader source'));
   });
@@ -148,9 +148,9 @@ describe('claimGroupedSpan (grouped shape)', () => {
     // [a, b(pattern leader), c, d (its followers)]: a claim over a-b frees c and d.
     const t = tokens(['a', 'b', 'c', 'd']);
     t[1].translated = 'PAT';
-    t[1].translationSource = 'pattern';
+    t[1].translationSource = 'hierarchical_pattern';
     for (const i of [2, 3]) {
-      t[i].translationSource = 'pattern_consumed';
+      t[i].translationSource = 'hierarchical_pattern_consumed';
       t[i].groupLeader = 1;
     }
     claimGroupedSpan(t, 0, 2, 'properNouns', 'N', 'ab', ['properNouns']);
@@ -168,8 +168,8 @@ describe('claimGroupedSpan (grouped shape)', () => {
   it('stops releasing at the first token that is not an orphan', () => {
     const t = tokens(['a', 'b', 'c', 'd']);
     t[1].translated = 'PAT';
-    t[1].translationSource = 'pattern';
-    t[2].translationSource = 'pattern_consumed';
+    t[1].translationSource = 'hierarchical_pattern';
+    t[2].translationSource = 'hierarchical_pattern_consumed';
     t[2].groupLeader = 1;
     t[3].translated = 'D';
     t[3].translationSource = 'characters';
@@ -189,12 +189,14 @@ describe('isClaimed (the read side)', () => {
     const [fresh] = tokens(['a']);
     expect(isClaimed(fresh)).toBe(false);
     expect(isClaimed({ translated: 'A', translationSource: null })).toBe(true);
-    expect(isClaimed({ translated: null, translationSource: 'pattern_consumed' })).toBe(true);
+    expect(
+      isClaimed({ translated: null, translationSource: 'hierarchical_pattern_consumed' })
+    ).toBe(true);
   });
 
   it('holds for every token of a light span after claimSpan', () => {
     const t = tokens(['a', 'b', 'c']);
-    claimSpan(t, 0, 2, 'pattern', 'ABC');
+    claimSpan(t, 0, 2, 'hierarchical_pattern', 'ABC');
     expect(t.map(isClaimed)).toEqual([true, true, true]);
   });
 
@@ -206,7 +208,7 @@ describe('isClaimed (the read side)', () => {
 
   it('is false again for the orphans a grouped claim releases', () => {
     const t = tokens(['a', 'b', 'c', 'd']);
-    claimSpan(t, 1, 3, 'pattern', 'BCD');
+    claimSpan(t, 1, 3, 'hierarchical_pattern', 'BCD');
     claimGroupedSpan(t, 0, 2, 'properNouns', 'N', 'ab', ['properNouns']);
     expect(t.map(isClaimed)).toEqual([true, true, false, false]);
   });
@@ -235,20 +237,20 @@ describe('placeSpan (light claim plus its unit)', () => {
 
   it('applies no offset when the sink has none', () => {
     const builder = recorder();
-    placeSpan(tokens(['a', 'b']), 1, 1, 'pattern', 'X', 'b', { builder });
-    expect(builder.calls).toEqual([['b', 'X', 'pattern', 1]]);
+    placeSpan(tokens(['a', 'b']), 1, 1, 'hierarchical_pattern', 'X', 'b', { builder });
+    expect(builder.calls).toEqual([['b', 'X', 'hierarchical_pattern', 1]]);
   });
 
   it('claims without recording when the builder is null', () => {
     const t = tokens(['a', 'b']);
-    placeSpan(t, 0, 1, 'pattern', 'X', 'ab', { builder: null });
+    placeSpan(t, 0, 1, 'hierarchical_pattern', 'X', 'ab', { builder: null });
     expect(t[0].translated).toBe('X');
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it('logs a missing builder instead of skipping silently, and still claims', () => {
     const t = tokens(['a', 'b']);
-    placeSpan(t, 0, 1, 'pattern', 'X', 'ab', { builder: undefined as never });
+    placeSpan(t, 0, 1, 'hierarchical_pattern', 'X', 'ab', { builder: undefined as never });
     expect(t[0].translated).toBe('X');
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });

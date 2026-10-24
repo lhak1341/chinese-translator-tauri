@@ -9,7 +9,7 @@
  */
 
 import type { TextChunk } from '../../types/TextChunk';
-import { QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
+import { QUOTE_CATEGORIES } from './QuoteProcessor';
 
 // Closing quotes as a regex character-class body, derived so the three rules below cannot drift
 // from QUOTE_CATEGORIES (a hand-typed copy of each left ’ out of two of them).
@@ -224,7 +224,7 @@ export function applySmartCapitalization(
   };
 
   // Punctuation chars that trigger capitalization when they appear ANYWHERE inside a
-  // combined multi-char startedBy sequence (e.g. WASM combines "：«" into one string).
+  // combined multi-char startedBy sequence (e.g. the chunker merges "：«" into one string).
   // Derived from capitalizationRules itself so the two can never drift apart — this used
   // to be three independently hand-copied arrays (sentenceEnders/colonMarks/ellipsisMarks)
   // that had already drifted both from each other and from capitalizationRules (the
@@ -233,64 +233,26 @@ export function applySmartCapitalization(
     .filter(([key, value]) => value && key !== 'start' && key !== 'linebreak')
     .map(([key]) => key);
 
+  const startsSentence = (startedBy: string): boolean =>
+    capitalizationRules[startedBy] === true ||
+    (!!startedBy && capitalizingPunctuation.some((punct) => startedBy.includes(punct)));
+
   // Apply capitalization rules to each chunk
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     if (!chunk.translated) continue;
 
-    // Check for advanced capitalization rules
-    let shouldCapitalize = capitalizationRules[chunk.startedBy];
+    // The chunk's own startedBy decides first (an exact table entry, or a multi-character
+    // sequence holding a capitalizing mark, e.g. "：«")
+    let shouldCapitalize = startsSentence(chunk.startedBy);
 
-    // Handle multi-character punctuation sequences
-    if (!shouldCapitalize && chunk.startedBy) {
-      const matchedPunct = capitalizingPunctuation.find((punct) => chunk.startedBy.includes(punct));
-
-      if (matchedPunct) {
-        shouldCapitalize = true;
-      }
-    }
-
-    // Special handling for opening quotes
-    if (!shouldCapitalize && chunk.startedBy) {
-      // Check if startedBy is an opening quote
-      const isOpeningQuote = QuoteProcessor.isOpeningQuote(chunk.startedBy);
-
-      if (isOpeningQuote) {
-        // For opening quotes, we need to determine if they're starting a new sentence/paragraph
-        const previousChunk = i > 0 ? chunks[i - 1] : null;
-
-        // Consider it a sentence start if:
-        // 1. It's the very beginning (no previous chunk)
-        // 2. Previous chunk has line breaks (new paragraph)
-        // 3. It's marked as starting the text
-        const isAtSentenceStart =
-          !previousChunk ||
-          previousChunk.lineBreaks ||
-          chunk.startedBy === 'start' ||
-          (previousChunk && !previousChunk.content.trim()); // Previous chunk was just whitespace
-
-        if (isAtSentenceStart) {
-          shouldCapitalize = true;
-        }
-      }
-    }
-
-    // Fallback: WASM chunker creates a separate empty chunk for opening punctuation (e.g. '「'),
-    // placing the colon/linebreak/start context in that empty chunk's startedBy rather than here.
-    // If the previous chunk is empty (no content) and carries sentence-start context, inherit it.
-    // Reuses capitalizingPunctuation (see above) instead of its own hand-copied punctuation
-    // list — the old inline list was missing '．' and never checked ellipsis at all.
-    if (!shouldCapitalize && i > 0) {
-      const prevChunk = chunks[i - 1];
-      if (prevChunk && !prevChunk.content.trim()) {
-        const prevSBy = prevChunk.startedBy || '';
-        const hasPunctCtx = capitalizingPunctuation.some((p) => prevSBy.includes(p));
-        const hasStartCtx =
-          prevSBy === 'linebreak' || prevSBy === 'start' || !!prevChunk.lineBreaks;
-        if (hasPunctCtx || hasStartCtx) {
-          shouldCapitalize = true;
-        }
-      }
+    // Leading punctuation makes empty chunks (`《“你` is two empty chunks, then 你), so the
+    // sentence-start context sits in the chunks before this one. Walk back through every
+    // consecutive empty chunk: a line break, the start of the text or a capitalizing mark in any
+    // of them carries over to the first chunk with content.
+    for (let j = i - 1; !shouldCapitalize && j >= 0 && !chunks[j].content.trim(); j--) {
+      const empty = chunks[j];
+      shouldCapitalize = startsSentence(empty.startedBy) || !!empty.lineBreaks;
     }
 
     if (shouldCapitalize) {
@@ -316,8 +278,9 @@ export function applySmartCapitalization(
 /**
  * Rules the character-only path applies on top of `cleanupFormatting` (carried over from the
  * since-deleted applyLightFormatting): em dash spacing, Japanese character spacing, and
- * capitalizing after sentence-ending punctuation. Kept as-is beside the other two capitalization
- * rule sets so the three can be reconciled in one place.
+ * capitalizing after sentence-ending punctuation. The capitalization here reads the finished
+ * text, where `applySmartCapitalization` reads each chunk's `startedBy`; the two stay separate
+ * because Full Translation and Character-only do not share an input shape.
  */
 export function applyCharOnlySupplements(input: string): string {
   let text = input;

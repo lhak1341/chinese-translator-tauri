@@ -143,51 +143,18 @@ export class ChunkPostProcessor {
   /**
    * Translate punctuation for all chunks using punctuation dictionary
    * @param {TextChunk[]} chunks - Array of chunks to translate (a progressive batch, or all of them)
-   * @param {Record<string, string>} punctuationDict - Punctuation translation dictionary
+   * @param {(text: string) => string} translateText - The punctuation dictionary applied to a text
+   *   (`DictionaryManager.translatePunctuationText`)
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk, in text order. A progressive batch holds
    *   only the translatable chunks, so its neighbours are not the text's: a digit-only chunk
    *   ("700" in "2,700") is missing from it, and the comma before it would look at the wrong chunk.
    */
-  translatePunctuation(chunks, punctuationDict, allChunks = chunks) {
+  translatePunctuation(chunks, translateText, allChunks = chunks) {
     // Translate punctuation normally
-    this.translatePunctuationNormally(chunks, punctuationDict, allChunks);
+    this.translatePunctuationNormally(chunks, translateText, allChunks);
 
     // Fix the specific angle quote positioning issue
     this.fixAngleQuotePositioning(chunks);
-  }
-
-  /**
-   * `text` with every dictionary key replaced by its value, longest key first at each position.
-   * One pass over the text, so a value is never looked up again: an entry whose value is another
-   * entry's key (「→“ beside “→") translates once, not twice. A key maps by code point, so a
-   * multi-character key (……) matches where a per-character lookup cannot. A missing or falsy
-   * value leaves the character as it is.
-   * @param {string} text
-   * @param {Record<string, string>} dict - Punctuation translation dictionary
-   * @param {number} maxKeyLength - Longest key in `dict`, in code points
-   * @returns {string}
-   */
-  _translateWithDictionary(text, dict, maxKeyLength) {
-    const codePoints = Array.from(text);
-    let result = '';
-    let i = 0;
-    while (i < codePoints.length) {
-      let matched = false;
-      for (let length = Math.min(maxKeyLength, codePoints.length - i); length >= 1; length--) {
-        const key = codePoints.slice(i, i + length).join('');
-        if (Object.prototype.hasOwnProperty.call(dict, key) && dict[key]) {
-          result += dict[key];
-          i += length;
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) {
-        result += codePoints[i];
-        i++;
-      }
-    }
-    return result;
   }
 
   /**
@@ -198,22 +165,13 @@ export class ChunkPostProcessor {
    * its own output would change an entry like ……→… (a second run gave …) or a chain like 「→“
    * with “→".
    * @param {TextChunk[]} chunks - Array of chunks to translate
-   * @param {Record<string, string>} punctuationDict - Punctuation translation dictionary
+   * @param {(text: string) => string} translateText - The punctuation dictionary applied to a text
    * @param {TextChunk[]} [allChunks=chunks] - Every chunk in text order, for neighbour lookups
    */
-  translatePunctuationNormally(chunks, punctuationDict, allChunks = chunks) {
-    const maxKeyLength = Math.max(
-      1,
-      ...Object.keys(punctuationDict).map((k) => Array.from(k).length)
-    );
-
+  translatePunctuationNormally(chunks, translateText, allChunks = chunks) {
     for (const chunk of chunks) {
       if (chunk.punctuation) {
-        chunk.translatedPunctuation = this._translateWithDictionary(
-          chunk.punctuation,
-          punctuationDict,
-          maxKeyLength
-        );
+        chunk.translatedPunctuation = translateText(chunk.punctuation);
 
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
         // BUT NOT if the next chunk starts with a quote
@@ -264,11 +222,7 @@ export class ChunkPostProcessor {
 
       // Also translate punctuation characters that might be mixed in the content
       if (chunk.content) {
-        chunk.translatedContent = this._translateWithDictionary(
-          chunk.content,
-          punctuationDict,
-          maxKeyLength
-        );
+        chunk.translatedContent = translateText(chunk.content);
       }
     }
   }

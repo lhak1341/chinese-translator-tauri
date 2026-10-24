@@ -275,22 +275,30 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
   describe('pre-marked tokens — Phase 1 simulation', () => {
     test('pattern-marked token: Phase 4 does not overwrite it', async () => {
       const tokens = [
-        { ...tok('不', 0), translated: 'PATTERN_RESULT', translationSource: 'pattern' },
+        {
+          ...tok('不', 0),
+          translated: 'PATTERN_RESULT',
+          translationSource: 'hierarchical_pattern',
+        },
         tok('知', 1),
         tok('道', 2),
       ];
       await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('PATTERN_RESULT');
-      expect(tokens[0].translationSource).toBe('pattern');
+      expect(tokens[0].translationSource).toBe('hierarchical_pattern');
     });
 
     test('pattern-marked token: Phase 5 does not overwrite it', async () => {
       const tokens = [
-        { ...tok('在', 0), translated: 'PATTERN_RESULT', translationSource: 'pattern' },
+        {
+          ...tok('在', 0),
+          translated: 'PATTERN_RESULT',
+          translationSource: 'hierarchical_pattern',
+        },
       ];
       await engine.translateSinglePass(tokens, {});
       expect(tokens[0].translated).toBe('PATTERN_RESULT');
-      expect(tokens[0].translationSource).toBe('pattern');
+      expect(tokens[0].translationSource).toBe('hierarchical_pattern');
     });
   });
 

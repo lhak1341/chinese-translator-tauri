@@ -7,7 +7,7 @@
  * to return 999 (lower than character fallback) and silently corrupt output.
  *
  * Historical failures that these tests would have caught:
- * - Session 30: addUnit passed 'patterns' (plural) — should be 'pattern' (singular)
+ * - Session 30: addUnit passed 'patterns' (plural) — should be 'hierarchical_pattern'
  * - Any future change to consumed suffix convention
  * - Phase priority number drift
  *
@@ -29,10 +29,6 @@ describe('TranslationEngine — Phase Source String Contracts', () => {
   // Phase 1: Pattern sources
   // --------------------------------------------------------------------------
   describe('Phase 1 — Pattern sources', () => {
-    test('pattern (singular) returns priority 1', () => {
-      expect(getSourcePriority('pattern')).toBe(1);
-    });
-
     test('hierarchical_pattern returns priority 1', () => {
       expect(getSourcePriority('hierarchical_pattern')).toBe(1);
     });
@@ -45,10 +41,14 @@ describe('TranslationEngine — Phase Source String Contracts', () => {
       expect(getSourcePriority('hierarchical_patterns_composite')).toBe(1);
     });
 
-    // This is the exact bug from Session 30 — 'patterns' was passed instead of 'pattern'
-    test('WRONG: patterns (plural) returns 999 — use pattern (singular)', () => {
-      expect(getSourcePriority('patterns')).toBe(999);
-    });
+    // This is the exact bug from Session 30 — 'patterns' was passed instead of a Phase 1 source.
+    // 'pattern' is no Phase 1 source either: the JS matcher that wrote it is gone (ADR-101).
+    test.each(['patterns', 'pattern'])(
+      'WRONG: %s returns 999 — use hierarchical_pattern',
+      (source) => {
+        expect(getSourcePriority(source)).toBe(999);
+      }
+    );
   });
 
   // --------------------------------------------------------------------------
@@ -121,7 +121,7 @@ describe('TranslationEngine — Phase Source String Contracts', () => {
   // --------------------------------------------------------------------------
   describe('Priority ordering — Phase 1 through 5 must be strictly ascending', () => {
     test('Phase 1 (pattern) has lower number than Phase 2 (proper noun)', () => {
-      expect(getSourcePriority('pattern')).toBeLessThan(2);
+      expect(getSourcePriority('hierarchical_pattern')).toBeLessThan(2);
     });
 
     test('Phase 2 (proper noun) has lower number than Phase 3 (number)', () => {
@@ -149,7 +149,6 @@ describe('TranslationEngine — Phase Source String Contracts', () => {
   describe('Consumed token detection — "_consumed" suffix convention', () => {
     test('getSourcePriority returns null for consumed sources', () => {
       const consumedSources = [
-        'pattern_consumed',
         'hierarchical_pattern_consumed',
         'number_conversion_consumed',
         'phrases_consumed',

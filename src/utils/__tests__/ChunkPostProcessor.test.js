@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { describe, test, expect, beforeEach } from 'vitest';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
+import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 
 /** @param {{content?: string, punctuation?: string, startIndex?: number, lineBreaks?: string, startedBy?: string}} overrides */
 function makeChunk(overrides = {}) {
@@ -40,6 +41,15 @@ const PUNCT_DICT = {
   '〉': QUOTE_TYPES.ANGLE_CLOSE_SINGLE, // >
 };
 
+/** The punctuation dictionary `dict` as the text translator the engine hands to ChunkPostProcessor. */
+async function punctuationTranslator(dict) {
+  const manager = new DictionaryManager();
+  await manager.loadDictionaries({ punctuation: dict });
+  return (text) => manager.translatePunctuationText(text);
+}
+
+const PUNCT = await punctuationTranslator(PUNCT_DICT);
+
 // ── translatePunctuationNormally ─────────────────────────────────────────────
 
 describe('ChunkPostProcessor.translatePunctuationNormally', () => {
@@ -51,25 +61,25 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
 
   test('basic dict translation — Chinese punctuation → Latin', () => {
     const chunks = [makeChunk({ content: '说', translated: 'nói', punctuation: '，' })];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
   test('unknown punctuation falls through unchanged', () => {
     const chunks = [makeChunk({ content: 'a', translated: 'a', punctuation: '~' })];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe('~');
   });
 
-  test('content chars in dict → translatedContent set', () => {
+  test('content chars in dict → translatedContent set', async () => {
     const chunks = [makeChunk({ content: '，', punctuation: '' })];
-    cpp.translatePunctuationNormally(chunks, { '，': ',' });
+    cpp.translatePunctuationNormally(chunks, await punctuationTranslator({ '，': ',' }));
     expect(chunks[0].translatedContent).toBe(',');
   });
 
   test('a preset translatedPunctuation is ignored: the result comes from punctuation', () => {
     const chunks = [makeChunk({ content: 'a', punctuation: '，', translatedPunctuation: 'stale' })];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
@@ -78,13 +88,13 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(', ');
   });
 
   test('comma + no next chunk → no trailing space', () => {
     const chunks = [makeChunk({ content: '说', translated: 'nói', punctuation: '，' })];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
@@ -93,7 +103,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '' }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
@@ -106,7 +116,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
       makeChunk({ content: '700', translated: null }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
@@ -115,7 +125,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: '，' }),
       makeChunk({ content: '700', translated: null }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(', ');
   });
 
@@ -124,14 +134,14 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: ',' }),
       makeChunk({ content: '700', translated: null }),
     ];
-    cpp.translatePunctuationNormally(before, PUNCT_DICT);
+    cpp.translatePunctuationNormally(before, PUNCT);
     expect(before[0].translatedPunctuation).toBe(', ');
 
     const after = [
       makeChunk({ content: '说2', translated: 'thuyết 2', punctuation: ',' }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
-    cpp.translatePunctuationNormally(after, PUNCT_DICT);
+    cpp.translatePunctuationNormally(after, PUNCT);
     expect(after[0].translatedPunctuation).toBe(', ');
   });
 
@@ -147,7 +157,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',' + QUOTE_TYPES.ANGLE_CLOSE_DOUBLE);
   });
 
@@ -157,7 +167,7 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '话', translated: 'lời', punctuation: QUOTE_TYPES.ANGLE_CLOSE_DOUBLE }),
     ];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
   });
 
@@ -167,13 +177,13 @@ describe('ChunkPostProcessor.translatePunctuationNormally', () => {
       makeChunk({ content: '话', translated: 'lời' }),
     ];
     chunks[0].punctuation = '，[';
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(', [');
   });
 
   test('no punctuation field → chunk unchanged', () => {
     const chunks = [makeChunk({ content: '说', translated: 'nói' })];
-    cpp.translatePunctuationNormally(chunks, PUNCT_DICT);
+    cpp.translatePunctuationNormally(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe('');
   });
 });
@@ -359,7 +369,7 @@ describe('ChunkPostProcessor.translatePunctuation (integrated)', () => {
       makeChunk({ content: '', punctuation: '《' }),
       makeChunk({ content: '说', translated: 'nói' }),
     ];
-    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    cpp.translatePunctuation(chunks, PUNCT);
     // translatePunctuationNormally: 《 → «
     // fixAngleQuotePositioning: empty chunk with « → move to next
     expect(chunks[0].translatedPunctuation).toBe('');
@@ -371,7 +381,7 @@ describe('ChunkPostProcessor.translatePunctuation (integrated)', () => {
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '话', translated: 'lời' }),
     ];
-    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    cpp.translatePunctuation(chunks, PUNCT);
     // comma + next chunk with content → space appended (correct behavior)
     expect(chunks[0].translatedPunctuation).toBe(', ');
     expect(chunks[1].openingPunctuation).toBe('');
@@ -389,12 +399,12 @@ describe('ChunkPostProcessor: thousands separator', () => {
   test('reconstructText keeps "2,700" unspaced, and a full-width comma between digits spaced', () => {
     const cpp = new ChunkPostProcessor();
     const ascii = chunksFor2700();
-    cpp.translatePunctuation(ascii, PUNCT_DICT);
+    cpp.translatePunctuation(ascii, PUNCT);
     expect(cpp.reconstructText(ascii)).toBe('thuyết 2,700!');
 
     const fullWidth = chunksFor2700();
     fullWidth[0].punctuation = '，';
-    cpp.translatePunctuation(fullWidth, PUNCT_DICT);
+    cpp.translatePunctuation(fullWidth, PUNCT);
     expect(cpp.reconstructText(fullWidth)).toBe('thuyết 2, 700!');
   });
 
@@ -408,7 +418,7 @@ describe('ChunkPostProcessor: thousands separator', () => {
       makeChunk({ content: '别', translated: 'biệt', startedBy: '！' }),
     ];
     const batch = [all[0], all[2]];
-    cpp.translatePunctuation(batch, PUNCT_DICT, all);
+    cpp.translatePunctuation(batch, PUNCT, all);
     expect(all[0].translatedPunctuation).toBe(',');
   });
 });
@@ -425,28 +435,29 @@ describe('ChunkPostProcessor.translatePunctuation: the dictionary applies once',
   });
 
   /** The chunk's translatedPunctuation after one pass and after a second pass over the same chunk. */
-  function afterTwoPasses(punctuation, dict) {
+  async function afterTwoPasses(punctuation, dict) {
+    const translateText = await punctuationTranslator(dict);
     const chunks = [makeChunk({ content: '说', translated: 'x', punctuation })];
-    cpp.translatePunctuation(chunks, dict);
+    cpp.translatePunctuation(chunks, translateText);
     const first = chunks[0].translatedPunctuation;
-    cpp.translatePunctuation(chunks, dict);
+    cpp.translatePunctuation(chunks, translateText);
     return [first, chunks[0].translatedPunctuation];
   }
 
-  test('a chained dictionary (「→“, “→") translates once, not twice', () => {
-    expect(afterTwoPasses('「', { '「': '“', '“': '"' })).toEqual(['“', '“']);
+  test('a chained dictionary (「→“, “→") translates once, not twice', async () => {
+    expect(await afterTwoPasses('「', { '「': '“', '“': '"' })).toEqual(['“', '“']);
   });
 
-  test('a multi-character key (……→…) applies on the first pass, so a second pass changes nothing', () => {
-    expect(afterTwoPasses('……', { '……': '…', '…': '…' })).toEqual(['…', '…']);
+  test('a multi-character key (……→…) applies on the first pass, so a second pass changes nothing', async () => {
+    expect(await afterTwoPasses('……', { '……': '…', '…': '…' })).toEqual(['…', '…']);
   });
 
-  test('the longest key wins at each position', () => {
-    expect(afterTwoPasses('……', { '…': 'a', '……': 'b' })).toEqual(['b', 'b']);
+  test('the longest key wins at each position', async () => {
+    expect(await afterTwoPasses('……', { '…': 'a', '……': 'b' })).toEqual(['b', 'b']);
   });
 
-  test('an empty value leaves the character as it is', () => {
-    expect(afterTwoPasses('，', { '，': '' })).toEqual(['，', '，']);
+  test('an empty value leaves the character as it is', async () => {
+    expect(await afterTwoPasses('，', { '，': '' })).toEqual(['，', '，']);
   });
 
   test('the second pass still redoes the comma spacing against the finished neighbours', () => {
@@ -454,19 +465,19 @@ describe('ChunkPostProcessor.translatePunctuation: the dictionary applies once',
       makeChunk({ content: '说', translated: 'nói', punctuation: '，' }),
       makeChunk({ content: '' }),
     ];
-    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    cpp.translatePunctuation(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(',');
 
     chunks[1].content = '话';
-    cpp.translatePunctuation(chunks, PUNCT_DICT);
+    cpp.translatePunctuation(chunks, PUNCT);
     expect(chunks[0].translatedPunctuation).toBe(', ');
   });
 
-  test('the bundled punctuation dictionary turns …… into … on the first pass', () => {
+  test('the bundled punctuation dictionary turns …… into … on the first pass', async () => {
     const bundled = JSON.parse(fs.readFileSync('src/dictionaries/punctuation.json', 'utf-8'));
     const chunks = [makeChunk({ content: '说', translated: 'x', punctuation: '……' })];
 
-    cpp.translatePunctuation(chunks, bundled);
+    cpp.translatePunctuation(chunks, await punctuationTranslator(bundled));
 
     expect(chunks[0].translatedPunctuation).toBe('…');
   });

@@ -10,7 +10,7 @@ const ARRAYS = {
   metadata: [
     makeMeta({ source: 'characters', tokenIndex: 0 }),
     makeMeta({ source: 'phrases', tokenIndex: 1 }),
-    makeMeta({ source: 'pattern', tokenIndex: 2 }),
+    makeMeta({ source: 'hierarchical_pattern', tokenIndex: 2 }),
   ],
 };
 
