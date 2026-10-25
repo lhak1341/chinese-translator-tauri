@@ -94,10 +94,14 @@ describe('CandidateFinderPanel', () => {
     });
     const rows = screen
       .getAllByRole('listitem')
-      .map((row) => [...row.querySelectorAll(':scope > span')].map((cell) => cell.textContent));
+      .map((row) => [
+        row.querySelector('[lang=zh]')?.textContent,
+        Array.from(row.querySelectorAll('span')).find((el) => /×/.test(el.textContent ?? ''))
+          ?.textContent,
+      ]);
     expect(rows).toEqual([
-      ['滕青山', '32', '31'],
-      ['云梦泽', '12', '12'],
+      ['滕青山', '32× · 31 lines'],
+      ['云梦泽', '12× · 12 lines'],
     ]);
   });
 
@@ -368,8 +372,7 @@ describe('CandidateFinderPanel', () => {
       await unfold('滕青山');
       expect(reading.context).toHaveBeenCalledWith('滕青山');
       expect(screen.getAllByRole('button', { name: /^Jump to line/ })).toHaveLength(3);
-      expect(screen.getByText('4 more lines in the book')).toBeTruthy();
-      expect(screen.getByText('Type: type of 滕青山')).toBeTruthy();
+      expect(screen.getByText('4 more lines in the book · Type: type of 滕青山')).toBeTruthy();
     });
 
     test('a book with no more lines than shown has no "more lines" note', async () => {
@@ -468,26 +471,30 @@ describe('CandidateFinderPanel', () => {
         .getAllByLabelText(/^Translation of /)
         .map((input) => input.getAttribute('aria-label')?.replace('Translation of ', ''));
 
-    test('each row has a type dropdown of abbreviations, pre-selected from the rule', () => {
+    // The app's own type chips (`SemanticTypeToggleCell`): the active one carries its bare name
+    // as its title, the others "Set as <type>".
+    const activeType = (name: string): string | undefined =>
+      Array.from(screen.getByRole('group', { name: `Type of ${name}` }).querySelectorAll('[title]'))
+        .map((chip) => chip.getAttribute('title') ?? '')
+        .find((title) => !title.startsWith('Set as '));
+    const chipLabels = (name: string): (string | null)[] =>
+      Array.from(screen.getByRole('group', { name: `Type of ${name}` }).children[0].children).map(
+        (chip) => chip.textContent
+      );
+
+    test('each row has a chip per type, abbreviated, pre-selected from the rule', () => {
       renderPanel(snapshot(), ruledAdder());
-      const sword = screen.getByLabelText('Type of 青云剑法') as HTMLSelectElement;
-      expect(sword.value).toBe('object');
-      expect(Array.from(sword.options).map((option) => option.textContent)).toEqual([
-        'CHA',
-        'CRE',
-        'LOC',
-        'ORG',
-        'CON',
-        'OBJ',
-      ]);
+      expect(activeType('青云剑法')).toBe('object');
+      expect(chipLabels('青云剑法')).toEqual(['CHA', 'CRE', 'LOC', 'ORG', 'CON', 'OBJ']);
     });
 
     test('a row with no rule shows character, muted; a ruled row is not muted', () => {
       renderPanel(snapshot(), ruledAdder());
-      const plain = screen.getByLabelText('Type of 滕青山') as HTMLSelectElement;
-      expect(plain.value).toBe('character');
-      expect(plain.className).toMatch(/Muted/);
-      expect(screen.getByLabelText('Type of 青云剑法').className).not.toMatch(/Muted/);
+      expect(activeType('滕青山')).toBe('character');
+      expect(screen.getByRole('group', { name: 'Type of 滕青山' }).className).toMatch(/Muted/);
+      expect(screen.getByRole('group', { name: 'Type of 青云剑法' }).className).not.toMatch(
+        /Muted/
+      );
     });
 
     test('rows follow the adder ranking, and a new ranking re-orders them without a run', () => {
@@ -528,7 +535,7 @@ describe('CandidateFinderPanel', () => {
         'guess:青云剑法',
         'object'
       );
-      fireEvent.change(screen.getByLabelText('Type of 滕青山'), { target: { value: 'location' } });
+      fireEvent.click(screen.getByLabelText('Set Location for 滕青山'));
       fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
       expect(adder.add).toHaveBeenLastCalledWith(
         '滕青山',
@@ -548,7 +555,7 @@ describe('CandidateFinderPanel', () => {
       fireEvent.change(screen.getByLabelText('Add 滕青山 to'), {
         target: { value: 'properNouns' },
       });
-      expect((screen.getByLabelText('Type of 滕青山') as HTMLSelectElement).value).toBe('location');
+      expect(activeType('滕青山')).toBe('location');
     });
   });
 
@@ -590,7 +597,7 @@ describe('CandidateFinderPanel', () => {
       fireEvent.change(screen.getByLabelText('Translation of 滕青山'), {
         target: { value: 'Đằng Thanh Sơn' },
       });
-      fireEvent.change(screen.getByLabelText('Type of 云梦泽'), { target: { value: 'location' } });
+      fireEvent.click(screen.getByLabelText('Set Location for 云梦泽'));
       tick('滕青山');
       tick('云梦泽');
       fireEvent.click(screen.getByRole('button', { name: 'Add 2, each as set in its row' }));

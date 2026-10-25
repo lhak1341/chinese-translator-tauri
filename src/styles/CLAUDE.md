@@ -43,7 +43,9 @@ Affected: `TranslatorControls.module.css` `.progressIndicator` uses `@keyframes 
 
 Each `display: grid` element is its own formatting context — `auto`-sized tracks size to that instance's own content, so two rows built as separate grid containers (e.g. a `<button>` per `<li>`) can end up with different column widths even with identical `grid-template-columns`; any `fr` track absorbs whatever's left over, so it drifts row to row. Give every non-title column (icons, badges, numeric fields) a fixed length instead of `auto`, or promote to a real shared grid (`display:grid` on the list + `display:contents` per row) if content-based sizing is required. Confirmed 2026-09-19: `Bookshelf.tsx`'s `.bookRow` — progress/size columns were `auto`, so title columns drifted per row.
 
-## `<button>` Inherits index.css's Global Reset, Not Just `display:inline-flex`
+## Bare `button`/`select`/`input` Inherit index.css's Global Rules, and a Shorthand Wipes Them
+
+**Override a global control with longhands only.** `select` draws its chevron as a `background-image` and reserves `padding-right: 2.5rem`; a module's `background:` or `padding:` shorthand resets both, and the dropdown renders as a text input with no error (Candidate finder "Add to", 2026-10-25). Write `background-color` and `padding-right`, and re-set `background-position` if the padding changes.
 
 The base `button` rule (`index.css`) sets `align-items: center`, `justify-content: center`, `padding`, and `display: inline-flex` for every `<button>` in the app. A component styling a `<button>` as a custom flex/grid container (a card, a table row) must explicitly re-set every layout property it needs — setting only `flex-direction` lets `align-items:center` show through. Confirmed 2026-09-19: `.bookCard` set `flex-direction: column` but not `align-items`, so children shrank to content width and centered instead of stretching, which also broke the ellipsis/line-clamp sizing on the title text.
 

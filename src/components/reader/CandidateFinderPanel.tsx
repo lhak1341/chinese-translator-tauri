@@ -1,16 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
-import {
-  SEMANTIC_TYPE_ABBREVIATIONS,
-  SEMANTIC_TYPE_LIST,
-  type SemanticType,
-} from '../../constants/SemanticTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
 import { filterByRule, type RuleFilter } from '../../utils/reader/CandidateRanking';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder, CandidateAddRow } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
 import { extractErrorMessage } from '../../utils/errorHelpers';
+import { SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/Reader.module.css';
 
@@ -119,12 +116,10 @@ const CandidateContextLines: React.FC<{
           </li>
         ))}
       </ul>
-      {more > 0 && (
-        <small className={styles.candidateTag}>
-          {more} more {more === 1 ? 'line' : 'lines'} in the book
-        </small>
-      )}
-      <small className={styles.candidateTag}>Type: {note}</small>
+      <small className={styles.candidateFoot}>
+        {more > 0 && `${more} more ${more === 1 ? 'line' : 'lines'} in the book · `}
+        Type: {note}
+      </small>
     </div>
   );
 };
@@ -245,80 +240,88 @@ const CandidateRow: React.FC<CandidateRowProps> = ({
         aria-label={`Select ${text}`}
         onChange={(event) => onSelect(event.target.checked)}
       />
-      <span className={styles.candidateText}>
-        {text}
-        {candidate.alsoIn.length > 0 && (
-          <small className={styles.candidateTag}>
-            in {candidate.alsoIn.map(getDictionaryLabel).join(', ')}, not active here
-          </small>
-        )}
-      </span>
-      <span>{candidate.count}</span>
-      <span>{candidate.lineCount}</span>
-      <Gloss text={text} reading={reading} enabled={seen} />
-      <div className={styles.candidateAdd}>
-        <button
-          onClick={() => setUnfolded((open) => !open)}
-          className={styles.iconButton}
-          aria-expanded={unfolded}
-          aria-label={`${unfolded ? 'Hide' : 'Show'} context for ${text}`}
-        >
-          {unfolded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-        <input
-          className={styles.candidateInput}
-          value={translation}
-          aria-label={`Translation of ${text}`}
-          onChange={(event) => onDraft({ translation: event.target.value })}
-          onKeyDown={(event) => {
-            // WebKit ends a composition before this keydown, so `isComposing` is already false;
-            // the committing Enter still carries keyCode 229.
-            const composing = event.nativeEvent.isComposing || event.keyCode === 229;
-            if (event.key === 'Enter' && !composing) void add();
-          }}
-        />
-        <select
-          className={`${styles.candidateType} ${
-            draft.pickedType === undefined && !seeded.ruled ? styles.candidateTypeMuted : ''
-          }`}
-          value={shownType}
-          aria-label={`Type of ${text}`}
-          onChange={(event) => onDraft({ pickedType: event.target.value as SemanticType })}
-        >
-          {SEMANTIC_TYPE_LIST.map((type) => (
-            <option key={type} value={type}>
-              {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-            </option>
-          ))}
-        </select>
-        <select
-          className={styles.candidateSelect}
-          value={target}
-          aria-label={`Add ${text} to`}
-          onChange={(event) => changeTarget(event.target.value)}
-        >
-          {adder.choices.map((id) => (
-            <option key={id} value={id}>
-              {getDictionaryLabel(id)}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => void add()}
-          disabled={pending}
-          className={styles.secondaryButton}
-          aria-label={`Add ${text}`}
-        >
-          Add
-        </button>
-        <button
-          onClick={() => void dismiss()}
-          disabled={!dismissals.canDismiss}
-          className={styles.iconButton}
-          aria-label={`Dismiss ${text}`}
-        >
-          <X size={14} />
-        </button>
+      <div className={styles.candidateMain}>
+        <div className={styles.candidateTop}>
+          <button
+            onClick={() => setUnfolded((open) => !open)}
+            className={styles.candidateName}
+            aria-expanded={unfolded}
+            aria-label={`${unfolded ? 'Hide' : 'Show'} context for ${text}`}
+          >
+            <span className={styles.candidateZh} lang="zh">
+              {unfolded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              {text}
+            </span>
+            <Gloss text={text} reading={reading} enabled={seen} />
+          </button>
+          {candidate.alsoIn.length > 0 && (
+            <small className={styles.candidateTag}>
+              in {candidate.alsoIn.map(getDictionaryLabel).join(', ')}, not active here
+            </small>
+          )}
+          <span className={styles.candidateCount}>
+            {candidate.count}× · {candidate.lineCount} lines
+          </span>
+        </div>
+        <div className={styles.candidateEdit}>
+          <input
+            className={styles.candidateInput}
+            value={translation}
+            aria-label={`Translation of ${text}`}
+            onChange={(event) => onDraft({ translation: event.target.value })}
+            onKeyDown={(event) => {
+              // WebKit ends a composition before this keydown, so `isComposing` is already false;
+              // the committing Enter still carries keyCode 229.
+              const composing = event.nativeEvent.isComposing || event.keyCode === 229;
+              if (event.key === 'Enter' && !composing) void add();
+            }}
+          />
+          <div
+            role="group"
+            aria-label={`Type of ${text}`}
+            className={
+              draft.pickedType === undefined && !seeded.ruled ? styles.candidateTypeMuted : ''
+            }
+          >
+            <SemanticTypeToggleCell
+              activeType={shownType}
+              onSelect={(type) => onDraft({ pickedType: type as SemanticType })}
+              width="auto"
+              size="panel"
+              align="left"
+              clearable={false}
+              rowLabel={text}
+            />
+          </div>
+          <select
+            className={styles.candidateSelect}
+            value={target}
+            aria-label={`Add ${text} to`}
+            onChange={(event) => changeTarget(event.target.value)}
+          >
+            {adder.choices.map((id) => (
+              <option key={id} value={id}>
+                {getDictionaryLabel(id)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => void add()}
+            disabled={pending}
+            className={styles.candidateAddButton}
+            aria-label={`Add ${text}`}
+          >
+            Add
+          </button>
+          <button
+            onClick={() => void dismiss()}
+            disabled={!dismissals.canDismiss}
+            className={styles.iconButton}
+            aria-label={`Dismiss ${text}`}
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
       {unfolded && (
         <CandidateContextLines text={text} note={adder.typeNote(text, target)} reading={reading} />
@@ -435,87 +438,90 @@ const CandidateList: React.FC<{
           {added} added since this run, re-run to update
         </div>
       )}
-      <div className={styles.candidateChips} role="group" aria-label="Filter by rule">
-        {FILTER_CHIPS.map(({ filter: value, label }) => (
-          <button
-            key={value}
-            onClick={() => setFilter(value)}
-            aria-pressed={filter === value}
-            className={styles.secondaryButton}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {selected.length > 0 && (
-        <div className={styles.candidateBatch} role="group" aria-label="Selected candidates">
-          <button
-            onClick={() => void addSelected()}
-            className={styles.primaryButton}
-            aria-label={`Add ${selected.length}, each as set in its row`}
-          >
-            Add {selected.length}, each as set in its row
-          </button>
-          <select
-            className={styles.candidateSelect}
-            value=""
-            aria-label="Set all to"
-            onChange={(event) => event.target.value && setAllTo(event.target.value)}
-          >
-            <option value="">Set all to…</option>
-            {adder.choices.map((id) => (
-              <option key={id} value={id}>
-                {getDictionaryLabel(id)}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => void dismissSelected()}
-            disabled={!dismissals.canDismiss}
-            className={styles.secondaryButton}
-            aria-label={`Dismiss ${selected.length}`}
-          >
-            Dismiss {selected.length}
-          </button>
-          {batchMessage && (
-            <div className={styles.error} role="alert">
-              <AlertCircle size={14} />
-              {batchMessage}
-            </div>
-          )}
+      <div className={styles.candidateCard}>
+        <div className={styles.candidateChips} role="group" aria-label="Filter by rule">
+          {FILTER_CHIPS.map(({ filter: value, label }) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              aria-pressed={filter === value}
+              className={styles.candidateChip}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      )}
-      {remaining.length > 0 && (
-        <>
-          <div className={styles.candidateHeaderRow}>
-            <input
-              type="checkbox"
-              checked={allSelected}
-              aria-label="Select all"
-              onChange={(event) => selectAll(event.target.checked)}
-            />
-            <span>Candidate</span>
-            <span>Count</span>
-            <span>Lines</span>
-          </div>
-          <ul className={styles.outlineList}>
-            {remaining.map(({ candidate }) => (
-              <CandidateRow
-                key={candidate.text}
-                candidate={candidate}
-                adder={adder}
-                dismissals={dismissals}
-                reading={reading}
-                draft={drafts[candidate.text] ?? NO_DRAFT}
-                onDraft={(patch) => patchDraft(candidate.text, patch)}
-                selected={picked.has(candidate.text)}
-                onSelect={(on) => select(candidate.text, on)}
+        {remaining.length > 0 && (
+          <>
+            <div className={styles.candidateHeaderRow}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                aria-label="Select all"
+                onChange={(event) => selectAll(event.target.checked)}
               />
-            ))}
-          </ul>
-        </>
-      )}
-      <button onClick={onRun} className={styles.secondaryButton}>
+              <span>{remaining.length} candidates, most likely first</span>
+            </div>
+            <ul className={`${styles.outlineList} ${styles.candidateList}`}>
+              {remaining.map(({ candidate }) => (
+                <CandidateRow
+                  key={candidate.text}
+                  candidate={candidate}
+                  adder={adder}
+                  dismissals={dismissals}
+                  reading={reading}
+                  draft={drafts[candidate.text] ?? NO_DRAFT}
+                  onDraft={(patch) => patchDraft(candidate.text, patch)}
+                  selected={picked.has(candidate.text)}
+                  onSelect={(on) => select(candidate.text, on)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+        {remaining.length === 0 && (
+          <div className={styles.candidateNone}>Nothing in this filter.</div>
+        )}
+        {selected.length > 0 && (
+          <div className={styles.candidateBatch} role="group" aria-label="Selected candidates">
+            <button
+              onClick={() => void addSelected()}
+              className={styles.candidateAddButton}
+              aria-label={`Add ${selected.length}, each as set in its row`}
+            >
+              Add {selected.length}, each as set in its row
+            </button>
+            <select
+              className={styles.candidateSelect}
+              value=""
+              aria-label="Set all to"
+              onChange={(event) => event.target.value && setAllTo(event.target.value)}
+            >
+              <option value="">Set all to…</option>
+              {adder.choices.map((id) => (
+                <option key={id} value={id}>
+                  {getDictionaryLabel(id)}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => void dismissSelected()}
+              disabled={!dismissals.canDismiss}
+              className={styles.secondaryButton}
+              aria-label={`Dismiss ${selected.length}`}
+            >
+              Dismiss {selected.length}
+            </button>
+            {batchMessage && (
+              <div className={styles.error} role="alert">
+                <AlertCircle size={14} />
+                {batchMessage}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <button onClick={onRun} className={styles.candidateRerun}>
         Run again
       </button>
     </>
@@ -598,7 +604,7 @@ const CandidateFinderPanel: React.FC<CandidateFinderPanelProps> = ({
   onCancel,
   onClose,
 }) => (
-  <div className={styles.outlinePanel} aria-label="Candidate finder">
+  <div className={`${styles.outlinePanel} ${styles.candidatePanel}`} aria-label="Candidate finder">
     <div className={styles.outlinePanelHeader}>
       <span className={styles.outlinePanelTitle}>Candidates</span>
       <button onClick={onClose} className={styles.iconButton} aria-label="Close candidate finder">

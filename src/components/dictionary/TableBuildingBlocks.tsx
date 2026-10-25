@@ -57,6 +57,7 @@ interface BadgeChipProps {
   ariaLabel?: string;
   fontSize?: string;
   padding?: string;
+  borderRadius?: string;
 }
 
 /** The active/inactive badge-chip recipe (background/color/border/fontSize/padding) shared by
@@ -78,6 +79,7 @@ export const BadgeChip: React.FC<BadgeChipProps> = ({
   ariaLabel,
   fontSize = '0.6rem',
   padding = '1px 3px',
+  borderRadius,
 }) => (
   <span
     onClick={(e) => {
@@ -94,6 +96,7 @@ export const BadgeChip: React.FC<BadgeChipProps> = ({
       fontSize,
       padding,
       cursor: 'pointer',
+      ...(borderRadius && { borderRadius }),
     }}
   >
     {label}
@@ -192,7 +195,7 @@ export const FilterChipButton: React.FC<FilterChipButtonProps> = ({
  * `clearable=false` (Rules tab's semanticType, which is required/non-clearable):
  * clicking the active chip no-ops instead of calling `onSelect('')`, and the tooltip
  * drops the "(click to remove)" suffix since removal isn't possible.
- * `size="form"` is a larger variant for spacious form contexts (Rules tab's
+ * `size="panel"` is the form scale with the app's control radius, for the Reader's Candidate finder rows. `size="form"` is a larger variant for spacious form contexts (Rules tab's
  * NewRuleModal) where the table-cell scale reads as too small — still built on
  * `.metadataBadge`, just bigger padding/font. `align="left"` matches a left-aligned
  * label above it (form layout); default `"center"` matches table-cell usage.
@@ -206,7 +209,7 @@ export const SemanticTypeToggleCell: React.FC<{
   width?: string;
   patternSource?: string;
   clearable?: boolean;
-  size?: 'table' | 'form';
+  size?: 'table' | 'form' | 'panel';
   align?: 'center' | 'left';
   rowLabel?: string;
 }> = ({
@@ -219,10 +222,12 @@ export const SemanticTypeToggleCell: React.FC<{
   align = 'center',
   rowLabel,
 }) => {
-  const badgeSize =
-    size === 'form'
-      ? { fontSize: '0.7rem', padding: '2px 6px' }
-      : { fontSize: '0.6rem', padding: '1px 3px' };
+  const badgeSize: { fontSize: string; padding: string; borderRadius?: string } =
+    size === 'panel'
+      ? { fontSize: '0.7rem', padding: '2px 6px', borderRadius: 'var(--radius-md)' }
+      : size === 'form'
+        ? { fontSize: '0.7rem', padding: '2px 6px' }
+        : { fontSize: '0.6rem', padding: '1px 3px' };
   return (
     <div
       style={{
@@ -258,6 +263,7 @@ export const SemanticTypeToggleCell: React.FC<{
             }
             fontSize={badgeSize.fontSize}
             padding={badgeSize.padding}
+            borderRadius={badgeSize.borderRadius}
           />
         );
       })}
