@@ -13,6 +13,7 @@ import {
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
 import { rankCandidates } from '../utils/reader/CandidateRanking';
+import { patternCoverage } from '../utils/reader/CandidatePatternCoverage';
 import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
 import { loadAppConfig } from '../utils/appConfig';
 import { backgroundBooks } from '../utils/reader/CandidateBackground';
@@ -151,9 +152,14 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     [view, dictionaries]
   );
   // Apart from the adder so adding an entry (new dictionaries) does not re-rank the list.
+  const isPatternCovered = useMemo(
+    () => patternCoverage(dictionaries, view?.activeProperNouns ?? []),
+    [dictionaries, view]
+  );
   const rank = useCallback(
-    (candidates: readonly Candidate[]) => rankCandidates(candidates, rules, opened),
-    [rules, opened]
+    (candidates: readonly Candidate[]) =>
+      rankCandidates(candidates, rules, opened, isPatternCovered),
+    [rules, opened, isPatternCovered]
   );
 
   const adder = useMemo((): CandidateAdder => {
