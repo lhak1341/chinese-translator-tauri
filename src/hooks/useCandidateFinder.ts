@@ -122,6 +122,8 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     )
   );
   const [loaded, setLoaded] = useState<{ unreadable: string | null } | null>(null);
+  // Not a spare read: it loads the records cache that `names` reads synchronously (empty until
+  // loaded) and gates `canDismiss`. A success is cached, so `getBackground`'s read costs no IPC.
   useEffect(() => {
     let current = true;
     loadBookRecords().then(
