@@ -108,24 +108,14 @@ grep "processNumbersWasm(" src/utils/TranslationEngine.js
 # Missing = execution path problem, seeing logs = logic problem
 ```
 
-### Lesson 2: Test Production Builds During Development
+### Lesson 2: A Fault in One Build Only Comes From a Known Build Difference
 
-**Pattern**: Dev build worked, production completely failed (CSP blocked WASM in production).
+**Pattern**: the same commit behaves differently in `bun run tauri:dev` and `bun run deploy`. Check the differences below, in the direction that fails, before reading logic.
 
-**Prevention**:
+- **Fails only in dev:** React `StrictMode` (`src/main.jsx`) runs each effect's cleanup and setup twice on one instance, so a store built in `useState` whose `dispose()`/`close()` cannot be undone goes dead with no error (the Reader never translated in dev until 2026-10-27; rule in `src/utils/reader/CLAUDE.md`). Debug WASM is the other suspect (`wasm-core/CLAUDE.md`'s debug-build panics) but it is only ~5× slower, not broken: rule it out by running the engine on real text with both builds (corpus-ab skill) before chasing it.
+- **Fails only in prod:** CSP (relaxed in dev, strict in prod; it once blocked WASM), Vite's production bundling, and `asset://` instead of `http://` loading.
 
-- Test production builds during development, not just before release
-- Different bundling = different issues (Vite transforms differently)
-- Different protocols = different loading (`http://` vs `asset://`)
-- Different CSP = different restrictions (relaxed in dev, strict in prod)
-
-**Weekly check**:
-
-```bash
-npm run tauri:build
-open "src-tauri/target/release/bundle/macos/App.app"
-# Quick smoke test critical features
-```
+Deploy often (`bun run deploy`) so prod-only faults surface near the change that caused them.
 
 ### Lesson 3: Type Boundaries Need Explicit Contracts
 

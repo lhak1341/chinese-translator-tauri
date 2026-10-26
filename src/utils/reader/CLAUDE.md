@@ -81,7 +81,7 @@ Writes to `books.json` run later, queued; `loadBookRecords()` returns the cache 
 
 ## A store a hook creates in `useState` must survive its effect cleanup running twice
 
-`main.jsx` wraps the app in `StrictMode`, which in dev runs an effect's cleanup and then its setup again on the same instance, so a teardown that cannot be undone leaves the store dead and the feature does nothing (production is fine, so it only shows in `tauri:dev`). Pair `close`/`dispose` with an `open()` that lifts it, called from the effect's setup, as `ChapterOutlineStore` does and `CandidateFinderStore` did not until review caught it (2026-10-24). Pin it with a dispose, open, then act test.
+`main.jsx` wraps the app in `StrictMode`, which in dev runs an effect's cleanup and then its setup again on the same instance, so a teardown that cannot be undone leaves the store dead and the feature does nothing (production is fine, so it only shows in `tauri:dev`). Pair `close`/`dispose` with an `open()` that lifts it, called from the effect's setup, as `ChapterOutlineStore` does and `CandidateFinderStore` did not until review caught it (2026-10-24). `WindowFiller` missed it until 2026-10-27: its `dispose()` made every later `update` a no-op, so the Reader never translated in `tauri:dev` while the deployed build worked. Pin it with a dispose, open, then act test.
 
 ## The book index's validity key is the record's `encodingLabel` — keep it the same field the open writes
 

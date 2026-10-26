@@ -85,7 +85,10 @@ export function useWindowedTranslation({
   const [filler] = useState(() => new WindowFiller({ translateChunk, translateGloss }));
   const { version, isTranslating } = useSyncExternalStore(filler.subscribe, filler.getSnapshot);
 
-  useEffect(() => () => filler.dispose(), [filler]);
+  useEffect(() => {
+    filler.open();
+    return () => filler.dispose();
+  }, [filler]);
 
   // `linesVersion` is an input only as a trigger: `getLine` reads through a ref, so a page
   // landing changes nothing the filler can see except that it is asked again.

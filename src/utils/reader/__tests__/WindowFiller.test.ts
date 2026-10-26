@@ -271,6 +271,19 @@ describe('WindowFiller — the two staleness signals', () => {
 
     expect(translateChunk).not.toHaveBeenCalled();
   });
+
+  it('open after dispose fills again (StrictMode runs the cleanup, then the setup, on one instance)', async () => {
+    lines = ['你好'];
+    translateChunk.mockResolvedValue(chunkResult('Xin chào'));
+    const filler = makeFiller();
+    filler.open();
+    filler.dispose();
+    filler.open();
+
+    filler.update(inputs());
+
+    await vi.waitFor(() => expect(translated(filler, 0)).toBe('Xin chào'));
+  });
 });
 
 describe('WindowFiller — isTranslating', () => {

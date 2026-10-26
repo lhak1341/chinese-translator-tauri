@@ -6,8 +6,8 @@
     "semantic_hash": ""
   },
   "vite.config.ts": {
-    "mtime": 1792885138.9849524,
-    "seen": 1792941754.737592,
+    "mtime": 1793035957.0636132,
+    "seen": 1793036097.025933,
     "ast_hash": "f6f1abffc614fcdfcea99f73f4278b26",
     "semantic_hash": ""
   },
@@ -114,8 +114,8 @@
     "semantic_hash": "0352474ba2918efe13895edbc3780d94"
   },
   "src/main.jsx": {
-    "mtime": 1772897608.4959147,
-    "seen": 1792776572.256417,
+    "mtime": 1793035957.0657861,
+    "seen": 1793036097.02577,
     "ast_hash": "8b5360ca10abe938bf58efedc7abaf1f",
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
@@ -1188,9 +1188,9 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1793033899.1783125,
-    "seen": 1793033917.0866969,
-    "ast_hash": "10aa98c67092e7fd91e2df49a755c17d",
+    "mtime": 1793035154.7018323,
+    "seen": 1793036097.02609,
+    "ast_hash": "0578faf5974509c53dad4b98d7f61516",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1792828375.3100624,
-    "seen": 1792852919.965075,
-    "ast_hash": "28dd8b3643db5300e62449361e38554e",
+    "mtime": 1793034680.987009,
+    "seen": 1793036097.026075,
+    "ast_hash": "83f3adb5c5b795f19cbd69bbec97d5f2",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1818,9 +1818,9 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1792939597.1428113,
-    "seen": 1792941754.737746,
-    "ast_hash": "14b1474583e1012c6c6875571296dba9",
+    "mtime": 1793035970.2983625,
+    "seen": 1793036097.0260952,
+    "ast_hash": "2400d8de2ef725122738d5e03eaa70e9",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -1830,9 +1830,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1792782474.167831,
-    "seen": 1792782588.684662,
-    "ast_hash": "ee5492b9e125b8ba87e882a1724f2b26",
+    "mtime": 1793035910.4962246,
+    "seen": 1793036097.025768,
+    "ast_hash": "3fb61efc69cfe043dc69767953fadbc4",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -2268,9 +2268,9 @@
     "semantic_hash": ""
   },
   "src/utils/reader/WindowFiller.ts": {
-    "mtime": 1792782473.9838672,
-    "seen": 1792782588.6847591,
-    "ast_hash": "668b1b13f961f795e7b6abd68e48785a",
+    "mtime": 1793035923.1523888,
+    "seen": 1793036097.025888,
+    "ast_hash": "547613e7a655d515804eaf2b8065cf24",
     "semantic_hash": ""
   },
   "docs/adr/ADR-056-skip-rule-draft-module.md": {

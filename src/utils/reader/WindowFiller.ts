@@ -142,6 +142,15 @@ export class WindowFiller {
     })();
   }
 
+  /**
+   * Lifts a `dispose()`. StrictMode runs the hook's cleanup and then its setup again on this
+   * same instance in dev, so without it every later `update` is ignored and the Reader stays
+   * Chinese in `tauri:dev` only. A fill the dispose abandoned stays abandoned: `lifetime` moved.
+   */
+  open(): void {
+    this.disposed = false;
+  }
+
   /** Abandons any fill still running: the chunk in flight still resolves, and lands nowhere. */
   dispose(): void {
     this.disposed = true;
