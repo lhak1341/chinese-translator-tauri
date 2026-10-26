@@ -1,8 +1,7 @@
 /* Container/header/table structure mirrors DictionaryManager.module.css +
-   EnhancedVirtualizedDictionaryTable.tsx as closely as a plain (non-virtualized) table
-   allows: absolute-fill flex column, a bordered toolbar-bar header, and a flush
-   (no page padding) scrollable table area — not a padded page with a boxed, rounded
-   table card. */
+   EnhancedVirtualizedDictionaryTable.tsx: absolute-fill flex column, a bordered
+   toolbar-bar header, and a flush (no page padding) table area whose rows scroll under a
+   fixed header — not a padded page with a boxed, rounded table card. */
 .container {
   position: absolute;
   top: 0;
@@ -24,7 +23,9 @@
 .tableArea {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .empty {
@@ -35,8 +36,21 @@
 
 .table {
   width: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* The virtualized row list (RulesManager.tsx): every rule row stays mounted with the tab, so
+   only the rows in view are rendered. Rows sit at their own absolute offsets and scroll
+   anchoring is off — WebKit otherwise pulls scrollTop back as rows enter and leave. */
+.rowScroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+  position: relative;
 }
 
 /* Fixed table header — same shape as EnhancedVirtualizedDictionaryTable's header div

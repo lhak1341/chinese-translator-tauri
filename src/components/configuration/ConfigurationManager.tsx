@@ -425,4 +425,5 @@ const ConfigurationManager: React.FC = () => {
   );
 };
 
-export default ConfigurationManager;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default React.memo(ConfigurationManager);

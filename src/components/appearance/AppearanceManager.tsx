@@ -293,4 +293,5 @@ const AppearanceManager: React.FC = () => {
   );
 };
 
-export default AppearanceManager;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default React.memo(AppearanceManager);

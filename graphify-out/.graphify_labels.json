@@ -42,7 +42,6 @@
   "206": "Chinese-Vietnamese Translation App",
   "225": "ADR-061: Skip a Shelf Row Module",
   "234": "ADR-014: DictionaryBackend Owns Load Protocol Only — Save/Move IPC Stays in Provider",
-  "235": "ADR-050: One BookReader Instance per Book",
   "246": "ADR-010: Dictionary Match Sort — Specificity Over Provenance",
   "256": "9. Recommendations",
   "259": "DictionaryManager Types",

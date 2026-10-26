@@ -115,9 +115,7 @@ Both table views follow `src/components/CLAUDE.md`'s virtualized-list rule (abso
 
 ## Hook Tests — jsdom Gotchas (Dictionary-Specific)
 
-General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context menus, closure-mocking hook arguments, ref-callback event capture) live in `docs/guides/gotchas.md`'s jsdom section — the two below are dictionary-specific.
-
-`useVirtualScrollRange`'s `containerHeight` state defaults to `600` (not `0`) — small test datasets (EVDT and siblings) render fully with no ResizeObserver-firing needed; still stub `ResizeObserver` as a class so `new ResizeObserver()` doesn't throw "not defined" in jsdom.
+General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context menus, closure-mocking hook arguments, ref-callback event capture) live in `docs/guides/gotchas.md`'s jsdom section — the one below is dictionary-specific.
 
 **Patterns-dict source text is not a single text node** — `VirtualRowComponent` renders it through `highlightPatternVariables(source)`, which splits it into styled spans per X/Y variable. `screen.getByText(sourceString)` will fail to match; assert on the (plain-text) translation string instead.
 

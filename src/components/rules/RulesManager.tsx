@@ -1,9 +1,10 @@
-import { useMemo, useState, forwardRef, useImperativeHandle } from 'react';
+import { memo, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { PlusCircle } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
-import { SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
+import { ITEM_HEIGHT, SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
+import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { toggled } from '../../utils/ui/toggled';
 import RuleMatchesModal from './RuleMatchesModal';
@@ -74,6 +75,16 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
       return matchesSearch && matchesType;
     });
   }, [sortedRules, searchTerm, filterSemanticTypes]);
+
+  // Only the rows in view are rendered. The tab stays mounted, and every row of a 545-rule
+  // list was ~22k DOM nodes WebKit had to draw each time the tab was shown. A new search or
+  // type filter starts at the top.
+  const scroll = useVirtualScrollRange(filteredRules.length, {
+    itemHeight: ITEM_HEIGHT,
+    resetKey: `${searchTerm}\u0000${[...filterSemanticTypes].sort().join(',')}`,
+  });
+  const { startIndex, endIndex } = scroll.visibleRange;
+  const visibleRules = filteredRules.slice(startIndex, endIndex);
 
   const openNew = (prefillText?: string) => {
     if (!prefillText) {
@@ -188,17 +199,36 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
               </div>
               <div role="columnheader" className={`${styles.headerCell} ${styles.colActions}`} />
             </div>
-            <div role="rowgroup">
-              {filteredRules.map((rule) => (
-                <RuleRow
-                  key={rule.id}
-                  rule={rule}
-                  updateRule={updateRule}
-                  deleteRule={deleteRule}
-                  toggleEnabled={toggleEnabled}
-                  onViewMatches={setViewingMatches}
-                />
-              ))}
+            <div
+              role="rowgroup"
+              ref={scroll.scrollRefCallback}
+              onScroll={scroll.handleScroll}
+              className={styles.rowScroller}
+            >
+              {/* Spacer for the whole list; each row sits at its own index's offset, so
+                  nothing shifts in layout as rows enter or leave the rendered window. */}
+              <div style={{ height: filteredRules.length * ITEM_HEIGHT, position: 'relative' }}>
+                {visibleRules.map((rule, index) => (
+                  <div
+                    key={rule.id}
+                    style={{
+                      position: 'absolute',
+                      top: (startIndex + index) * ITEM_HEIGHT,
+                      left: 0,
+                      right: 0,
+                      height: ITEM_HEIGHT,
+                    }}
+                  >
+                    <RuleRow
+                      rule={rule}
+                      updateRule={updateRule}
+                      deleteRule={deleteRule}
+                      toggleEnabled={toggleEnabled}
+                      onViewMatches={setViewingMatches}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -231,4 +261,5 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
 
 RulesManager.displayName = 'RulesManager';
 
-export default RulesManager;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default memo(RulesManager);

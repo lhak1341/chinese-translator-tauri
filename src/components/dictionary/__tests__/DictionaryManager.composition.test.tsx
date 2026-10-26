@@ -77,26 +77,45 @@ const {
 // Undo/redo buttons are disabled until the store says there is history.
 const history = vi.hoisted(() => ({ canUndo: false, canRedo: false }));
 
-vi.mock('../DictionaryContext', () => ({
-  useDictionary: () => ({
-    dictionaries: dictionariesRef.current,
-    unreadDictionaryIds: unreadRef.current,
-    isLoading: false,
-    selectedDictionary: selectedDictionaryRef.current,
-    setSelectedDictionary,
-    bulkDeleteEntries,
-    updateEntry,
-    renameEntry,
-    patchEntry,
-    undo,
-    redo,
-    canUndo: history.canUndo,
-    canRedo: history.canRedo,
-    loadDictionary,
-    importDictionaries,
-    dictionaryTypes,
-  }),
-}));
+// A real context re-renders its consumers when its value changes; a ref read by the mock does
+// not, and `DictionaryManager` is memoized, so a bare `rerender` with the same props skips it.
+// `notifyContextChange` plays the provider publishing a new value.
+const contextVersion = vi.hoisted(() => ({ value: 0, listeners: new Set<() => void>() }));
+function notifyContextChange(): void {
+  contextVersion.value += 1;
+  contextVersion.listeners.forEach((listener) => listener());
+}
+
+vi.mock('../DictionaryContext', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (listener: () => void) => {
+    contextVersion.listeners.add(listener);
+    return () => contextVersion.listeners.delete(listener);
+  };
+  return {
+    useDictionary: () => {
+      useSyncExternalStore(subscribe, () => contextVersion.value);
+      return {
+        dictionaries: dictionariesRef.current,
+        unreadDictionaryIds: unreadRef.current,
+        isLoading: false,
+        selectedDictionary: selectedDictionaryRef.current,
+        setSelectedDictionary,
+        bulkDeleteEntries,
+        updateEntry,
+        renameEntry,
+        patchEntry,
+        undo,
+        redo,
+        canUndo: history.canUndo,
+        canRedo: history.canRedo,
+        loadDictionary,
+        importDictionaries,
+        dictionaryTypes,
+      };
+    },
+  };
+});
 
 vi.mock('../../../utils/toast', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -224,12 +243,12 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('switching dictionaries reads nothing from disk: memory is the source of truth', async () => {
-    const { rerender } = render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     selectedDictionaryRef.current = 'properNouns-Other';
     await act(async () => {
-      rerender(<DictionaryManager />, { wrapper: VisibleTabProvider });
+      notifyContextChange();
     });
 
     await screen.findByText('Bye');
@@ -402,7 +421,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
   });
 
   test('switching dictionaries resets selection and closes the context menu (5-way reset effect)', async () => {
-    const { rerender } = render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
     await screen.findByText('Xin chào');
 
     await act(async () => {
@@ -414,7 +433,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
 
     selectedDictionaryRef.current = 'properNouns-Other';
     await act(async () => {
-      rerender(<DictionaryManager />, { wrapper: VisibleTabProvider });
+      notifyContextChange();
     });
 
     await screen.findByText('Bye');

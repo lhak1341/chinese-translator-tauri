@@ -358,4 +358,5 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   );
 };
 
-export default ReaderTab;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default React.memo(ReaderTab);

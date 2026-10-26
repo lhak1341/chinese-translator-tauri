@@ -564,9 +564,9 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1790957396.8281336,
-    "seen": 1792776572.2563279,
-    "ast_hash": "ffdd2a44b9b7f5268d243411a3ac3931",
+    "mtime": 1793038884.8143826,
+    "seen": 1793040420.6361432,
+    "ast_hash": "2f75d0ad7c45f452dec8fcc799fc5089",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -582,9 +582,9 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1792776915.1038222,
-    "seen": 1792777026.042908,
-    "ast_hash": "9c38858c15ab434379cf9cb6fbf99943",
+    "mtime": 1793037943.0227926,
+    "seen": 1793038197.439438,
+    "ast_hash": "03a4b640f8885a33b57bcb3c4b630543",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "src/components/configuration/ConfigurationManager.tsx": {
-    "mtime": 1791375985.848516,
-    "seen": 1792776572.256335,
-    "ast_hash": "26ae533376a1849ccc7135caa27af325",
+    "mtime": 1793037993.4003887,
+    "seen": 1793038197.439445,
+    "ast_hash": "132e1c6e8d6029913ee66f129f33f5d6",
     "semantic_hash": ""
   },
   "src/components/char-only/ClickableOriginalSemantic.tsx": {
@@ -624,10 +624,10 @@
     "semantic_hash": "d46efa0230222cff8cf00fd79d68c898"
   },
   "src/components/appearance/AppearanceManager.tsx": {
-    "mtime": 1785257178.4195077,
-    "seen": 1792776572.256331,
-    "ast_hash": "7af735b96f88f0cb5c059fce290b22c2",
-    "semantic_hash": "7af735b96f88f0cb5c059fce290b22c2"
+    "mtime": 1793037943.0192432,
+    "seen": 1793038197.4394398,
+    "ast_hash": "9bea63fe558f556c1d450c7e777e9b83",
+    "semantic_hash": ""
   },
   "src/components/full-translation/ClickableTranslationOptimized.tsx": {
     "mtime": 1791689003.6186228,
@@ -660,9 +660,9 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
-    "mtime": 1792533635.9627588,
-    "seen": 1792776572.2563388,
-    "ast_hash": "462dfabfd385cc2e2ac0c18d3ad153e8",
+    "mtime": 1793037943.0094988,
+    "seen": 1793038197.43945,
+    "ast_hash": "aa155779bfeecccf8bfa83d56810680f",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1793031097.741031,
-    "seen": 1793033917.086685,
-    "ast_hash": "da9c3d321151703a45761561a6b8ba06",
+    "mtime": 1793036252.8169143,
+    "seen": 1793038197.439816,
+    "ast_hash": "2dfdcd2d1ac57993f1b9ae5294341c49",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1368,9 +1368,9 @@
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1792820097.513432,
-    "seen": 1792820275.989294,
-    "ast_hash": "6f5e40c3280bc838e58d450fa977121f",
+    "mtime": 1793040340.0647945,
+    "seen": 1793040420.63619,
+    "ast_hash": "3b35268a067dd4ee46e77777f2ebb754",
     "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
@@ -1728,9 +1728,9 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1792857883.6143372,
-    "seen": 1792858193.600338,
-    "ast_hash": "e65b80daa876ddc5a73d34e38aafc942",
+    "mtime": 1793037943.0126023,
+    "seen": 1793038197.439478,
+    "ast_hash": "373b52c0995cda6764170c302f14caf9",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -2340,9 +2340,9 @@
     "semantic_hash": ""
   },
   "src/components/TabPanel.tsx": {
-    "mtime": 1790957397.0847259,
-    "seen": 1792776572.256327,
-    "ast_hash": "50da4dd5912f21bb1eb801b3b346e9c1",
+    "mtime": 1793038884.8140042,
+    "seen": 1793040420.636142,
+    "ast_hash": "bfaba70a342f75db9c08ffbbd5de69be",
     "semantic_hash": ""
   },
   "docs/adr/ADR-063-skip-hotkey-chord-module.md": {

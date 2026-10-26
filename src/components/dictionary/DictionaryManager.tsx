@@ -18,7 +18,7 @@ import { dictionaryOptionLabel } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
 import DictionaryEntry from './DictionaryEntry';
-import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
+import HotkeyHandler from '../HotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
@@ -250,17 +250,23 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // String-only lookup tables (characters/conversion/punctuation) have no move targets.
   const canMoveFromSelected = getMoveFamily(selectedDictionary) !== null;
 
-  useHotkeyHandler({
-    handlers: { undo: handleUndo, redo: handleRedo },
-    canUndo,
-    canRedo,
-    ownTab: 'dictionary',
-  });
+  // A child, not a `useHotkeyHandler` call here: the hook reads the visible tab, and a
+  // context read in this component would re-render the whole Dictionary tab on every
+  // tab switch, defeating its `memo`.
+  const hotkeys = (
+    <HotkeyHandler
+      handlers={{ undo: handleUndo, redo: handleRedo }}
+      canUndo={canUndo}
+      canRedo={canRedo}
+      ownTab="dictionary"
+    />
+  );
 
   // Show loading state while dictionaries are being loaded
   if (isLoading) {
     return (
       <div className={`${styles.container} ${styles.loadingContainer}`}>
+        {hotkeys}
         <Loader size={20} className={`animate-spin ${styles.loadingSpinner}`} />
         <span className={styles.loadingText}>Loading dictionary...</span>
       </div>
@@ -270,6 +276,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Main component render
   return (
     <div className={styles.container}>
+      {hotkeys}
       <div className={styles.header}>
         <select
           className={styles.select}
@@ -492,4 +499,5 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   );
 };
 
-export default DictionaryManager;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default React.memo(DictionaryManager);

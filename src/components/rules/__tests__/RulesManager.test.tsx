@@ -38,8 +38,17 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
   };
 }
 
+// The rule list is virtualized, and `useVirtualScrollRange` observes its scroller; jsdom has
+// no ResizeObserver. Never firing leaves the hook's default 600px viewport.
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('ResizeObserver', MockResizeObserver);
   loadTransformRules.mockResolvedValue({ rules: [], droppedCount: 0 });
   saveTransformRules.mockResolvedValue(undefined);
   wireTransformRulesIpc({ load: loadTransformRules, save: saveTransformRules });
@@ -403,5 +412,33 @@ describe('RulesManager', () => {
 
     fireEvent.click(screen.getByText('Back to Rules'));
     expect(screen.queryByText('南京城')).not.toBeInTheDocument();
+  });
+
+  test('a long rule list renders only the rows in view, and scrolling brings in later ones', async () => {
+    // A 545-rule list (the size of the real one) rendered every row: ~22k DOM nodes kept in
+    // the always-mounted tab, which WebKit drew on each switch to it.
+    const rules = Array.from({ length: 545 }, (_, i) =>
+      makeRule({ id: `r${i}`, key: String.fromCharCode(0x4e00 + i), label: `L${i}` })
+    );
+    loadTransformRules.mockResolvedValue({ rules, droppedCount: 0 });
+    render(<RulesManager />);
+    await screen.findByText('L0');
+
+    const renderedLabels = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1) // drop header row
+        .map((row) => row.textContent);
+    const before = renderedLabels();
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.length).toBeLessThan(60);
+    expect(screen.queryByText('L544')).not.toBeInTheDocument();
+
+    const scroller = screen.getAllByRole('rowgroup')[0];
+    scroller.scrollTop = 544 * 40;
+    fireEvent.scroll(scroller);
+
+    expect(await screen.findByText('L544')).toBeInTheDocument();
+    expect(renderedLabels().length).toBeLessThan(60);
   });
 });

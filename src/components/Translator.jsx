@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
+import { memo, useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { validateTranslationInput } from '../utils/TranslationInputValidator';
@@ -766,4 +766,5 @@ const Translator = ({ isActive }) => {
   );
 };
 
-export default Translator;
+// Memoized: every tab stays mounted, so without it each tab switch re-renders this tab too.
+export default memo(Translator);
