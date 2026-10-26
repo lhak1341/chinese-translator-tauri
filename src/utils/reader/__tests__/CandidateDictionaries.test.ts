@@ -23,7 +23,18 @@ describe('snapshotFinderDictionaries', () => {
       phrases: ['你好'],
       activeKeys: ['张三', '滕青山', '云梦泽'],
       inactive: [{ id: 'properNouns-f_Other', keys: ['赤焰山'] }],
+      isPatternCovered: expect.any(Function),
     });
+  });
+
+  it('carries the pattern coverage of the active dictionaries it read', () => {
+    const snapshot = snapshotFinderDictionaries(
+      { ...DICTIONARIES, 'patterns-f_Novel': { X说: 'x' } },
+      [],
+      ['properNouns-f_Novel']
+    );
+    expect(snapshot.ok && snapshot.isPatternCovered('滕青山说')).toBe(true);
+    expect(snapshot.ok && snapshot.isPatternCovered('赤焰山说')).toBe(false);
   });
 
   it('counts neither phrases, characters nor patterns as holding a name', () => {

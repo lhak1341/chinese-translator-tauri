@@ -1,12 +1,14 @@
 import { isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
 import { getDictionaryLabel } from '../dictionary/DictionaryLabels';
 import type { InactiveProperNounDictionary } from '../../types/ReaderTypes';
+import { patternCoverage } from './CandidatePatternCoverage';
 
 /**
  * What a Candidate finder run reads from the Dictionary Store, taken at the moment the run
  * starts: the `phrases` keys, the keys of the book's active proper-noun dictionaries (the
- * coverage mask) and the keys of the other proper-noun dictionaries with their ids (the
- * Also-in tag, never a mask). Pure: the caller owns the store and the active list.
+ * coverage mask), the keys of the other proper-noun dictionaries with their ids (the
+ * Also-in tag, never a mask), and the pattern coverage test the run's survivors go through
+ * when it lands. Pure: the caller owns the store and the active list.
  */
 export type FinderDictionaries =
   | {
@@ -14,6 +16,8 @@ export type FinderDictionaries =
       phrases: string[];
       activeKeys: string[];
       inactive: InactiveProperNounDictionary[];
+      /** Whether an active pattern reads the whole text (`CandidatePatternCoverage`). */
+      isPatternCovered: (text: string) => boolean;
     }
   | { ok: false; message: string };
 
@@ -41,5 +45,6 @@ export function snapshotFinderDictionaries(
     inactive: Object.keys(dictionaries)
       .filter((id) => isProperNounsDict(id) && !active.includes(id))
       .map((id) => ({ id, keys: keysOf(id) })),
+    isPatternCovered: patternCoverage(dictionaries, activeProperNouns),
   };
 }

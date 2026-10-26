@@ -31,7 +31,7 @@ const NUMERAL_VALUES = {
   九: 9,
   十: 10,
 };
-const NUMERAL_CHARS = new Set([...Object.keys(NUMERAL_VALUES), '百', '千', '万']);
+export const NUMERAL_CHARS = new Set([...Object.keys(NUMERAL_VALUES), '百', '千', '万']);
 
 // Up to ten reads as Vietnamese words; above ten stays as NumberProcessor's digits.
 const SMALL_NUMBER_WORDS = [

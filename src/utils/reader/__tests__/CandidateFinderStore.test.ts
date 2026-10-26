@@ -38,6 +38,7 @@ const DICTIONARIES: FinderDictionaries = {
   phrases: ['phrase'],
   activeKeys: ['active'],
   inactive: [{ id: 'properNouns-f_Other', keys: ['other'] }],
+  isPatternCovered: () => false,
 };
 
 function makeStore() {
@@ -140,6 +141,19 @@ describe('CandidateFinderStore', () => {
     expect(unlistenSecond).toHaveBeenCalledTimes(1);
   });
 
+  it('never reuses a run id, across runs and across stores for the same book', async () => {
+    findCandidates.mockResolvedValue(RESULT);
+    const first = makeStore();
+    await first.run();
+    await first.run();
+    // A reopened book: BookReader remounts and builds a new store for the same fingerprint.
+    await makeStore().run();
+
+    const runIds = findCandidates.mock.calls.map((call) => call[1]);
+    expect(runIds).toHaveLength(3);
+    expect(new Set(runIds).size).toBe(3);
+  });
+
   it('a cancel before the command was invoked sends no cancel', async () => {
     const store = makeStore();
     const running = store.run();
@@ -181,6 +195,25 @@ describe('CandidateFinderStore', () => {
       candidates: NAMES,
       weakFiltering: true,
     });
+  });
+
+  it('drops the survivors its dictionaries say a pattern covers when the run lands', async () => {
+    const covered: Candidate = { text: '三星卡片', count: 40, lineCount: 40, alsoIn: [] };
+    findCandidates.mockResolvedValue({ candidates: [covered, ...NAMES], weakFiltering: false });
+    const isPatternCovered = vi.fn((text: string) => text === '三星卡片');
+    const store = new CandidateFinderStore({
+      fingerprint: 'fp',
+      getDictionaries: async () => ({ ...DICTIONARIES, isPatternCovered }),
+      getBackground: async () => BACKGROUND,
+    });
+    await store.run();
+
+    expect(store.getSnapshot()).toEqual({
+      status: 'done',
+      candidates: NAMES,
+      weakFiltering: false,
+    });
+    expect(isPatternCovered).toHaveBeenCalledTimes(2);
   });
 
   it('a null result (cancelled in Rust) is idle, not an empty list', async () => {

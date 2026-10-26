@@ -152,6 +152,9 @@ interface CandidateRowProps {
 
 const NO_DRAFT: RowDraft = {};
 
+// Kept in the panel, with `retarget` and the batch rows: architecture review 2026-10-26
+// candidate #2 declined. The panel tests reach these rules through the real interface, and the
+// guesses for 1,000 rows cost about 11 ms per render (Bun, real rules).
 /** What a row would add: its draft over the target's guess and the rules' type. */
 function rowState(candidate: Candidate, adder: CandidateAdder, draft: RowDraft) {
   const { text } = candidate;
@@ -352,7 +355,8 @@ const CandidateList: React.FC<{
   // Rows leave the list as the dictionaries come to hold them, and return on Undo; the list
   // itself is never re-run.
   const [filter, setFilter] = useState<RuleFilter>('all');
-  // Ranked from the cached survivors: only a rule edit (a new `adder.rank`) re-ranks.
+  // Ranked from the cached survivors: only a rule edit (a new `adder.rank`) re-ranks; an Add
+  // does not, since pattern coverage was applied when the run landed.
   const { rank } = adder;
   const ranked = useMemo(() => rank(candidates), [rank, candidates]);
   const notDismissed = ranked.filter((row) => !dismissals.names.includes(row.candidate.text));

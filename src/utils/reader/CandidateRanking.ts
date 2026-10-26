@@ -26,18 +26,15 @@ export interface RankedCandidate {
 /** The type chips: every row, rows a rule typed, rows no rule matches. */
 export type RuleFilter = 'all' | 'rule' | 'none';
 
-/** Drops the candidates `isPatternCovered` says a pattern already reads whole
- * (`CandidatePatternCoverage`), then boosts, re-sorts and cuts `candidates`, with each row's type for `target`. Ties in the
+/** Boosts, re-sorts and cuts `candidates`, with each row's type for `target`. Ties in the
  * boosted score go to the higher raw count, then to the text (UTF-16 order; the
- * analysis sorts). */
+ * analysis sorts). Pattern-covered survivors are already gone (`CandidateFinderStore`). */
 export function rankCandidates(
   candidates: readonly Candidate[],
   rules: TransformRule[],
-  target: string,
-  isPatternCovered: (text: string) => boolean = () => false
+  target: string
 ): RankedCandidate[] {
   return candidates
-    .filter((candidate) => !isPatternCovered(candidate.text))
     .map((candidate) => {
       const { semanticType, ruled } = candidateType(rules, candidate.text, target);
       return { candidate, semanticType, ruled, score: candidate.count * (ruled ? RULE_BOOST : 1) };

@@ -45,6 +45,12 @@ export type CandidateFinderSnapshot =
 
 const IDLE: CandidateFinderSnapshot = { status: 'idle' };
 
+// Run ids are never reused in the app's life: Rust keys cancel flags by id and keeps one a
+// cancel left after its run ended, so a reopened book's store counting from 1 again would
+// find it and stop at once. The counter outlives a remount; the stamp, a webview reload.
+const LOAD_STAMP = Date.now();
+let nextRun = 0;
+
 export class CandidateFinderStore {
   private readonly listeners = new Set<() => void>();
   private snapshot: CandidateFinderSnapshot = IDLE;
@@ -53,7 +59,6 @@ export class CandidateFinderStore {
   /** Whether the backend has been asked to start `currentRunId`; a cancel before that has
    * nothing to stop, and a flag left for an id that never starts would never be removed. */
   private invoked = false;
-  private runCount = 0;
   /** Stops the current run's progress listener. Each run also holds its own, so a cancelled
    * run finishing late cannot stop a newer run's listener. */
   private stopCurrentListener: (() => void) | null = null;
@@ -71,7 +76,7 @@ export class CandidateFinderStore {
   /** Start a run. Does nothing while one is running. */
   run = async (): Promise<void> => {
     if (this.disposed || this.currentRunId !== null) return;
-    const runId = `${this.inputs.fingerprint}:${++this.runCount}`;
+    const runId = `${this.inputs.fingerprint}:${LOAD_STAMP}:${++nextRun}`;
     this.currentRunId = runId;
     this.invoked = false;
     this.set({ status: 'running', stage: 'reading', percent: 0 });
@@ -108,7 +113,19 @@ export class CandidateFinderStore {
         background.books
       );
       if (this.currentRunId !== runId) return;
-      this.set(result === null ? IDLE : { status: 'done', ...result });
+      // Pattern coverage is the run's, read from the dictionaries it sent, so it is tested once
+      // here and an Add (new dictionaries) never re-tests the list.
+      this.set(
+        result === null
+          ? IDLE
+          : {
+              status: 'done',
+              candidates: result.candidates.filter(
+                (candidate) => !dictionaries.isPatternCovered(candidate.text)
+              ),
+              weakFiltering: result.weakFiltering,
+            }
+      );
     } catch (error) {
       if (this.currentRunId !== runId) return;
       logger.error('Candidate finder run failed:', error);

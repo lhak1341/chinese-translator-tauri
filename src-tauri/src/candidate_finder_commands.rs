@@ -25,7 +25,9 @@ const PROGRESS_EVENT: &str = "candidate-finder-progress";
 
 /// Cancel flags of the runs in flight, by the run id the frontend chose. A cancel that
 /// arrives before its run has registered leaves a set flag behind, which the run then
-/// finds and stops on; the run removes its flag when it ends.
+/// finds and stops on; the run removes its flag when it ends. A cancel arriving after the end
+/// leaves a set flag nothing removes; it is inert because the frontend never reuses a run id
+/// (`CandidateFinderStore`).
 pub struct CandidateRuns {
     flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
