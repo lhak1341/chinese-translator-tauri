@@ -117,6 +117,9 @@ export class PatternStore {
       // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
+      // Chunks run concurrently, so several can be past the `enabled` check when the one that
+      // switches Phase 1 off fails; theirs would repeat the switch-off toast.
+      if (!this.enabled) return null;
       if (isWasmPatternProcessorReady()) {
         this.reportFailure();
       } else {

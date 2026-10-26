@@ -48,6 +48,15 @@ export interface EngineAccess {
     work: (engine: TranslationEngine) => Promise<T>,
     options?: EngineRunOptions
   ): Promise<T>;
+
+  /**
+   * Runs `work` — destroying the engine and building its replacement — as one turn of the same
+   * chain, with no owner and no readiness check. It cancels every preemptible call of either
+   * tab, waits for the call in flight to finish, and holds the chain until `work` settles, so
+   * no call ever runs on a destroyed or half-built engine; calls queued behind it run on the
+   * replacement. Never call it from inside a `run` callback: it would wait on itself forever.
+   */
+  replace<T>(work: () => Promise<T>): Promise<T>;
 }
 
 interface Entry {
@@ -69,6 +78,9 @@ interface Entry {
  *
  * `getEngine` is read when a call's turn comes, not when it is queued: a call waiting behind
  * a reload runs on the engine live by then. A stale result is the caller's to discard.
+ *
+ * Replacing the engine takes a turn too (`replace`), so a rebuild — the Reader's book binding
+ * makes one on most book opens — never destroys the engine under a call still running on it.
  */
 export function createEngineAccess({
   getEngine,
@@ -114,6 +126,14 @@ export function createEngineAccess({
       const release = (): void => {
         pending.delete(entry);
       };
+      tail = settled.then(release, release);
+      return settled;
+    },
+
+    replace(work) {
+      for (const entry of pending) preempt(entry);
+      const settled = tail.then(work, work);
+      const release = (): void => {};
       tail = settled.then(release, release);
       return settled;
     },

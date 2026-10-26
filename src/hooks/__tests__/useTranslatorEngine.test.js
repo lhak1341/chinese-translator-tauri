@@ -23,10 +23,18 @@ vi.mock('../../utils/appConfig', () => ({
 }));
 
 function mockEngine(initializeImpl, destroyImpl) {
-  const initialize = vi.fn(initializeImpl ?? (() => Promise.resolve()));
+  let ready = false;
+  const runInit = initializeImpl ?? (() => Promise.resolve());
+  // Ready only once initialize resolves, as the real engine is.
+  const initialize = vi.fn(async (...args) => {
+    await runInit(...args);
+    ready = true;
+  });
   const destroy = vi.fn(destroyImpl ?? (() => {}));
-  return { initialize, destroy };
+  return { initialize, destroy, isReady: () => ready };
 }
+
+const hookParams = { getVisibleTab: () => 'reader' };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -40,12 +48,13 @@ beforeEach(() => {
     ui: {},
     session: {},
   });
-  vi.mocked(createTranslationEngine).mockReturnValue(mockEngine());
+  // mockReset, not clearAllMocks: a test's unconsumed mockReturnValueOnce must not leak on.
+  vi.mocked(createTranslationEngine).mockReset().mockReturnValue(mockEngine());
 });
 
 describe('useTranslatorEngine — mount', () => {
   test('successful init reaches enginePhase "ready"', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
 
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
     expect(result.current.initError).toBeNull();
@@ -56,7 +65,7 @@ describe('useTranslatorEngine — mount', () => {
       mockEngine(() => Promise.reject(new Error('init boom')))
     );
 
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
 
     await waitFor(() => expect(result.current.enginePhase).toBe('error'));
     expect(result.current.initError).toBe('init boom');
@@ -65,7 +74,7 @@ describe('useTranslatorEngine — mount', () => {
 
 describe('useTranslatorEngine — reinitialize', () => {
   test('successful reinitialize reaches enginePhase "ready"', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     await act(async () => {
@@ -77,7 +86,7 @@ describe('useTranslatorEngine — reinitialize', () => {
   });
 
   test('engine.initialize() rejecting during reinitialize reaches enginePhase "error"', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     vi.mocked(createTranslationEngine).mockReturnValue(
@@ -93,7 +102,7 @@ describe('useTranslatorEngine — reinitialize', () => {
   });
 
   test('a config-reload failure lands in initError/enginePhase — reinitialize never throws', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     vi.mocked(loadAppConfig).mockRejectedValue(new Error('config read failed'));
@@ -109,7 +118,7 @@ describe('useTranslatorEngine — reinitialize', () => {
   });
 
   test('forceConfigReload invalidates the cache and builds the engine with the fresh activeProperNouns', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     const rebuilt = mockEngine();
@@ -136,7 +145,7 @@ describe('useTranslatorEngine — reinitialize', () => {
     const engine2 = mockEngine();
     vi.mocked(createTranslationEngine).mockReturnValueOnce(engine1).mockReturnValueOnce(engine2);
 
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
     expect(result.current.engineRef.current).toBe(engine1);
 
@@ -157,7 +166,7 @@ describe('useTranslatorEngine — reinitialize', () => {
     const engine2 = mockEngine();
     vi.mocked(createTranslationEngine).mockReturnValueOnce(engine1).mockReturnValueOnce(engine2);
 
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     await act(async () => {
@@ -171,7 +180,7 @@ describe('useTranslatorEngine — reinitialize', () => {
   });
 
   test('resolves { ok: true } on success and { ok: false, error } on a failed init', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     let outcome;
@@ -190,7 +199,7 @@ describe('useTranslatorEngine — reinitialize', () => {
   });
 
   test('a config-reload failure resolves { ok: false, error }', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
     vi.mocked(loadAppConfig).mockRejectedValue(new Error('config read failed'));
 
@@ -213,7 +222,7 @@ describe('useTranslatorEngine — serialized init', () => {
   }
 
   test('a call during an init waits for it, then runs with its own dictionaries', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     const first = gatedEngine();
@@ -231,6 +240,10 @@ describe('useTranslatorEngine — serialized init', () => {
         result.current.reinitialize({ b: 2 }).then((o) => (secondOutcome = o)),
       ]);
     });
+    // The swap takes an engineAccess turn, so it starts a few microtasks after the call.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     // The second call is queued: only the first init has built an engine.
     expect(createTranslationEngine).toHaveBeenCalledTimes(2); // mount + first
     expect(second.initialize).not.toHaveBeenCalled();
@@ -247,7 +260,7 @@ describe('useTranslatorEngine — serialized init', () => {
   });
 
   test('calls piled up behind an init collapse into one run with the latest arguments', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     const first = gatedEngine();
@@ -292,7 +305,7 @@ describe('useTranslatorEngine — serialized init', () => {
       .mockReturnValueOnce(mounting.engine)
       .mockReturnValueOnce(rebuilt);
 
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(mounting.engine.initialize).toHaveBeenCalled());
 
     let outcome;
@@ -315,7 +328,7 @@ describe('useTranslatorEngine — destroyEngine', () => {
   test('destroys the live engine and clears the ref when idle', async () => {
     const engine = mockEngine();
     vi.mocked(createTranslationEngine).mockReturnValueOnce(engine);
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     act(() => {
@@ -331,7 +344,7 @@ describe('useTranslatorEngine — destroyEngine', () => {
       throw new Error('boom');
     });
     vi.mocked(createTranslationEngine).mockReturnValueOnce(engine);
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     expect(() => act(() => result.current.destroyEngine())).not.toThrow();
@@ -339,7 +352,7 @@ describe('useTranslatorEngine — destroyEngine', () => {
   });
 
   test('leaves an engine that is still initializing alone — the queued rebuild replaces it', async () => {
-    const { result } = renderHook(() => useTranslatorEngine());
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
     await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
 
     let release;
@@ -356,6 +369,10 @@ describe('useTranslatorEngine — destroyEngine', () => {
     act(() => {
       pending = result.current.reinitialize({ properNouns: {} });
     });
+    // The swap takes an engineAccess turn, so it starts a few microtasks after the call.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     act(() => {
       result.current.destroyEngine();
     });
@@ -369,5 +386,75 @@ describe('useTranslatorEngine — destroyEngine', () => {
     });
     expect(result.current.enginePhase).toBe('ready');
     expect(result.current.engineRef.current).toBe(building);
+  });
+});
+
+describe('useTranslatorEngine — the swap waits for the engine call in flight', () => {
+  test('a rebuild destroys the outgoing engine only after a running call finishes on it', async () => {
+    const outgoing = mockEngine();
+    const replacement = mockEngine();
+    vi.mocked(createTranslationEngine)
+      .mockReturnValueOnce(outgoing)
+      .mockReturnValueOnce(replacement);
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
+    await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
+
+    let finishCall;
+    const destroyedDuringCall = [];
+    const call = result.current.engineAccess.run('reader', async (engine) => {
+      await new Promise((resolve) => {
+        finishCall = resolve;
+      });
+      destroyedDuringCall.push(engine.destroy.mock.calls.length);
+      return engine;
+    });
+    let pending;
+    act(() => {
+      pending = result.current.reinitialize({ properNouns: {} });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(outgoing.destroy).not.toHaveBeenCalled();
+    expect(createTranslationEngine).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishCall();
+      await pending;
+    });
+    expect(await call).toBe(outgoing);
+    expect(destroyedDuringCall).toEqual([0]);
+    expect(outgoing.destroy).toHaveBeenCalledTimes(1);
+    expect(result.current.engineRef.current).toBe(replacement);
+  });
+
+  test('a call made while the replacement initializes runs on it once ready, not refused', async () => {
+    const { result } = renderHook(() => useTranslatorEngine(hookParams));
+    await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
+
+    let release;
+    const building = mockEngine(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
+    );
+    vi.mocked(createTranslationEngine).mockReturnValueOnce(building);
+
+    let pending;
+    act(() => {
+      pending = result.current.reinitialize({ properNouns: {} });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const call = result.current.engineAccess.run('reader', async (engine) => engine);
+
+    await act(async () => {
+      release();
+      await pending;
+    });
+    await expect(call).resolves.toBe(building);
   });
 });

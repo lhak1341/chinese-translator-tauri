@@ -1,6 +1,5 @@
 import { createContext, useContext, useMemo, useRef, useState } from 'react';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
-import { createEngineAccess } from '../utils/EngineAccess';
 import { useVisibleTab } from './VisibleTabContext';
 import ErrorBoundary from './ErrorBoundary';
 
@@ -14,9 +13,9 @@ import ErrorBoundary from './ErrorBoundary';
  * translation (Translator, and future tabs) shares the one instance instead
  * of each owning its own.
  *
- * Also owns who may call it: `engineAccess` (`src/utils/EngineAccess.ts`) is the one queue
- * for both translating tabs, with ownership following the visible tab. It sits below
- * `VisibleTabProvider` for that reason.
+ * Also exposes who may call it: `engineAccess` (`src/utils/EngineAccess.ts`) is the one queue
+ * for both translating tabs and every engine swap, with ownership following the visible tab.
+ * `useTranslatorEngine` builds it; this sits below `VisibleTabProvider` to hand it the tab.
  *
  * Wraps children in ErrorBoundary, and names what that boundary's fallback means: it
  * sits above every tab, so any tab failing to render takes all of them down. It never
@@ -32,20 +31,23 @@ const TAB_FAILURE_DESCRIPTION =
   'application is down until it reloads.';
 
 export function EngineProvider({ children }) {
-  const { enginePhase, engineRef, engineVersion, initError, reinitialize, destroyEngine } =
-    useTranslatorEngine();
-
   // Read when a call is made, not when it is queued, so the access never goes stale and
   // never needs rebuilding on a tab switch (the latest-ref pattern).
   const { visibleTab } = useVisibleTab();
   const visibleTabRef = useRef(visibleTab);
   visibleTabRef.current = visibleTab;
-  const [engineAccess] = useState(() =>
-    createEngineAccess({
-      getEngine: () => engineRef.current,
-      getVisibleTab: () => visibleTabRef.current,
-    })
-  );
+  const [getVisibleTab] = useState(() => () => visibleTabRef.current);
+
+  // The hook builds `engineAccess`, since every engine swap takes a turn of it too.
+  const {
+    enginePhase,
+    engineRef,
+    engineAccess,
+    engineVersion,
+    initError,
+    reinitialize,
+    destroyEngine,
+  } = useTranslatorEngine({ getVisibleTab });
 
   const value = useMemo(
     () => ({

@@ -726,9 +726,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useTranslatorEngine.js": {
-    "mtime": 1792514031.8232384,
-    "seen": 1792776572.256414,
-    "ast_hash": "91f033ac9db557d1f4cc0abff60e65e3",
+    "mtime": 1793033714.9497788,
+    "seen": 1793033917.086381,
+    "ast_hash": "e4635259d7e94e11db554aa789d97140",
     "semantic_hash": ""
   },
   "src/hooks/useVirtualScrollRange.ts": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1793028999.2353423,
-    "seen": 1793029088.092201,
-    "ast_hash": "20d500ca60d8d46b2b12229c0b84972c",
+    "mtime": 1793031097.741031,
+    "seen": 1793033917.086685,
+    "ast_hash": "da9c3d321151703a45761561a6b8ba06",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1188,9 +1188,9 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1792855809.8729265,
-    "seen": 1792858193.600689,
-    "ast_hash": "c7ccb94d49722a80fc0a0159851b43f5",
+    "mtime": 1793033899.1783125,
+    "seen": 1793033917.0866969,
+    "ast_hash": "10aa98c67092e7fd91e2df49a755c17d",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1704,9 +1704,9 @@
     "semantic_hash": ""
   },
   "src/components/EngineContext.jsx": {
-    "mtime": 1791375425.1623034,
-    "seen": 1792776572.2563221,
-    "ast_hash": "a361b51b54adebd07967a393250a40c6",
+    "mtime": 1793033899.17882,
+    "seen": 1793033917.08626,
+    "ast_hash": "210a2d0d4a2856dd048b4af397f23bf5",
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
@@ -2592,9 +2592,9 @@
     "semantic_hash": ""
   },
   "src/utils/EngineAccess.ts": {
-    "mtime": 1791375453.3195345,
-    "seen": 1792776572.256429,
-    "ast_hash": "a42e90d491be8d6e0212799ef89d5b6e",
+    "mtime": 1793033869.1094754,
+    "seen": 1793033917.086401,
+    "ast_hash": "ada25a611a65253842013822f0b6fc2d",
     "semantic_hash": ""
   },
   "docs/adr/ADR-084-skip-merging-the-reload-context-assembler.md": {
@@ -2604,9 +2604,9 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-085-engine-access-one-queue-ownership-follows-the-visible-tab.md": {
-    "mtime": 1791375564.3998764,
-    "seen": 1792776572.2566211,
-    "ast_hash": "0629747db20e155c80bd0047780d3e2a",
+    "mtime": 1793033899.157725,
+    "seen": 1793033917.086648,
+    "ast_hash": "51869395130cf781c21fcbea0398847b",
     "semantic_hash": ""
   },
   "docs/adr/ADR-086-keep-scroll-position-recovery-separate-from-its-hook.md": {
@@ -2766,9 +2766,9 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternStore.js": {
-    "mtime": 1792777407.0124192,
-    "seen": 1792777495.589793,
-    "ast_hash": "524b18026c4ed09275fc35cb8fb27bc0",
+    "mtime": 1793033843.9144027,
+    "seen": 1793033917.086463,
+    "ast_hash": "c33161cc4311d136719ae01060ace806",
     "semantic_hash": ""
   },
   "docs/adr/ADR-101-delete-the-js-pattern-matcher.md": {
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "GLOSSARY.md": {
-    "mtime": 1793030249.3591204,
-    "seen": 1793030362.3364081,
-    "ast_hash": "390b3bb1c1e5be834c2e5f427406fcab",
+    "mtime": 1793033899.1773999,
+    "seen": 1793033917.086559,
+    "ast_hash": "6eee4140201b26f245c8d0670e3dc9bb",
     "semantic_hash": ""
   },
   "src/types/TextChunk.d.ts": {

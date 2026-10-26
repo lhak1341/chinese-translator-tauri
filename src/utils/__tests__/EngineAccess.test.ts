@@ -97,6 +97,66 @@ describe('EngineAccess — one call at a time', () => {
   });
 });
 
+describe('EngineAccess — replacing the engine takes a turn', () => {
+  it('starts the swap only once the call in flight has finished', async () => {
+    const t = setup('reader');
+    const gate = deferred();
+    const chunk = t.call('reader', 'chunk', gate.promise);
+    const swap = t.access.replace(async () => void t.log.push('swap'));
+    await settle();
+
+    expect(t.log).toEqual(['start chunk']);
+    gate.resolve();
+    await Promise.all([chunk, swap]);
+    expect(t.log).toEqual(['start chunk', 'end chunk', 'swap']);
+  });
+
+  it('holds back a call made during the swap, which then runs on the replacement', async () => {
+    const t = setup('reader');
+    const built = deferred();
+    const replacement = { isReady: () => true } as unknown as TranslationEngine;
+    const swap = t.access.replace(async () => {
+      t.state.engine = { isReady: () => false } as unknown as TranslationEngine;
+      await built.promise;
+      t.state.engine = replacement;
+      return 'swapped';
+    });
+    const seen: unknown[] = [];
+    const queued = t.access.run('reader', async (e) => void seen.push(e));
+    await settle();
+
+    expect(seen).toEqual([]);
+    built.resolve();
+    await expect(swap).resolves.toBe('swapped');
+    await queued;
+    expect(seen).toEqual([replacement]);
+  });
+
+  it("cancels either tab's preemptible call rather than waiting for it", async () => {
+    const t = setup('translator');
+    const stop = deferred();
+    const onPreempt = vi.fn(() => stop.reject(new Error('aborted')));
+    const doc = t.access.run('translator', async () => stop.promise, { onPreempt });
+    await settle();
+
+    const swap = t.access.replace(async () => 'swapped');
+    await expect(doc).rejects.toThrow('aborted');
+    await expect(swap).resolves.toBe('swapped');
+    expect(onPreempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a failed swap block the calls behind it', async () => {
+    const t = setup('reader');
+    const swap = t.access.replace(async () => {
+      throw new Error('init blew up');
+    });
+    const next = t.call('reader', 'next');
+
+    await expect(swap).rejects.toThrow('init blew up');
+    await expect(next).resolves.toBe('next');
+  });
+});
+
 describe('EngineAccess — ownership follows the visible tab', () => {
   it('refuses a call from a tab that is not on screen, and never runs it', async () => {
     const t = setup('translator');

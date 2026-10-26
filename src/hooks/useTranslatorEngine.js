@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import { createTranslationEngine } from '../utils/TranslationEngine.js';
+import { createEngineAccess } from '../utils/EngineAccess';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 
@@ -14,6 +15,7 @@ import { logger } from '../utils/logger';
  * Returns:
  *   enginePhase     — 'loading' | 'ready' | 'error'
  *   engineRef       — ref to current engine instance (or null)
+ *   engineAccess    — the one queue every translate call and every engine swap goes through
  *   engineVersion   — increments once per constructed engine; the cache-invalidation signal
  *   initError       — error message string when phase === 'error', else null
  *   destroyEngine   — () => void — frees the idle engine; a no-op while an init runs
@@ -24,8 +26,11 @@ import { logger } from '../utils/logger';
  * one and each reinitialize — goes through one serializer: a request that arrives while an
  * init runs waits behind it, and requests that pile up collapse into one run with the
  * latest arguments (`forceConfigReload` is OR-ed). All their callers get that run's outcome.
+ *
+ * @param {{ getVisibleTab: () => import('../types/ComponentTypes').TabId }} params - read when a
+ *   translate call is made, for `engineAccess`'s ownership rule
  */
-export function useTranslatorEngine() {
+export function useTranslatorEngine({ getVisibleTab }) {
   const { dictionaries, isLoading, loadError } = useDictionary();
 
   const [enginePhase, setEnginePhase] = useState('loading');
@@ -38,6 +43,10 @@ export function useTranslatorEngine() {
   const [activeProperNounsFromConfig, setActiveProperNounsFromConfig] = useState(null);
 
   const engineRef = useRef(null);
+  // Built here, beside the ref it reads, because the engine swap below takes a turn of it.
+  const [engineAccess] = useState(() =>
+    createEngineAccess({ getEngine: () => engineRef.current, getVisibleTab })
+  );
   // True from a request's claim until the queue is drained; the gate effect reads it too.
   const isInitializingRef = useRef(false);
   // The request waiting behind the running init: { rawDictionaries, options, waiters }.
@@ -61,32 +70,41 @@ export function useTranslatorEngine() {
    * are module-scope singletons, so a second live engine would silently share
    * state with the first. Destroying the outgoing engine before constructing
    * the replacement is what enforces that, not caller discipline.
+   *
+   * The swap is one `engineAccess.replace` turn: it starts only once the call in flight has
+   * finished, and calls queued behind it run on the ready replacement. Destroying the engine
+   * under a running call made that call's Phase 1 read disposed dictionaries, and the failures
+   * switched patterns off with three toasts on most Reader book opens (2026-10-26).
    */
-  const runEngineInit = useCallback(async (dictionaries, activeProperNouns) => {
-    try {
-      if (engineRef.current) {
+  const runEngineInit = useCallback(
+    (dictionaries, activeProperNouns) =>
+      engineAccess.replace(async () => {
         try {
-          engineRef.current.destroy();
-        } catch (destroyError) {
-          logger.error('Failed to destroy outgoing engine:', destroyError);
+          if (engineRef.current) {
+            try {
+              engineRef.current.destroy();
+            } catch (destroyError) {
+              logger.error('Failed to destroy outgoing engine:', destroyError);
+            }
+          }
+          engineRef.current = createTranslationEngine();
+          await engineRef.current.initialize(dictionaries, { activeProperNouns });
+          setInitError(null);
+          setEngineVersion((version) => version + 1);
+          setEnginePhase('ready');
+          return { ok: true };
+        } catch (error) {
+          logger.error('Failed to initialize engine:', error);
+          const message = extractErrorMessage(error);
+          setInitError(message);
+          setEnginePhase('error');
+          return { ok: false, error: message };
         }
-      }
-      engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(dictionaries, { activeProperNouns });
-      setInitError(null);
-      setEngineVersion((version) => version + 1);
-      setEnginePhase('ready');
-      return { ok: true };
-    } catch (error) {
-      logger.error('Failed to initialize engine:', error);
-      const message = extractErrorMessage(error);
-      setInitError(message);
-      setEnginePhase('error');
-      return { ok: false, error: message };
-    }
+      }),
     // engineRef is a ref (stable identity); setInitError/setEnginePhase are stable
-    // setState functions — this closes over no reactive values.
-  }, []);
+    // setState functions, and engineAccess is built once.
+    [engineAccess]
+  );
 
   /** One queued request: the optional config reload, then the init. Never rejects. */
   const runRequest = useCallback(
@@ -209,6 +227,7 @@ export function useTranslatorEngine() {
   return {
     enginePhase,
     engineRef,
+    engineAccess,
     engineVersion,
     initError,
     reinitialize,

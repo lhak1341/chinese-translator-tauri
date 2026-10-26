@@ -21,9 +21,22 @@ const engineHook = vi.hoisted(() => ({
   reinitialize: () => Promise.resolve({ ok: true }),
   destroyEngine: () => {},
 }));
-vi.mock('../../hooks/useTranslatorEngine', () => ({
-  useTranslatorEngine: () => engineHook,
-}));
+// The hook builds the access; this fake builds the real one, once per mount, the same way.
+vi.mock('../../hooks/useTranslatorEngine', async () => {
+  const { useState } = await import('react');
+  const { createEngineAccess } = await import('../../utils/EngineAccess');
+  return {
+    useTranslatorEngine: ({ getVisibleTab }: { getVisibleTab: () => TabId }) => {
+      const [engineAccess] = useState(() =>
+        createEngineAccess({
+          getEngine: () => engineHook.engineRef.current as never,
+          getVisibleTab,
+        })
+      );
+      return { ...engineHook, engineAccess };
+    },
+  };
+});
 
 function deferred() {
   let resolve!: () => void;

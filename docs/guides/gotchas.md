@@ -207,6 +207,8 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 ### Mock mechanics
 
+**`vi.clearAllMocks()` clears recorded calls, not queued implementations**: a `mockReturnValueOnce` a test never consumed is handed to the next test's first call, shifting every return after it (`useTranslatorEngine.test.js` returned the wrong engine, 2026-10-26). A `beforeEach` that sets a default on a factory mock resets it first: `vi.mocked(f).mockReset().mockReturnValue(…)`.
+
 **`vi.mock` factories are hoisted above module-level `const` declarations** — use a bare `vi.fn()` in the factory body and set return values in `beforeEach`. If the mock object itself must be referenced in assertions (not just its return value), declare it via `vi.hoisted(() => ({...}))`; a bare `const` throws `ReferenceError` at hoist time.
 
 **Moving a file into a directory whose barrel is already separately `vi.mock()`-ed** in some test: two `vi.mock()` calls for the same module path collide. Merge them into one factory covering both sets of exports rather than adding a second call.

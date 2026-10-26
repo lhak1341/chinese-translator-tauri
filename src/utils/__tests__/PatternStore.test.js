@@ -220,6 +220,19 @@ describe('matchTokens and WASM matcher failures', () => {
     expect(toast.error.mock.calls[0][0]).toMatch(/turned off/);
   });
 
+  test('five concurrent failures warn once and switch Phase 1 off with one toast', async () => {
+    // A batch's chunks all pass the `enabled` check before the first failure lands.
+    const store = await readyStore();
+    fail();
+
+    await Promise.all(Array.from({ length: 5 }, () => store.matchTokens(tokens(), context)));
+
+    expect(store.enabled).toBe(false);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0][0]).toMatch(/turned off/);
+  });
+
   test('a WASM matcher that never succeeded is switched off too', async () => {
     const store = await readyStore();
     fail('WASM Pattern Processor not available');
