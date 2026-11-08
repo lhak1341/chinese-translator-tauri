@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { CandidateReading } from '../components/reader/CandidateFinderPanel';
 import type { EngineCall } from '../utils/reader/ReaderEngine';
+import { glossParts } from '../utils/reader/CandidateHighlight';
 import type { GlossResult } from '../utils/reader/WindowedTranslationFill';
 
 /** Context lines an unfolded row shows. */
@@ -34,20 +35,25 @@ export function useCandidateReading({
   onLit,
 }: UseCandidateReadingOptions): CandidateReading {
   return useMemo((): CandidateReading => {
-    const glosses = new Map<string, Promise<string>>();
+    const glosses = new Map<string, Promise<GlossResult>>();
+    const ask = (text: string): Promise<GlossResult> => {
+      if (!canTranslate) return Promise.reject(new Error('The engine is not ready'));
+      let gloss = glosses.get(text);
+      if (!gloss) {
+        gloss = translateGloss(text);
+        // A failed gloss is not kept: the next ask tries again.
+        gloss.catch(() => glosses.delete(text));
+        glosses.set(text, gloss);
+      }
+      return gloss;
+    };
     return {
       context: (text) => window.electronAPI.candidateContext(fingerprint, text, CONTEXT_LINES),
-      gloss: (text) => {
-        if (!canTranslate) return Promise.reject(new Error('The engine is not ready'));
-        let gloss = glosses.get(text);
-        if (!gloss) {
-          gloss = translateGloss(text).then((result) => result.translatedText);
-          // A failed gloss is not kept: the next ask tries again.
-          gloss.catch(() => glosses.delete(text));
-          glosses.set(text, gloss);
-        }
-        return gloss;
-      },
+      gloss: (text) => ask(text).then((result) => result.translatedText),
+      glossParts: (text, needle) =>
+        ask(text).then((result) =>
+          glossParts(result.translatedText, result.semanticArrays, needle)
+        ),
       jump: (line) => {
         scrollToLine(line);
         onLit(line);

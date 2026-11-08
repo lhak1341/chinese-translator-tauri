@@ -20,8 +20,29 @@ describe('candidateAddChoices', () => {
   it('lists only the active proper-noun dictionaries and opens on the fiction one', () => {
     expect(candidateAddChoices(VIEW, DICTIONARIES)).toEqual({
       opened: 'properNouns-f_Novel',
-      choices: ['properNouns', 'properNouns-f_Novel', 'properNouns-_Generic'],
+      choices: ['properNouns-f_Novel', 'properNouns', 'properNouns-_Generic'],
     });
+  });
+
+  it('orders the choices opened first, then root, then alphabetical, whatever the disk order', () => {
+    const shuffled = {
+      'properNouns-f_Zeta': {},
+      'properNouns-_Generic': {},
+      'properNouns-f_Novel': {},
+      properNouns: {},
+      'properNouns-f_Alpha': {},
+    };
+    const view = {
+      defaultQuickAddDictionary: 'properNouns-f_Novel',
+      activeProperNouns: Object.keys(shuffled),
+    };
+    expect(candidateAddChoices(view, shuffled).choices).toEqual([
+      'properNouns-f_Novel',
+      'properNouns',
+      'properNouns-_Generic',
+      'properNouns-f_Alpha',
+      'properNouns-f_Zeta',
+    ]);
   });
 
   it('opens on the root dictionary when no config could be read', () => {

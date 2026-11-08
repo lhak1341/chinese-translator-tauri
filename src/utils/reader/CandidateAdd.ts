@@ -16,7 +16,8 @@ import type { QuickAddView } from '../dictionary/QuickAddTarget';
 type Dictionaries = Readonly<Record<string, object | undefined>>;
 
 /** The row's "Add to" dropdown: the book's active proper-noun dictionaries, opening on the
- * one Cmd-5 would add to. */
+ * one Cmd-5 would add to. Ordered for scanning, not by disk listing: that one first, then the rest
+ * alphabetically (root `properNouns` sorts ahead of its `properNouns-…` siblings by itself). */
 export function candidateAddChoices(
   view: QuickAddView | null,
   dictionaries: Dictionaries
@@ -25,7 +26,11 @@ export function candidateAddChoices(
   // A proper-noun target is always `open`; `none` is Cmd-6's.
   const opened = target.kind === 'open' ? target.dictionaryId : 'properNouns';
   const properNouns = Object.keys(dictionaries).filter(isProperNounsDict);
-  return { opened, choices: quickAddChoices(view, properNouns, opened) };
+  const rank = (id: string): number => (id === opened ? 0 : 1);
+  const choices = quickAddChoices(view, properNouns, opened).sort(
+    (a, b) => rank(a) - rank(b) || a.localeCompare(b)
+  );
+  return { opened, choices };
 }
 
 /** Whether a dictionary the row can add to (`choices`: the active ones, plus a fallback target)

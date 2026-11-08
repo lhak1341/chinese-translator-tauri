@@ -62,4 +62,12 @@ describe('useCandidateReading', () => {
     expect(jump).toHaveBeenCalledWith(41);
     expect(lit).toHaveBeenCalledWith(41);
   });
+
+  test('a gloss and its marked parts share one engine call', async () => {
+    const { translateGloss, view } = setup();
+    await view.result.current.gloss('滕青山');
+    const parts = await view.result.current.glossParts('滕青山', '滕青山');
+    expect(parts.map((part) => part.text).join('')).toBe('g:滕青山');
+    expect(translateGloss).toHaveBeenCalledTimes(1);
+  });
 });

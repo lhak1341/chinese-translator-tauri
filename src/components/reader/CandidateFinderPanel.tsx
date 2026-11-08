@@ -1,8 +1,22 @@
+import {
+  clipAroundMatch,
+  splitAroundMatches,
+  type LinePart,
+} from '../../utils/reader/CandidateHighlight';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
-import { filterByRule, type RuleFilter } from '../../utils/reader/CandidateRanking';
+import {
+  filterByLength,
+  filterByRule,
+  limitToTop,
+  sortRanked,
+  type CandidateSort,
+  type LengthFilter,
+  type RankLimit,
+  type RuleFilter,
+} from '../../utils/reader/CandidateRanking';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder, CandidateAddRow } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
@@ -26,6 +40,8 @@ interface CandidateFinderPanelProps {
 export interface CandidateReading {
   context: (text: string) => Promise<CandidateContext>;
   gloss: (text: string) => Promise<string>;
+  /** The same gloss, split so the stretch that translates `needle` is marked. */
+  glossParts: (text: string, needle: string) => Promise<LinePart[]>;
   /** `line` is the file's own 0-based number. */
   jump: (line: number) => void;
 }
@@ -47,26 +63,44 @@ function useSeen(ref: React.RefObject<Element | null>): boolean {
   return seen;
 }
 
-/** The character-only gloss of `text`, fetched once `enabled` and then kept. A failed gloss
+/** The character-only gloss of `text`, fetched once `enabled` and then kept. With a `needle`
+ * the stretch that translates it is marked, as the Chinese line above does. A failed gloss
  * shows nothing: it is a reading aid, not something to block a row on. */
-const Gloss: React.FC<{ text: string; reading: CandidateReading; enabled: boolean }> = ({
-  text,
-  reading,
-  enabled,
-}) => {
-  const [gloss, setGloss] = useState<string | null>(null);
+const Gloss: React.FC<{
+  text: string;
+  reading: CandidateReading;
+  enabled: boolean;
+  needle?: string;
+}> = ({ text, reading, enabled, needle }) => {
+  const [parts, setParts] = useState<LinePart[] | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let current = true;
-    reading.gloss(text).then(
-      (value) => current && setGloss(value),
+    const asked = needle
+      ? reading.glossParts(text, needle)
+      : reading.gloss(text).then((value): LinePart[] => [{ text: value, match: false }]);
+    asked.then(
+      (value) => current && setParts(value),
       () => undefined
     );
     return () => {
       current = false;
     };
-  }, [enabled, reading, text]);
-  return gloss ? <small className={styles.candidateGloss}>{gloss}</small> : null;
+  }, [enabled, reading, text, needle]);
+  if (!parts || parts.every((part) => !part.text)) return null;
+  return (
+    <small className={styles.candidateGloss}>
+      {parts.map((part, index) =>
+        part.match ? (
+          <mark key={index} className={styles.candidateMatch}>
+            {part.text}
+          </mark>
+        ) : (
+          part.text
+        )
+      )}
+    </small>
+  );
 };
 
 /** A candidate's context, fetched when its row first unfolds. */
@@ -103,18 +137,31 @@ const CandidateContextLines: React.FC<{
   return (
     <div className={styles.candidateContext}>
       <ul className={styles.outlineList}>
-        {result.lines.map(({ line, text: content }) => (
-          <li key={line}>
-            <button
-              className={styles.candidateContextLine}
-              aria-label={`Jump to line ${line + 1}`}
-              onClick={() => reading.jump(line)}
-            >
-              <span lang="zh">{content}</span>
-              <Gloss text={content} reading={reading} enabled />
-            </button>
-          </li>
-        ))}
+        {result.lines.map(({ line, text: content }) => {
+          const shown = clipAroundMatch(content, text);
+          return (
+            <li key={line}>
+              <button
+                className={styles.candidateContextLine}
+                aria-label={`Jump to line ${line + 1}`}
+                onClick={() => reading.jump(line)}
+              >
+                <span lang="zh">
+                  {splitAroundMatches(shown, text).map((part, index) =>
+                    part.match ? (
+                      <mark key={index} className={styles.candidateMatch}>
+                        {part.text}
+                      </mark>
+                    ) : (
+                      part.text
+                    )
+                  )}
+                </span>
+                <Gloss text={shown.replace(/…/g, '')} needle={text} reading={reading} enabled />
+              </button>
+            </li>
+          );
+        })}
       </ul>
       <small className={styles.candidateFoot}>
         {more > 0 && `${more} more ${more === 1 ? 'line' : 'lines'} in the book · `}
@@ -345,6 +392,26 @@ const FILTER_CHIPS: { filter: RuleFilter; label: string }[] = [
   { filter: 'none', label: 'No rule' },
 ];
 
+const LENGTH_CHIPS: { length: LengthFilter; label: string }[] = [
+  { length: 'all', label: 'Any length' },
+  { length: '5+', label: '5+ chars' },
+  { length: 4, label: '4 chars' },
+  { length: 3, label: '3 chars' },
+  { length: 2, label: '2 chars' },
+];
+
+const RANK_CHIPS: { limit: RankLimit; label: string }[] = [
+  { limit: 'all', label: 'All ranks' },
+  { limit: 100, label: 'Top 100' },
+  { limit: 250, label: 'Top 250' },
+  { limit: 500, label: 'Top 500' },
+];
+
+const SORT_CHIPS: { sort: CandidateSort; label: string }[] = [
+  { sort: 'likely', label: 'Most likely' },
+  { sort: 'length', label: 'Longest' },
+];
+
 const CandidateList: React.FC<{
   candidates: Candidate[];
   adder: CandidateAdder;
@@ -355,13 +422,19 @@ const CandidateList: React.FC<{
   // Rows leave the list as the dictionaries come to hold them, and return on Undo; the list
   // itself is never re-run.
   const [filter, setFilter] = useState<RuleFilter>('all');
+  const [length, setLength] = useState<LengthFilter>('all');
+  const [limit, setLimit] = useState<RankLimit>(250);
+  const [sort, setSort] = useState<CandidateSort>('likely');
   // Ranked from the cached survivors: only a rule edit (a new `adder.rank`) re-ranks; an Add
   // does not, since pattern coverage was applied when the run landed.
   const { rank } = adder;
   const ranked = useMemo(() => rank(candidates), [rank, candidates]);
   const notDismissed = ranked.filter((row) => !dismissals.names.includes(row.candidate.text));
   const unadded = notDismissed.filter((row) => !adder.isAdded(row.candidate.text));
-  const remaining = filterByRule(unadded, filter);
+  const remaining = sortRanked(
+    limitToTop(filterByLength(filterByRule(unadded, filter), length), limit),
+    sort
+  );
   const added = notDismissed.length - unadded.length;
 
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
@@ -455,6 +528,42 @@ const CandidateList: React.FC<{
             </button>
           ))}
         </div>
+        <div className={styles.candidateChips} role="group" aria-label="Filter by length">
+          {LENGTH_CHIPS.map(({ length: value, label }) => (
+            <button
+              key={value}
+              onClick={() => setLength(value)}
+              aria-pressed={length === value}
+              className={styles.candidateChip}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.candidateChips} role="group" aria-label="Show only the top">
+          {RANK_CHIPS.map(({ limit: value, label }) => (
+            <button
+              key={value}
+              onClick={() => setLimit(value)}
+              aria-pressed={limit === value}
+              className={styles.candidateChip}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.candidateChips} role="group" aria-label="Sort">
+          {SORT_CHIPS.map(({ sort: value, label }) => (
+            <button
+              key={value}
+              onClick={() => setSort(value)}
+              aria-pressed={sort === value}
+              className={styles.candidateChip}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {remaining.length > 0 && (
           <>
             <div className={styles.candidateHeaderRow}>
@@ -464,7 +573,10 @@ const CandidateList: React.FC<{
                 aria-label="Select all"
                 onChange={(event) => selectAll(event.target.checked)}
               />
-              <span>{remaining.length} candidates, most likely first</span>
+              <span>
+                {remaining.length} candidates,{' '}
+                {sort === 'length' ? 'longest first' : 'most likely first'}
+              </span>
             </div>
             <ul className={`${styles.outlineList} ${styles.candidateList}`}>
               {remaining.map(({ candidate }) => (

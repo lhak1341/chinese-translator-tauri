@@ -137,6 +137,10 @@ General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context me
 
 **Testing a `RowShell`-based row directly** (not through its parent table): `RowShell` renders a plain `<div role="row">`, not a real `<tr>` — render the component directly, don't wrap it in `<table><tbody>`. That wrapping is invalid DOM nesting (div inside tbody) and buys nothing; `role="row"`/`role="cell"` ARIA attributes work with `getByRole` without real table markup. Found writing `RuleRow.test.tsx` (2026-08-12).
 
+## Dictionary id order is the disk's, not sorted
+
+`Object.keys(dictionaries)` follows `list_dictionaries_with_prefix` (`fs::read_dir`, no sort in Rust or `DictionaryStore`; the load order is inferred, not probed), so any list built from it is in arbitrary order — sort it (`sortDictionaries`, or a rank plus `localeCompare`). The Reader's Candidate "Add to" dropdown does (`candidateAddChoices`, 2026-11-08); `quickAddChoices` still "keeps `dictionaryIds`' order", so the Add form's dropdown is unsorted.
+
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.

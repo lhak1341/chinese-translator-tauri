@@ -33,6 +33,7 @@ function makeReading(overrides: Partial<CandidateReading> = {}): CandidateReadin
   return {
     context: vi.fn().mockResolvedValue({ lines: [], total: 0 }),
     gloss: vi.fn((text: string) => Promise.resolve(`gloss:${text}`)),
+    glossParts: vi.fn((text: string) => Promise.resolve([{ text: `gloss:${text}`, match: false }])),
     jump: vi.fn(),
     ...overrides,
   };
@@ -363,7 +364,13 @@ describe('CandidateFinderPanel', () => {
     });
     const unfold = async (name: string) => {
       fireEvent.click(screen.getByRole('button', { name: `Show context for ${name}` }));
-      await screen.findByText('滕青山来了。');
+      // The candidate is marked inside its line, so the line's text spans several nodes.
+      const line = await screen.findByText(
+        (_, element) =>
+          element?.getAttribute('lang') === 'zh' && element.textContent === '滕青山来了。'
+      );
+      const marked = line.querySelector('mark');
+      expect(marked?.textContent).toBe('滕青山');
     };
 
     test('unfolding shows up to three context lines, how many more the book has, and the type source', async () => {

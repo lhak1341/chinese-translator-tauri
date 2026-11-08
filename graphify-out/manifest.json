@@ -564,9 +564,9 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1793038884.8143826,
-    "seen": 1793040420.6361432,
-    "ast_hash": "2f75d0ad7c45f452dec8fcc799fc5089",
+    "mtime": 1793040604.4897587,
+    "seen": 1794118676.997919,
+    "ast_hash": "ffdd2a44b9b7f5268d243411a3ac3931",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -1146,9 +1146,9 @@
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
-    "mtime": 1792536128.5308645,
-    "seen": 1792776572.256646,
-    "ast_hash": "2159c430dd63f0d63ad22cdbda699be8",
+    "mtime": 1793040728.5120883,
+    "seen": 1794118676.9982898,
+    "ast_hash": "b0e5bbd6a8fac6c1c91d547096ce960f",
     "semantic_hash": ""
   },
   "docs/guides/development.md": {
@@ -1188,15 +1188,15 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1793035154.7018323,
-    "seen": 1793036097.02609,
-    "ast_hash": "0578faf5974509c53dad4b98d7f61516",
+    "mtime": 1793040740.3738587,
+    "seen": 1794118676.998302,
+    "ast_hash": "f691406ad7bafd95c9e8955c81e08d72",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1792820199.4367409,
-    "seen": 1792820275.989656,
-    "ast_hash": "e391339698d3ec6f3302bb1ce36b8524",
+    "mtime": 1794118618.5528967,
+    "seen": 1794118676.998303,
+    "ast_hash": "d6483345f8555b65e68aefdb9f407529",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -2340,9 +2340,9 @@
     "semantic_hash": ""
   },
   "src/components/TabPanel.tsx": {
-    "mtime": 1793038884.8140042,
-    "seen": 1793040420.636142,
-    "ast_hash": "bfaba70a342f75db9c08ffbbd5de69be",
+    "mtime": 1793040604.4893353,
+    "seen": 1794118676.997919,
+    "ast_hash": "50da4dd5912f21bb1eb801b3b346e9c1",
     "semantic_hash": ""
   },
   "docs/adr/ADR-063-skip-hotkey-chord-module.md": {
@@ -2862,8 +2862,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/candidate_finder.rs": {
-    "mtime": 1792863225.8119895,
-    "seen": 1792941754.7373,
+    "mtime": 1794116774.176034,
+    "seen": 1794118676.997895,
     "ast_hash": "f84f20d1033e294f43ffc02500e9c76c",
     "semantic_hash": ""
   },
@@ -2874,9 +2874,9 @@
     "semantic_hash": ""
   },
   "src/components/reader/CandidateFinderPanel.tsx": {
-    "mtime": 1793029715.5869558,
-    "seen": 1793030362.3361762,
-    "ast_hash": "fad3cdb8beae146237579b99c8bd0fe3",
+    "mtime": 1794117753.1836753,
+    "seen": 1794118676.9979541,
+    "ast_hash": "81bc81c7f153352343d06dadfa028359",
     "semantic_hash": ""
   },
   "src/hooks/useCandidateFinder.ts": {
@@ -2892,9 +2892,9 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-111-candidate-finder-design.md": {
-    "mtime": 1793028999.2326896,
-    "seen": 1793029088.092191,
-    "ast_hash": "8486f860efe68fb3ef7d7c586bb9b1d8",
+    "mtime": 1794118618.553596,
+    "seen": 1794118676.998281,
+    "ast_hash": "cf69ddb4e8fcff822fcda6f674b60e52",
     "semantic_hash": ""
   },
   "docs/prototypes/README.md": {
@@ -2916,9 +2916,9 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CandidateAdd.ts": {
-    "mtime": 1792859954.4627259,
-    "seen": 1792941754.737526,
-    "ast_hash": "407f09149efb9459f7e1af08f7f82233",
+    "mtime": 1794117862.823617,
+    "seen": 1794118676.9981031,
+    "ast_hash": "7cbdb8818ca1e2387a013d3cdbd0edda",
     "semantic_hash": ""
   },
   "src/utils/reader/CandidateBackground.ts": {
@@ -2934,9 +2934,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useCandidateReading.ts": {
-    "mtime": 1792858635.3641171,
-    "seen": 1792858807.442671,
-    "ast_hash": "ba78df0249eeb8ad56b470536ed123d2",
+    "mtime": 1794117741.6109664,
+    "seen": 1794118676.9979851,
+    "ast_hash": "3a7ec63900d1e7856da57e0b757f7dd0",
     "semantic_hash": ""
   },
   "src/utils/reader/CandidatePatternCoverage.ts": {
@@ -2946,9 +2946,15 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CandidateRanking.ts": {
-    "mtime": 1793028869.7963204,
-    "seen": 1793029088.092018,
-    "ast_hash": "4ad987b5b939b69ad7a41b52f6034f85",
+    "mtime": 1794116921.6246364,
+    "seen": 1794118676.9981089,
+    "ast_hash": "b621fdd18431740d05a9974233e41c67",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/CandidateHighlight.ts": {
+    "mtime": 1794117778.897585,
+    "seen": 1794118676.998107,
+    "ast_hash": "3906524eeab84768ec816ce38104f5c6",
     "semantic_hash": ""
   }
 }

@@ -870,6 +870,15 @@
   background: var(--hover-bg);
 }
 
+/* The candidate inside its line: tinted and bold so the eye lands on it, not a reading gap. */
+.candidateMatch {
+  padding: 0 0.1em;
+  border-radius: 3px;
+  background: var(--highlight-bg, rgba(255, 213, 79, 0.28));
+  color: inherit;
+  font-weight: 700;
+}
+
 .candidateContextLine .candidateGloss {
   white-space: normal;
   font-size: 0.8rem;
