@@ -698,7 +698,11 @@ tr:hover td {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    /* `none`, not a tiny duration: `transition-property` defaults to `all`, so any non-zero duration
+       on `*` turns on a real transition for every property of every element. With macOS Reduce
+       Motion on, a tab switch then started ~700 `visibility` transitions and the old tab stayed
+       painted (measured 2026-11-08). Nothing in src listens for `transitionend`. */
+    transition: none !important;
   }
 }
 

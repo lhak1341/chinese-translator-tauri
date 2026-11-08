@@ -54,7 +54,7 @@ export class WasmProcessorLifecycle {
    * instantiateFn must return the initialized WASM instance. It owns: loading the shared
    * module, instance construction, and any domain-specific post-init (e.g. pattern loading).
    *
-   * @param {function(): Promise<Object>} instantiateFn
+   * @param {() => Promise<Object>} instantiateFn
    * @returns {Promise<boolean>}
    */
   async initialize(instantiateFn) {

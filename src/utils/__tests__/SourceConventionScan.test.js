@@ -133,6 +133,8 @@ const TESTS_WITHOUT_PRODUCTION_IMPORT = new Set([
   'utils/__tests__/SourceConventionScan.test.js',
   // Scans source files as text for a translate call outside `EngineAccess`.
   '__tests__/EngineAccess.guard.test.js',
+  // Reads `index.css` as text: the stylesheet is its input, there is no module to import.
+  'styles/__tests__/ReducedMotion.test.ts',
 ]);
 
 const IMPORT_RE = /(?:import[^'"]*from\s*|import\(\s*)['"]([^'"]+)['"]/g;

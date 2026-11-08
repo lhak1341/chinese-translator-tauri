@@ -167,9 +167,11 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   };
 
   const filteredBooks = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    // NFC both sides: a title from a macOS filename is NFD ("a" + U+0300), the typed query is NFC ("à").
+    const fold = (s: string) => s.normalize('NFC').toLowerCase();
+    const query = fold(search.trim());
     if (!query) return books;
-    return books.filter((book) => book.title.toLowerCase().includes(query));
+    return books.filter((book) => fold(book.title).includes(query));
   }, [books, search]);
 
   return (

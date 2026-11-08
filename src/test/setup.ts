@@ -65,4 +65,9 @@ const localStorageMock = {
   },
 };
 
-(globalThis as any).localStorage = localStorageMock;
+// jsdom 31 defines localStorage as a getter-only accessor, so plain assignment throws.
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  configurable: true,
+  writable: true,
+});

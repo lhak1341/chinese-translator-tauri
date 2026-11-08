@@ -60,7 +60,8 @@ describe('SemanticTypeToggleCell', () => {
   it('size="form": chips render with the larger form padding/font, not the table default', () => {
     render(<SemanticTypeToggleCell activeType="location" onSelect={vi.fn()} size="form" />);
 
-    expect(screen.getByTitle('Set as object')).toHaveStyle({ fontSize: '0.7rem' });
+    // Inline style, not computed: jsdom 31 resolves rem to px in getComputedStyle.
+    expect(screen.getByTitle('Set as object').style.fontSize).toBe('0.7rem');
   });
 });
 
@@ -76,11 +77,11 @@ describe('BadgeChip', () => {
       <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
     );
 
-    expect(screen.getByTitle('X')).toHaveStyle({
-      background: 'transparent',
-      color: '#9ca3af',
-      border: '1px solid #d1d5db',
-    });
+    // Inline style, not computed: jsdom 31 serializes `transparent` as `none` inline.
+    const { style } = screen.getByTitle('X');
+    expect(style.background).toBe('none');
+    expect(style.color).toBe('rgb(156, 163, 175)');
+    expect(style.border).toBe('1px solid rgb(209, 213, 219)');
   });
 
   it('click fires onClick and stops propagation', () => {
@@ -101,7 +102,8 @@ describe('BadgeChip', () => {
     const { rerender } = render(
       <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
     );
-    expect(screen.getByTitle('X')).toHaveStyle({ fontSize: '0.6rem', padding: '1px 3px' });
+    expect(screen.getByTitle('X').style.fontSize).toBe('0.6rem');
+    expect(screen.getByTitle('X').style.padding).toBe('1px 3px');
 
     rerender(
       <BadgeChip
@@ -114,7 +116,8 @@ describe('BadgeChip', () => {
         padding="2px 6px"
       />
     );
-    expect(screen.getByTitle('X')).toHaveStyle({ fontSize: '0.7rem', padding: '2px 6px' });
+    expect(screen.getByTitle('X').style.fontSize).toBe('0.7rem');
+    expect(screen.getByTitle('X').style.padding).toBe('2px 6px');
   });
 });
 

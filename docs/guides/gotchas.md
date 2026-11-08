@@ -59,6 +59,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 - **Expected `bun run deploy` output, none of it an error:** the PostCSS "did not pass the `from` option" warning (no PostCSS config in the repo, so it comes from Vite or a dependency); "chunks larger than 500 kB" (desktop app loaded from disk; the knob is `build.chunkSizeWarningLimit`); two `INEFFECTIVE_DYNAMIC_IMPORT` notes (`WasmPatternProcessor.js` is also imported statically elsewhere). `import.meta.dirname` replaced `__dirname` in both Vite configs 2026-10-03, so the `configLoader: 'native'` warning should be gone; if it returns, a new `__dirname` crept in.
 
+**Stay on TypeScript 6 — `bun outdated` lists 7.0.2 as Latest and it breaks two things (2026-11-08).** `typescript-eslint` refuses TS 7 (`bun run lint` crashes while loading the config), and `TranslationEngine.addUnitCallSites.test.js` reads the TS 6 compiler API (`ts.ScriptTarget` is `undefined` under 7). TS 7 also rejects Closure-style JSDoc types such as `function(): T` (use `() => T`). Revisit once `typescript-eslint` supports 7.1+; `^6.0.3` stays in `package.json`.
+
 ## JavaScript / TypeScript
 
 **Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `Promise.race([operation(), timeoutPromise])` with a synchronous WASM `operation()` blocks the JS thread for the whole call, and the value settles first, so the timeout never fires. True interruption requires a Web Worker. A `wasmOperationTimeout.js` wrapper around `processTokens` was deleted 2026-10-06 for this reason; do not re-add one.
@@ -88,6 +90,8 @@ Check what a non-ASCII character-class range matches against a real fixture befo
 The general test before either swap: enumerate which falsy values can actually arrive at that operator, and check whether the two behave the same on each.
 
 **`catch (_)`/unused catch bindings trigger lint warnings here.** `eslint.config.js` sets no `caughtErrorsIgnorePattern` — `varsIgnorePattern: '^_'`/`argsIgnorePattern: '^_'` cover vars and args, not catch clauses. Use bare `catch {}` (optional catch binding) when the error is unused, not `catch (_) {}`.
+
+**Compare typed text with file-derived text only after `normalize('NFC')` on both sides (2026-11-08).** macOS stores filenames decomposed (NFD: `a` + U+0300) while keyboard input is composed, and `includes` treats them as different strings: 54 of 55 titles in `books.json` are not NFC, so the Bookshelf filter returned nothing for "Tà" against "Tào tặc" (`Bookshelf.tsx`'s `fold`). A new search box over a title or path needs the same; the Dictionary and Rules filters were not checked (inferred, unverified).
 
 ## Types / Imports
 
