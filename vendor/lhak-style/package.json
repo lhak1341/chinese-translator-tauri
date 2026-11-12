@@ -1,0 +1,42 @@
+{
+  "name": "@lhak/style",
+  "version": "0.0.1",
+  "description": "Token contract, shared patterns and React kit for lhak's apps and Obsidian plugins.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./tokens.css": "./dist/tokens.css",
+    "./obsidian.css": "./dist/obsidian.css",
+    "./fonts.css": "./dist/fonts.css",
+    "./patterns.css": "./dist/patterns.css",
+    "./react": "./dist/react/index.js",
+    "./obsidian-helpers": "./dist/obsidian-helpers/index.js",
+    "./csp": "./dist/csp.js",
+    "./stylelint": "./dist/stylelint.js",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "obsidian": "*",
+    "react": ">=18",
+    "react-dom": ">=18",
+    "stylelint": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "obsidian": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "stylelint": {
+      "optional": true
+    }
+  }
+}

@@ -6,7 +6,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--background-color);
+  background: var(--page-background);
 }
 
 /* ── Bookshelf ─────────────────────────────────────────────────────────────── */
@@ -1156,11 +1156,11 @@
   background: color-mix(in srgb, var(--primary-color) 28%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-  .clickableSegmentHighlighted,
-  .clickableSegmentHighlighted:hover {
-    background: color-mix(in srgb, var(--primary-color) 55%, transparent);
-  }
+/* Dark mode is <html data-mode="dark">, set by the ThemeProvider from the user's pick or the
+   system, so a picked mode wins over the system appearance. */
+:root[data-mode='dark'] .clickableSegmentHighlighted,
+:root[data-mode='dark'] .clickableSegmentHighlighted:hover {
+  background: color-mix(in srgb, var(--primary-color) 55%, transparent);
 }
 
 .pending {

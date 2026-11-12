@@ -76,7 +76,7 @@
   height: 100%;
   padding: 1rem;
   box-sizing: border-box;
-  background-color: var(--background-color);
+  background: var(--page-background);
 }
 
 /* Stats Container */

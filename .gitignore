@@ -13,6 +13,8 @@ node_modules
 # Build output
 dist
 dist-ssr
+# …except @lhak/style's vendored build, which the app commits (lhak-style-guide scripts/vendor.mjs)
+!vendor/lhak-style/dist
 
 # Rust / WASM build artifacts
 src-tauri/target

@@ -23,89 +23,114 @@
   font-family: var(--ui-font);
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light dark;
 
-  /* ---------- Light Theme ---------- */
+  /* ---------- Colour: aliases of the @lhak/style token contract ----------
+     tokens.css (imported first, in main.jsx) defines the --lk- roles for each flavor and mode,
+     keyed on <html data-flavor data-mode>, which the kit's ThemeProvider sets. This one block maps
+     the app's own variables onto those roles, so the whole app follows the contract before any
+     module is rewritten. Modules move to --lk- roles one by one; an alias goes once nothing reads
+     it. Mapping: lhak-style-guide .scratch/lhak-style-kit/issues/05-translator-tokens.md. */
 
-  /* Core colors */
-  --text-color: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
-  --background-color: #f3f4f6;
-  --surface-color: #ffffff;
-  --surface-elevated: #ffffff;
+  /* Text and surfaces. The page (behind panels) is the chrome level and carries the dotted paper. */
+  --text-color: var(--lk-text);
+  --text-secondary: var(--lk-text-muted);
+  --text-muted: var(--lk-text-faint);
+  --background-color: var(--lk-surface-chrome);
+  --surface-color: var(--lk-surface);
+  --surface-elevated: var(--lk-surface-raised);
+  /* The page's whole background: dotted paper over the page colour. Page-level containers use it;
+     panels, reading panes, inputs, menus and dialogs stay plain. */
+  --page-background: var(--lk-paper), var(--background-color);
 
   /* Borders */
-  --border-color: #e5e7eb;
-  --border-subtle: #f3f4f6;
-  --divider-color: #e5e7eb;
+  --border-color: var(--lk-border);
+  --border-subtle: var(--lk-border);
+  --divider-color: var(--lk-border);
 
   /* Navigation */
-  --nav-bg: #ffffff;
-  --nav-bg-solid: #ffffff;
-  --nav-text: #6b7280;
-  --nav-hover: #f3f4f6;
-  --nav-active: #ffffff;
-  --nav-active-border: var(--primary-color);
+  --nav-bg: var(--lk-surface);
+  --nav-bg-solid: var(--lk-surface);
+  --nav-text: var(--lk-text-muted);
+  --nav-hover: var(--lk-surface-hover);
+  --nav-active: var(--lk-surface);
+  --nav-active-border: var(--lk-accent);
 
-  /* Primary - Emerald green (brighter for light mode) */
-  --primary-color: #10b981;
-  --primary-hover: #059669;
-  --primary-active: #047857;
-  --primary-subtle: #ecfdf5;
-  --primary-glow: rgba(16, 185, 129, 0.3);
-
-  /* Accent color (alias for primary) */
-  --accent-color: var(--primary-color);
+  /* Primary: the contract's accent. The contract has no pressed shade, so active = hover. */
+  --primary-color: var(--lk-accent);
+  --primary-hover: var(--lk-accent-hover);
+  --primary-active: var(--lk-accent-hover);
+  --primary-subtle: var(--lk-accent-soft);
+  --primary-glow: color-mix(in oklab, var(--lk-accent) 30%, transparent);
+  --accent-color: var(--lk-accent);
 
   /* Secondary button */
-  --secondary-button-bg: #ffffff;
-  --secondary-button-hover-bg: #f9fafb;
-  --secondary-button-border: #d1d5db;
+  --secondary-button-bg: var(--lk-surface);
+  --secondary-button-hover-bg: var(--lk-surface-hover);
+  --secondary-button-border: var(--lk-border-strong);
 
-  /* Semantic colors - Bold and clear */
-  --success-color: #10b981;
-  --success-bg: #10b981;
-  --success-subtle: #ecfdf5;
+  /* Status */
+  --success-color: var(--lk-success);
+  --success-bg: var(--lk-success);
+  --success-subtle: var(--lk-success-soft);
 
-  --warning-color: #f59e0b;
-  --warning-bg: #f59e0b;
-  --warning-subtle: #fffbeb;
+  --warning-color: var(--lk-warning);
+  --warning-bg: var(--lk-warning);
+  --warning-subtle: var(--lk-warning-soft);
 
-  --error-color: #ef4444;
-  --error-bg: #ef4444;
-  --error-subtle: #fef2f2;
+  --error-color: var(--lk-danger);
+  --error-bg: var(--lk-danger);
+  --error-subtle: var(--lk-danger-soft);
 
-  --info-color: #0ea5e9;
-  --info-bg: #0ea5e9;
-  --info-subtle: #f0f9ff;
+  --info-color: var(--lk-info);
+  --info-bg: var(--lk-info);
+  --info-subtle: var(--lk-info-soft);
 
   /* Danger button */
-  --danger-button-bg: #fef2f2;
-  --danger-button-hover-bg: #fee2e2;
-  --danger-button-text: #dc2626;
+  --danger-button-bg: var(--lk-danger-soft);
+  --danger-button-hover-bg: color-mix(in oklab, var(--lk-danger), var(--lk-surface) 75%);
+  --danger-button-text: var(--lk-danger);
 
-  /* Highlighting */
-  --highlight-bg: #d1fae5;
-  --highlight-text: #047857;
-  --hover-bg: #f9fafb;
+  /* Highlighting: the contract's highlight is an opaque marker, so it is thinned for a fill
+     that sits under text in both modes. */
+  --highlight-bg: color-mix(in oklab, var(--lk-highlight) 40%, transparent);
+  --highlight-text: var(--lk-text);
+  --hover-bg: var(--lk-surface-hover);
 
   /* Interactive */
-  --focus-ring-color: rgba(16, 185, 129, 0.5);
+  --focus-ring-color: var(--lk-focus-ring);
   --focus-ring-offset: 2px;
 
-  /* Shadows - Minimal, flat */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
-  --shadow-inner: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  /* Shadows */
+  --shadow-xs: var(--lk-shadow-s);
+  --shadow-sm: var(--lk-shadow-s);
+  --shadow-md: var(--lk-shadow-s);
+  --shadow-lg: var(--lk-shadow-l);
+  --shadow-xl: var(--lk-shadow-l);
+  --shadow-inner: inset 0 1px 2px color-mix(in oklab, var(--lk-text) 10%, transparent);
   --shadow-glow: 0 0 0 3px var(--focus-ring-color);
+  --panel-shadow: var(--lk-shadow-s);
+  --panel-shadow-hover: var(--lk-shadow-l);
 
-  /* Panel shadows */
-  --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --panel-shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
+  /* Table */
+  --table-header-bg: var(--lk-surface-sunken);
+  --table-row-hover: var(--lk-surface-hover);
+  --table-border: var(--lk-border);
+
+  /* Alerts: a soft tint of the status, its border and a text shade pulled towards --lk-text. */
+  --alert-success-bg: var(--lk-success-soft);
+  --alert-success-border: color-mix(in oklab, var(--lk-success), var(--lk-surface) 60%);
+  --alert-success-text: color-mix(in oklab, var(--lk-success), var(--lk-text) 35%);
+  --alert-success-dark: var(--alert-success-text);
+
+  --alert-warning-bg: var(--lk-warning-soft);
+  --alert-warning-border: color-mix(in oklab, var(--lk-warning), var(--lk-surface) 60%);
+  --alert-warning-text: color-mix(in oklab, var(--lk-warning), var(--lk-text) 35%);
+  --alert-warning-dark: var(--alert-warning-text);
+
+  --alert-error-bg: var(--lk-danger-soft);
+  --alert-error-border: color-mix(in oklab, var(--lk-danger), var(--lk-surface) 60%);
+  --alert-error-text: color-mix(in oklab, var(--lk-danger), var(--lk-text) 35%);
+  --alert-error-dark: var(--alert-error-text);
 
   /* Spacing */
   --space-1: 0.25rem;
@@ -150,136 +175,9 @@
   --z-modal: 400;
   --z-toast: 500;
 
-  /* Table */
-  --table-header-bg: #f9fafb;
-  --table-row-hover: #f3f4f6;
-  --table-border: #e5e7eb;
-
-  /* Alerts */
-  --alert-success-bg: #ecfdf5;
-  --alert-success-border: #a7f3d0;
-  --alert-success-text: #065f46;
-  --alert-success-dark: #064e3b;
-
-  --alert-warning-bg: #fffbeb;
-  --alert-warning-border: #fcd34d;
-  --alert-warning-text: #92400e;
-  --alert-warning-dark: #78350f;
-
-  --alert-error-bg: #fef2f2;
-  --alert-error-border: #fca5a5;
-  --alert-error-text: #991b1b;
-  --alert-error-dark: #7f1d1d;
-
   /* Apply theme */
   color: var(--text-color);
   background-color: var(--background-color);
-}
-
-/* --------------------------------------------------------------------------
-   Dark Theme
-   -------------------------------------------------------------------------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Core colors - Neutral grays */
-    --text-color: #fafafa;
-    --text-secondary: #d4d4d4;
-    --text-muted: #737373;
-    --background-color: #171717;
-    --surface-color: #262626;
-    --surface-elevated: #404040;
-
-    /* Borders */
-    --border-color: #404040;
-    --border-subtle: #262626;
-    --divider-color: #404040;
-
-    /* Navigation */
-    --nav-bg: #262626;
-    --nav-bg-solid: #262626;
-    --nav-text: #a3a3a3;
-    --nav-hover: #404040;
-    --nav-active: #171717;
-    --nav-active-border: var(--primary-color);
-
-    /* Primary - Emerald green (darker/muted for dark mode) */
-    --primary-color: #10b981;
-    --primary-hover: #34d399;
-    --primary-active: #6ee7b7;
-    --primary-subtle: rgba(16, 185, 129, 0.15);
-    --primary-glow: rgba(16, 185, 129, 0.4);
-
-    /* Accent color (alias for primary) */
-    --accent-color: var(--primary-color);
-
-    /* Secondary button */
-    --secondary-button-bg: #404040;
-    --secondary-button-hover-bg: #525252;
-    --secondary-button-border: #525252;
-
-    /* Semantic colors */
-    --success-color: #34d399;
-    --success-bg: #10b981;
-    --success-subtle: rgba(52, 211, 153, 0.15);
-
-    --warning-color: #fbbf24;
-    --warning-bg: #f59e0b;
-    --warning-subtle: rgba(251, 191, 36, 0.15);
-
-    --error-color: #f87171;
-    --error-bg: #ef4444;
-    --error-subtle: rgba(248, 113, 113, 0.15);
-
-    --info-color: #38bdf8;
-    --info-bg: #0ea5e9;
-    --info-subtle: rgba(56, 189, 248, 0.15);
-
-    /* Danger button */
-    --danger-button-bg: rgba(239, 68, 68, 0.15);
-    --danger-button-hover-bg: rgba(239, 68, 68, 0.25);
-    --danger-button-text: #f87171;
-
-    /* Highlighting */
-    --highlight-bg: rgba(16, 185, 129, 0.2);
-    --highlight-text: #34d399;
-    --hover-bg: #404040;
-
-    /* Focus */
-    --focus-ring-color: rgba(16, 185, 129, 0.5);
-
-    /* Shadows */
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
-    --shadow-inner: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-
-    /* Panel shadows */
-    --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --panel-shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.5);
-
-    /* Table */
-    --table-header-bg: #262626;
-    --table-row-hover: #404040;
-    --table-border: #404040;
-
-    /* Alerts */
-    --alert-success-bg: rgba(16, 185, 129, 0.15);
-    --alert-success-border: rgba(52, 211, 153, 0.3);
-    --alert-success-text: #34d399;
-    --alert-success-dark: #34d399;
-
-    --alert-warning-bg: rgba(245, 158, 11, 0.15);
-    --alert-warning-border: rgba(251, 191, 36, 0.3);
-    --alert-warning-text: #fbbf24;
-    --alert-warning-dark: #fbbf24;
-
-    --alert-error-bg: rgba(239, 68, 68, 0.15);
-    --alert-error-border: rgba(248, 113, 113, 0.3);
-    --alert-error-text: #f87171;
-    --alert-error-dark: #f87171;
-  }
 }
 
 /* --------------------------------------------------------------------------
@@ -297,7 +195,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--background-color);
+  background: var(--page-background);
 }
 
 #root {
@@ -403,7 +301,7 @@ button:disabled {
 button.primary {
   background: var(--primary-color);
   border-color: var(--primary-color);
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 button.primary:hover {

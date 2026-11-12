@@ -5,6 +5,7 @@
     "": {
       "name": "chinese-translator-tauri",
       "dependencies": {
+        "@lhak/style": "file:./vendor/lhak-style",
         "@tanstack/react-virtual": "^3.14.26",
         "@tauri-apps/api": "^2.12.4",
         "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
@@ -133,6 +134,8 @@
     "@keyv/bigmap": ["@keyv/bigmap@1.3.1", "", { "dependencies": { "hashery": "^1.4.0", "hookified": "^1.15.0" }, "peerDependencies": { "keyv": "^5.6.0" } }, "sha512-WbzE9sdmQtKy8vrNPa9BRnwZh5UF4s1KTmSK0KUVLo3eff5BlQNNWDnFOouNpKfPKDnms9xynJjsMYjMaT/aFQ=="],
 
     "@keyv/serialize": ["@keyv/serialize@1.1.1", "", {}, "sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA=="],
+
+    "@lhak/style": ["@lhak/style@file:vendor/lhak-style", { "peerDependencies": { "obsidian": "*", "react": ">=18", "react-dom": ">=18", "stylelint": ">=18" }, "optionalPeers": ["obsidian", "react", "react-dom", "stylelint"] }],
 
     "@oxc-project/types": ["@oxc-project/types@0.156.0", "", {}, "sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw=="],
 

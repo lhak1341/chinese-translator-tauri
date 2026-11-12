@@ -97,12 +97,12 @@
   text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-  .overlay {
-    background: rgba(23, 23, 23, 0.95);
-  }
+/* Dark mode is <html data-mode="dark">, set by the ThemeProvider from the user's pick or the
+   system, so a picked mode wins over the system appearance. */
+:root[data-mode='dark'] .overlay {
+  background: rgba(23, 23, 23, 0.95);
+}
 
-  .card {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  }
+:root[data-mode='dark'] .card {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }

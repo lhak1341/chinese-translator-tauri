@@ -21,21 +21,20 @@
   --streaming-border: #dee2e6;
 }
 
-/* Dark theme colors */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --streaming-bg-primary: #2d3748;
-    --streaming-bg-secondary: #1a202c;
-    --streaming-bg-tertiary: #4a5568;
-    --streaming-text-primary: #a0aec0;
-    --streaming-text-success: #68d391;
-    --streaming-text-error: #fc8181;
-    --streaming-accent: #63b3ed;
-    --streaming-accent-rgb: 99, 179, 237;
-    --streaming-accent-light: rgba(99, 179, 237, 0.1);
-    --streaming-accent-pulse: rgba(99, 179, 237, 0.4);
-    --streaming-border: #4a5568;
-  }
+/* Dark theme colors. Dark mode is <html data-mode="dark">, set by the ThemeProvider from the user's pick or the
+   system, so a picked mode wins over the system appearance. */
+:root[data-mode='dark'] {
+  --streaming-bg-primary: #2d3748;
+  --streaming-bg-secondary: #1a202c;
+  --streaming-bg-tertiary: #4a5568;
+  --streaming-text-primary: #a0aec0;
+  --streaming-text-success: #68d391;
+  --streaming-text-error: #fc8181;
+  --streaming-accent: #63b3ed;
+  --streaming-accent-rgb: 99, 179, 237;
+  --streaming-accent-light: rgba(99, 179, 237, 0.1);
+  --streaming-accent-pulse: rgba(99, 179, 237, 0.4);
+  --streaming-border: #4a5568;
 }
 
 /* Progress pulse animation */

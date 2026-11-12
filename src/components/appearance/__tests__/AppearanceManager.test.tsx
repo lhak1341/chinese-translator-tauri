@@ -8,6 +8,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { ThemeProvider } from '@lhak/style/react';
 import AppearanceManager from '../AppearanceManager';
 import type { AppearanceSettings } from '../../../types/ComponentTypes';
 
@@ -60,7 +61,7 @@ beforeEach(() => {
 
 describe('AppearanceManager — FIELD_GROUPS rendering', () => {
   test('renders all 4 section titles', () => {
-    render(<AppearanceManager />);
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
     expect(screen.getByText('Chinese Text Box')).toBeInTheDocument();
     expect(screen.getByText('UI Font')).toBeInTheDocument();
     expect(screen.getByText('Full Translation Box')).toBeInTheDocument();
@@ -68,7 +69,7 @@ describe('AppearanceManager — FIELD_GROUPS rendering', () => {
   });
 
   test('renders preview text for chineseText/fullTranslation/characterOnly but not uiFont', () => {
-    render(<AppearanceManager />);
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
     expect(screen.getByText('这是中文文本的预览样式。你好世界！')).toBeInTheDocument();
     expect(
       screen.getByText('This is a preview of the full translation style. Hello world!')
@@ -81,7 +82,7 @@ describe('AppearanceManager — FIELD_GROUPS rendering', () => {
 
 describe('AppearanceManager — field onChange/onReset dispatch', () => {
   test("editing an input calls handleInputChange with the field's data-section/data-property", () => {
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const input = container.querySelector('#chineseText-fontFamily') as HTMLInputElement;
     expect(input).not.toBeNull();
 
@@ -97,7 +98,7 @@ describe('AppearanceManager — field onChange/onReset dispatch', () => {
   });
 
   test("clicking reset calls handleResetClick with the field's data-section/data-property", () => {
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const resetButton = container.querySelector(
       'button[data-section="fullTranslation"][data-property="paragraphSpacing"]'
     ) as HTMLButtonElement;
@@ -118,7 +119,7 @@ describe('AppearanceManager — field onChange/onReset dispatch', () => {
   });
 
   test('blurring an input calls handleAutoSave', () => {
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const input = container.querySelector('#uiFont-fontFamily') as HTMLInputElement;
 
     fireEvent.blur(input);
@@ -129,7 +130,7 @@ describe('AppearanceManager — field onChange/onReset dispatch', () => {
 
 describe('AppearanceManager — characterOnly disabled-gate', () => {
   test('characterOnly fields are disabled when characterOnlyFollowsFullTranslation is true', () => {
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const input = container.querySelector('#characterOnly-fontFamily') as HTMLInputElement;
     const resetButton = container.querySelector(
       'button[data-section="characterOnly"][data-property="fontFamily"]'
@@ -144,7 +145,7 @@ describe('AppearanceManager — characterOnly disabled-gate', () => {
       ...baseAppearance,
       characterOnlyFollowsFullTranslation: false,
     });
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const input = container.querySelector('#characterOnly-fontFamily') as HTMLInputElement;
 
     expect(input.disabled).toBe(false);
@@ -153,14 +154,14 @@ describe('AppearanceManager — characterOnly disabled-gate', () => {
   test('characterOnly fields default to disabled when characterOnlyFollowsFullTranslation is undefined', () => {
     const { characterOnlyFollowsFullTranslation: _omit, ...withoutFlag } = baseAppearance;
     mockHookReturn = buildMockReturn(withoutFlag as AppearanceSettings);
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     const input = container.querySelector('#characterOnly-fontFamily') as HTMLInputElement;
 
     expect(input.disabled).toBe(true);
   });
 
   test('chineseText/fullTranslation/uiFont fields stay enabled regardless of the flag', () => {
-    const { container } = render(<AppearanceManager />);
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     expect((container.querySelector('#chineseText-fontFamily') as HTMLInputElement).disabled).toBe(
       false
     );
@@ -175,13 +176,13 @@ describe('AppearanceManager — characterOnly disabled-gate', () => {
 
 describe('AppearanceManager — Follow Full Translation checkbox', () => {
   test('renders exactly once, under Character Only Box, reflecting the flag', () => {
-    render(<AppearanceManager />);
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
     const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
   });
 
   test('toggling it calls handleFollowFullTranslationChange', () => {
-    render(<AppearanceManager />);
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
     const checkbox = screen.getByRole('checkbox');
 
     fireEvent.click(checkbox);

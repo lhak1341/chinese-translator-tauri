@@ -30,7 +30,7 @@
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
-  background: var(--background-color);
+  background: var(--page-background);
 }
 
 /* Two-column layout */
@@ -111,6 +111,13 @@
   color: var(--text-color);
   font-size: 0.8125rem;
   transition: border-color 0.15s ease;
+}
+
+/* The theme pickers. `.input`'s `padding` shorthand drops the global select's room for its
+   chevron, so it is set back (src/styles/CLAUDE.md, "a shorthand wipes them"). */
+.select {
+  composes: input;
+  padding-right: 2.5rem;
 }
 
 .input:disabled {

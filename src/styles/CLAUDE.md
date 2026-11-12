@@ -10,11 +10,15 @@ CSS module classes are cross-importable — scoping guarantees unique generated 
 
 **A typo'd or wrong-file class reference resolves to `undefined` silently — no error, no visual difference until closely inspected.** Found: `RulesManager.tsx` imported `EnhancedVirtualizedDictionaryTable.module.css` as `dictStyles` and used `dictStyles.button` — but `.button` lives in `DictionaryManager.module.css`, not that file. The button rendered with base `<button>` styles only (missing padding/font-size/radius refinements) for a full session before being caught. When reusing a class cross-file, verify it actually exists in _that_ file (`grep '^\.className' path/to/File.module.css`), not just that the import resolves. **Confirmed once (2026-08-14).** A whole-repo scan on 2026-08-31 resolved 564 references with 0 unresolved, so this stays prose for want of a second instance — mechanize it as a scan test if one appears. Any such scan must read every class in a selector, not just the leading one: `.input.error` defines both, and a leading-class-only scan reports three false positives in `DictionaryEntry.tsx`.
 
-**Same property, different referent: `var(--token)` naming a custom property nothing defines resolves to its fallback — or, with no fallback, to whatever is inherited — with no error.** Found 2026-09-17: `.readerPanel { background: var(--bg-color, transparent) }` (no such token; every Reader panel rendered transparent over the separator colour) and the command palette's `var(--muted-text-color)`. Tokens live in `src/index.css` (`--background-color`, `--surface-color`, `--text-color`, `--text-secondary`, `--text-muted`, `--border-color`, `--radius-lg`) — grep there before using one. The exception is the Appearance vars (`--chinese-text-*`, `--full-translation-*`, `--character-only-*`, `--ui-font`), written at runtime and legitimately absent from every stylesheet.
+**Same property, different referent: `var(--token)` naming a custom property nothing defines resolves to its fallback — or, with no fallback, to whatever is inherited — with no error.** Found 2026-09-17: `.readerPanel { background: var(--bg-color, transparent) }` (no such token; every Reader panel rendered transparent over the separator colour) and the command palette's `var(--muted-text-color)`. Tokens live in `src/index.css` (`--background-color`, `--surface-color`, `--text-color`, `--text-secondary`, `--text-muted`, `--border-color`, `--radius-lg`) — grep there before using one. Its colour variables are aliases of `@lhak/style` contract roles (`--lk-*`, from `vendor/lhak-style/dist/tokens.css`); new code reads `--lk-` roles directly. The exception is the Appearance vars (`--chinese-text-*`, `--full-translation-*`, `--character-only-*`, `--ui-font`), written at runtime and legitimately absent from every stylesheet.
 
 ## Class Name Collisions
 
 **Before adding a new class name to a `.module.css` file (directly or via `composes`), grep that file for the name first** — a collision with a pre-existing same-named class silently merges both rules onto one generated class name (found: adding a modal `.header` clashed with an existing page-toolbar `.header` in the same file).
+
+## Tests Never Compile CSS — Run `vite build` After a `.module.css` Change
+
+Vitest does not process CSS, so a stylesheet the build rejects still passes all 4,000+ tests. Found 2026-11-12: `composes: input` written above the `.input` it names failed only in `vite build` (`referenced class name "input" in composes not found`): a local `composes` must follow the class it names.
 
 ## Modal Overlays
 
@@ -51,4 +55,6 @@ The base `button` rule (`index.css`) sets `align-items: center`, `justify-conten
 
 ## Alpha-Blended Highlight Colors Need a Separate Dark-Mode Check
 
-`color-mix(in srgb, var(--x) N%, transparent)` reads very differently over a light page background than a dark one — the same alpha that pops on white can be nearly invisible on dark. Check (or override under `@media (prefers-color-scheme: dark)`) any new highlight/selection background rather than assuming one value works for both themes. Confirmed 2026-09-19: Reader's `.clickableSegmentHighlighted` used 28% for both themes; raised to 55% under dark.
+`color-mix(in srgb, var(--x) N%, transparent)` reads very differently over a light page background than a dark one — the same alpha that pops on white can be nearly invisible on dark. Check (or override under `:root[data-mode='dark']`) any new highlight/selection background rather than assuming one value works for both themes. Confirmed 2026-09-19: Reader's `.clickableSegmentHighlighted` used 28% for both themes; raised to 55% under dark.
+
+**Dark mode is `<html data-mode="dark">`, never `@media (prefers-color-scheme: dark)`.** The `@lhak/style` ThemeProvider (`src/main.jsx`) writes the resolved mode there, from the user's pick in Appearance or the system. A media query follows the system only, so it shows dark rules on a light pick.
