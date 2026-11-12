@@ -1,31 +1,33 @@
+import { TYPE } from '@lhak/style';
 import { createAppFile } from './appFile';
 import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
 
+/** The token px sizes as the rem the fields hold. The app never sets a root size, so 1rem = 16px. */
+const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
+
+const reading: FontSettings = {
+  fontFamily: TYPE.faces['reading-serif'].family,
+  fontSize: rem(TYPE.reading.size),
+  letterSpacing: TYPE.faces['reading-serif'].tracking,
+  paragraphSpacing: '1rem',
+};
+
+/** Reader-setting defaults from @lhak/style's type tokens; a saved setting overrides each one. */
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseText: {
-    fontFamily:
-      '"Noto Sans CJK SC", SimSun, "Microsoft YaHei", Inter, system-ui, Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
+    fontFamily: TYPE.faces.chinese.family,
+    fontSize: rem(TYPE.reading.size * TYPE.reading.chineseScale),
+    letterSpacing: TYPE.faces.chinese.tracking,
     paragraphSpacing: '1rem',
   },
-  fullTranslation: {
-    fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
-    paragraphSpacing: '1rem',
-  },
-  characterOnly: {
-    fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
-    paragraphSpacing: '1rem',
-  },
+  fullTranslation: { ...reading },
+  characterOnly: { ...reading },
   uiFont: {
-    fontFamily: 'Inter, system-ui, Arial, sans-serif',
+    fontFamily: TYPE.faces.interface.family,
   },
   theme: 'auto',
   characterOnlyFollowsFullTranslation: true,
+  chineseFaceMigrated: true,
 };
 
 /**
@@ -81,8 +83,15 @@ function fromRawUiFont(
 }
 
 export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
+  const chineseText = fromRawFontSettings(raw.chineseText, DEFAULT_APPEARANCE.chineseText);
+  // A file saved before the type tokens holds the old Chinese face (Maple Mono): it moves to
+  // the Obsidian mix once. The flag is written with the next save, so a face picked after
+  // the move is kept.
+  if (raw.chineseFaceMigrated !== true) {
+    chineseText.fontFamily = DEFAULT_APPEARANCE.chineseText.fontFamily;
+  }
   return {
-    chineseText: fromRawFontSettings(raw.chineseText, DEFAULT_APPEARANCE.chineseText),
+    chineseText,
     fullTranslation: fromRawFontSettings(raw.fullTranslation, DEFAULT_APPEARANCE.fullTranslation),
     characterOnly: fromRawFontSettings(raw.characterOnly, DEFAULT_APPEARANCE.characterOnly),
     uiFont: fromRawUiFont(raw.uiFont, DEFAULT_APPEARANCE.uiFont),
@@ -91,6 +100,7 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
       typeof raw.characterOnlyFollowsFullTranslation === 'boolean'
         ? raw.characterOnlyFollowsFullTranslation
         : DEFAULT_APPEARANCE.characterOnlyFollowsFullTranslation,
+    chineseFaceMigrated: true,
   };
 }
 

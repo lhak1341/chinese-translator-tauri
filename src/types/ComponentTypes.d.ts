@@ -136,6 +136,8 @@ export interface AppearanceSettings {
   theme: Theme;
   /** Whether Character Only Box follows Full Translation Box style */
   characterOnlyFollowsFullTranslation?: boolean;
+  /** The saved Chinese face has moved to the Obsidian mix (once; see appearanceConfig.fromRaw) */
+  chineseFaceMigrated?: boolean;
   /** Custom CSS variables (optional) */
   customColors?: Record<string, string>;
 }

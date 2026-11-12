@@ -57,6 +57,7 @@ function makeData(overrides = {}) {
     uiFont: { fontFamily: 'Inter' },
     theme: 'light' as const,
     characterOnlyFollowsFullTranslation: true,
+    chineseFaceMigrated: true,
     ...overrides,
   };
 }

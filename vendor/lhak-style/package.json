@@ -5,7 +5,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "fonts"
   ],
   "exports": {
     ".": "./dist/index.js",
