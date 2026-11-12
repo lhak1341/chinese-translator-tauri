@@ -14,18 +14,21 @@ describe('appearanceConfig.fromRaw', () => {
         fontFamily: 'Arial',
         fontSize: '2rem',
         letterSpacing: '-0.02em',
+        lineHeight: '1.6',
         paragraphSpacing: '2rem',
       },
       fullTranslation: {
         fontFamily: 'Georgia',
         fontSize: '1.5rem',
         letterSpacing: '0.05em',
+        lineHeight: '1.4',
         paragraphSpacing: '1.5rem',
       },
       characterOnly: {
         fontFamily: 'Times',
         fontSize: '1rem',
         letterSpacing: 'normal',
+        lineHeight: '28px',
         paragraphSpacing: '1rem',
       },
       uiFont: { fontFamily: 'Roboto' },
@@ -177,6 +180,43 @@ describe('appearanceConfig — defaults from the type tokens', () => {
   });
 });
 
+// lhak-style-guide ticket 009: a line-height per section, 1.45 in every one, Chinese included.
+describe('appearanceConfig — line height per section', () => {
+  const SECTIONS = ['chineseText', 'fullTranslation', 'characterOnly'] as const;
+
+  it('defaults to 1.45 in every section', () => {
+    for (const section of SECTIONS) {
+      expect(DEFAULT_APPEARANCE[section].lineHeight).toBe('1.45');
+    }
+  });
+
+  it('a file saved before the setting existed gets the default', () => {
+    const loaded = fromRaw({ chineseFaceMigrated: true, chineseText: { fontSize: '1.3rem' } });
+    for (const section of SECTIONS) expect(loaded[section].lineHeight).toBe('1.45');
+  });
+
+  it('keeps a saved value in each section on its own', () => {
+    const loaded = fromRaw({
+      chineseText: { lineHeight: '1.8' },
+      fullTranslation: { lineHeight: '30px' },
+      characterOnly: { lineHeight: '1.2em' },
+    });
+    expect(loaded.chineseText.lineHeight).toBe('1.8');
+    expect(loaded.fullTranslation.lineHeight).toBe('30px');
+    expect(loaded.characterOnly.lineHeight).toBe('1.2em');
+  });
+
+  it.each(['normal', '150%', '.9', '1.6rem'])('keeps the CSS value %s', (lineHeight) => {
+    expect(fromRaw({ fullTranslation: { lineHeight } }).fullTranslation.lineHeight).toBe(
+      lineHeight
+    );
+  });
+
+  it.each(['tall', '-1', '1.5 2', 15])('rejects %s and falls back to the default', (lineHeight) => {
+    expect(fromRaw({ fullTranslation: { lineHeight } }).fullTranslation.lineHeight).toBe('1.45');
+  });
+});
+
 describe('appearanceConfig — the saved Chinese face moves to the Obsidian mix once', () => {
   const before = {
     chineseText: {
@@ -193,7 +233,12 @@ describe('appearanceConfig — the saved Chinese face moves to the Obsidian mix 
 
   it('a file saved before the move gets the mix, keeping its other Chinese settings', () => {
     const migrated = fromRaw(before);
-    expect(migrated.chineseText).toEqual({ ...before.chineseText, fontFamily: MIX });
+    // A file that old also predates the line-height setting, so that one takes its default.
+    expect(migrated.chineseText).toEqual({
+      ...before.chineseText,
+      fontFamily: MIX,
+      lineHeight: '1.45',
+    });
     expect(migrated.chineseFaceMigrated).toBe(true);
   });
 

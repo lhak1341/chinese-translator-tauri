@@ -34,18 +34,17 @@ function setup(overrides: Partial<UseReadingAnchorOptions> = {}) {
   const scrollElement = makeScrollElement();
   const virtualizer = {
     scrollToIndex: vi.fn(),
-    measure: vi.fn(),
     getVirtualItems: () => [
       { index: 4200, start: 0, size: 40 },
       { index: 4201, start: 40, size: 40 },
     ],
   };
-  const follower = { measure: vi.fn() };
+  const relayout = vi.fn();
   const base: UseReadingAnchorOptions = {
     fingerprint: 'fp1',
     initialPosition: null,
     master: { scrollRef: { current: scrollElement }, virtualizer },
-    followers: [follower],
+    relayout,
     lineCount: 75_000,
     isActive: true,
     engineVersion: 1,
@@ -55,7 +54,7 @@ function setup(overrides: Partial<UseReadingAnchorOptions> = {}) {
   const view = renderHook((props: UseReadingAnchorOptions) => useReadingAnchor(props), {
     initialProps: base,
   });
-  return { view, base, scrollElement, virtualizer, follower };
+  return { view, base, scrollElement, virtualizer, relayout };
 }
 
 describe('useReadingAnchor', () => {
@@ -69,16 +68,15 @@ describe('useReadingAnchor', () => {
   });
 
   it('relayouts on return when the font changed while the Reader was hidden', async () => {
-    const { view, base, virtualizer, follower } = setup({ isActive: false });
+    const { view, base, relayout } = setup({ isActive: false });
 
     document.documentElement.style.setProperty('--full-translation-size', '1.5rem');
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(virtualizer.measure).not.toHaveBeenCalled();
+    expect(relayout).not.toHaveBeenCalled();
 
     view.rerender({ ...base, isActive: true });
 
-    await waitFor(() => expect(virtualizer.measure).toHaveBeenCalledTimes(1));
-    expect(follower.measure).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(relayout).toHaveBeenCalledTimes(1));
   });
 
   it('re-anchors when the engine version bumps', () => {

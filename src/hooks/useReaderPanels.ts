@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect } from 'react';
 import type React from 'react';
 import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
 import { useReaderPanel } from './useReaderPanel';
 import { usePanelSync } from './usePanelSync';
 import { isBlankLine } from '../utils/reader/TranslationWindow';
+import { remeasureRows } from '../utils/reader/RowRemeasure';
 
 /**
  * How wide one source Chinese character renders in each panel, in em.
@@ -64,8 +65,8 @@ export interface ReaderPanels {
     scrollRef: React.RefObject<HTMLDivElement | null>;
     virtualizer: Virtualizer<HTMLDivElement, Element>;
   };
-  /** The followers' virtualizers, for the reading anchor's relayout. */
-  followers: readonly Virtualizer<HTMLDivElement, Element>[];
+  /** Every panel's rows measured afresh, for the reading anchor's relayout. */
+  relayout: () => void;
   panels: {
     translation: PanelGeometryProps;
     original: FollowerGeometryProps;
@@ -192,14 +193,18 @@ export function useReaderPanels({
   const onOriginalScroll = useCallback((): void => onFollowerScroll(0), [onFollowerScroll]);
   const onCharacterOnlyScroll = useCallback((): void => onFollowerScroll(1), [onFollowerScroll]);
 
-  const followers = useMemo(
-    () => [original.virtualizer, characterOnly.virtualizer] as const,
-    [original.virtualizer, characterOnly.virtualizer]
-  );
+  const translationVirtualizer = translation.virtualizer;
+  const originalVirtualizer = original.virtualizer;
+  const characterOnlyVirtualizer = characterOnly.virtualizer;
+  const relayout = useCallback((): void => {
+    remeasureRows(translationVirtualizer);
+    remeasureRows(originalVirtualizer);
+    remeasureRows(characterOnlyVirtualizer);
+  }, [translationVirtualizer, originalVirtualizer, characterOnlyVirtualizer]);
 
   return {
     master: { scrollRef: masterScrollRef, virtualizer: translation.virtualizer },
-    followers,
+    relayout,
     panels: {
       translation: {
         scrollRef: masterScrollRef,

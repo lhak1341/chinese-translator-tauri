@@ -89,7 +89,7 @@ export interface RestoreTarget {
 }
 
 /** The master panel's virtualizer, as far as the anchor uses it. */
-export type AnchorVirtualizer = RestoreTarget & { measure: () => void };
+export type AnchorVirtualizer = RestoreTarget;
 
 /** What the anchor reads live from the Reader on every call — never a stale copy. */
 export interface ReadingAnchorInputs {
@@ -98,9 +98,10 @@ export interface ReadingAnchorInputs {
     scrollRef: { readonly current: HTMLElement | null };
     virtualizer: AnchorVirtualizer;
   };
-  /** The other panels. They follow the master through the panel sync, so the anchor only
-   * ever has to throw away their measurement caches on a relayout. */
-  followers: readonly { measure: () => void }[];
+  /** Throw away every panel's row heights and read the rows on screen again — the master's
+   * and the followers' (they follow the master through the panel sync, so a relayout is
+   * all the anchor ever does to them). */
+  relayout: () => void;
   lineCount: number;
   /** Whether the windowed refill is translating — the thing that moves rows after a
    * reload. A function because it is read each frame of the re-anchor loop. */
@@ -215,9 +216,9 @@ function isAnchorInPlace(
 const DETACHED_INPUTS: ReadingAnchorInputs = {
   master: {
     scrollRef: { current: null },
-    virtualizer: { scrollToIndex: () => {}, getVirtualItems: () => [], measure: () => {} },
+    virtualizer: { scrollToIndex: () => {}, getVirtualItems: () => [] },
   },
-  followers: [],
+  relayout: () => {},
   lineCount: 0,
   isRefilling: () => false,
 };
@@ -406,8 +407,9 @@ export class ReadingAnchor {
   /** The Appearance settings changed: every row's measured height is now wrong. */
   appearanceChanged(): void {
     if (!this.#isActive) {
-      // A hidden panel measures every row as zero-height, so measuring now would throw away
-      // a stale cache for an empty one.
+      // Deferred to the return, where the restore can act on a visible panel. (A hidden tab
+      // is `visibility: hidden`: its rows keep their layout, and their ResizeObservers report
+      // the new heights meanwhile.)
       this.#relayoutOnReturn = true;
       return;
     }
@@ -498,11 +500,10 @@ export class ReadingAnchor {
   }
 
   #measureAllPanels(): void {
-    this.#inputs.master.virtualizer.measure();
-    for (const follower of this.#inputs.followers) follower.measure();
+    this.#inputs.relayout();
   }
 
-  /** Next frame: rows re-measure on the layout that follows `measure()`, and restoring
+  /** Next frame: the relayout's new heights move the rows on the next layout, and restoring
    * before that would aim at the heights just discarded. One restore, not a window of
    * them — the new heights land in a single layout pass. */
   #scheduleRelayoutRestore(): void {

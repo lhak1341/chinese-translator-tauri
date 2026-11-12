@@ -18,17 +18,24 @@ const handleResetClick = vi.fn();
 const handleFollowFullTranslationChange = vi.fn();
 
 const baseAppearance: AppearanceSettings = {
-  chineseText: { fontFamily: 'NotoCJK', fontSize: '1.25rem', letterSpacing: 'normal' },
+  chineseText: {
+    fontFamily: 'NotoCJK',
+    fontSize: '1.25rem',
+    letterSpacing: 'normal',
+    lineHeight: '1.9',
+  },
   fullTranslation: {
     fontFamily: 'BookerlyFull',
     fontSize: '1.1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.6',
     paragraphSpacing: '1rem',
   },
   characterOnly: {
     fontFamily: 'BookerlyChar',
     fontSize: '1.1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.6',
     paragraphSpacing: '1rem',
   },
   uiFont: { fontFamily: 'InterUI' },
@@ -188,5 +195,29 @@ describe('AppearanceManager — Follow Full Translation checkbox', () => {
     fireEvent.click(checkbox);
 
     expect(handleFollowFullTranslationChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AppearanceManager — line height per section', () => {
+  const lineHeightInput = (container: HTMLElement, section: string) =>
+    container.querySelector(`#${section}-lineHeight`) as HTMLInputElement;
+
+  test('each reading section shows its own line height, and the UI font has none', () => {
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
+    expect(lineHeightInput(container, 'chineseText').value).toBe('1.9');
+    expect(lineHeightInput(container, 'fullTranslation').value).toBe('1.6');
+    expect(lineHeightInput(container, 'characterOnly').value).toBe('1.6');
+    expect(lineHeightInput(container, 'uiFont')).toBeNull();
+  });
+
+  test('the preview uses the section line height', () => {
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    expect(screen.getByText('这是中文文本的预览样式。你好世界！').style.lineHeight).toBe('1.9');
+  });
+
+  test('character-only line height is locked while it follows full translation', () => {
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
+    expect(lineHeightInput(container, 'characterOnly').disabled).toBe(true);
+    expect(lineHeightInput(container, 'fullTranslation').disabled).toBe(false);
   });
 });

@@ -148,12 +148,10 @@ function makeEnvironment() {
 function makeVirtualizer(rows: Row[] = []): AnchorVirtualizer & {
   rows: Row[];
   scrollToIndex: ReturnType<typeof vi.fn>;
-  measure: ReturnType<typeof vi.fn>;
 } {
   const virtualizer = {
     rows,
     scrollToIndex: vi.fn(),
-    measure: vi.fn(),
     getVirtualItems: () => virtualizer.rows,
   };
   return virtualizer;
@@ -179,7 +177,7 @@ function setup(
   const persist = vi.fn((_fingerprint: string, _position: ReadingPosition) => Promise.resolve());
   const scrollEl = { clientHeight: options.clientHeight ?? 800, scrollTop: 0 } as HTMLElement;
   const master = makeVirtualizer(options.rows ?? rowsBetween(0, 40));
-  const followers = [{ measure: vi.fn() }, { measure: vi.fn() }];
+  const relayout = vi.fn();
   const refill = { value: false };
 
   const anchor = new ReadingAnchor({
@@ -190,7 +188,7 @@ function setup(
   });
   anchor.setInputs({
     master: { scrollRef: { current: scrollEl }, virtualizer: master },
-    followers,
+    relayout,
     lineCount: options.lineCount ?? 75_000,
     isRefilling: () => refill.value,
   });
@@ -202,7 +200,7 @@ function setup(
     anchor.onScroll();
   };
 
-  return { ...environment, anchor, persist, scrollEl, master, followers, refill, scrollTo };
+  return { ...environment, anchor, persist, scrollEl, master, relayout, refill, scrollTo };
 }
 
 describe('ReadingAnchor — measuring', () => {
@@ -700,13 +698,11 @@ describe('ReadingAnchor — relayout after an Appearance change', () => {
   }
 
   it("throws away every panel's measurement cache", () => {
-    const { anchor, master, followers } = relayoutSetup();
+    const { anchor, relayout } = relayoutSetup();
 
     anchor.appearanceChanged();
 
-    expect(master.measure).toHaveBeenCalledTimes(1);
-    expect(followers[0].measure).toHaveBeenCalledTimes(1);
-    expect(followers[1].measure).toHaveBeenCalledTimes(1);
+    expect(relayout).toHaveBeenCalledTimes(1);
   });
 
   it('puts the reader back on their line, on the master, one frame later', () => {
@@ -720,35 +716,34 @@ describe('ReadingAnchor — relayout after an Appearance change', () => {
   });
 
   it('still re-measures when there is no anchor yet, but restores nothing', () => {
-    const { anchor, master, runFrame } = setup();
+    const { anchor, master, relayout, runFrame } = setup();
 
     anchor.appearanceChanged();
     runFrame();
 
-    expect(master.measure).toHaveBeenCalledTimes(1);
+    expect(relayout).toHaveBeenCalledTimes(1);
     expect(master.scrollToIndex).not.toHaveBeenCalled();
   });
 
   it('relayouts on return when the change happened while the Reader was hidden', () => {
-    // Appearance is its own tab, so the Reader is always hidden when a font changes. A
-    // hidden panel measures every row as zero-height, so the work waits for the return.
-    const { anchor, master, followers, runFrame } = relayoutSetup();
+    // Appearance is its own tab, so the Reader is always hidden when a font changes, and
+    // the relayout waits for the return.
+    const { anchor, master, relayout, runFrame } = relayoutSetup();
     anchor.setActive(false);
 
     anchor.appearanceChanged();
     runFrame();
-    expect(master.measure).not.toHaveBeenCalled();
+    expect(relayout).not.toHaveBeenCalled();
 
     anchor.setActive(true);
-    expect(master.measure).toHaveBeenCalledTimes(1);
-    expect(followers[0].measure).toHaveBeenCalledTimes(1);
+    expect(relayout).toHaveBeenCalledTimes(1);
     runFrame();
 
     expect(master.scrollToIndex).toHaveBeenCalledWith(4200, { align: 'start' });
   });
 
   it('relayouts once, then re-anchors through the refill, when both happened while hidden', () => {
-    const { anchor, master, scrollEl, refill, runFrame } = relayoutSetup();
+    const { anchor, master, relayout, scrollEl, refill, runFrame } = relayoutSetup();
     anchor.setActive(false);
     anchor.appearanceChanged();
     anchor.engineReloaded();
@@ -757,7 +752,7 @@ describe('ReadingAnchor — relayout after an Appearance change', () => {
     scrollEl.scrollTop = 0;
     anchor.setActive(true);
 
-    expect(master.measure).toHaveBeenCalledTimes(1);
+    expect(relayout).toHaveBeenCalledTimes(1);
     // The loop's first step runs at once; a separate one-shot restore would be redundant.
     expect(master.scrollToIndex).toHaveBeenCalledTimes(1);
     scrollEl.scrollTop = 0;
@@ -766,7 +761,7 @@ describe('ReadingAnchor — relayout after an Appearance change', () => {
   });
 
   it('forgets deferred work when the book closes', () => {
-    const { anchor, master } = relayoutSetup();
+    const { anchor, relayout } = relayoutSetup();
     anchor.setActive(false);
     anchor.appearanceChanged();
 
@@ -774,6 +769,6 @@ describe('ReadingAnchor — relayout after an Appearance change', () => {
     anchor.open('fp2', null);
     anchor.setActive(true);
 
-    expect(master.measure).not.toHaveBeenCalled();
+    expect(relayout).not.toHaveBeenCalled();
   });
 });

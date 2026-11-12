@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { TYPE } from '@lhak/style';
 import type React from 'react';
 import { useAppearanceVersion } from './useAppearanceVersion';
-import { cssLengthToPx } from '../utils/ui/CssLength';
+import { cssLengthToPx, lineHeightToPx } from '../utils/ui/CssLength';
 
 /**
  * Width to assume before the element has been measured — roughly a comfortable prose
@@ -16,11 +17,20 @@ const DEFAULT_FONT_SIZE_PX = 16;
 const DEFAULT_ROW_PADDING_PX = 16;
 
 /**
+ * Line height to assume, as a multiple of the font size, when the panel's cannot be resolved
+ * (`normal`, or before the settings load) — the reading token `Reader.module.css` falls back to.
+ */
+const DEFAULT_LINE_HEIGHT_RATIO = TYPE.reading.lineHeight;
+
+/**
  * The per-panel alias `Reader.module.css` sets to whichever Appearance section's paragraph
  * spacing that panel follows. Read from the panel rather than from `:root` so each one
  * resolves to its own section's value.
  */
 const ROW_SPACING_PROPERTY = '--reader-paragraph-spacing';
+
+/** The per-panel alias for its Appearance section's line height, read the same way. */
+const ROW_LINE_HEIGHT_PROPERTY = '--reader-line-height';
 
 export interface ColumnMetrics {
   /**
@@ -32,10 +42,10 @@ export interface ColumnMetrics {
    * numbers here. Padding is subtracted because it is not available to text.
    */
   columnEm: number;
-  /** The rendered font size, in pixels — an estimated row's height scales with it. */
-  fontSizePx: number;
   /** The paragraph spacing below each row, in pixels — added to every row's height. */
   rowPaddingPx: number;
+  /** One line of a row, in pixels — the panel's Appearance line height at its font size. */
+  lineHeightPx: number;
 }
 
 /**
@@ -50,8 +60,8 @@ export interface ColumnMetrics {
 export function useColumnMetrics(ref: React.RefObject<HTMLElement | null>): ColumnMetrics {
   const [metrics, setMetrics] = useState<ColumnMetrics>({
     columnEm: DEFAULT_COLUMN_EM,
-    fontSizePx: DEFAULT_FONT_SIZE_PX,
     rowPaddingPx: DEFAULT_ROW_PADDING_PX,
+    lineHeightPx: DEFAULT_FONT_SIZE_PX * DEFAULT_LINE_HEIGHT_RATIO,
   });
   const appearanceVersion = useAppearanceVersion();
 
@@ -72,14 +82,13 @@ export function useColumnMetrics(ref: React.RefObject<HTMLElement | null>): Colu
       const rootFontSizePx =
         Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
         DEFAULT_FONT_SIZE_PX;
-      const spacing = cssLengthToPx(style.getPropertyValue(ROW_SPACING_PROPERTY), {
-        rootFontSizePx,
-        fontSizePx: fontSize,
-      });
+      const context = { rootFontSizePx, fontSizePx: fontSize };
+      const spacing = cssLengthToPx(style.getPropertyValue(ROW_SPACING_PROPERTY), context);
+      const lineHeight = lineHeightToPx(style.getPropertyValue(ROW_LINE_HEIGHT_PROPERTY), context);
       setMetrics({
         columnEm: usable / fontSize,
-        fontSizePx: fontSize,
         rowPaddingPx: spacing ?? DEFAULT_ROW_PADDING_PX,
+        lineHeightPx: lineHeight ?? fontSize * DEFAULT_LINE_HEIGHT_RATIO,
       });
     };
 

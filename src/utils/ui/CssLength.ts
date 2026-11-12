@@ -32,3 +32,19 @@ export function cssLengthToPx(value: string, context: CssLengthContext): number 
       return amount;
   }
 }
+
+const RATIO_OR_PERCENT = /^(\d*\.?\d+)(%)?$/;
+
+/**
+ * A CSS `line-height` as pixels, or `null` when it cannot be resolved (`normal`, which
+ * depends on the font's metrics, or an unset property).
+ *
+ * Unlike a length, a bare number here is a multiple of the element's font size, not
+ * pixels, and so is a percentage; any other value is read as a length.
+ */
+export function lineHeightToPx(value: string, context: CssLengthContext): number | null {
+  const match = RATIO_OR_PERCENT.exec(value.trim());
+  if (!match) return cssLengthToPx(value, context);
+  const ratio = Number.parseFloat(match[1]) / (match[2] ? 100 : 1);
+  return Number.isFinite(ratio) ? ratio * context.fontSizePx : null;
+}

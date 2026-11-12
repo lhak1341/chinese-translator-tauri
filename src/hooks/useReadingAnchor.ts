@@ -39,12 +39,12 @@ export function useReadingAnchor({
   isActive,
   engineVersion,
   master,
-  followers,
+  relayout,
   lineCount,
   isRefilling,
 }: UseReadingAnchorOptions): UseReadingAnchorResult {
   const [anchor] = useState(() => new ReadingAnchor({ persist: setReadingPosition }));
-  anchor.setInputs({ master, followers, lineCount, isRefilling });
+  anchor.setInputs({ master, relayout, lineCount, isRefilling });
 
   const snapshot = useSyncExternalStore(anchor.subscribe, anchor.getSnapshot);
 

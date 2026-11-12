@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { applyFontChange, applyFollowFullTranslation, applyReset } from '../ui/AppearanceReducer';
+import {
+  applyAppearanceToCssVars,
+  applyFontChange,
+  applyFollowFullTranslation,
+  applyReset,
+} from '../ui/AppearanceReducer';
 import type { AppearanceSettings } from '../../types/ComponentTypes';
 
 const base: AppearanceSettings = {
@@ -7,18 +12,21 @@ const base: AppearanceSettings = {
     fontFamily: 'FontA',
     fontSize: '1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.45',
     paragraphSpacing: '1rem',
   },
   fullTranslation: {
     fontFamily: 'FontB',
     fontSize: '1.25rem',
     letterSpacing: 'normal',
+    lineHeight: '1.45',
     paragraphSpacing: '1rem',
   },
   characterOnly: {
     fontFamily: 'FontC',
     fontSize: '1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.45',
     paragraphSpacing: '1rem',
   },
   uiFont: { fontFamily: 'FontD' },
@@ -32,12 +40,14 @@ const defaults: AppearanceSettings = {
     fontFamily: 'DefaultA',
     fontSize: '1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.45',
     paragraphSpacing: '1rem',
   },
   fullTranslation: {
     fontFamily: 'DefaultB',
     fontSize: '1rem',
     letterSpacing: 'normal',
+    lineHeight: '1.45',
     paragraphSpacing: '1rem',
   },
 };
@@ -117,6 +127,76 @@ describe('applyFollowFullTranslation', () => {
     const result = applyFollowFullTranslation(base, true);
     expect(result.chineseText.fontFamily).toBe('FontA');
     expect(result.fullTranslation.fontFamily).toBe('FontB');
+  });
+});
+
+describe('line height follows full translation', () => {
+  const following = { ...base, characterOnlyFollowsFullTranslation: true };
+
+  it('a full-translation line height reaches character-only while it follows', () => {
+    const result = applyFontChange(following, 'fullTranslation', 'lineHeight', '1.8');
+    expect(result.fullTranslation.lineHeight).toBe('1.8');
+    expect(result.characterOnly.lineHeight).toBe('1.8');
+  });
+
+  it('does not reach character-only once it stops following', () => {
+    const result = applyFontChange(base, 'fullTranslation', 'lineHeight', '1.8');
+    expect(result.characterOnly.lineHeight).toBe('1.45');
+  });
+
+  it('turning follow on takes the full-translation line height', () => {
+    const differing = {
+      ...base,
+      fullTranslation: { ...base.fullTranslation, lineHeight: '2' },
+      characterOnly: { ...base.characterOnly, lineHeight: '1.2' },
+    };
+    expect(applyFollowFullTranslation(differing, true).characterOnly.lineHeight).toBe('2');
+  });
+
+  it('a Chinese line height stays in the Chinese section', () => {
+    const result = applyFontChange(following, 'chineseText', 'lineHeight', '1.9');
+    expect(result.chineseText.lineHeight).toBe('1.9');
+    expect(result.fullTranslation.lineHeight).toBe('1.45');
+    expect(result.characterOnly.lineHeight).toBe('1.45');
+  });
+});
+
+describe('reset while character-only follows', () => {
+  it('a full-translation reset reaches character-only too', () => {
+    const following = {
+      ...base,
+      characterOnlyFollowsFullTranslation: true,
+      fullTranslation: { ...base.fullTranslation, lineHeight: '1.4' },
+      characterOnly: { ...base.characterOnly, lineHeight: '1.4' },
+    };
+    const result = applyReset(following, defaults, 'fullTranslation', 'lineHeight');
+    expect(result.fullTranslation.lineHeight).toBe('1.45');
+    expect(result.characterOnly.lineHeight).toBe('1.45');
+  });
+
+  it('does not reach character-only once it stops following', () => {
+    const notFollowing = {
+      ...base,
+      fullTranslation: { ...base.fullTranslation, lineHeight: '1.4' },
+      characterOnly: { ...base.characterOnly, lineHeight: '1.4' },
+    };
+    const result = applyReset(notFollowing, defaults, 'fullTranslation', 'lineHeight');
+    expect(result.characterOnly.lineHeight).toBe('1.4');
+  });
+});
+
+describe('applyAppearanceToCssVars', () => {
+  it('writes each section its own line-height variable', () => {
+    applyAppearanceToCssVars({
+      ...base,
+      chineseText: { ...base.chineseText, lineHeight: '1.9' },
+      fullTranslation: { ...base.fullTranslation, lineHeight: '1.6' },
+      characterOnly: { ...base.characterOnly, lineHeight: '30px' },
+    });
+    const root = document.documentElement.style;
+    expect(root.getPropertyValue('--chinese-text-line-height')).toBe('1.9');
+    expect(root.getPropertyValue('--full-translation-line-height')).toBe('1.6');
+    expect(root.getPropertyValue('--character-only-line-height')).toBe('30px');
   });
 });
 

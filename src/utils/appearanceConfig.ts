@@ -1,14 +1,19 @@
 import { TYPE } from '@lhak/style';
 import { createAppFile } from './appFile';
+import { lineHeightToPx } from './ui/CssLength';
 import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
 
 /** The token px sizes as the rem the fields hold. The app never sets a root size, so 1rem = 16px. */
 const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
 
+/** One reading line-height for every section, Chinese included (lhak-style-guide ticket 009). */
+const READING_LINE_HEIGHT = String(TYPE.reading.lineHeight);
+
 const reading: FontSettings = {
   fontFamily: TYPE.faces['reading-serif'].family,
   fontSize: rem(TYPE.reading.size),
   letterSpacing: TYPE.faces['reading-serif'].tracking,
+  lineHeight: READING_LINE_HEIGHT,
   paragraphSpacing: '1rem',
 };
 
@@ -18,6 +23,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
     fontFamily: TYPE.faces.chinese.family,
     fontSize: rem(TYPE.reading.size * TYPE.reading.chineseScale),
     letterSpacing: TYPE.faces.chinese.tracking,
+    lineHeight: READING_LINE_HEIGHT,
     paragraphSpacing: '1rem',
   },
   fullTranslation: { ...reading },
@@ -59,6 +65,20 @@ function normalizeLetterSpacing(v: unknown): string | null {
   return LEGACY_LETTER_SPACINGS[value] ?? (LETTER_SPACING_LENGTH.test(value) ? value : null);
 }
 
+/**
+ * The stored line height as a usable CSS value, or `null` when it is not one. Validated on
+ * the way in for the same reason as letter spacing: the field is free text, and a value the
+ * browser drops would leave the panel at its inherited line height with no sign why.
+ * Accepts `normal` and whatever the Reader's row estimate can resolve (`lineHeightToPx`),
+ * so the two never disagree about what a line height is.
+ */
+function normalizeLineHeight(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const value = v.trim();
+  if (value === 'normal') return value;
+  return lineHeightToPx(value, { rootFontSizePx: 16, fontSizePx: 16 }) === null ? null : value;
+}
+
 function isTheme(v: unknown): v is Theme {
   return typeof v === 'string' && (THEMES as string[]).includes(v);
 }
@@ -70,6 +90,8 @@ function fromRawFontSettings(raw: unknown, defaults: FontSettings): FontSettings
   if (typeof obj.fontSize === 'string') result.fontSize = obj.fontSize;
   const letterSpacing = normalizeLetterSpacing(obj.letterSpacing);
   if (letterSpacing !== null) result.letterSpacing = letterSpacing;
+  const lineHeight = normalizeLineHeight(obj.lineHeight);
+  if (lineHeight !== null) result.lineHeight = lineHeight;
   if (typeof obj.paragraphSpacing === 'string') result.paragraphSpacing = obj.paragraphSpacing;
   return result;
 }

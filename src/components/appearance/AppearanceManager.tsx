@@ -24,6 +24,12 @@ interface FieldGroup {
 const LETTER_SPACING_PLACEHOLDER = 'e.g., normal, 0.05em (wider), -0.02em (tighter)';
 const FONT_SIZE_PLACEHOLDER = 'e.g., 1.25rem, 20px, 14pt';
 const PARAGRAPH_SPACING_PLACEHOLDER = 'e.g., 1rem, 16px, 1.5em';
+const LINE_HEIGHT_PLACEHOLDER = 'e.g., 1.45, 1.8, 28px';
+const LINE_HEIGHT_FIELD: FieldConfig = {
+  property: 'lineHeight',
+  label: 'Line Height:',
+  placeholder: LINE_HEIGHT_PLACEHOLDER,
+};
 
 const FIELD_GROUPS: FieldGroup[] = [
   {
@@ -42,6 +48,7 @@ const FIELD_GROUPS: FieldGroup[] = [
         label: 'Letter Spacing:',
         placeholder: LETTER_SPACING_PLACEHOLDER,
       },
+      LINE_HEIGHT_FIELD,
     ],
     previewText: '这是中文文本的预览样式。你好世界！',
   },
@@ -73,6 +80,7 @@ const FIELD_GROUPS: FieldGroup[] = [
         label: 'Letter Spacing:',
         placeholder: LETTER_SPACING_PLACEHOLDER,
       },
+      LINE_HEIGHT_FIELD,
       {
         property: 'paragraphSpacing',
         label: 'Paragraph Spacing:',
@@ -93,6 +101,7 @@ const FIELD_GROUPS: FieldGroup[] = [
         label: 'Letter Spacing:',
         placeholder: LETTER_SPACING_PLACEHOLDER,
       },
+      LINE_HEIGHT_FIELD,
       {
         property: 'paragraphSpacing',
         label: 'Paragraph Spacing:',
@@ -211,6 +220,7 @@ function FontControlGroup({
               fontFamily: sectionValues.fontFamily,
               fontSize: sectionValues.fontSize,
               letterSpacing: sectionValues.letterSpacing,
+              lineHeight: sectionValues.lineHeight,
             }}
           >
             {group.previewText}

@@ -107,8 +107,9 @@ export interface FontSettings {
   /** Letter spacing: `normal`, or a CSS length ('0.05em', '-0.02em', '1px') — the
    * Appearance tab's field is free text, and the value is passed to CSS verbatim. */
   letterSpacing: string;
-  /** Line height (optional, CSS value) */
-  lineHeight?: string;
+  /** Line height: `normal`, a unitless ratio ('1.45'), a length or a percentage. Free text
+   * in the Appearance tab, validated on load (appearanceConfig `normalizeLineHeight`). */
+  lineHeight: string;
   /** Font weight (optional, CSS value) */
   fontWeight?: string | number;
   /** Paragraph spacing (optional, CSS value for margin-bottom, e.g., '1rem', '16px') */

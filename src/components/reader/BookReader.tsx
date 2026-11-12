@@ -97,7 +97,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   // is `ReaderBinding.tsx`'s.
   const { openDialog } = useBookBinding();
 
-  const { master, followers, panels, pageBy } = useReaderPanels({
+  const { master, relayout, panels, pageBy } = useReaderPanels({
     lineCount: book.lineCount,
     getLine,
     requestRange,
@@ -122,7 +122,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     isActive,
     engineVersion,
     master,
-    followers,
+    relayout,
     lineCount: book.lineCount,
     isRefilling,
   });

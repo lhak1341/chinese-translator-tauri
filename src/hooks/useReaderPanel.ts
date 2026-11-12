@@ -7,18 +7,6 @@ import type { RowMetrics } from '../utils/reader/PanelSync';
 import { useColumnMetrics } from './useColumnMetrics';
 
 /**
- * `.readerLine`'s `line-height` — 1.5, the Translator's — as a ratio rather than a pixel count: the font size under
- * it is the reader's own Appearance setting, so a panel at 1.25rem has rows a quarter
- * taller than one at 1rem and a fixed 30px would under-estimate every unvisited region of
- * the book by that much. Kept in step with the stylesheet by hand; the paragraph spacing
- * below a row is not, because it is a setting — `useColumnMetrics` measures that one.
- *
- * Both only have to be right for *unmeasured* rows — every mounted row is measured — but
- * they are what a never-visited region's scrollbar is built from.
- */
-const ROW_LINE_HEIGHT_RATIO = 1.5;
-
-/**
  * Upward bias on an estimated row width. A row that shrinks when it is measured reads as
  * settling; one that grows reads as the page fighting the reader.
  */
@@ -69,27 +57,30 @@ export function useReaderPanel({
   isBlankAt,
 }: UseReaderPanelOptions): ReaderPanelGeometry {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { columnEm, fontSizePx, rowPaddingPx } = useColumnMetrics(scrollRef);
+  // The line height and paragraph spacing are the panel's Appearance settings, measured
+  // from it. They only have to be right for *unmeasured* rows (every mounted row is
+  // measured), but they are what a never-visited region's scrollbar is built from.
+  const { columnEm, lineHeightPx, rowPaddingPx } = useColumnMetrics(scrollRef);
 
   // "Latest ref" pattern: `estimateSize` below is referentially stable, so a re-render
   // never makes the virtualizer treat its estimates as new. A resize reaches the estimate
   // through this ref, by way of the virtualizer's own resize handling.
   const liveRef = useRef({
     columnEm,
-    fontSizePx,
+    lineHeightPx,
     rowPaddingPx,
     emPerChar,
     charCountAt,
     isBlankAt,
   });
-  liveRef.current = { columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt, isBlankAt };
+  liveRef.current = { columnEm, lineHeightPx, rowPaddingPx, emPerChar, charCountAt, isBlankAt };
 
   const estimateSize = useCallback(
     (index: number): number =>
       liveRef.current.isBlankAt(index)
         ? 0
         : estimateRowSize(liveRef.current.charCountAt(index), {
-            lineHeight: liveRef.current.fontSizePx * ROW_LINE_HEIGHT_RATIO,
+            lineHeight: liveRef.current.lineHeightPx,
             padding: liveRef.current.rowPaddingPx,
             columnEm: liveRef.current.columnEm,
             emPerChar: liveRef.current.emPerChar,

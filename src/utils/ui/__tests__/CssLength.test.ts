@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cssLengthToPx } from '../CssLength';
+import { cssLengthToPx, lineHeightToPx } from '../CssLength';
 
 const context = { rootFontSizePx: 16, fontSizePx: 20 };
 
@@ -37,5 +37,26 @@ describe('cssLengthToPx', () => {
 
   it('returns null for a negative length — no row has negative padding', () => {
     expect(cssLengthToPx('-1rem', context)).toBeNull();
+  });
+});
+
+describe('lineHeightToPx', () => {
+  it('scales a unitless ratio by the element’s font size', () => {
+    expect(lineHeightToPx('1.45', context)).toBe(29);
+  });
+
+  it('scales a percentage by the element’s font size', () => {
+    expect(lineHeightToPx('150%', context)).toBe(30);
+  });
+
+  it('resolves a length the way cssLengthToPx does', () => {
+    expect(lineHeightToPx('28px', context)).toBe(28);
+    expect(lineHeightToPx('2rem', context)).toBe(32);
+    expect(lineHeightToPx('1.5em', context)).toBe(30);
+  });
+
+  it('returns null for `normal` and an unset property, so the caller can fall back', () => {
+    expect(lineHeightToPx('normal', context)).toBeNull();
+    expect(lineHeightToPx('', context)).toBeNull();
   });
 });

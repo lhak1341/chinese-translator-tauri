@@ -1,7 +1,8 @@
 import type { AppearanceSettings } from '../../types/ComponentTypes';
 
 export type AppearanceSection = 'chineseText' | 'fullTranslation' | 'characterOnly' | 'uiFont';
-export type FontProperty = 'fontFamily' | 'fontSize' | 'letterSpacing' | 'paragraphSpacing';
+export type FontProperty =
+  'fontFamily' | 'fontSize' | 'letterSpacing' | 'lineHeight' | 'paragraphSpacing';
 
 /**
  * Apply a single font property change. When the section is fullTranslation and
@@ -43,6 +44,7 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
   root.style.setProperty('--chinese-text-font', appearance.chineseText.fontFamily);
   root.style.setProperty('--chinese-text-size', appearance.chineseText.fontSize);
   root.style.setProperty('--chinese-text-spacing', appearance.chineseText.letterSpacing);
+  root.style.setProperty('--chinese-text-line-height', appearance.chineseText.lineHeight);
   root.style.setProperty(
     '--chinese-text-paragraph-spacing',
     appearance.chineseText.paragraphSpacing ?? '1rem'
@@ -50,6 +52,7 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
   root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
   root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
   root.style.setProperty('--full-translation-spacing', appearance.fullTranslation.letterSpacing);
+  root.style.setProperty('--full-translation-line-height', appearance.fullTranslation.lineHeight);
   root.style.setProperty(
     '--full-translation-paragraph-spacing',
     appearance.fullTranslation.paragraphSpacing ?? '1rem'
@@ -57,6 +60,7 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
   root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
   root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
   root.style.setProperty('--character-only-spacing', appearance.characterOnly.letterSpacing);
+  root.style.setProperty('--character-only-line-height', appearance.characterOnly.lineHeight);
   root.style.setProperty(
     '--character-only-paragraph-spacing',
     appearance.characterOnly.paragraphSpacing ?? '1rem'
@@ -65,7 +69,8 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
 }
 
 /**
- * Reset a single property in a section to the provided default value.
+ * Reset a single property in a section to the provided default value. A reset is an edit:
+ * on fullTranslation it reaches characterOnly while that follows, as typing would.
  */
 export function applyReset(
   current: AppearanceSettings,
@@ -74,5 +79,5 @@ export function applyReset(
   property: FontProperty
 ): AppearanceSettings {
   const defaultValue = defaults[section][property as keyof (typeof defaults)[typeof section]];
-  return { ...current, [section]: { ...current[section], [property]: defaultValue } };
+  return applyFontChange(current, section, property, defaultValue as string);
 }

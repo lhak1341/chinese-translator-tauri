@@ -15,6 +15,8 @@ interface FakeVirtualizer {
   getVirtualItems: () => { index: number; start: number; size: number }[];
   scrollToIndex: ReturnType<typeof vi.fn>;
   measure: ReturnType<typeof vi.fn>;
+  /** No rows mounted: a relayout has nothing to read back. */
+  elementsCache: Map<number, Element>;
 }
 
 function fakeVirtualizer(rowHeight: number): FakeVirtualizer {
@@ -29,6 +31,7 @@ function fakeVirtualizer(rowHeight: number): FakeVirtualizer {
     getVirtualItems: () => [],
     scrollToIndex: vi.fn(),
     measure: vi.fn(),
+    elementsCache: new Map(),
   };
   return virtualizer;
 }
@@ -92,13 +95,23 @@ function setup(requestRange: (start: number, end: number) => void = vi.fn()) {
 describe('useReaderPanels', () => {
   it('makes the translation panel the master and the other two followers', () => {
     const { view } = setup();
-    const { panels, master, followers } = view.result.current;
+    const { panels, master } = view.result.current;
 
     expect(master.scrollRef).toBe(panels.translation.scrollRef);
-    expect(followers).toEqual([panels.original.virtualizer, panels.characterOnly.virtualizer]);
     expect(panels.translation).not.toHaveProperty('isFollower');
     expect(panels.original.isFollower).toBe(true);
     expect(panels.characterOnly.isFollower).toBe(true);
+  });
+
+  it('relayout re-measures all three panels', () => {
+    const { view } = setup();
+    const { panels, relayout } = view.result.current;
+
+    relayout();
+
+    for (const panel of [panels.translation, panels.original, panels.characterOnly]) {
+      expect((panel.virtualizer as unknown as FakeVirtualizer).measure).toHaveBeenCalledTimes(1);
+    }
   });
 
   it('keeps both followers on the master’s line, each in its own row heights', () => {

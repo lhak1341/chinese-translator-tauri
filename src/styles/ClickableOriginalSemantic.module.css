@@ -3,7 +3,8 @@
 
 /* Container */
 .container {
-  line-height: 1.6;
+  /* The pane's Appearance line height (Translator.jsx sets it per section). */
+  line-height: inherit;
 }
 
 /* Paragraph */

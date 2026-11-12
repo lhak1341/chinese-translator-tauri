@@ -1027,6 +1027,7 @@
   );
   font-size: var(--chinese-text-size, 1.25rem);
   letter-spacing: var(--chinese-text-spacing, normal);
+  --reader-line-height: var(--chinese-text-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--chinese-text-paragraph-spacing, 1rem);
 }
 
@@ -1041,6 +1042,7 @@
   );
   font-size: var(--full-translation-size, 1.25rem);
   letter-spacing: var(--full-translation-spacing, normal);
+  --reader-line-height: var(--full-translation-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--full-translation-paragraph-spacing, 1rem);
 }
 
@@ -1055,6 +1057,7 @@
   );
   font-size: var(--character-only-size, 1.25rem);
   letter-spacing: var(--character-only-spacing, normal);
+  --reader-line-height: var(--character-only-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--character-only-paragraph-spacing, 1rem);
 }
 
@@ -1108,9 +1111,9 @@
 .readerLine {
   margin: 0;
   padding: 0 0 var(--reader-paragraph-spacing, 1rem);
-  /* The Translator's text panels, exactly: its shared text style is `lineHeight: '1.5'`.
-     `useReaderPanel` holds the same number as a ratio for unmeasured rows. */
-  line-height: 1.5;
+  /* The panel's Appearance line height, as the Translator's panel for the same section
+     sets it. `useColumnMetrics` reads the same alias to size unmeasured rows. */
+  line-height: var(--reader-line-height, var(--lk-reading-line-height));
   color: var(--text-color);
   white-space: pre-wrap;
   overflow-wrap: break-word;
