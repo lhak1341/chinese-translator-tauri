@@ -118,13 +118,6 @@
   flex: 1;
 }
 
-/* The theme pickers. `.input`'s `padding` shorthand drops the global select's room for its
-   chevron, so it is set back (src/styles/CLAUDE.md, "a shorthand wipes them"). */
-.select {
-  composes: input;
-  padding-right: 2.5rem;
-}
-
 .input:disabled {
   opacity: 0.5;
   cursor: not-allowed;

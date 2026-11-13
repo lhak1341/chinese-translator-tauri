@@ -6,3 +6,8 @@ export { Icon, type IconProps, type IconStep } from './icon.tsx';
 export { Textarea, TextField, type TextareaProps, type TextFieldProps } from './text-field.tsx';
 export { Checkbox, Radio, RadioGroup, Switch, type CheckboxProps, type RadioGroupProps, type RadioProps, type SwitchProps, } from './choice.tsx';
 export { Select, type SelectItem, type SelectProps } from './select.tsx';
+export { Slider, type SliderProps } from './slider.tsx';
+export { NumberStepper, type NumberStepperProps } from './number-stepper.tsx';
+export { SegmentedControl, type SegmentedControlProps, type SegmentedItem } from './segmented.tsx';
+export { ThemeSwitch, type ThemeSwitchProps } from './theme-switch.tsx';
+export { Tab, TabList, TabPanel, Tabs, type TabListProps, type TabPanelProps, type TabProps, type TabsProps } from './tabs.tsx';

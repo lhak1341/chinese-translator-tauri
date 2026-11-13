@@ -1,14 +1,6 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
-import {
-  Button,
-  Icon,
-  Switch,
-  TextField,
-  useTheme,
-  type Flavor,
-  type ModeChoice,
-} from '@lhak/style/react';
+import { Button, Icon, Switch, TextField, ThemeSwitch } from '@lhak/style/react';
 import styles from '../../styles/AppearanceManager.module.css';
 import { useAppearanceSettings } from '../../hooks/useAppearanceSettings';
 import type { AppearanceSection, FontProperty } from '../../utils/ui/AppearanceReducer';
@@ -240,60 +232,13 @@ function FontControlGroup({
   );
 }
 
-const FLAVOR_OPTIONS: { value: Flavor; label: string }[] = [
-  { value: 'capri', label: 'Capritarius' },
-  { value: 'primary', label: 'Primary' },
-];
-
-const MODE_OPTIONS: { value: ModeChoice; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
-
 /** Flavor and mode of the @lhak/style token contract. The kit's ThemeProvider applies and
  * remembers them, so nothing here goes through appearance.json. */
 function ThemeSection() {
-  const { flavor, mode, setFlavor, setMode } = useTheme();
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionTitle}>Theme</h3>
-      <div className={styles.controlGroup}>
-        <div className={styles.controlRow}>
-          <label htmlFor="theme-flavor" className={styles.label}>
-            Flavor
-          </label>
-          <select
-            id="theme-flavor"
-            className={styles.select}
-            value={flavor}
-            onChange={(e) => setFlavor(e.target.value as Flavor)}
-          >
-            {FLAVOR_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.controlRow}>
-          <label htmlFor="theme-mode" className={styles.label}>
-            Mode
-          </label>
-          <select
-            id="theme-mode"
-            className={styles.select}
-            value={mode}
-            onChange={(e) => setMode(e.target.value as ModeChoice)}
-          >
-            {MODE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <ThemeSwitch />
     </div>
   );
 }

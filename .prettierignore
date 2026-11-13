@@ -28,6 +28,8 @@ npm-debug.log*
 .DS_Store
 
 # Generated files
+# @lhak/style, copied by its scripts/vendor.mjs: must match the package byte for byte
+vendor
 coverage
 .nyc_output
 *.tsbuildinfo

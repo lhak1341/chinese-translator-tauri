@@ -33,8 +33,13 @@ beforeEach(() => {
 describe('AppearanceManager — Theme', () => {
   test('starts on Capritarius following the system', () => {
     render(<AppearanceManager />, { wrapper: ThemeProvider });
-    expect(screen.getByRole('combobox', { name: 'Flavor' })).toHaveValue('capri');
-    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveValue('system');
+    expect(screen.getByRole('radiogroup', { name: 'Flavor' })).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Mode' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Capritarius' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByRole('radio', { name: 'System' })).toHaveAttribute('aria-checked', 'true');
     expect(html).toHaveAttribute('data-flavor', 'capri');
   });
 
@@ -42,10 +47,23 @@ describe('AppearanceManager — Theme', () => {
     const user = userEvent.setup();
     render(<AppearanceManager />, { wrapper: ThemeProvider });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Flavor' }), 'Primary');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Mode' }), 'Dark');
+    await user.click(screen.getByRole('radio', { name: 'Primary' }));
+    await user.click(screen.getByRole('radio', { name: 'Dark' }));
 
+    expect(screen.getByRole('radio', { name: 'Primary' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
     expect(html).toHaveAttribute('data-flavor', 'primary');
+    expect(html).toHaveAttribute('data-mode', 'dark');
+  });
+
+  test('arrow keys change the mode from the keyboard', async () => {
+    const user = userEvent.setup();
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+
+    screen.getByRole('radio', { name: 'System' }).focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+
+    expect(screen.getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
     expect(html).toHaveAttribute('data-mode', 'dark');
   });
 });
