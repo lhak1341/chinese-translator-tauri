@@ -16,6 +16,7 @@ import {
   isFictionProperNounsId,
   otherPairedTierId,
 } from '../../utils/dictionary/DictionaryIdClassifier';
+import { Checkbox } from '@lhak/style/react';
 import { configurationDictionaryName } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/ConfigurationManager.module.css';
 import menuStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
@@ -214,11 +215,10 @@ const ConfigurationManager: React.FC = () => {
                 fontWeight: isChecked ? 500 : 'normal',
               }}
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={isChecked}
                 disabled={isLocked}
-                onChange={() => handleToggleDictionary(dictionaryId)}
+                onCheckedChange={() => handleToggleDictionary(dictionaryId)}
                 title={
                   isLocked
                     ? `Set by the book open in the Reader${openBookTitle ? `: ${openBookTitle}` : ''}`

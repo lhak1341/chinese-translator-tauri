@@ -153,7 +153,7 @@
 
     "@keyv/serialize": ["@keyv/serialize@1.1.1", "", {}, "sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA=="],
 
-    "@lhak/style": ["@lhak/style@file:vendor/lhak-style", { "peerDependencies": { "@base-ui/react": "^1.9.0", "@number-flow/react": "0.6.2", "obsidian": "*", "react": ">=18", "react-dom": ">=18", "stylelint": ">=18" }, "optionalPeers": ["@base-ui/react", "@number-flow/react", "obsidian", "react", "react-dom", "stylelint"] }],
+    "@lhak/style": ["@lhak/style@file:vendor/lhak-style", { "peerDependencies": { "@base-ui/react": "^1.9.0", "@number-flow/react": "0.6.2", "lucide-react": "^1.70.0", "obsidian": "*", "react": ">=18", "react-dom": ">=18", "stylelint": ">=18" }, "optionalPeers": ["@base-ui/react", "@number-flow/react", "lucide-react", "obsidian", "react", "react-dom", "stylelint"] }],
 
     "@number-flow/react": ["@number-flow/react@0.6.2", "", { "dependencies": { "esm-env": "^1.1.4", "number-flow": "0.6.2" }, "peerDependencies": { "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-WjZuV4aA+vhRCgCF+adGLgFVVAJ8vdvq6EchRT2FiBIgElTXtDOA3YgkcMr9UHpvpS9v4H70AB5wZv0D9jc3QA=="],
 

@@ -181,20 +181,23 @@ describe('AppearanceManager — characterOnly disabled-gate', () => {
   });
 });
 
-describe('AppearanceManager — Follow Full Translation checkbox', () => {
+describe('AppearanceManager — Follow Full Translation switch', () => {
+  const followSwitch = () =>
+    screen.getByRole('switch', { name: 'Follow Full Translation Box style' });
+
   test('renders exactly once, under Character Only Box, reflecting the flag', () => {
     render(<AppearanceManager />, { wrapper: ThemeProvider });
-    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
+    expect(followSwitch().getAttribute('aria-checked')).toBe('true');
   });
 
-  test('toggling it calls handleFollowFullTranslationChange', () => {
+  test('clicking its label turns following off once', () => {
     render(<AppearanceManager />, { wrapper: ThemeProvider });
-    const checkbox = screen.getByRole('checkbox');
 
-    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByText('Follow Full Translation Box style'));
 
     expect(handleFollowFullTranslationChange).toHaveBeenCalledTimes(1);
+    expect(handleFollowFullTranslationChange).toHaveBeenCalledWith(false, expect.anything());
   });
 });
 

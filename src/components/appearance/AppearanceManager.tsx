@@ -1,6 +1,14 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
-import { useTheme, type Flavor, type ModeChoice } from '@lhak/style/react';
+import {
+  Button,
+  Icon,
+  Switch,
+  TextField,
+  useTheme,
+  type Flavor,
+  type ModeChoice,
+} from '@lhak/style/react';
 import styles from '../../styles/AppearanceManager.module.css';
 import { useAppearanceSettings } from '../../hooks/useAppearanceSettings';
 import type { AppearanceSection, FontProperty } from '../../utils/ui/AppearanceReducer';
@@ -144,10 +152,10 @@ function FontControlRow({
       <label htmlFor={id} className={styles.label}>
         {label}
       </label>
-      <input
+      <TextField
         id={id}
         type="text"
-        className={styles.input}
+        className={styles.field}
         value={value}
         data-section={section}
         data-property={property}
@@ -156,16 +164,17 @@ function FontControlRow({
         placeholder={placeholder}
         disabled={disabled}
       />
-      <button
-        className={styles.resetButton}
+      <Button
+        iconOnly
+        aria-label={resetTitle}
         data-section={section}
         data-property={property}
         onClick={onReset}
         title={resetTitle}
         disabled={disabled}
       >
-        <RotateCcw size={14} />
-      </button>
+        <Icon icon={RotateCcw} />
+      </Button>
     </div>
   );
 }
@@ -312,17 +321,14 @@ const AppearanceManager: React.FC = () => {
   const leftGroups = FIELD_GROUPS.filter((g) => g.column === 'left');
   const rightGroups = FIELD_GROUPS.filter((g) => g.column === 'right');
 
-  const followCheckbox = (
+  const followSwitch = (
     <div className={styles.controlRow}>
-      <label className={styles.label}>
-        <input
-          type="checkbox"
-          checked={appearance.characterOnlyFollowsFullTranslation ?? true}
-          onChange={handleFollowFullTranslationChange}
-          style={{ marginRight: '0.5rem' }}
-        />
-        Follow Full Translation Box style
-      </label>
+      <Switch
+        checked={appearance.characterOnlyFollowsFullTranslation ?? true}
+        onCheckedChange={handleFollowFullTranslationChange}
+      >
+        <span className={styles.label}>Follow Full Translation Box style</span>
+      </Switch>
     </div>
   );
 
@@ -354,7 +360,7 @@ const AppearanceManager: React.FC = () => {
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
-              beforeFields={group.section === 'characterOnly' ? followCheckbox : undefined}
+              beforeFields={group.section === 'characterOnly' ? followSwitch : undefined}
             />
           ))}
         </div>

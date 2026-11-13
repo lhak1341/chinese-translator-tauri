@@ -302,9 +302,7 @@ describe('handleFollowFullTranslationChange', () => {
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await act(() =>
-      result.current.handleFollowFullTranslationChange({ target: { checked: true } } as any)
-    );
+    await act(() => result.current.handleFollowFullTranslationChange(true));
 
     expect(result.current.appearance.characterOnly).toEqual(
       result.current.appearance.fullTranslation
@@ -329,9 +327,7 @@ describe('handleFollowFullTranslationChange', () => {
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await act(() =>
-      result.current.handleFollowFullTranslationChange({ target: { checked: false } } as any)
-    );
+    await act(() => result.current.handleFollowFullTranslationChange(false));
 
     expect(result.current.appearance.characterOnlyFollowsFullTranslation).toBe(false);
     expect(result.current.appearance.characterOnly.fontFamily).toBe('Courier');

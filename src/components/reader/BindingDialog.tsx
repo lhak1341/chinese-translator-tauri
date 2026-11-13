@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, Check, Loader, X } from 'lucide-react';
+import { Button, Radio, RadioGroup, Select } from '@lhak/style/react';
 import type { BookBinding, ChapterPatternId } from '../../types/ReaderTypes';
 import type { ChapterOverride } from '../../hooks/useChapters';
 import {
@@ -122,67 +123,58 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
               )}
             </p>
 
-            <label className={styles.bindingOption}>
-              <input
-                type="radio"
-                name="binding-choice"
-                checked={choice === 'existing'}
-                disabled={fictionDictionaries.length === 0}
-                onChange={() => setChoice('existing')}
-              />
-              <span>Use an existing dictionary</span>
-              <select
-                value={selected}
-                disabled={fictionDictionaries.length === 0}
-                onChange={(event) => {
-                  setSelected(event.target.value);
-                  setChoice('existing');
-                }}
-              >
-                {/* Falling back to the alphabetically first dictionary would let Save bind
+            <RadioGroup
+              aria-label="Fiction dictionary"
+              value={choice}
+              onValueChange={(value: BindingChoice) => setChoice(value)}
+            >
+              <div className={styles.bindingOption}>
+                <Radio value="existing" disabled={fictionDictionaries.length === 0}>
+                  Use an existing dictionary
+                </Radio>
+                <select
+                  aria-label="Existing dictionary"
+                  value={selected}
+                  disabled={fictionDictionaries.length === 0}
+                  onChange={(event) => {
+                    setSelected(event.target.value);
+                    setChoice('existing');
+                  }}
+                >
+                  {/* Falling back to the alphabetically first dictionary would let Save bind
                     something nobody chose. An empty value cannot be saved (see canSave). */}
-                {selected === '' && (
-                  <option value="">
-                    {fictionDictionaries.length === 0 ? 'None exist yet' : 'Choose one…'}
-                  </option>
-                )}
-                {fictionDictionaries.map((id) => (
-                  <option key={id} value={id}>
-                    {fictionDisplayName(id)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                  {selected === '' && (
+                    <option value="">
+                      {fictionDictionaries.length === 0 ? 'None exist yet' : 'Choose one…'}
+                    </option>
+                  )}
+                  {fictionDictionaries.map((id) => (
+                    <option key={id} value={id}>
+                      {fictionDisplayName(id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <label className={styles.bindingOption}>
-              <input
-                type="radio"
-                name="binding-choice"
-                checked={choice === 'new'}
-                onChange={() => setChoice('new')}
-              />
-              <span>Create a new pair</span>
-              <input
-                type="text"
-                value={newName}
-                placeholder="e.g. TapDo"
-                onChange={(event) => {
-                  setNewName(event.target.value);
-                  setChoice('new');
-                }}
-                className={styles.bindingInput}
-              />
-            </label>
+              <div className={styles.bindingOption}>
+                <Radio value="new">Create a new pair</Radio>
+                <input
+                  type="text"
+                  aria-label="New pair name"
+                  value={newName}
+                  placeholder="e.g. TapDo"
+                  onChange={(event) => {
+                    setNewName(event.target.value);
+                    setChoice('new');
+                  }}
+                  className={styles.bindingInput}
+                />
+              </div>
 
-            <label className={styles.bindingOption}>
-              <input
-                type="radio"
-                name="binding-choice"
-                checked={choice === 'none'}
-                onChange={() => setChoice('none')}
-              />
-              <span>No fiction dictionary — remember this and stop asking</span>
-            </label>
+              <div className={styles.bindingOption}>
+                <Radio value="none">No fiction dictionary — remember this and stop asking</Radio>
+              </div>
+            </RadioGroup>
           </div>
 
           <div className={styles.bindingSection}>
@@ -228,24 +220,18 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
               </table>
             )}
 
-            <label className={styles.outlineOverride}>
-              <span>Override</span>
-              <select
-                value={isOverridden && activePattern ? activePattern : ''}
-                onChange={(event) =>
-                  onSetOverride(
-                    event.target.value === '' ? null : (event.target.value as ChapterPatternId)
-                  )
-                }
-              >
-                <option value="">Auto — trust the election</option>
-                {candidates.map((candidate) => (
-                  <option key={candidate.pattern} value={candidate.pattern}>
-                    {CHAPTER_PATTERN_LABELS[candidate.pattern]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select<ChapterPatternId | null>
+              label="Override"
+              value={isOverridden && activePattern ? activePattern : null}
+              onValueChange={onSetOverride}
+              items={[
+                { value: null, label: 'Auto — trust the election' },
+                ...candidates.map((candidate) => ({
+                  value: candidate.pattern,
+                  label: CHAPTER_PATTERN_LABELS[candidate.pattern],
+                })),
+              ]}
+            />
           </div>
         </div>
 
@@ -257,13 +243,11 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
         )}
 
         <div className={styles.bindingFooter}>
-          <button onClick={onClose} className={styles.secondaryButton}>
-            Cancel
-          </button>
-          <button onClick={save} disabled={!canSave} className={styles.primaryButton}>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={save} disabled={!canSave}>
             {isApplying && <Loader size={13} className="animate-spin" />}
             Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>

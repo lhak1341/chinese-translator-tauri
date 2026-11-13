@@ -64,20 +64,17 @@ export function useAppearanceSettings() {
     }
   }, []);
 
-  const handleFollowFullTranslationChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-      const next = applyFollowFullTranslation(appearanceRef.current, e.target.checked);
-      setAppearance(next);
-      try {
-        await saveAppearanceConfig(next);
-        setError(null);
-      } catch (err) {
-        logger.error('Failed to save after checkbox change:', err);
-        setError('Failed to save appearance settings');
-      }
-    },
-    []
-  );
+  const handleFollowFullTranslationChange = useCallback(async (checked: boolean): Promise<void> => {
+    const next = applyFollowFullTranslation(appearanceRef.current, checked);
+    setAppearance(next);
+    try {
+      await saveAppearanceConfig(next);
+      setError(null);
+    } catch (err) {
+      logger.error('Failed to save after the follow switch changed:', err);
+      setError('Failed to save appearance settings');
+    }
+  }, []);
 
   const resetToDefault = useCallback(
     async (section: AppearanceSection, property: FontProperty): Promise<void> => {

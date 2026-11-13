@@ -1,3 +1,8 @@
 export { DEFAULT_THEME, FLAVORS, MODE_CHOICES, THEME_STORAGE_KEY, ThemeProvider, useTheme, type Flavor, type Mode, type ModeChoice, type Theme, type ThemeProviderProps, type ThemeState, } from './theme.tsx';
 export { KitRoot, type KitRootProps } from './kit-root.tsx';
 export { StatFigure, type StatFigureProps } from './stat-figure.tsx';
+export { Button, type ButtonProps, type ButtonVariant } from './button.tsx';
+export { Icon, type IconProps, type IconStep } from './icon.tsx';
+export { Textarea, TextField, type TextareaProps, type TextFieldProps } from './text-field.tsx';
+export { Checkbox, Radio, RadioGroup, Switch, type CheckboxProps, type RadioGroupProps, type RadioProps, type SwitchProps, } from './choice.tsx';
+export { Select, type SelectItem, type SelectProps } from './select.tsx';
