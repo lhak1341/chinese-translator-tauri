@@ -6,7 +6,7 @@
   composes: modalOverlay from './shared.module.css';
   background-color: rgba(0, 0, 0, 0.5);
   padding: 1rem;
-  animation: fadeIn 0.15s ease-out;
+  animation: global(fadeIn) 0.15s ease-out;
 }
 
 /* Modal Container */
@@ -20,7 +20,7 @@
   max-width: 500px;
   position: relative;
   border: 1px solid var(--border-color);
-  animation: slideIn 0.2s ease-out;
+  animation: global(slideIn) 0.2s ease-out;
 }
 
 /* Header */
@@ -332,7 +332,7 @@
 
 /* Loading Spinner — references global @keyframes spin defined in index.css */
 .moveButton .animate-spin {
-  animation: spin 1s linear infinite;
+  animation: global(spin) 1s linear infinite;
 }
 
 /* Responsive Design */

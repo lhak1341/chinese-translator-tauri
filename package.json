@@ -30,7 +30,9 @@
     "lint:ratchet-down": "node scripts/lint-ratchet.mjs --ratchet-down"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@lhak/style": "file:./vendor/lhak-style",
+    "@number-flow/react": "0.6.2",
     "@tanstack/react-virtual": "^3.14.26",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",

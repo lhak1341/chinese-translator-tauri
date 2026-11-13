@@ -41,3 +41,15 @@
     opacity: 1;
   }
 }
+
+/* Reduce motion: movement off, fades on (index.css "Reduced motion"). */
+@media (prefers-reduced-motion: reduce) {
+  :global(@keyframes slideIn) {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

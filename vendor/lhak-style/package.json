@@ -14,6 +14,7 @@
     "./obsidian.css": "./dist/obsidian.css",
     "./fonts.css": "./dist/fonts.css",
     "./patterns.css": "./dist/patterns.css",
+    "./kit.css": "./dist/kit.css",
     "./react": "./dist/react/index.js",
     "./obsidian-helpers": "./dist/obsidian-helpers/index.js",
     "./csp": "./dist/csp.js",
@@ -21,12 +22,20 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@number-flow/react": "0.6.2",
     "obsidian": "*",
     "react": ">=18",
     "react-dom": ">=18",
     "stylelint": ">=18"
   },
   "peerDependenciesMeta": {
+    "@base-ui/react": {
+      "optional": true
+    },
+    "@number-flow/react": {
+      "optional": true
+    },
     "obsidian": {
       "optional": true
     },

@@ -22,11 +22,13 @@ This document explains why this application requires the `'wasm-unsafe-eval'` Co
 {
   "app": {
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost"
+      "csp": "default-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'sha256-IRGtDaJoWUyd8zoPZ2Rl1Ad5ErPWovCmj1jXl1LdmQA=' 'sha256-Kf7/sUbgqFJXjmEU4ouAuE2GpLidyjTxmVez5zPkWyQ=' 'sha256-HR6/MuuYfB8aijiNP5MPm3YOR8WqVmL7UkE3Q8OslTs=' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost"
     }
   }
 }
 ```
+
+The `sha256-` sources in `style-src` are `@lhak/style`'s `STYLE_HASHES` (NumberFlow's shadow-root styles and Motion's empty `<style>`). `src/__tests__/CspStyleHashes.test.ts` fails if one is missing.
 
 ### Why It's Required
 

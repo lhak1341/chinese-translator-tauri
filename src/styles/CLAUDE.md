@@ -16,9 +16,9 @@ CSS module classes are cross-importable — scoping guarantees unique generated 
 
 **Before adding a new class name to a `.module.css` file (directly or via `composes`), grep that file for the name first** — a collision with a pre-existing same-named class silently merges both rules onto one generated class name (found: adding a modal `.header` clashed with an existing page-toolbar `.header` in the same file).
 
-## Tests Never Compile CSS — Run `vite build` After a `.module.css` Change
+## Vitest Doesn't Compile CSS Unless a Test Asks — Run `vite build` After a `.module.css` Change
 
-Vitest does not process CSS, so a stylesheet the build rejects still passes all 4,000+ tests. Found 2026-11-12: `composes: input` written above the `.input` it names failed only in `vite build` (`referenced class name "input" in composes not found`): a local `composes` must follow the class it names.
+Vitest does not process CSS on import, so a stylesheet the build rejects can pass every test. A test that needs compiled module output calls Vite's `preprocessCSS` (see `__tests__/AnimationNames.test.ts`). Found 2026-11-12: `composes: input` written above the `.input` it names failed only in `vite build` (`referenced class name "input" in composes not found`): a local `composes` must follow the class it names.
 
 ## Modal Overlays
 
@@ -28,7 +28,8 @@ Use `composes: modalOverlay from './shared.module.css'` then add per-component `
 
 - CSS Modules scopes `@keyframes` locally — `composes` does NOT work for keyframes.
 - For shared animations, use `:global(@keyframes name) { ... }` in `shared.module.css`.
-- **`spin` and `pulse` are already global in `index.css`** — do not define local or `:global` duplicates in any module file or `shared.module.css`; `animation: spin/pulse` falls back naturally.
+- **`spin` and `pulse` are already global in `index.css`** — do not define local or `:global` duplicates in any module file or `shared.module.css`.
+- **A module names a global keyframes as `animation: global(spin) …`.** CSS Modules renames every bare name in `animation`, so `animation: spin` becomes `_spin_<hash>`, which nothing defines, and the animation silently never runs (seven did, found 2026-11-13). `:global(spin)` is a parse error there. `__tests__/AnimationNames.test.ts` compiles each module through Vite and fails on a name with no keyframes.
 - **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `progress-pulse` (used by `.streaming-progress-pulse`) and `streaming-blink` (used by `.typing-cursor`). Do not rename them or add new ones to that file.
 
 ## Styling Virtualized Text Must Be Metrics-Neutral

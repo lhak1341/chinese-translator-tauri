@@ -63,3 +63,13 @@ describe('TranslatorControls progress pill', () => {
     expect(screen.queryByText(/chunks/)).not.toBeInTheDocument();
   });
 });
+
+describe('TranslatorControls stats chip', () => {
+  test('shows the average translation time as a rounded stat figure in ms', () => {
+    render(<TranslatorControls {...baseProps()} avgTime={1234.6} />);
+    const chip = screen.getByRole('status', { name: 'Translation performance statistics' });
+    expect(chip.querySelector('number-flow-react')).not.toBeNull();
+    expect(chip.textContent).toContain('1,235');
+    expect(chip.textContent).toContain('ms');
+  });
+});

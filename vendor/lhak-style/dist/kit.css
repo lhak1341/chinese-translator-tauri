@@ -1,0 +1,15 @@
+/* @lhak/style kit.css: static rules the React kit needs. Import it once, next
+   to <KitRoot>, which stops Base UI injecting <style> elements (CSP).
+
+   Hand-written, not generated. src/react/kit-root.test.tsx checks it still
+   carries the rule Base UI's own `utils/styles.mjs` would inject. */
+
+/* Base UI: ScrollArea.Viewport, and Select.Popup / Select.List with
+   alignItemWithTrigger, hide native scrollbars with this class. */
+.base-ui-disable-scrollbar {
+  scrollbar-width: none;
+}
+
+.base-ui-disable-scrollbar::-webkit-scrollbar {
+  display: none;
+}

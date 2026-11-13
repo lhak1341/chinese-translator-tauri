@@ -133,8 +133,12 @@ const TESTS_WITHOUT_PRODUCTION_IMPORT = new Set([
   'utils/__tests__/SourceConventionScan.test.js',
   // Scans source files as text for a translate call outside `EngineAccess`.
   '__tests__/EngineAccess.guard.test.js',
-  // Reads `index.css` as text: the stylesheet is its input, there is no module to import.
+  // Reads `index.css` and `shared.module.css` as text: the stylesheets are its input, there is no module to import.
   'styles/__tests__/ReducedMotion.test.ts',
+  // Reads `src-tauri/tauri.conf.json` as text against @lhak/style's hash list: the config is its input.
+  '__tests__/CspStyleHashes.test.ts',
+  // Compiles every CSS module through Vite: the stylesheets are its input, there is no module to import.
+  'styles/__tests__/AnimationNames.test.ts',
 ]);
 
 const IMPORT_RE = /(?:import[^'"]*from\s*|import\(\s*)['"]([^'"]+)['"]/g;

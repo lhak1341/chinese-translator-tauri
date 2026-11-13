@@ -589,18 +589,34 @@ tr:hover td {
   animation: spin 0.8s linear infinite;
 }
 
-/* Reduced motion */
+/* Reduced motion: movement off, fades on (@lhak/style motion rules, wayfinder ticket 012).
+   Slides, scales and spins go; fades and colour changes keep their timings. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    /* `none`, not a tiny duration: `transition-property` defaults to `all`, so any non-zero duration
-       on `*` turns on a real transition for every property of every element. With macOS Reduce
-       Motion on, a tab switch then started ~700 `visibility` transitions and the old tab stayed
-       painted (measured 2026-11-08). Nothing in src listens for `transitionend`. */
-    transition: none !important;
+    /* Only the property list, never a duration: `transition-property` defaults to `all`, so a
+       non-zero duration on `*` turns on a real transition for every property of every element.
+       With macOS Reduce Motion on, a tab switch then started ~700 `visibility` transitions and the
+       old tab stayed painted (measured 2026-11-08). Nothing in src listens for `transitionend`. */
+    transition-property:
+      opacity, color, background-color, border-color, outline-color, text-decoration-color, fill,
+      stroke, box-shadow !important;
+  }
+
+  /* The movement keyframes, redefined without movement. shared.module.css does the same for slideIn. */
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* No keyframes: a spinner stands still, and still shows the loading state. */
+  @keyframes spin {
+    /* empty on purpose */
   }
 }
 

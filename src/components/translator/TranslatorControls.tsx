@@ -1,5 +1,6 @@
 import React from 'react';
 import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Command } from 'lucide-react';
+import { StatFigure } from '@lhak/style/react';
 import styles from '../../styles/TranslatorControls.module.css';
 
 /** Quick-add hotkeys 1-7 — see docs/HOTKEYS.md's Translator-tab table (single source of
@@ -128,7 +129,7 @@ export default function TranslatorControls({
       >
         <span className={styles.statItem}>
           <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
-          {Math.round(avgTime)}ms
+          <StatFigure value={Math.round(avgTime)} suffix="ms" />
         </span>
       </div>
 
