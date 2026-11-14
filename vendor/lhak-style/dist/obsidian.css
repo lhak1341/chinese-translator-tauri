@@ -83,4 +83,7 @@
   --lk-layer-overlay: var(--layer-modal);
   --lk-layer-notice: var(--layer-notice);
   --lk-layer-tooltip: var(--layer-tooltip);
+  --lk-font-label: var(--font-interface);
+  --lk-font-interface: var(--font-text);
+  --lk-font-code: var(--font-monospace);
 }
