@@ -192,7 +192,7 @@ describe('DuplicateDictionaryTableView — context menu', () => {
 
     fireEvent.contextMenu(screen.getByText('chào'));
 
-    expect(onContextMenu).toHaveBeenCalledWith(expect.anything(), '你好', 'chào', 'properNouns-A');
+    expect(onContextMenu).toHaveBeenCalledWith('你好', 'chào', 'properNouns-A');
   });
 });
 
@@ -234,23 +234,28 @@ describe('DuplicateDictionaryTableView — semantic column', () => {
 
 describe('DuplicateDictionaryTableView — group bands', () => {
   // The app paints dotted paper behind the table; a see-through band let it show in the rows.
-  test('both group bands are opaque, so the dotted page never shows through a row', () => {
+  // The kit's TableRow paints the bands opaque (its own test pins the colours); each row here
+  // takes its group's band.
+  test('each group takes the next band: rows of adjacent groups stripe differently', () => {
     const rows = [
       makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
       makeRow({ source: '再见', translation: 'tạm biệt', dictionaryLabel: 'Phrases' }),
     ];
     renderView({ visibleDuplicateRows: rows, duplicateGroupIndices: [0, 1], totalHeight: 80 });
-    const band = (text: string) => {
-      let el: HTMLElement | null = screen.getByText(text);
-      while (el && !el.style.backgroundColor) el = el.parentElement;
-      return el?.style.backgroundColor ?? '';
-    };
-    const bands = [band('你好'), band('再见')];
-    expect(bands[0]).not.toBe(bands[1]);
-    for (const b of bands) {
-      expect(b).not.toBe('');
-      expect(b).not.toContain('transparent');
-    }
+    const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;
+    expect(row('你好').hasAttribute('data-stripe')).toBe(false);
+    expect(row('再见').hasAttribute('data-stripe')).toBe(true);
+  });
+
+  test('two rows of one group share its band', () => {
+    const rows = [
+      makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
+      makeRow({ source: '你好', translation: 'chào', dictionaryLabel: 'Proper Nouns' }),
+    ];
+    renderView({ visibleDuplicateRows: rows, duplicateGroupIndices: [1, 1], totalHeight: 80 });
+    const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;
+    expect(row('xin chào').hasAttribute('data-stripe')).toBe(true);
+    expect(row('chào').hasAttribute('data-stripe')).toBe(true);
   });
 
   // One selected colour for every table, from the theme: was an undefined `--accent-light`
@@ -266,8 +271,9 @@ describe('DuplicateDictionaryTableView — group bands', () => {
       totalHeight: 80,
       selectedEntries: new Set([createDuplicateKey('再见', rows[1]!.dictionaryId)]),
     });
-    let el: HTMLElement | null = screen.getByText('再见');
-    while (el && !el.style.backgroundColor) el = el.parentElement;
-    expect(el?.style.backgroundColor).toBe('var(--primary-subtle)');
+    // The kit paints a selected row with the theme's soft accent (--lk-accent-soft).
+    const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;
+    expect(row('再见').hasAttribute('data-selected')).toBe(true);
+    expect(row('你好').hasAttribute('data-selected')).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { Table, TableBody, TableHeader, TableHeaderCell } from '@lhak/style/react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveDialog from './MoveDialog';
@@ -16,7 +17,6 @@ import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMen
 import type { UseVirtualScrollRangeResult } from '../../hooks/useVirtualScrollRange';
 import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
 import { entryPatcher } from './EntryCells';
-import { ROW_BASE, rowBand } from './rowShading';
 
 export interface DictionaryTableViewProps {
   selectedDictionary: string;
@@ -188,125 +188,101 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
           onSelectAll={handleSelectAll}
           onSetSemanticType={handleSetDuplicateSemanticType}
           onContextMenu={handleContextMenu}
+          menu={contextMenuApi}
         />
       ) : (
         (emptyState ?? (
-          <>
-            {/* Enhanced virtualized table container */}
-            <div
-              style={{
-                flex: 1,
-                overflow: 'hidden',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              {/* Fixed table header */}
-              <div
-                style={{
-                  display: 'flex',
-                  borderBottom: '1px solid var(--border-color)',
-                  backgroundColor: 'var(--background-color)',
-                  flexShrink: 0,
-                  zIndex: 1,
-                }}
-              >
-                <SelectAllCheckboxHeaderCell
-                  checked={
-                    selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                  }
-                  onChange={handleSelectAll}
-                />
-                {headerColumns.map((col) =>
-                  col.className ? (
-                    <div
-                      key={col.label}
-                      className={`${col.className} ${styles.headerCell}`}
-                      title={col.title}
-                    >
-                      {col.label}
-                    </div>
-                  ) : (
-                    <div
-                      key={col.label}
-                      className={col.widthClassName}
-                      style={{
-                        width: col.width,
-                        padding: '0.5rem 0.25rem',
-                        fontWeight: 'bold',
-                        textAlign: 'center',
-                      }}
-                      title={col.title}
-                    >
-                      {col.label}
-                    </div>
-                  )
-                )}
-              </div>
+          <Table
+            aria-label="Dictionary entries"
+            rowCount={filteredEntries.length + 1}
+            style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}
+          >
+            {/* Fixed table header */}
+            <TableHeader>
+              <SelectAllCheckboxHeaderCell
+                checked={
+                  selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                }
+                onChange={handleSelectAll}
+              />
+              {headerColumns.map((col) =>
+                col.className ? (
+                  <TableHeaderCell
+                    key={col.label}
+                    className={`${col.className} ${styles.headerCell}`}
+                    title={col.title}
+                  >
+                    {col.label}
+                  </TableHeaderCell>
+                ) : (
+                  <TableHeaderCell
+                    key={col.label}
+                    align="center"
+                    className={col.widthClassName}
+                    style={col.width ? { width: col.width } : undefined}
+                    title={col.title}
+                  >
+                    {col.label}
+                  </TableHeaderCell>
+                )
+              )}
+            </TableHeader>
 
-              {/* Scrollable content with enhanced performance */}
-              <div
-                ref={scroll.scrollRefCallback}
-                onScroll={scroll.handleScroll}
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  maxHeight: '100%',
-                  overflow: 'auto',
-                  overflowAnchor: 'none',
-                  position: 'relative',
-                }}
-              >
-                {/* Virtual spacer for total height. Each row is absolutely positioned at its own
-                  global index — nothing shifts in layout when rows enter or leave the rendered
-                  window. The earlier translateY'd slice shifted every row up 40px in layout
-                  whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
-                  that by pulling scrollTop back, which re-added the row: flicker, then stuck.
-                  Each row paints its own band from its global index (rowShading.ts). A stripe
-                  gradient on this spacer painted only for short dictionaries: proper nouns striped,
-                  while characters, phrases and patterns (165k-660k px tall spacers) showed none
-                  (user report 2026-11-14; WebKit's limit on painting so tall a background is
-                  inferred, not probed). The spacer itself is the solid base colour, so a gap in
-                  a fast scroll shows no dotted paper. */}
-                <div
+            {/* Scrollable rows, under one entry menu (one per table, not per row) */}
+            <EntryContextMenu
+              menu={contextMenuApi}
+              body={
+                <TableBody
+                  ref={scroll.scrollRefCallback}
+                  onScroll={scroll.handleScroll}
                   style={{
-                    height: totalHeight,
-                    position: 'relative',
-                    backgroundColor: ROW_BASE,
+                    flex: 1,
+                    minHeight: 0,
+                    maxHeight: '100%',
+                    overflow: 'auto',
+                    overflowAnchor: 'none',
                   }}
-                >
-                  {visibleEntries.map(([source, translation], index) => (
-                    // Keyed by source alone (unique within a dictionary): an index in the key
-                    // remounted every row below an insert/delete, dropping inline-edit state.
-                    <div
-                      key={`${selectedDictionary}\u0000${source}`}
-                      style={{
-                        position: 'absolute',
-                        top: (startIndex + index) * ITEM_HEIGHT,
-                        left: 0,
-                        right: 0,
-                        height: ITEM_HEIGHT,
-                        backgroundColor: rowBand(startIndex + index),
-                      }}
-                    >
-                      <VirtualRowComponent
-                        source={source}
-                        translation={translation}
-                        isSelected={selectedEntries.has(source)}
-                        selectedDictionary={selectedDictionary}
-                        onRenameEntry={renameEntryWithScrollPreservation}
-                        onPatchEntry={patchEntryWithScrollPreservation}
-                        onSelectEntry={handleSelectEntry}
-                        onContextMenu={handleContextMenu}
-                      />
-                    </div>
-                  ))}
-                </div>
+                />
+              }
+            >
+              {/* Virtual spacer for total height. Each row is absolutely positioned at its own
+                global index — nothing shifts in layout when rows enter or leave the rendered
+                window. The earlier translateY'd slice shifted every row up 40px in layout
+                whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
+                that by pulling scrollTop back, which re-added the row: flicker, then stuck.
+                Each row paints its own opaque band from its global index (the kit's TableRow,
+                via RowShell); the body behind the spacer is the kit's solid surface, so a gap
+                in a fast scroll shows no dotted paper. */}
+              <div style={{ height: totalHeight, position: 'relative' }}>
+                {visibleEntries.map(([source, translation], index) => (
+                  // Keyed by source alone (unique within a dictionary): an index in the key
+                  // remounted every row below an insert/delete, dropping inline-edit state.
+                  <div
+                    key={`${selectedDictionary}\u0000${source}`}
+                    style={{
+                      position: 'absolute',
+                      top: (startIndex + index) * ITEM_HEIGHT,
+                      left: 0,
+                      right: 0,
+                      height: ITEM_HEIGHT,
+                    }}
+                  >
+                    <VirtualRowComponent
+                      source={source}
+                      translation={translation}
+                      isSelected={selectedEntries.has(source)}
+                      index={startIndex + index}
+                      selectedDictionary={selectedDictionary}
+                      onRenameEntry={renameEntryWithScrollPreservation}
+                      onPatchEntry={patchEntryWithScrollPreservation}
+                      onSelectEntry={handleSelectEntry}
+                      onContextMenu={handleContextMenu}
+                    />
+                  </div>
+                ))}
               </div>
-            </div>
-          </>
+            </EntryContextMenu>
+          </Table>
         ))
       )}
 
@@ -318,8 +294,6 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
           selectedDictionary={editingEntry.dictionaryId ?? selectedDictionary}
         />
       )}
-
-      <EntryContextMenu menu={contextMenuApi} />
 
       {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
       {(moveEntry !== null || showBulkMoveDialog) && (

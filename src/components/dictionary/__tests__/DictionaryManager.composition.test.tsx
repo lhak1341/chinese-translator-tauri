@@ -15,6 +15,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { userEvent } from '@testing-library/user-event';
 import { render, screen, fireEvent, within, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import DictionaryManager from '../DictionaryManager';
@@ -191,6 +192,17 @@ beforeEach(() => {
   });
 });
 
+/** The dictionary selector is the kit Select: its options exist only while it is open. */
+async function openSelector(): Promise<HTMLElement> {
+  const trigger = await screen.findByRole('combobox', { name: 'Dictionary' });
+  await waitFor(() => expect(trigger).not.toHaveAttribute('data-disabled'));
+  const user = userEvent.setup();
+  act(() => trigger.focus());
+  await user.keyboard('{ArrowDown}');
+  await screen.findByRole('listbox');
+  return trigger;
+}
+
 describe('DictionaryManager — which dictionaries the selector lists', () => {
   const option = (name: string) => screen.queryByRole('option', { name });
 
@@ -201,6 +213,8 @@ describe('DictionaryManager — which dictionaries the selector lists', () => {
       defaultQuickAddDictionary: null,
     });
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    await openSelector();
 
     expect(await screen.findByRole('option', { name: 'Novel' })).toBeInTheDocument();
     expect(option('Inactive')).not.toBeInTheDocument();
@@ -211,12 +225,12 @@ describe('DictionaryManager — which dictionaries the selector lists', () => {
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
 
     await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    const trigger = await screen.findByRole('combobox', { name: 'Dictionary' });
+    await waitFor(() => expect(trigger).toHaveTextContent('Inactive'));
+    await openSelector();
     await waitFor(() => expect(option('Other')).toBeInTheDocument());
     expect(option('Inactive')).toBeInTheDocument();
     expect(option('Novel')).not.toBeInTheDocument();
-    expect((screen.getAllByRole('combobox')[0] as HTMLSelectElement).value).toBe(
-      'properNouns-Inactive'
-    );
   });
 
   test('a view that could not be loaded lists every dictionary', async () => {
@@ -224,6 +238,7 @@ describe('DictionaryManager — which dictionaries the selector lists', () => {
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
 
     await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    await openSelector();
     expect(await screen.findByRole('option', { name: 'Inactive' })).toBeInTheDocument();
     expect(option('Novel')).toBeInTheDocument();
   });
@@ -234,6 +249,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     unreadRef.current = ['properNouns-Test'];
     delete dictionariesRef.current['properNouns-Test'];
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await openSelector();
 
     expect(await screen.findByRole('option', { name: "Test — couldn't read" })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't read properNouns-Test.json");
@@ -428,8 +444,9 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
       fireEvent.click(getRowCheckbox('你好'));
     });
     fireEvent.contextMenu(screen.getByText('再见'));
-    expect(screen.getByText('Edit Entry')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Delete \(1\)/ })).toBeInTheDocument();
+    expect(await screen.findByText('Edit Entry')).toBeInTheDocument();
+    // The open kit menu hides the page behind it from the accessibility tree.
+    expect(screen.getByRole('button', { name: /Delete \(1\)/, hidden: true })).toBeInTheDocument();
 
     selectedDictionaryRef.current = 'properNouns-Other';
     await act(async () => {

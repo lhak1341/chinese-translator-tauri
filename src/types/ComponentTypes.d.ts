@@ -131,8 +131,9 @@ export interface AppearanceSettings {
   fullTranslation: FontSettings;
   /** Font settings for character-only translation */
   characterOnly: FontSettings;
-  /** Font family for UI elements */
-  uiFont: Pick<FontSettings, 'fontFamily'>;
+  /** Font family for UI elements, and the UI size: a scale on the kit's UI steps (1 = 100%;
+   * one of `UI_SCALES`, appearanceConfig.ts). A file saved before the size had none. */
+  uiFont: Pick<FontSettings, 'fontFamily'> & { scale?: number };
   /** Theme selection */
   theme: Theme;
   /** Whether Character Only Box follows Full Translation Box style */

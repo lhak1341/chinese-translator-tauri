@@ -1,4 +1,5 @@
 import React from 'react';
+import { TableCell } from '@lhak/style/react';
 import { entryCapabilities, showsSemanticType } from '../../utils/dictionary';
 import { logger } from '../../utils/logger';
 import {
@@ -96,7 +97,7 @@ export const EntrySemanticCell: React.FC<{
   const caps = entryCapabilities(dictionaryId);
   if (caps.semantic === 'none') return null;
   if (!showsSemanticType(dictionaryId, allowAsPatternVariable)) {
-    return <div style={{ width, minWidth: width }} />;
+    return <TableCell style={{ width, minWidth: width }} />;
   }
   return (
     <SemanticTypeToggleCell
@@ -105,6 +106,7 @@ export const EntrySemanticCell: React.FC<{
       width={width}
       patternSource={caps.variableTypes ? source : undefined}
       rowLabel={rowLabel}
+      cell
     />
   );
 };
@@ -117,7 +119,7 @@ const TypeToggleCell: React.FC<{
 }> = ({ varName, hasVariable, activeTypes, onToggle }) => {
   if (!hasVariable) {
     return (
-      <div
+      <TableCell
         className={styles.patternsTypeCol}
         style={{
           padding: '0 0.25rem',
@@ -127,11 +129,11 @@ const TypeToggleCell: React.FC<{
         }}
       >
         <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>--</span>
-      </div>
+      </TableCell>
     );
   }
   return (
-    <div
+    <TableCell
       className={styles.patternsTypeCol}
       style={{
         padding: '0 0.25rem',
@@ -155,7 +157,7 @@ const TypeToggleCell: React.FC<{
           />
         );
       })}
-    </div>
+    </TableCell>
   );
 };
 

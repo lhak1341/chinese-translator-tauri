@@ -49,19 +49,11 @@
   flex-direction: column;
 }
 
-/* Same header shape as Dictionary's fixed header (EnhancedVirtualizedDictionaryTable):
-   flex row, bottom-border-only, background var(--background-color). Uniform font-size
-   across every column, including Dictionary/Semantic — no per-column shrink. */
-.headerRow {
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  flex-shrink: 0;
-}
-
+/* The header row and its type are the kit's TableHeader (@lhak/style, kit issue 15), as in
+   the Dictionary table: uniform across every column. Only the padding is ours, to line each
+   header up with its row cells. */
 .headerCell {
   padding: 0.5rem 0.75rem;
-  font-weight: bold;
 }
 
 .colSource {

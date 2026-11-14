@@ -1,5 +1,5 @@
 import { Trash2, Search } from 'lucide-react';
-import { ROW_CLASS, RowAction, RowActions } from '@lhak/style/react';
+import { RowAction, RowActions, TableCell } from '@lhak/style/react';
 import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import {
@@ -22,12 +22,15 @@ function RuleRow({
   deleteRule,
   toggleEnabled,
   onViewMatches,
+  index,
 }: {
   rule: TransformRule;
   updateRule: (rule: TransformRule) => Promise<void>;
   deleteRule: (id: string) => Promise<void>;
   toggleEnabled: (id: string) => Promise<void>;
   onViewMatches: (rule: TransformRule) => void;
+  /** The rule's place in the whole filtered list: its `aria-rowindex` and stripe. */
+  index?: number;
 }) {
   // What the typed text means is `commitRuleField`'s; an invalid value keeps the old one.
   const commit = (field: RuleTextField) => async (raw: string) => {
@@ -37,16 +40,16 @@ function RuleRow({
   const name = rule.label || rule.key;
 
   return (
-    <RowShell role="row" className={ROW_CLASS}>
-      <div role="cell" className={dictStyles.checkboxCell}>
+    <RowShell index={index}>
+      <TableCell className={dictStyles.checkboxCell}>
         <input
           type="checkbox"
           checked={rule.enabled}
           onChange={() => toggleEnabled(rule.id)}
           aria-label={`Toggle ${rule.label || rule.key} enabled`}
         />
-      </div>
-      <div role="cell" className={styles.colMatch}>
+      </TableCell>
+      <TableCell className={styles.colMatch}>
         <BinaryToggleChips
           value={rule.matchKind}
           label={rule.label || rule.key}
@@ -58,16 +61,20 @@ function RuleRow({
           }
           onSelect={(matchKind) => updateRule({ ...rule, matchKind })}
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colKey} ${styles.key}`}>
+      </TableCell>
+      {/* The key is Chinese: the kit's Chinese face at its own weight (was mono at 600). */}
+      <TableCell
+        lang="zh"
+        className={`${dictStyles.cellEditable} ${styles.colKey} lk-face-chinese`}
+      >
         <EditableCell
           value={rule.key}
           label={`Key for ${rule.label || rule.key}`}
           maxLength={MAX_TRANSFORM_RULE_KEY_LENGTH}
           onCommit={commit('key')}
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colChars}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colChars}`}>
         <EditableCell
           value={rule.charCount !== undefined ? String(rule.charCount) : ''}
           placeholder="—"
@@ -76,8 +83,8 @@ function RuleRow({
           allowEmpty
           onCommit={commit('charCount')}
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colMove}`}>
         <BinaryToggleChips
           value={rule.relocate}
           label={rule.label || rule.key}
@@ -87,16 +94,16 @@ function RuleRow({
           ]}
           onSelect={(relocate) => updateRule({ ...rule, relocate })}
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colCap}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colCap}`}>
         <EditableCell
           value={String(rule.capitalizeExceptN)}
           type="number"
           label={`Capitalize except N for ${rule.label || rule.key}`}
           onCommit={commit('capitalizeExceptN')}
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colReplace}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colReplace}`}>
         <EditableCell
           value={rule.moveReplacement ?? ''}
           placeholder="plain gloss"
@@ -104,8 +111,10 @@ function RuleRow({
           allowEmpty
           onCommit={commit('moveReplacement')}
         />
-      </div>
-      <div role="cell" className={styles.colType}>
+      </TableCell>
+      {/* No cell padding: the chip group is full width and its own 0.25rem padding is the
+          inset; the kit cell's 8px each side left too little room and cropped the chips. */}
+      <TableCell className={styles.colType} style={{ padding: 0 }}>
         <SemanticTypeToggleCell
           activeType={rule.semanticType}
           rowLabel={rule.label || rule.key}
@@ -115,8 +124,8 @@ function RuleRow({
           clearable={false}
           width="100%"
         />
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colLabel}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colLabel}`}>
         <EditableCell
           value={rule.label ?? ''}
           placeholder="add a label"
@@ -124,8 +133,8 @@ function RuleRow({
           allowEmpty
           onCommit={commit('label')}
         />
-      </div>
-      <div role="cell" className={`${styles.rowActions} ${styles.colActions}`}>
+      </TableCell>
+      <TableCell className={`${styles.rowActions} ${styles.colActions}`}>
         <RowActions label={`Actions for ${name}`}>
           <RowAction
             icon={Search}
@@ -139,7 +148,7 @@ function RuleRow({
             onClick={() => deleteRule(rule.id)}
           />
         </RowActions>
-      </div>
+      </TableCell>
     </RowShell>
   );
 }

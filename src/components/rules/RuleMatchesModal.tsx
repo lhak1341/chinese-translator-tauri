@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell } from '@lhak/style/react';
 import styles from '../../styles/RuleMatchesModal.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
@@ -9,7 +10,11 @@ import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { ControlledEditableCell } from '../EditableCell';
 import EntryContextMenu from '../dictionary/EntryContextMenu';
 import MoveDialog from '../dictionary/MoveDialog';
-import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
+import {
+  useContextMenu,
+  type ContextMenuEntry,
+  type OpenEntryMenu,
+} from '../../hooks/useContextMenu';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
@@ -28,21 +33,18 @@ interface RuleMatchesModalProps {
   onClose: () => void;
 }
 
-type OnRowContextMenu = (
-  e: React.MouseEvent,
-  source: string,
-  translation: string,
-  dictionaryId: string
-) => void;
+type OnRowContextMenu = OpenEntryMenu;
 
 function MatchRow({
   row,
   patchEntry,
   onContextMenu,
+  index,
 }: {
   row: RuleMatchEntry;
   patchEntry: PatchEntry;
   onContextMenu: OnRowContextMenu;
+  index: number;
 }) {
   const translEdit = useInlineFieldEdit(row.translation, (translation) =>
     patchEntry(row.dictionaryId, row.source, { translation })
@@ -51,13 +53,13 @@ function MatchRow({
 
   return (
     <RowShell
-      role="row"
-      onContextMenu={(e) => onContextMenu(e, row.source, row.translation, row.dictionaryId)}
+      index={index}
+      onContextMenu={() => onContextMenu(row.source, row.translation, row.dictionaryId)}
     >
-      <div role="cell" className={`${dictStyles.cell} ${styles.colSource}`}>
+      <TableCell lang="zh" className={`${dictStyles.cell} ${styles.colSource} lk-face-chinese`}>
         {row.source}
-      </div>
-      <div role="cell" className={`${dictStyles.cellEditable} ${styles.colTranslation}`}>
+      </TableCell>
+      <TableCell className={`${dictStyles.cellEditable} ${styles.colTranslation}`}>
         <ControlledEditableCell
           value={row.translation}
           label={`Translation for ${row.source}`}
@@ -74,8 +76,8 @@ function MatchRow({
             mixedKinds
           />
         )}
-      </div>
-      <div role="cell" className={styles.colSemantic}>
+      </TableCell>
+      <TableCell className={styles.colSemantic}>
         <EntrySemanticCell
           dictionaryId={row.dictionaryId}
           source={row.source}
@@ -84,13 +86,10 @@ function MatchRow({
           onSelect={(semanticType) => patch({ semanticType })}
           width="100%"
         />
-      </div>
-      <div
-        role="cell"
-        className={`${dictStyles.cell} ${styles.colDictionary} ${styles.dictionaryValue}`}
-      >
+      </TableCell>
+      <TableCell className={`${dictStyles.cell} ${styles.colDictionary} ${styles.dictionaryValue}`}>
         {row.dictionaryLabel}
-      </div>
+      </TableCell>
     </RowShell>
   );
 }
@@ -142,36 +141,39 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
         <div className={styles.empty}>No dictionary entries match this rule yet.</div>
       ) : (
         <div className={styles.tableArea}>
-          <div className={styles.table} role="table">
-            <div role="row" className={styles.headerRow}>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colSource}`}>
+          <Table
+            aria-label="Matching entries"
+            rowCount={matches.length + 1}
+            className={styles.table}
+          >
+            <TableHeader>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colSource}`}>
                 Source
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colTranslation}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colTranslation}`}>
                 Translation
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colSemantic}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colSemantic}`}>
                 Semantic
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colDictionary}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colDictionary}`}>
                 Dictionary
-              </div>
-            </div>
-            <div role="rowgroup">
-              {matches.map((row) => (
+              </TableHeaderCell>
+            </TableHeader>
+            <EntryContextMenu menu={contextMenuApi} body={<TableBody />} showEdit={false}>
+              {matches.map((row, index) => (
                 <MatchRow
                   key={`${row.dictionaryId}::${row.source}`}
                   row={row}
                   patchEntry={patchEntry}
+                  index={index}
                   onContextMenu={contextMenuApi.handleContextMenu}
                 />
               ))}
-            </div>
-          </div>
+            </EntryContextMenu>
+          </Table>
         </div>
       )}
-
-      <EntryContextMenu menu={contextMenuApi} showEdit={false} />
 
       {moveEntry && (
         <MoveDialog

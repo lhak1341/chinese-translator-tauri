@@ -173,3 +173,24 @@ describe('RuleRow', () => {
     expect(updateRule).not.toHaveBeenCalled();
   });
 });
+
+describe('RuleRow — Type column', () => {
+  // The kit cell's 8px padding each side cropped the full-width chip group (user report,
+  // style-kit issue 15): the Type cell keeps no padding of its own.
+  test('the Type cell adds no padding around its chip group', () => {
+    renderRow();
+    const chip = screen.getByLabelText('Set Object for City suffix');
+    const cell = chip.closest('[role="cell"]') as HTMLElement;
+    expect(cell.style.padding).toBe('0px');
+  });
+});
+
+describe('RuleRow — Key column', () => {
+  // The key is Chinese: the kit's Chinese face at its own weight (was the mono face at 600).
+  test('the Key cell is marked Chinese and set in the kit Chinese face', () => {
+    renderRow();
+    const cell = screen.getByText('城').closest('[role="cell"]');
+    expect(cell).toHaveAttribute('lang', 'zh');
+    expect(cell).toHaveClass('lk-face-chinese');
+  });
+});

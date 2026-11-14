@@ -160,7 +160,9 @@
   color: var(--lk-text);
   opacity: 1;
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  /* Interface text (md, wayfinder ticket 009), as table rows are: at sm the
+     typed text read small beside the rows (user report, kit issue 15). */
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);
@@ -833,7 +835,7 @@
   color: var(--lk-text);
   opacity: 1;
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);
@@ -922,7 +924,7 @@
   transition-timing-function: var(--lk-ease-accel);
 }
 
-/* Aligned over the trigger: it fades, never scales. */
+/* Aligned over the trigger (alignItemWithTrigger, opt-in): it fades, never scales. */
 .lk-select__popup[data-side='none'],
 .lk-select__popup[data-side='none'][data-starting-style],
 .lk-select__popup[data-side='none'][data-ending-style] {
@@ -942,12 +944,13 @@
   grid-template-columns: var(--lk-space-4) 1fr;
   align-items: center;
   gap: var(--lk-space-2);
-  min-height: var(--lk-space-8);
-  padding: 0 var(--lk-space-3) 0 var(--lk-space-2);
+  /* The menu item's metrics (menu.css, from Obsidian's .menu-item): a 32px
+     row per item made a long list scroll (user report, kit issue 15). */
+  padding: var(--lk-space-1) var(--lk-space-2);
   border-radius: var(--lk-radius-s);
   outline: none;
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);
@@ -1017,7 +1020,7 @@
   inset-inline-start: var(--lk-space-2);
   display: flex;
   color: var(--lk-text-muted);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   pointer-events: none;
 }
 
@@ -1038,7 +1041,7 @@
   box-shadow: none;
   color: var(--lk-text-muted);
   opacity: 1;
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   cursor: pointer;
   transform: none;
   transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
@@ -1110,7 +1113,7 @@
   padding: var(--lk-space-1) var(--lk-space-2);
   color: var(--lk-text-faint);
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   line-height: var(--lk-line-height-ui);
 }
 
@@ -1125,7 +1128,7 @@
   outline: none;
   color: var(--lk-text);
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);
@@ -1889,7 +1892,8 @@
    transform origin (a context menu's is the pointer), and exit at 0.75× on
    the accel curve (wayfinder ticket 012), as the popover and select do.
    Sizes follow Obsidian's .menu and .menu-item (ref-app.css): radius-m,
-   items at step-sm with 4px × 8px padding, 8px icon gap, radius-s, hover
+   items with 4px × 8px padding (at step-md, interface text, not Obsidian's
+   smaller size: kit issue 15), 8px icon gap, radius-s, hover
    background, muted icons, error-coloured warning items. Disabled items use
    text-disabled, as every kit control does, not Obsidian's text-faint
    (.menu-item.is-disabled). The popup padding
@@ -1933,7 +1937,7 @@
   outline: none;
   color: var(--lk-text);
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);
@@ -2435,4 +2439,363 @@
 .lk-row-action--danger.lk-button:hover:not(:disabled, [data-disabled]),
 .lk-row-action--danger.lk-button:active:not(:disabled, [data-disabled]) {
   background: var(--lk-danger-soft);
+}
+
+/* ---- table.css ---- */
+/* Table parts (React kit): role="table" in divs, so an app can lay rows out
+   absolutely for virtualisation. The header row sits on the chrome surface
+   with a strong rule under it; body rows are a fixed rhythm with a hairline
+   between them.
+
+   Rows are opaque: an app may paint dotted paper behind the table, and a
+   see-through row lets it show. The band is the surface; a striped row
+   (data-stripe) mixes 4% of the text colour into it, never into
+   transparent; a selected row (data-selected) is the soft accent, which is
+   opaque already. No hover band: --lk-surface-hover is see-through. The
+   app's own column widths go on the cells.
+
+   Sizes follow the UI scale (wayfinder ticket 009): rows are interface text
+   (md), headers are labels (sm), muted, in all caps. A body cell does not clip: a chip group may
+   be wider than its column, and a text cell that wants an ellipsis sets its
+   own overflow. */
+.lk-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-md);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-table__header {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  border-bottom: 1px solid var(--lk-border-strong);
+  background: var(--lk-surface-chrome);
+}
+
+.lk-table__header-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--lk-space-9);
+}
+
+.lk-table__header-cell {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: var(--lk-space-2) var(--lk-space-2);
+  overflow: hidden;
+  color: var(--lk-text-muted);
+  font-family: var(--lk-font-label);
+  font-size: var(--lk-step-sm);
+  /* Semibold, all caps (user decisions, kit issue 15), opened up a little:
+     capitals set at the face's own tracking crowd each other. 600 is a
+     literal: the contract has no semibold weight token. */
+  font-weight: 600;
+  letter-spacing: calc(var(--lk-tracking-label) + 0.06em);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lk-table__body {
+  position: relative;
+  min-height: 0;
+  background: var(--lk-surface);
+}
+
+.lk-table__row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: var(--lk-space-10);
+  border-bottom: 1px solid var(--lk-border);
+  background: var(--lk-surface);
+  transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-table__row[data-stripe] {
+  background: color-mix(in srgb, var(--lk-text) 4%, var(--lk-surface));
+}
+
+.lk-table__row[data-selected] {
+  background: var(--lk-accent-soft);
+}
+
+.lk-table__cell {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 var(--lk-space-2);
+}
+
+.lk-table__cell--center {
+  justify-content: center;
+  text-align: center;
+}
+
+.lk-table__cell--end {
+  justify-content: flex-end;
+  text-align: end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-table__row {
+    transition: none;
+  }
+}
+
+/* ---- setting.css ---- */
+/* Settings rows (React kit): <section class="lk-setting-group"> with a
+   header (title, description, "follows" switch) and a <fieldset
+   class="lk-setting-group__rows"> of .lk-setting-row fields. A row is a
+   label column, then the control (and anything after it), then an optional
+   help line under the control. A disabled row's label fades with its
+   control (Base UI's data-disabled on the field). */
+.lk-setting-group {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-3);
+  padding: var(--lk-space-4);
+  border: 1px solid var(--lk-border);
+  border-radius: var(--lk-radius-l);
+  background: var(--lk-surface);
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-setting-group__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-1);
+}
+
+.lk-setting-group__title {
+  margin: 0;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-lg);
+  font-weight: var(--lk-heading-weight);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-setting-group__description {
+  margin: 0;
+  color: var(--lk-text-muted);
+  font-size: var(--lk-step-xs);
+}
+
+.lk-setting-group__follows {
+  padding-top: var(--lk-space-1);
+}
+
+.lk-setting-group__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lk-setting-row {
+  display: grid;
+  grid-template-columns: minmax(8em, max-content) minmax(0, 1fr);
+  column-gap: var(--lk-space-3);
+  row-gap: var(--lk-space-1);
+  align-items: center;
+}
+
+.lk-setting-row__label {
+  grid-column: 1;
+  color: var(--lk-text-muted);
+  font-family: var(--lk-font-label);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-label);
+  letter-spacing: var(--lk-tracking-label);
+}
+
+.lk-setting-row__control {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--lk-space-2);
+  min-width: 0;
+}
+
+/* A text field fills the column; a switch or a button after it keeps its own width. */
+.lk-setting-row__control > .lk-text-field {
+  flex: 1;
+}
+
+.lk-setting-row__help {
+  grid-column: 2;
+  margin: 0;
+  color: var(--lk-text-faint);
+  font-size: var(--lk-step-xs);
+}
+
+.lk-setting-row[data-disabled] .lk-setting-row__label {
+  color: var(--lk-text-disabled);
+}
+
+/* ---- calendar.css ---- */
+/* Calendar (React kit): react-day-picker's month grid with kit classes in
+   place of its stylesheet (date-picker.tsx maps every slot). The nav buttons
+   are ghost icon buttons (button.css). A day is a 32px square at radius-s:
+   today is accent text, the picked day is a solid accent fill (a selection,
+   not a category), outside days are faint.
+
+   A day is a <button>, so every property an app's own `button` rules set is
+   restated here, in each state (the translator sets padding, border, radius,
+   transition, a hover background, an active translate, a focus glow and a
+   disabled opacity). */
+.lk-calendar {
+  display: inline-block;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-calendar__months {
+  position: relative;
+  display: flex;
+  gap: var(--lk-space-4);
+}
+
+.lk-calendar__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-2);
+}
+
+.lk-calendar__nav {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: var(--lk-space-1);
+}
+
+.lk-calendar__caption {
+  display: flex;
+  align-items: center;
+  min-height: var(--lk-space-8);
+  padding-inline-start: var(--lk-space-2);
+}
+
+.lk-calendar__caption-label {
+  font-family: var(--lk-font-label);
+  font-weight: var(--lk-weight-label);
+  letter-spacing: var(--lk-tracking-label);
+}
+
+.lk-calendar__grid {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.lk-calendar__weekday {
+  width: var(--lk-space-8);
+  height: var(--lk-space-6);
+  padding: 0;
+  color: var(--lk-text-faint);
+  font-size: var(--lk-step-xs);
+  font-weight: var(--lk-weight-interface);
+  text-align: center;
+}
+
+.lk-calendar__day {
+  padding: 0;
+  text-align: center;
+}
+
+.lk-calendar__day--hidden {
+  visibility: hidden;
+}
+
+.lk-calendar__day-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lk-space-8);
+  height: var(--lk-space-8);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lk-radius-s);
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  opacity: 1;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  transform: none;
+  cursor: pointer;
+  transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-calendar__day-button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--lk-surface-hover);
+}
+
+.lk-calendar__day-button:active {
+  transform: none;
+}
+
+.lk-calendar__day-button:focus-visible {
+  outline: 2px solid var(--lk-focus-ring);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.lk-calendar__day--today .lk-calendar__day-button {
+  color: var(--lk-accent);
+  font-weight: var(--lk-weight-label);
+}
+
+.lk-calendar__day--outside .lk-calendar__day-button {
+  color: var(--lk-text-faint);
+}
+
+.lk-calendar__day--selected .lk-calendar__day-button,
+.lk-calendar__day--selected .lk-calendar__day-button:hover {
+  background: var(--lk-accent);
+  color: var(--lk-text-on-accent);
+}
+
+.lk-calendar__day--disabled .lk-calendar__day-button,
+.lk-calendar__day-button:disabled {
+  background: transparent;
+  color: var(--lk-text-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-calendar__day-button {
+    transition: none;
+  }
 }

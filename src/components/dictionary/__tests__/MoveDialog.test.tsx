@@ -8,8 +8,10 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 import MoveDialog from '../MoveDialog';
+import { getDictionaryDropdownLabel } from '../../../utils/dictionary/DictionaryLabels';
 
 const mockUseDictionary = vi.fn();
 vi.mock('../DictionaryContext', () => ({
@@ -28,6 +30,35 @@ const mockDictionaryTypes = {
   conversion: { label: 'Conversion' },
   punctuation: { label: 'Punctuation' },
 };
+
+// The destination is a kit Select (style-kit issue 15): its options exist only while it is
+// open, and show each dictionary's dropdown label, not its id.
+const targetTrigger = () => screen.getByRole('combobox', { name: 'To:' });
+
+async function openTargets(): Promise<void> {
+  const trigger = await waitFor(targetTrigger);
+  if (trigger.getAttribute('aria-expanded') === 'true') return;
+  const user = userEvent.setup();
+  act(() => trigger.focus());
+  await user.keyboard('{ArrowDown}');
+  await screen.findByRole('listbox');
+}
+
+/** The ids of the offered destinations, read back from their labels. */
+function targetIds(): string[] {
+  const labels = screen.getAllByRole('option').map((o) => o.textContent);
+  return Object.keys(mockDictionaryTypes).filter((id) =>
+    labels.includes(getDictionaryDropdownLabel(id))
+  );
+}
+
+async function chooseTarget(id: string): Promise<void> {
+  await openTargets();
+  await userEvent
+    .setup()
+    .click(screen.getByRole('option', { name: getDictionaryDropdownLabel(id) }));
+  await waitFor(() => expect(targetTrigger()).toHaveTextContent(getDictionaryDropdownLabel(id)));
+}
 
 describe('MoveDialog', () => {
   const mockMoveEntries = vi.fn();
@@ -91,10 +122,9 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      await openTargets();
 
-      const options = Array.from(select.options).map((opt) => opt.value);
+      const options = targetIds();
       expect(options).not.toContain('phrases');
       expect(options).toContain('properNouns');
     });
@@ -119,11 +149,12 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns' } });
+      await openTargets();
+      await chooseTarget('properNouns');
 
-      await waitFor(() => expect(select.value).toBe('properNouns'));
+      await waitFor(() =>
+        expect(targetTrigger()).toHaveTextContent(getDictionaryDropdownLabel('properNouns'))
+      );
       expect(screen.queryByText(/already exists in target dictionary/)).not.toBeInTheDocument();
     });
 
@@ -136,9 +167,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns' } });
+      await openTargets();
+      await chooseTarget('properNouns');
 
       await waitFor(() =>
         expect(
@@ -158,12 +188,9 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      await openTargets();
 
-      const options = Array.from(select.options)
-        .map((opt) => opt.value)
-        .filter(Boolean);
+      const options = targetIds();
       expect(options).toEqual(['patterns-f_NovelName']);
     });
 
@@ -176,12 +203,9 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      await openTargets();
 
-      const options = Array.from(select.options)
-        .map((opt) => opt.value)
-        .filter(Boolean);
+      const options = targetIds();
       expect(options).toContain('properNouns');
       expect(options).toContain('properNouns-NovelName');
       for (const excluded of ['characters', 'conversion', 'punctuation', 'patterns']) {
@@ -198,9 +222,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-Unloaded' } });
+      await openTargets();
+      await chooseTarget('properNouns-Unloaded');
 
       await waitFor(() => expect(mockLoadDictionary).toHaveBeenCalledWith('properNouns-Unloaded'));
     });
@@ -214,9 +237,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns' } });
+      await openTargets();
+      await chooseTarget('properNouns');
 
       expect(mockLoadDictionary).not.toHaveBeenCalled();
     });
@@ -231,9 +253,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
@@ -259,9 +280,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
@@ -309,9 +329,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns' } });
+      await openTargets();
+      await chooseTarget('properNouns');
 
       await waitFor(() =>
         expect(
@@ -330,9 +349,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.click(screen.getByRole('button', { name: 'Move 2 Entries' }));
 
@@ -358,9 +376,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.click(screen.getByRole('button', { name: 'Move 2 Entries' }));
 
@@ -385,8 +402,7 @@ describe('MoveDialog', () => {
       const moveButton = await waitFor(() => screen.getByRole('button', { name: 'Move Entry' }));
       expect(moveButton).toBeDisabled();
 
-      const select = screen.getByRole('combobox');
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await chooseTarget('properNouns-NovelName');
       expect(moveButton).not.toBeDisabled();
     });
 
@@ -405,9 +421,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
@@ -428,9 +443,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
 
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Enter' });
 
@@ -473,7 +487,7 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('combobox')));
+      await waitFor(() => expect(document.activeElement).toBe(targetTrigger()));
     });
 
     test('Escape does not close while a move runs', async () => {
@@ -491,9 +505,8 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      await openTargets();
+      await chooseTarget('properNouns-NovelName');
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
       await waitFor(() => expect(screen.getByText('Moving...')).toBeInTheDocument());
 

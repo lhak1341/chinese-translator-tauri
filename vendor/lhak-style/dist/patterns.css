@@ -149,7 +149,9 @@
   color: var(--lk-text);
   opacity: 1;
   font-family: var(--lk-font-interface);
-  font-size: var(--lk-step-sm);
+  /* Interface text (md, wayfinder ticket 009), as table rows are: at sm the
+     typed text read small beside the rows (user report, kit issue 15). */
+  font-size: var(--lk-step-md);
   font-weight: var(--lk-weight-interface);
   letter-spacing: var(--lk-tracking-interface);
   line-height: var(--lk-line-height-ui);

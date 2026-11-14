@@ -1,10 +1,10 @@
 import { memo, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { PlusCircle } from 'lucide-react';
+import { Table, TableBody, TableHeader, TableHeaderCell } from '@lhak/style/react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { ITEM_HEIGHT, SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
-import { ROW_BASE, rowBand } from '../dictionary/rowShading';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { toggled } from '../../utils/ui/toggled';
@@ -169,52 +169,56 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
                   : 'No rules yet — add one to auto-transform matching dictionary entries.'}
           </div>
         ) : (
-          <div className={styles.table} role="table">
-            <div role="row" className={styles.headerRow}>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colOn}`}>
+          <Table
+            aria-label="Transform rules"
+            rowCount={filteredRules.length + 1}
+            className={styles.table}
+          >
+            <TableHeader>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colOn}`}>
                 On
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colMatch}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colMatch}`}>
                 Match
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colKey}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colKey}`}>
                 Key
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colChars}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colChars}`}>
                 Chars
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colMove}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colMove}`}>
                 Move
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colCap}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colCap}`}>
                 Cap
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colReplace}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colReplace}`}>
                 Replace
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colType}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colType}`}>
                 Type
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colLabel}`}>
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colLabel}`}>
                 Label
-              </div>
-              <div role="columnheader" className={`${styles.headerCell} ${styles.colActions}`} />
-            </div>
-            <div
-              role="rowgroup"
+              </TableHeaderCell>
+              <TableHeaderCell className={`${styles.headerCell} ${styles.colActions}`} />
+            </TableHeader>
+            <TableBody
               ref={scroll.scrollRefCallback}
               onScroll={scroll.handleScroll}
               className={styles.rowScroller}
             >
               {/* Spacer for the whole list; each row sits at its own index's offset, so
                   nothing shifts in layout as rows enter or leave the rendered window. Each row
-                  paints its own opaque band from its global index (rowShading.ts), as the
-                  Dictionary table's do, so the page's dotted paper never shows through a rule. */}
+                  paints its own opaque band from its global index (the kit's TableRow, via
+                  RowShell), as the Dictionary table's do, so the page's dotted paper never
+                  shows through a rule. The spacer is the kit's surface for the same reason. */}
               <div
                 style={{
                   height: filteredRules.length * ITEM_HEIGHT,
                   position: 'relative',
-                  backgroundColor: ROW_BASE,
+                  backgroundColor: 'var(--lk-surface)',
                 }}
               >
                 {visibleRules.map((rule, index) => (
@@ -226,7 +230,6 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
                       left: 0,
                       right: 0,
                       height: ITEM_HEIGHT,
-                      backgroundColor: rowBand(startIndex + index),
                     }}
                   >
                     <RuleRow
@@ -235,12 +238,13 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
                       deleteRule={deleteRule}
                       toggleEnabled={toggleEnabled}
                       onViewMatches={setViewingMatches}
+                      index={startIndex + index}
                     />
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
+            </TableBody>
+          </Table>
         )}
       </div>
 

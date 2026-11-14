@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import React from 'react';
 import { ThemeProvider } from '@lhak/style/react';
 import AppearanceManager from '../AppearanceManager';
@@ -16,6 +16,7 @@ const handleInputChange = vi.fn();
 const handleAutoSave = vi.fn();
 const handleResetClick = vi.fn();
 const handleFollowFullTranslationChange = vi.fn();
+const handleUiScaleChange = vi.fn();
 
 const baseAppearance: AppearanceSettings = {
   chineseText: {
@@ -54,6 +55,7 @@ function buildMockReturn(appearance: AppearanceSettings) {
     handleAutoSave,
     handleResetClick,
     handleFollowFullTranslationChange,
+    handleUiScaleChange,
   };
 }
 
@@ -132,6 +134,66 @@ describe('AppearanceManager — field onChange/onReset dispatch', () => {
     fireEvent.blur(input);
 
     expect(handleAutoSave).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AppearanceManager — kit settings rows (style-kit issue 15)', () => {
+  test('each section is a region named by its title, with each field labelled by its row', () => {
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    for (const title of [
+      'Theme',
+      'Chinese Text Box',
+      'UI Font',
+      'Full Translation Box',
+      'Character Only Box',
+    ]) {
+      expect(screen.getByRole('region', { name: title })).toBeInTheDocument();
+    }
+    const fullTranslation = screen.getByRole('region', { name: 'Full Translation Box' });
+    expect(
+      within(fullTranslation).getByRole('textbox', { name: 'Paragraph Spacing:' })
+    ).toHaveAttribute('id', 'fullTranslation-paragraphSpacing');
+  });
+
+  test('the follow switch sits in the Character Only Box header, and following disables its rows', () => {
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const characterOnly = screen.getByRole('region', { name: 'Character Only Box' });
+    expect(
+      within(characterOnly).getByRole('switch', { name: 'Follow Full Translation Box style' })
+    ).toBeInTheDocument();
+    // The rows' fieldset (unnamed: the region already carries the title).
+    expect(characterOnly.querySelector('fieldset')).toBeDisabled();
+    expect(
+      screen.getByRole('region', { name: 'Full Translation Box' }).querySelector('fieldset')
+    ).toBeEnabled();
+  });
+});
+
+describe('AppearanceManager — UI size', () => {
+  test('the UI Font group offers the UI size as a choice, showing the saved one', () => {
+    mockHookReturn = buildMockReturn({
+      ...baseAppearance,
+      uiFont: { ...baseAppearance.uiFont, scale: 1.1 },
+    });
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const uiFont = screen.getByRole('region', { name: 'UI Font' });
+    const size = within(uiFont).getByRole('radiogroup', { name: 'UI size' });
+    expect(
+      within(size)
+        .getAllByRole('radio')
+        .map((r) => r.textContent)
+    ).toEqual(['90%', '100%', '110%', '125%']);
+    expect(within(size).getByRole('radio', { name: '110%' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+  });
+
+  test('no saved size shows 100%; choosing another saves it as a scale', async () => {
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    expect(screen.getByRole('radio', { name: '100%' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: '125%' }));
+    expect(handleUiScaleChange).toHaveBeenCalledWith(1.25);
   });
 });
 

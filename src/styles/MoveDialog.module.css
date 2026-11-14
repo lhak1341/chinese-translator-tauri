@@ -128,37 +128,13 @@
   font-style: italic;
 }
 
-/* Select Dropdown */
+/* The destination is the kit Select (@lhak/style): only its width and the error border are ours. */
 .select {
   width: 100%;
-  padding: 0.625rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.select:hover:not(:disabled) {
-  border-color: var(--primary-color, #4a90e2);
-}
-
-.select:focus {
-  outline: none;
-  border-color: var(--primary-color, #4a90e2);
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
-}
-
-.select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background-color: var(--surface-color);
 }
 
 .selectWithError {
-  border-color: var(--danger-button-text, #dc2626);
+  border-color: var(--lk-danger);
 }
 
 /* Notification Styles */

@@ -5,6 +5,7 @@ import {
   loadAppearanceConfig,
   saveAppearanceConfig,
   invalidateAppearanceConfig,
+  UI_SCALES,
 } from '../appearanceConfig';
 
 describe('appearanceConfig.fromRaw', () => {
@@ -31,7 +32,7 @@ describe('appearanceConfig.fromRaw', () => {
         lineHeight: '28px',
         paragraphSpacing: '1rem',
       },
-      uiFont: { fontFamily: 'Roboto' },
+      uiFont: { fontFamily: 'Roboto', scale: 1.1 },
       theme: 'dark',
       characterOnlyFollowsFullTranslation: false,
       chineseFaceMigrated: true,
@@ -138,9 +139,22 @@ describe('appearanceConfig.fromRaw', () => {
     );
   });
 
-  it('validates uiFont (fontFamily only, no letterSpacing)', () => {
-    expect(fromRaw({ uiFont: { fontFamily: 'Roboto' } }).uiFont).toEqual({ fontFamily: 'Roboto' });
+  it('validates uiFont (fontFamily and scale, no letterSpacing)', () => {
+    expect(fromRaw({ uiFont: { fontFamily: 'Roboto' } }).uiFont).toEqual({
+      fontFamily: 'Roboto',
+      scale: 1,
+    });
     expect(fromRaw({ uiFont: { fontFamily: 42 } }).uiFont).toEqual(DEFAULT_APPEARANCE.uiFont);
+  });
+
+  it('keeps a saved UI size only when it is one of the offered scales', () => {
+    expect(DEFAULT_APPEARANCE.uiFont.scale).toBe(1);
+    for (const scale of UI_SCALES) {
+      expect(fromRaw({ uiFont: { fontFamily: 'Roboto', scale } }).uiFont.scale).toBe(scale);
+    }
+    for (const scale of [0, 3, -1, '1.1', null]) {
+      expect(fromRaw({ uiFont: { fontFamily: 'Roboto', scale } }).uiFont.scale).toBe(1);
+    }
   });
 });
 

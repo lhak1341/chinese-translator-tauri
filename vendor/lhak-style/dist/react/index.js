@@ -25,3 +25,6 @@ export { ContextMenu, ContextMenuPopup, ContextMenuTrigger, } from "./context-me
 export { Tooltip, TooltipProvider } from "./tooltip.js";
 export { createToastManager, ToastProvider, useToastManager, } from "./toast.js";
 export { Tab, TabList, TabPanel, Tabs } from "./tabs.js";
+export { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, useRowMenu, } from "./table.js";
+export { SettingGroup, SettingRow, } from "./setting.js";
+export { Calendar, DatePicker } from "./date-picker.js";

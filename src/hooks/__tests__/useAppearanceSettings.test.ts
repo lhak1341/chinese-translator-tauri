@@ -432,3 +432,20 @@ describe('handler stability', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// handleUiScaleChange
+// ---------------------------------------------------------------------------
+describe('handleUiScaleChange', () => {
+  it('sets the UI size, applies it to the kit steps and saves at once', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData({}) });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(() => result.current.handleUiScaleChange(1.25));
+
+    expect(result.current.appearance.uiFont.scale).toBe(1.25);
+    expect(document.documentElement.style.getPropertyValue('--lk-step-md')).toBe('20px');
+    expect(mockSave).toHaveBeenCalled();
+  });
+});

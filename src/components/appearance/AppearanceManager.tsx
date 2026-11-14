@@ -1,8 +1,18 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
-import { Button, Icon, Switch, TextField, ThemeSwitch } from '@lhak/style/react';
+import {
+  Button,
+  Icon,
+  SegmentedControl,
+  SettingGroup,
+  SettingRow,
+  TextField,
+  ThemeSwitch,
+  type SettingFollows,
+} from '@lhak/style/react';
 import styles from '../../styles/AppearanceManager.module.css';
 import { useAppearanceSettings } from '../../hooks/useAppearanceSettings';
+import { UI_SCALES } from '../../utils/appearanceConfig';
 import type { AppearanceSection, FontProperty } from '../../utils/ui/AppearanceReducer';
 import type { AppearanceSettings } from '../../types/ComponentTypes';
 
@@ -18,7 +28,6 @@ interface FieldGroup {
   column: 'left' | 'right';
   fields: FieldConfig[];
   previewText?: string;
-  disabled?: (appearance: AppearanceSettings) => boolean;
 }
 
 const LETTER_SPACING_PLACEHOLDER = 'e.g., normal, 0.05em (wider), -0.02em (tighter)';
@@ -109,7 +118,6 @@ const FIELD_GROUPS: FieldGroup[] = [
       },
     ],
     previewText: 'This is a preview of the character-only translation style.',
-    disabled: (appearance) => appearance.characterOnlyFollowsFullTranslation ?? true,
   },
 ];
 
@@ -140,14 +148,10 @@ function FontControlRow({
   const resetTitle = `Reset ${label.replace(/:$/, '').toLowerCase()} to default`;
 
   return (
-    <div className={styles.controlRow}>
-      <label htmlFor={id} className={styles.label}>
-        {label}
-      </label>
+    <SettingRow label={label}>
       <TextField
         id={id}
         type="text"
-        className={styles.field}
         value={value}
         data-section={section}
         data-property={property}
@@ -167,7 +171,7 @@ function FontControlRow({
       >
         <Icon icon={RotateCcw} />
       </Button>
-    </div>
+    </SettingRow>
   );
 }
 
@@ -177,7 +181,10 @@ interface FontControlGroupProps {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: () => void;
   onReset: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  beforeFields?: React.ReactNode;
+  /** The section this one can follow (character-only follows full translation). */
+  follows?: SettingFollows;
+  /** Rows after the font fields (the UI Font group's size). */
+  extraRows?: React.ReactNode;
 }
 
 function FontControlGroup({
@@ -186,60 +193,66 @@ function FontControlGroup({
   onChange,
   onBlur,
   onReset,
-  beforeFields,
+  follows,
+  extraRows,
 }: FontControlGroupProps) {
   const sectionValues = appearance[group.section] as unknown as Record<string, string | undefined>;
-  const disabled = group.disabled?.(appearance);
+  // Following another section disables this one's rows. The kit group's fieldset already
+  // does; each row also says so itself, so its field and reset button read disabled
+  // wherever a <fieldset disabled> is not honoured (happy-dom).
+  const disabled = follows?.checked ?? false;
 
   return (
-    <div className={styles.section}>
-      <h3 className={styles.sectionTitle}>{group.title}</h3>
-      <div className={styles.controlGroup}>
-        {beforeFields}
-        {group.fields.map((field) => {
-          const raw = sectionValues[field.property];
-          const value = field.property === 'paragraphSpacing' ? (raw ?? '1rem') : (raw ?? '');
-          return (
-            <FontControlRow
-              key={field.property}
-              section={group.section}
-              property={field.property}
-              label={field.label}
-              placeholder={field.placeholder}
-              value={value}
-              disabled={disabled}
-              onChange={onChange}
-              onBlur={onBlur}
-              onReset={onReset}
-            />
-          );
-        })}
-        {group.previewText && (
-          <div
-            className={styles.preview}
-            style={{
-              fontFamily: sectionValues.fontFamily,
-              fontSize: sectionValues.fontSize,
-              letterSpacing: sectionValues.letterSpacing,
-              lineHeight: sectionValues.lineHeight,
-            }}
-          >
-            {group.previewText}
-          </div>
-        )}
-      </div>
-    </div>
+    <SettingGroup title={group.title} follows={follows}>
+      {group.fields.map((field) => {
+        const raw = sectionValues[field.property];
+        const value = field.property === 'paragraphSpacing' ? (raw ?? '1rem') : (raw ?? '');
+        return (
+          <FontControlRow
+            key={field.property}
+            section={group.section}
+            property={field.property}
+            label={field.label}
+            placeholder={field.placeholder}
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+            onBlur={onBlur}
+            onReset={onReset}
+          />
+        );
+      })}
+      {extraRows}
+      {group.previewText && (
+        <div
+          className={styles.preview}
+          style={{
+            fontFamily: sectionValues.fontFamily,
+            fontSize: sectionValues.fontSize,
+            letterSpacing: sectionValues.letterSpacing,
+            lineHeight: sectionValues.lineHeight,
+          }}
+        >
+          {group.previewText}
+        </div>
+      )}
+    </SettingGroup>
   );
 }
+
+/** The UI size choices: each scale as a percentage. */
+const UI_SCALE_ITEMS = UI_SCALES.map((scale) => ({
+  value: String(scale),
+  label: `${Math.round(scale * 100)}%`,
+}));
 
 /** Flavor and mode of the @lhak/style token contract. The kit's ThemeProvider applies and
  * remembers them, so nothing here goes through appearance.json. */
 function ThemeSection() {
   return (
-    <div className={styles.section}>
-      <h3 className={styles.sectionTitle}>Theme</h3>
+    <SettingGroup title="Theme">
       <ThemeSwitch />
-    </div>
+    </SettingGroup>
   );
 }
 
@@ -252,6 +265,7 @@ const AppearanceManager: React.FC = () => {
     handleAutoSave,
     handleResetClick,
     handleFollowFullTranslationChange,
+    handleUiScaleChange,
   } = useAppearanceSettings();
 
   if (isLoading) {
@@ -266,16 +280,23 @@ const AppearanceManager: React.FC = () => {
   const leftGroups = FIELD_GROUPS.filter((g) => g.column === 'left');
   const rightGroups = FIELD_GROUPS.filter((g) => g.column === 'right');
 
-  const followSwitch = (
-    <div className={styles.controlRow}>
-      <Switch
-        checked={appearance.characterOnlyFollowsFullTranslation ?? true}
-        onCheckedChange={handleFollowFullTranslationChange}
-      >
-        <span className={styles.label}>Follow Full Translation Box style</span>
-      </Switch>
-    </div>
+  // The UI size scales every kit UI step (AppearanceReducer.applyUiScaleToKit); saved at once.
+  const uiSizeRow = (
+    <SettingRow group label="Size:">
+      <SegmentedControl
+        aria-label="UI size"
+        items={UI_SCALE_ITEMS}
+        value={String(appearance.uiFont.scale ?? 1)}
+        onValueChange={(value) => void handleUiScaleChange(Number(value))}
+      />
+    </SettingRow>
   );
+
+  const followFullTranslation: SettingFollows = {
+    label: 'Follow Full Translation Box style',
+    checked: appearance.characterOnlyFollowsFullTranslation ?? true,
+    onCheckedChange: handleFollowFullTranslationChange,
+  };
 
   return (
     <div className={styles.container}>
@@ -292,6 +313,7 @@ const AppearanceManager: React.FC = () => {
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
+              extraRows={group.section === 'uiFont' ? uiSizeRow : undefined}
             />
           ))}
         </div>
@@ -305,7 +327,7 @@ const AppearanceManager: React.FC = () => {
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
-              beforeFields={group.section === 'characterOnly' ? followSwitch : undefined}
+              follows={group.section === 'characterOnly' ? followFullTranslation : undefined}
             />
           ))}
         </div>

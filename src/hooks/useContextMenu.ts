@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useRowMenu, type RowMenu } from '@lhak/style/react';
 import toast from '../utils/toast';
 
 /** The entry a context menu acts on. `dictionaryId` travels with it because the duplicate
@@ -9,12 +10,9 @@ export interface ContextMenuEntry {
   dictionaryId: string;
 }
 
-export interface ContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  entry: ContextMenuEntry | null;
-}
+/** A row's `onContextMenu`: names the entry the menu opens on. The kit trigger around the
+ * rows opens the menu and stops the WebView's own, so the row needs no event. */
+export type OpenEntryMenu = (source: string, translation: string, dictionaryId: string) => void;
 
 interface UseContextMenuActions {
   onEdit: (entry: ContextMenuEntry) => void;
@@ -22,109 +20,59 @@ interface UseContextMenuActions {
   onDelete: (entry: ContextMenuEntry) => Promise<void>;
 }
 
-const CLOSED: ContextMenuState = { visible: false, x: 0, y: 0, entry: null };
-
+/**
+ * The entry actions menu (Edit / Move to... / Delete) for a table of entries: one kit context
+ * menu for the whole table (`useRowMenu`, @lhak/style kit issue 15), opened on whichever row
+ * was right-clicked. `EntryContextMenu` renders it around the table's rows. Base UI owns the
+ * position, focus, arrow keys, Escape/Tab and the outside click; this hook owns which entry
+ * the menu is for and the two-step delete.
+ */
 export function useContextMenu({ onEdit, onMove, onDelete }: UseContextMenuActions) {
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>(CLOSED);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const menu: RowMenu<ContextMenuEntry> = useRowMenu<ContextMenuEntry>();
+  const { openOn, close } = menu;
   // Delete is two-step: the first click arms it (the item turns into a "click again" prompt),
   // the second deletes. Bulk delete already asked for confirmation; this one didn't.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const closeContextMenu = useCallback((): void => {
-    setContextMenu(CLOSED);
-    setConfirmingDelete(false);
-  }, []);
-
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent, source: string, translation: string, dictionaryId: string): void => {
-      e.preventDefault();
+  const handleContextMenu: OpenEntryMenu = useCallback(
+    (source, translation, dictionaryId) => {
       setConfirmingDelete(false);
-      setContextMenu({
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        entry: { source, translation, dictionaryId },
-      });
+      openOn({ source, translation, dictionaryId });
     },
-    []
+    [openOn]
   );
 
   const handleContextMenuEdit = useCallback((): void => {
-    if (!contextMenu.entry) return;
-    onEdit(contextMenu.entry);
-    closeContextMenu();
-  }, [contextMenu.entry, onEdit, closeContextMenu]);
+    if (menu.row) onEdit(menu.row);
+  }, [menu.row, onEdit]);
 
   const handleContextMenuMove = useCallback((): void => {
-    if (!contextMenu.entry) return;
-    onMove(contextMenu.entry);
-    closeContextMenu();
-  }, [contextMenu.entry, onMove, closeContextMenu]);
+    if (menu.row) onMove(menu.row);
+  }, [menu.row, onMove]);
 
+  /** The Delete item keeps the menu open (`closeOnClick={false}`): the first click arms it,
+   * the second deletes and closes. */
   const handleContextMenuDelete = useCallback(async (): Promise<void> => {
-    if (!contextMenu.entry) return;
+    const entry = menu.row;
+    if (!entry) return;
     if (!confirmingDelete) {
       setConfirmingDelete(true);
       return;
     }
     try {
-      await onDelete(contextMenu.entry);
-      closeContextMenu();
+      await onDelete(entry);
     } catch (error) {
       toast.error(`Failed to delete entry: ${(error as Error).message}`, { duration: 6000 });
-      closeContextMenu();
     }
-  }, [contextMenu.entry, confirmingDelete, onDelete, closeContextMenu]);
-
-  // Close when clicking outside
-  useEffect(() => {
-    if (!contextMenu.visible) return undefined;
-    const handleClickOutside = () => closeContextMenu();
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [contextMenu.visible, closeContextMenu]);
-
-  // Auto-focus first menu item when menu opens
-  useEffect(() => {
-    if (contextMenu.visible && contextMenuRef.current) {
-      const firstButton =
-        contextMenuRef.current.querySelector<HTMLButtonElement>('[role="menuitem"]');
-      firstButton?.focus();
-    }
-  }, [contextMenu.visible]);
-
-  const handleContextMenuKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>): void => {
-      if (!contextMenuRef.current) return;
-      const items = Array.from(
-        contextMenuRef.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
-      );
-      const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        items[(currentIndex + 1) % items.length]?.focus();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        items[(currentIndex - 1 + items.length) % items.length]?.focus();
-      } else if (e.key === 'Escape' || e.key === 'Tab') {
-        e.preventDefault();
-        closeContextMenu();
-      }
-    },
-    [closeContextMenu]
-  );
+    close();
+  }, [menu.row, confirmingDelete, onDelete, close]);
 
   return {
-    contextMenu,
-    contextMenuRef,
+    menu,
     confirmingDelete,
-    closeContextMenu,
     handleContextMenu,
     handleContextMenuEdit,
     handleContextMenuMove,
     handleContextMenuDelete,
-    handleContextMenuKeyDown,
   };
 }

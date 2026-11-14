@@ -1,5 +1,5 @@
 import React from 'react';
-import { ROW_SELECTED } from './rowShading';
+import { TableCell, TableHeaderCell, TableRow } from '@lhak/style/react';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -213,6 +213,8 @@ export const SemanticTypeToggleCell: React.FC<{
   size?: 'table' | 'form' | 'panel';
   align?: 'center' | 'left';
   rowLabel?: string;
+  /** Render as a kit table cell (`role="cell"`), for a table row. Off in forms and panels. */
+  cell?: boolean;
 }> = ({
   activeType,
   onSelect,
@@ -222,6 +224,7 @@ export const SemanticTypeToggleCell: React.FC<{
   size = 'table',
   align = 'center',
   rowLabel,
+  cell = false,
 }) => {
   const badgeSize: { fontSize: string; padding: string; borderRadius?: string } =
     size === 'panel'
@@ -229,8 +232,9 @@ export const SemanticTypeToggleCell: React.FC<{
       : size === 'form'
         ? { fontSize: '0.7rem', padding: '2px 6px' }
         : { fontSize: '0.6rem', padding: '1px 3px' };
+  const Container = cell ? TableCell : 'div';
   return (
-    <div
+    <Container
       style={{
         width,
         padding: '0 0.25rem',
@@ -297,7 +301,7 @@ export const SemanticTypeToggleCell: React.FC<{
             );
           }
         )}
-    </div>
+    </Container>
   );
 };
 
@@ -332,37 +336,37 @@ export const SemanticTypeFilterChips: React.FC<{
   </>
 );
 
-/** Fixed-height flex row shell — the canonical Dictionary row rhythm (`ITEM_HEIGHT`,
- * flex/align-center, bottom-border-only). Exported so any other table-shaped view
- * (e.g. Rules tab, `DuplicateDictionaryTableView`) can reuse the exact same row metrics
- * instead of re-deriving them. `backgroundColor` is an unselected-state override (falls
- * back to `'transparent'`, so the list's own stripes show) — added for
- * `DuplicateDictionaryTableView`'s alternating group bands, which `isSelected`'s own
- * highlight (`ROW_SELECTED`, rowShading.ts) still takes priority over
- * (architecture review 2026-08-28, candidate #2 grilling). */
+/** Fixed-height row shell: the kit's `TableRow` (@lhak/style, kit issue 15) at the canonical
+ * Dictionary row rhythm (`ITEM_HEIGHT`). The kit paints the row's opaque band, its stripe and
+ * its selection (`--lk-accent-soft`), and gives it `role="row"` and the kit's `ROW_CLASS`, so
+ * its hover and focus reveal `RowActions`. Exported so every table-shaped view (Rules tab,
+ * `DuplicateDictionaryTableView`, the Rules matches view) shares the same row metrics and
+ * shading.
+ *
+ * `index` is the row's place in the whole list (not the rendered slice): it sets
+ * `aria-rowindex` and, unless `stripe` says otherwise, stripes odd rows. A grouped view
+ * passes `stripe` from its group's parity (duplicates). Every row paints its own band: a
+ * stripe gradient on a virtualised list's spacer painted for short dictionaries but not for
+ * characters, phrases and patterns, whose spacers are 165k-660k px tall (user report
+ * 2026-11-14; a WebKit limit on painting so tall a background is inferred, not probed). */
 export const RowShell: React.FC<{
   onContextMenu?: (e: React.MouseEvent) => void;
   isSelected?: boolean;
-  backgroundColor?: string;
-  role?: string;
-  /** e.g. the kit's `ROW_CLASS`, so the row's hover and focus reveal its `RowActions`. */
+  index?: number;
+  stripe?: boolean;
   className?: string;
   children: React.ReactNode;
-}> = ({ onContextMenu, isSelected = false, backgroundColor, role, className, children }) => (
-  <div
+}> = ({ onContextMenu, isSelected = false, index, stripe, className, children }) => (
+  <TableRow
+    index={index}
+    stripe={stripe}
+    selected={isSelected}
     onContextMenu={onContextMenu}
-    role={role}
     className={className}
-    style={{
-      height: ITEM_HEIGHT,
-      display: 'flex',
-      alignItems: 'center',
-      borderBottom: '1px solid var(--border-color)',
-      backgroundColor: isSelected ? ROW_SELECTED : (backgroundColor ?? 'transparent'),
-    }}
+    style={{ height: ITEM_HEIGHT }}
   >
     {children}
-  </div>
+  </TableRow>
 );
 
 /** Row-selection checkbox cell — identical across all row layouts, no per-type variation.
@@ -378,7 +382,7 @@ export const CheckboxCell: React.FC<{
   onChange: (checked: boolean) => void;
   ariaLabel?: string;
 }> = ({ checked, onChange, ariaLabel }) => (
-  <div className={styles.checkboxCell}>
+  <TableCell align="center" className={styles.checkboxCell}>
     <input
       type="checkbox"
       checked={checked}
@@ -387,7 +391,7 @@ export const CheckboxCell: React.FC<{
       title="Select for deletion"
       {...(ariaLabel && { 'aria-label': ariaLabel })}
     />
-  </div>
+  </TableCell>
 );
 
 /** Header select-all checkbox — was byte-identical hand-copied JSX in 4 of
@@ -401,7 +405,7 @@ export const SelectAllCheckboxHeaderCell: React.FC<{
   checked: boolean;
   onChange: (checked: boolean) => void;
 }> = ({ checked, onChange }) => (
-  <div className={styles.headerCheckboxCol}>
+  <TableHeaderCell align="center" className={styles.headerCheckboxCol}>
     <input
       type="checkbox"
       checked={checked}
@@ -410,5 +414,5 @@ export const SelectAllCheckboxHeaderCell: React.FC<{
       title="Select all"
       aria-label="Select all entries"
     />
-  </div>
+  </TableHeaderCell>
 );

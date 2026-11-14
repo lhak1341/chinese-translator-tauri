@@ -390,7 +390,9 @@ describe('RulesManager', () => {
   });
 
   // The tab paints dotted paper behind the list; transparent rows let it show through every rule.
-  test('adjacent rule rows paint different opaque bands, so the dotted page never shows through', async () => {
+  // The kit's TableRow paints the band opaque (its own test pins the colours), so the dotted
+  // page never shows through; each rule row stripes by its own index.
+  test('adjacent rule rows stripe by their own index', async () => {
     loadTransformRules.mockResolvedValue({
       rules: [
         makeRule({ id: 'a', key: '城' }),
@@ -399,20 +401,10 @@ describe('RulesManager', () => {
       droppedCount: 0,
     });
     render(<RulesManager />);
-    const band = (el: HTMLElement | null): string => {
-      for (; el; el = el.parentElement) {
-        const bg = el.style.backgroundColor;
-        if (bg && bg !== 'transparent') return bg;
-      }
-      return '';
-    };
-    const rows = [await screen.findByText('城'), await screen.findByText('山')];
-    const bands = rows.map(band);
-    expect(bands[0]).not.toBe(bands[1]);
-    for (const b of bands) {
-      expect(b).not.toBe('');
-      expect(b).not.toContain('transparent');
-    }
+    const rows = [await screen.findByText('城'), await screen.findByText('山')].map((el) =>
+      el.closest('[role="row"]')!
+    );
+    expect(rows.map((r) => r.hasAttribute('data-stripe'))).toEqual([false, true]);
   });
 
   test('delete button is an icon (Trash2), not text', async () => {
@@ -460,7 +452,8 @@ describe('RulesManager', () => {
     expect(before.length).toBeLessThan(60);
     expect(screen.queryByText('L544')).not.toBeInTheDocument();
 
-    const scroller = screen.getAllByRole('rowgroup')[0];
+    // The kit table's header is the first rowgroup; the body (the scroller) is the second.
+    const scroller = screen.getAllByRole('rowgroup')[1];
     scroller.scrollTop = 544 * 40;
     fireEvent.scroll(scroller);
 

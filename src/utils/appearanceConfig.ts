@@ -18,6 +18,9 @@ const reading: FontSettings = {
 };
 
 /** Reader-setting defaults from @lhak/style's type tokens; a saved setting overrides each one. */
+/** The UI sizes the Appearance tab offers, as scales on the kit's UI steps (1 = 100%). */
+export const UI_SCALES = [0.9, 1, 1.1, 1.25] as const;
+
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseText: {
     fontFamily: TYPE.faces.chinese.family,
@@ -30,6 +33,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   characterOnly: { ...reading },
   uiFont: {
     fontFamily: TYPE.faces.interface.family,
+    scale: 1,
   },
   theme: 'auto',
   characterOnlyFollowsFullTranslation: true,
@@ -98,10 +102,14 @@ function fromRawFontSettings(raw: unknown, defaults: FontSettings): FontSettings
 
 function fromRawUiFont(
   raw: unknown,
-  defaults: Pick<FontSettings, 'fontFamily'>
-): Pick<FontSettings, 'fontFamily'> {
+  defaults: AppearanceSettings['uiFont']
+): AppearanceSettings['uiFont'] {
   const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  return { fontFamily: typeof obj.fontFamily === 'string' ? obj.fontFamily : defaults.fontFamily };
+  const scale = UI_SCALES.find((s) => s === obj.scale) ?? 1;
+  return {
+    fontFamily: typeof obj.fontFamily === 'string' ? obj.fontFamily : defaults.fontFamily,
+    scale,
+  };
 }
 
 export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {

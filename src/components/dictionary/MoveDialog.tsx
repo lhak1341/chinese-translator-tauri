@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDictionary } from './DictionaryContext';
 import { AlertTriangle, Loader } from 'lucide-react';
-import { Dialog, DialogClose, DialogPopup } from '@lhak/style/react';
+import { Dialog, DialogClose, DialogPopup, Select } from '@lhak/style/react';
 import styles from '../../styles/MoveDialog.module.css';
 import { logger } from '../../utils/logger';
 import { buildEntryMetadata, entryFields } from '../../utils/dictionary';
@@ -50,11 +50,15 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   // `onOpenChangeComplete` hands over to the parent (and `onSuccess` after a move).
   const [open, setOpen] = useState(true);
   const moved = useRef(false);
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const selectRef = useRef<HTMLButtonElement>(null);
 
   const { moveEntries, dictionaries, loadDictionary } = useDictionary();
   const { availableDictionaries, sourceLabel: sourceDictionaryLabel } =
     useMoveTargetDictionaries(currentDictionary);
+  const targetItems = useMemo(
+    () => availableDictionaries.map(({ id, label }) => ({ value: id, label })),
+    [availableDictionaries]
+  );
 
   const isSingle = entries.length === 1;
 
@@ -236,21 +240,18 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
                 and proper nouns move between each other.
               </div>
             ) : (
-              <select
-                ref={selectRef}
+              // The kit Select: a native <select>'s open list is drawn by macOS in the system
+              // font, which no CSS reaches (style-kit issue 15).
+              <Select
                 id="move-target-dict"
-                value={selectedDictionary}
-                onChange={(e) => setSelectedDictionary(e.target.value)}
+                triggerRef={selectRef}
+                items={targetItems}
+                value={selectedDictionary || null}
+                onValueChange={(value) => setSelectedDictionary(value ?? '')}
+                placeholder="Choose destination dictionary..."
                 disabled={isMoving}
                 className={`${styles.select} ${error ? styles.selectWithError : ''}`}
-              >
-                <option value="">Choose destination dictionary...</option>
-                {availableDictionaries.map(({ id, label }) => (
-                  <option key={id} value={id}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              />
             )}
           </div>
 

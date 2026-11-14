@@ -247,7 +247,7 @@ describe('VirtualRowComponent', () => {
       expect(onSelectEntry).toHaveBeenCalledWith('你', true);
     });
 
-    it('calls onContextMenu with the event, source, translation text, and dictionary', () => {
+    it('calls onContextMenu with the source, translation text, and dictionary', () => {
       const onContextMenu = vi.fn();
       render(
         <VirtualRowComponent
@@ -261,12 +261,7 @@ describe('VirtualRowComponent', () => {
       );
 
       fireEvent.contextMenu(screen.getByText('you'));
-      expect(onContextMenu).toHaveBeenCalledWith(
-        expect.anything(),
-        '你',
-        'you',
-        expect.any(String)
-      );
+      expect(onContextMenu).toHaveBeenCalledWith('你', 'you', 'characters');
     });
 
     it('patches allowAsPatternVariable when the VAR badge is clicked', () => {
@@ -306,5 +301,19 @@ describe('VirtualRowComponent', () => {
         semanticType: 'location',
       });
     });
+  });
+});
+
+describe('VirtualRowComponent — Chinese face', () => {
+  // The source is Chinese: it takes the kit's Chinese face at its own weight, not the row's
+  // interface (or custom UI) font, whose fallback picked the system CJK face (style-kit 15).
+  it('the source cell is marked Chinese and set in the kit Chinese face', () => {
+    render(
+      <VirtualRowComponent {...makeProps({ source: '你好', selectedDictionary: 'phrases' })} />
+    );
+    const [, sourceCell, translationCell] = screen.getAllByRole('cell');
+    expect(sourceCell).toHaveAttribute('lang', 'zh');
+    expect(sourceCell).toHaveClass('lk-face-chinese');
+    expect(translationCell).not.toHaveClass('lk-face-chinese');
   });
 });

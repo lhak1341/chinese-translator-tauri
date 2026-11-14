@@ -14,6 +14,7 @@ import {
   X,
   RotateCw,
 } from 'lucide-react';
+import { Select } from '@lhak/style/react';
 import { dictionaryOptionLabel } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
@@ -233,7 +234,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   };
 
   // The dropdown lists what the Add form would offer (`quickAddChoices`, one rule for both),
-  // always including the selected dictionary, so the <select> never shows a different one
+  // always including the selected dictionary, so the selector never shows a different one
   // from the table. A view that could not be loaded shows everything: this is the tab a user
   // comes to when something is wrong.
   const filteredDictionaryTypes = React.useMemo((): DictionaryTypesCollection => {
@@ -246,6 +247,15 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const sortedDictionaryEntries = React.useMemo(() => {
     return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => idA.localeCompare(idB));
   }, [filteredDictionaryTypes]);
+
+  const dictionaryItems = React.useMemo(
+    () =>
+      sortedDictionaryEntries.map(([id, { label }]) => ({
+        value: id,
+        label: dictionaryOptionLabel(id, label, unreadDictionaryIds),
+      })),
+    [sortedDictionaryEntries, unreadDictionaryIds]
+  );
 
   // String-only lookup tables (characters/conversion/punctuation) have no move targets.
   const canMoveFromSelected = getMoveFamily(selectedDictionary) !== null;
@@ -278,19 +288,18 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     <div className={styles.container}>
       {hotkeys}
       <div className={styles.header}>
-        <select
+        {/* The kit Select (@lhak/style): a native <select>'s open list is drawn by macOS in
+            the system font, which no CSS reaches (user report, style-kit issue 15). */}
+        <Select
+          aria-label="Dictionary"
           className={styles.select}
+          items={dictionaryItems}
           value={selectedDictionary}
-          onChange={(e) => setSelectedDictionary(e.target.value)}
+          onValueChange={(value) => {
+            if (value !== null) setSelectedDictionary(value);
+          }}
           disabled={isLoadingDictionary || showDuplicatesMode}
-          style={showDuplicatesMode ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-        >
-          {sortedDictionaryEntries.map(([id, { label }]) => (
-            <option key={id} value={id}>
-              {dictionaryOptionLabel(id, label, unreadDictionaryIds)}
-            </option>
-          ))}
-        </select>
+        />
 
         <label
           className={styles.filterLabel}

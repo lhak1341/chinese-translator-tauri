@@ -65,64 +65,7 @@
   font-size: 0.8125rem;
 }
 
-/* Section */
-.section {
-  padding: 1rem;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-}
-
-.sectionTitle {
-  margin-bottom: 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-/* Control Group */
-.controlGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-.controlRow {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Label */
-.label {
-  min-width: 120px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-/* Input */
-.input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-size: 0.8125rem;
-  transition: border-color 0.15s ease;
-}
-
-/* A kit TextField (@lhak/style) in a control row: only its layout lives here. */
-.field {
-  flex: 1;
-}
-
-.input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background-color: var(--surface-color);
-}
+/* Sections and rows are the kit's SettingGroup/SettingRow (@lhak/style, kit issue 15). */
 
 /* Preview */
 .preview {
@@ -130,6 +73,5 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--background-color);
-  margin-top: 0.75rem;
   color: var(--text-color);
 }

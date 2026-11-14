@@ -53,20 +53,11 @@
   position: relative;
 }
 
-/* Fixed table header — same shape as EnhancedVirtualizedDictionaryTable's header div
-   (flex row, bottom-border-only, background var(--background-color), flexShrink 0). */
-.headerRow {
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  flex-shrink: 0;
-}
-
-/* Bold, normal-size text, not uppercase — same padding as Dictionary's header cells
-   (EnhancedVirtualizedDictionaryTable.tsx header divs). */
+/* The header row and its type (face, size, weight, colour) are the kit's TableHeader
+   (@lhak/style, kit issue 15), as in the Dictionary table. Only the padding is ours: it
+   lines each header up with its row cells (Dictionary's header cells use the same). */
 .headerCell {
   padding: 0.5rem 0.75rem;
-  font-weight: bold;
 }
 
 /* Column widths — the single source of truth shared by both the header cell and the
@@ -115,9 +106,12 @@
   text-overflow: ellipsis;
 }
 
+/* Wide enough for all six type chips plus the group's 0.25rem inset (about 178px of chips,
+   estimated, not measured): at 150px they spilled into Key and Label and the Label text sat
+   against them (user report, style-kit issue 15). */
 .colType {
-  width: 150px;
-  min-width: 150px;
+  width: 190px;
+  min-width: 190px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,11 +129,6 @@
   width: 70px;
   min-width: 70px;
   text-align: center;
-}
-
-.key {
-  font-family: var(--font-mono);
-  font-weight: 600;
 }
 
 .placeholderText {

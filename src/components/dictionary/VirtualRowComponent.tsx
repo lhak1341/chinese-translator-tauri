@@ -1,7 +1,9 @@
 import React from 'react';
+import { TableCell } from '@lhak/style/react';
 import { isPatternsDict, entryFields, toggleVariableType } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { DictionaryEntryValue, DictionaryContextInterface } from '../../types/DictionaryTypes';
+import type { OpenEntryMenu } from '../../hooks/useContextMenu';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { highlightPatternVariables } from '../../utils/text';
 import { RowShell, CheckboxCell } from './TableBuildingBlocks';
@@ -20,6 +22,8 @@ export interface VirtualRowProps {
   source: string;
   translation: DictionaryEntryValue;
   isSelected: boolean;
+  /** The row's place in the whole filtered list: its `aria-rowindex` and stripe. */
+  index?: number;
   selectedDictionary: string;
   /** A source rename, which re-keys the entry. It reads the other fields from the store as the
    * commit runs, so the row passes none (every other edit is `onPatchEntry`). */
@@ -27,12 +31,8 @@ export interface VirtualRowProps {
   /** Changes some fields of this entry; the rest is read from the store, not these props. */
   onPatchEntry: DictionaryContextInterface['patchEntry'];
   onSelectEntry: (source: string, isSelected: boolean) => void;
-  onContextMenu: (
-    e: React.MouseEvent,
-    source: string,
-    translation: string,
-    dictionaryId: string
-  ) => void;
+  /** Opens the entry menu on this row. */
+  onContextMenu: OpenEntryMenu;
 }
 
 export const VirtualRowComponent = React.memo<VirtualRowProps>(
@@ -40,6 +40,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     source,
     translation,
     isSelected,
+    index,
     selectedDictionary,
     onRenameEntry,
     onPatchEntry,
@@ -66,12 +67,17 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
 
     return (
       <RowShell
-        onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
+        onContextMenu={() => onContextMenu(source, translationText, selectedDictionary)}
         isSelected={isSelected}
+        index={index}
       >
         <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 
-        <div className={`${styles.cell} ${columns.source.className}`}>
+        {/* The source is Chinese: the kit's Chinese face (lk-face-chinese, @lhak/style fonts.css). */}
+        <TableCell
+          lang="zh"
+          className={`${styles.cell} ${columns.source.className} lk-face-chinese`}
+        >
           <ControlledEditableCell
             edit={sourceEdit}
             value={source}
@@ -82,9 +88,9 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             inputClassName={styles.inlineEditInput}
             spanClassName={styles.clickableText}
           />
-        </div>
+        </TableCell>
 
-        <div className={`${styles.cellEditable} ${columns.translation.className}`}>
+        <TableCell className={`${styles.cellEditable} ${columns.translation.className}`}>
           <ControlledEditableCell
             edit={translEdit}
             value={translationText}
@@ -101,7 +107,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
               mixedKinds={false}
             />
           )}
-        </div>
+        </TableCell>
 
         <EntrySemanticCell
           dictionaryId={selectedDictionary}

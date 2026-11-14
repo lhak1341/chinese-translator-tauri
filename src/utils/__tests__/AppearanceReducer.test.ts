@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TYPE } from '@lhak/style';
 import {
   applyAppearanceToCssVars,
   applyFontChange,
@@ -197,6 +198,51 @@ describe('applyAppearanceToCssVars', () => {
     expect(root.getPropertyValue('--chinese-text-line-height')).toBe('1.9');
     expect(root.getPropertyValue('--full-translation-line-height')).toBe('1.6');
     expect(root.getPropertyValue('--character-only-line-height')).toBe('30px');
+  });
+  // The kit's faces are the default; a UI Font set in the Appearance tab replaces the kit's
+  // interface and label faces, so kit parts (tables, buttons, fields) follow it too.
+  const KIT_FACE_VARS = [
+    '--lk-font-interface',
+    '--lk-font-label',
+    '--lk-tracking-interface',
+    '--lk-tracking-label',
+  ];
+  const faceVars = () =>
+    KIT_FACE_VARS.map((v) => document.documentElement.style.getPropertyValue(v));
+
+  it('a custom UI Font becomes the kit interface and label face, at its own tracking', () => {
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: 'Avenir, sans-serif' } });
+    expect(faceVars()).toEqual(['Avenir, sans-serif', 'Avenir, sans-serif', '0em', '0em']);
+  });
+
+  it('the default UI Font (the kit interface family) leaves the kit faces alone', () => {
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: 'Avenir, sans-serif' } });
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: TYPE.faces.interface.family } });
+    expect(faceVars()).toEqual(['', '', '', '']);
+  });
+
+  // The UI size scales the kit's UI steps (12-25px); reading text has its own tokens.
+  const STEP_VARS = ['xs', 'sm', 'md', 'lg', 'xl'].map((s) => `--lk-step-${s}`);
+  const stepVars = () => STEP_VARS.map((v) => document.documentElement.style.getPropertyValue(v));
+
+  it('a UI size other than 100% scales every kit UI step', () => {
+    applyAppearanceToCssVars({ ...base, uiFont: { ...base.uiFont, scale: 1.25 } });
+    expect(stepVars()).toEqual(['15px', '16px', '20px', '25px', '31.25px']);
+  });
+
+  it('100% (or no saved size) leaves the kit steps alone', () => {
+    applyAppearanceToCssVars({ ...base, uiFont: { ...base.uiFont, scale: 1.25 } });
+    applyAppearanceToCssVars({ ...base, uiFont: { ...base.uiFont, scale: 1 } });
+    expect(stepVars()).toEqual(['', '', '', '', '']);
+    applyAppearanceToCssVars({ ...base, uiFont: { ...base.uiFont, scale: 1.1 } });
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: base.uiFont.fontFamily } });
+    expect(stepVars()).toEqual(['', '', '', '', '']);
+  });
+
+  it('an empty UI Font leaves the kit faces alone', () => {
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: 'Avenir, sans-serif' } });
+    applyAppearanceToCssVars({ ...base, uiFont: { fontFamily: '  ' } });
+    expect(faceVars()).toEqual(['', '', '', '']);
   });
 });
 

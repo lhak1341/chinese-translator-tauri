@@ -11,6 +11,7 @@ import {
   applyFontChange,
   applyFollowFullTranslation,
   applyReset,
+  applyUiScale,
   type AppearanceSection,
   type FontProperty,
 } from '../utils/ui/AppearanceReducer';
@@ -76,6 +77,19 @@ export function useAppearanceSettings() {
     }
   }, []);
 
+  /** A UI size choice saves at once, like the follow switch: there is no field to blur. */
+  const handleUiScaleChange = useCallback(async (scale: number): Promise<void> => {
+    const next = applyUiScale(appearanceRef.current, scale);
+    setAppearance(next);
+    try {
+      await saveAppearanceConfig(next);
+      setError(null);
+    } catch (err) {
+      logger.error('Failed to save after the UI size changed:', err);
+      setError('Failed to save appearance settings');
+    }
+  }, []);
+
   const resetToDefault = useCallback(
     async (section: AppearanceSection, property: FontProperty): Promise<void> => {
       const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
@@ -118,5 +132,6 @@ export function useAppearanceSettings() {
     handleAutoSave,
     handleResetClick,
     handleFollowFullTranslationChange,
+    handleUiScaleChange,
   };
 }

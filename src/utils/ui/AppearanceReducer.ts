@@ -1,3 +1,4 @@
+import { TYPE } from '@lhak/style';
 import type { AppearanceSettings } from '../../types/ComponentTypes';
 
 export type AppearanceSection = 'chineseText' | 'fullTranslation' | 'characterOnly' | 'uiFont';
@@ -66,6 +67,50 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
     appearance.characterOnly.paragraphSpacing ?? '1rem'
   );
   root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
+  applyUiFontToKit(root, appearance.uiFont.fontFamily);
+  applyUiScaleToKit(root, appearance.uiFont.scale ?? 1);
+}
+
+/**
+ * The UI size: every kit UI step (`--lk-step-xs`…`xl`, 12-25px, @lhak/style TYPE.steps) times
+ * the saved scale, set on <html>; at 1 the overrides are removed and the kit's steps return.
+ * Reading text has its own tokens and settings, so it does not move. The app's own rem-sized
+ * text (not yet on the kit) does not move either.
+ */
+function applyUiScaleToKit(root: HTMLElement, scale: number): void {
+  for (const [step, px] of Object.entries(TYPE.steps)) {
+    const name = `--lk-step-${step}`;
+    if (scale === 1) root.style.removeProperty(name);
+    else root.style.setProperty(name, `${+(px * scale).toFixed(2)}px`);
+  }
+}
+
+/** Set the UI size (a scale on the kit's UI steps). */
+export function applyUiScale(current: AppearanceSettings, scale: number): AppearanceSettings {
+  return { ...current, uiFont: { ...current.uiFont, scale } };
+}
+
+/** The kit's face variables a custom UI Font replaces (@lhak/style tokens.css). */
+const KIT_FACE_FAMILIES = ['--lk-font-interface', '--lk-font-label'] as const;
+const KIT_FACE_TRACKINGS = ['--lk-tracking-interface', '--lk-tracking-label'] as const;
+
+/**
+ * The kit's faces are the default (the saved UI Font defaults to the kit interface family).
+ * A UI Font set in the Appearance tab replaces the kit's interface and label faces on <html>,
+ * so every kit part (tables, setting titles, buttons, fields) follows it, at 0em tracking:
+ * the kit's -0.03em belongs to Work Sans (tracking follows the face, kit issue 06). An empty
+ * or default value removes the override and the kit faces return.
+ */
+function applyUiFontToKit(root: HTMLElement, uiFont: string): void {
+  const custom = uiFont.trim() !== '' && uiFont !== TYPE.faces.interface.family;
+  for (const name of KIT_FACE_FAMILIES) {
+    if (custom) root.style.setProperty(name, uiFont);
+    else root.style.removeProperty(name);
+  }
+  for (const name of KIT_FACE_TRACKINGS) {
+    if (custom) root.style.setProperty(name, '0em');
+    else root.style.removeProperty(name);
+  }
 }
 
 /**

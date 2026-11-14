@@ -123,29 +123,20 @@ describe('duplicate mode', () => {
 describe('normal mode — row stripes', () => {
   // Each row paints its own band: a stripe gradient on the spacer showed none in the long
   // dictionaries, and a see-through band let the page's dotted paper show through.
-  test('adjacent rows paint different opaque bands of their own', () => {
+  // The kit's TableRow paints the band opaque (its own test pins the colours); each row here
+  // takes it from its global index, which also sets its aria-rowindex (header is row 1).
+  test('adjacent rows are kit table rows that stripe by their own index', () => {
     setDict('patterns', { X的Y: { translation: 'của X Y' }, A的B: { translation: 'của A B' } });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
-    const bands = [
-      paintedBand(screen.getByText('của X Y')),
-      paintedBand(screen.getByText('của A B')),
-    ];
-    expect(bands[0]).not.toBe(bands[1]);
-    for (const b of bands) {
-      expect(b).not.toBe('');
-      expect(b).not.toContain('transparent');
-    }
+    const table = screen.getByRole('table', { name: 'Dictionary entries' });
+    expect(table).toHaveAttribute('aria-rowcount', '3');
+    const rows = [screen.getByText('của X Y'), screen.getByText('của A B')].map((el) =>
+      el.closest('[role="row"]')!
+    );
+    expect(rows.map((r) => r.getAttribute('aria-rowindex'))).toEqual(['2', '3']);
+    expect(rows.map((r) => r.hasAttribute('data-stripe'))).toEqual([false, true]);
   });
 });
-
-/** The first painted background at or above `el`, as the eye sees it ('' if none). */
-function paintedBand(el: HTMLElement | null): string {
-  for (; el; el = el.parentElement) {
-    const bg = el.style.backgroundColor;
-    if (bg && bg !== 'transparent') return bg;
-  }
-  return '';
-}
 
 describe('normal mode — headers', () => {
   test('renders phrases-specific columns for a phrases dictionary', () => {
