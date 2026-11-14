@@ -10,6 +10,7 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 import { installRealStores, withPatterns, type StoresHarness } from './realStores';
@@ -214,5 +215,60 @@ describe('ConfigurationManager handleConfirmRename', () => {
     expect(Object.keys(h.store.getSnapshot().dictionaries)).not.toContain('properNouns-New');
     // A refused rename wrote nothing, so the cached config was never dropped.
     expect(h.disk.loadConfiguration).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ConfigurationManager — tier context menu (kit ContextMenu, style-kit issue 12)', () => {
+  test('right-click on a fiction row offers Promote to Generic; Escape closes it', async () => {
+    await mount(['properNouns', 'properNouns-f_Test', 'patterns-f_Test']);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('f_Test')).toBeInTheDocument());
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByText('f_Test') });
+    await screen.findByRole('menu', { name: 'Dictionary actions' });
+    const item = screen.getByRole('menuitem', { name: 'Promote to Generic' });
+    expect(item.getAttribute('aria-disabled')).not.toBe('true');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
+  test('choosing Promote to Generic moves the row to the generic tier', async () => {
+    await mount(['properNouns', 'properNouns-f_Test', 'patterns-f_Test']);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('f_Test')).toBeInTheDocument());
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByText('f_Test') });
+    await user.click(await screen.findByRole('menuitem', { name: 'Promote to Generic' }));
+    await waitFor(() =>
+      expect(Object.keys(h.store.getSnapshot().dictionaries)).toEqual(
+        expect.arrayContaining(['properNouns-_Test', 'patterns-_Test'])
+      )
+    );
+    expect(Object.keys(h.store.getSnapshot().dictionaries)).not.toContain('properNouns-f_Test');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
+  test('the move is disabled when the other tier already holds the name', async () => {
+    await mount([
+      'properNouns',
+      'properNouns-f_Test',
+      'patterns-f_Test',
+      'properNouns-_Test',
+      'patterns-_Test',
+    ]);
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('f_Test')).toBeInTheDocument());
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByText('f_Test') });
+    await screen.findByRole('menu', { name: 'Dictionary actions' });
+    expect(
+      screen.getByRole('menuitem', { name: 'Promote to Generic' }).getAttribute('aria-disabled')
+    ).toBe('true');
+  });
+
+  // A disabled kit context menu leaves the right click alone, so the row keeps the
+  // WebView's own behaviour instead of a cancelled click that opens nothing.
+  test('a row with no other tier opens no menu and leaves the right click alone', async () => {
+    await mount(['properNouns', 'properNouns-Test']);
+    const row = await screen.findByText('Test');
+    expect(fireEvent.contextMenu(row)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });

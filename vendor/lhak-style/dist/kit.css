@@ -460,7 +460,7 @@
    Values: tokens.css (`--lk-layer-*`, `--lk-scrim`, from Obsidian's
    `--layer-modal`, `--layer-tooltip` and `--background-modifier-cover`). */
 
-/* A floating box's positioner (popover; menus later). */
+/* A floating box's positioner (popover, menus, combobox). */
 .lk-overlay-positioner {
   z-index: var(--lk-layer-overlay);
   outline: none;
@@ -507,15 +507,18 @@
 /* Select (React kit): Base UI's Select. The trigger looks like a text field;
    the popup opens at the fast tier, scaling from 0.96 at its transform
    origin, and exits at 0.75× on the accel curve (wayfinder ticket 012).
-   It sits on the overlay layer (overlay.css), so it opens above a dialog. */
-.lk-select-field {
+   It sits on the overlay layer (overlay.css), so it opens above a dialog.
+   The field and label rules also serve the combobox (combobox.css). */
+.lk-select-field,
+.lk-combobox-field {
   display: inline-flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--lk-space-1);
 }
 
-.lk-select-label {
+.lk-select-label,
+.lk-combobox-label {
   color: var(--lk-text-muted);
   font-family: var(--lk-font-label);
   font-size: var(--lk-step-sm);
@@ -693,6 +696,194 @@
 
   .lk-select__popup[data-starting-style],
   .lk-select__popup[data-ending-style] {
+    transform: none;
+  }
+}
+
+/* ---- combobox.css ---- */
+/* Combobox (React kit): Base UI's Combobox. The input is the text field
+   pattern (text-field.css) with the chosen item's icon at its start and an
+   open button at its end; the field and label share select.css's rules.
+   The popup sits on the overlay layer (overlay.css), opens at the fast tier
+   scaling from 0.96 at its transform origin, and exits at 0.75× on the accel
+   curve (wayfinder ticket 012), as the select popup does. Items take the
+   select item's size and Obsidian's menu icon colour (text-muted). */
+.lk-combobox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.lk-combobox__input {
+  flex: 1 1 auto;
+  width: 100%;
+  padding-inline-end: calc(var(--lk-space-1) + var(--lk-space-6));
+}
+
+.lk-combobox:has(.lk-combobox__value-icon) .lk-combobox__input {
+  padding-inline-start: calc(var(--lk-space-2) + 1em + var(--lk-space-2));
+}
+
+.lk-combobox__value-icon {
+  position: absolute;
+  inset-inline-start: var(--lk-space-2);
+  display: flex;
+  color: var(--lk-text-muted);
+  font-size: var(--lk-step-sm);
+  pointer-events: none;
+}
+
+.lk-combobox__trigger {
+  position: absolute;
+  inset-inline-end: var(--lk-space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lk-space-6);
+  height: var(--lk-space-6);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--lk-radius-s);
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--lk-text-muted);
+  opacity: 1;
+  font-size: var(--lk-step-sm);
+  cursor: pointer;
+  transform: none;
+  transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-combobox__trigger:hover:not([data-disabled]) {
+  background: var(--lk-surface-hover);
+}
+
+.lk-combobox__trigger:active {
+  transform: none;
+}
+
+.lk-combobox__trigger:focus-visible {
+  outline: 2px solid var(--lk-focus-ring);
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.lk-combobox__trigger[data-disabled] {
+  background: transparent;
+  color: var(--lk-text-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.lk-combobox__popup {
+  box-sizing: border-box;
+  min-width: var(--anchor-width);
+  max-width: var(--available-width);
+  padding: var(--lk-space-1);
+  border-radius: var(--lk-radius-m);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--lk-duration-fast) var(--lk-ease-expo-out),
+    transform var(--lk-duration-fast) var(--lk-ease-expo-out);
+}
+
+.lk-combobox__popup[data-starting-style],
+.lk-combobox__popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.lk-combobox__popup[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-fast) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-combobox__list {
+  box-sizing: border-box;
+  max-height: min(300px, var(--available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: var(--lk-space-1);
+  outline: none;
+}
+
+.lk-combobox__list:empty {
+  display: none;
+}
+
+.lk-combobox__empty:empty {
+  display: none;
+}
+
+.lk-combobox__empty {
+  padding: var(--lk-space-1) var(--lk-space-2);
+  color: var(--lk-text-faint);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-combobox__item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--lk-space-2);
+  min-height: var(--lk-space-8);
+  padding: 0 var(--lk-space-2);
+  border-radius: var(--lk-radius-s);
+  outline: none;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-combobox__item[data-highlighted] {
+  background: var(--lk-surface-hover);
+}
+
+.lk-combobox__item[data-disabled] {
+  color: var(--lk-text-disabled);
+}
+
+.lk-combobox__item-icon {
+  display: flex;
+  flex: none;
+  color: var(--lk-text-muted);
+}
+
+.lk-combobox__item-icon:empty {
+  display: none;
+}
+
+.lk-combobox__item-label {
+  flex: 1 0 0;
+}
+
+.lk-combobox__item-indicator {
+  display: flex;
+  flex: none;
+  color: var(--lk-accent);
+}
+
+/* Reduce motion: the popup fades without scaling. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-combobox__popup {
+    transition-property: opacity;
+  }
+
+  .lk-combobox__popup[data-starting-style],
+  .lk-combobox__popup[data-ending-style] {
     transform: none;
   }
 }
@@ -1301,6 +1492,118 @@
 
   .lk-popover[data-starting-style],
   .lk-popover[data-ending-style] {
+    transform: none;
+  }
+}
+
+/* ---- menu.css ---- */
+/* Menu (React kit): Base UI's Menu and ContextMenu on the overlay layer
+   (overlay.css). Both open at the fast tier, scaling from 0.96 at their
+   transform origin (a context menu's is the pointer), and exit at 0.75× on
+   the accel curve (wayfinder ticket 012), as the popover and select do.
+   Sizes follow Obsidian's .menu and .menu-item (ref-app.css): radius-m,
+   items at step-sm with 4px × 8px padding, 8px icon gap, radius-s, hover
+   background, muted icons, error-coloured warning items. Disabled items use
+   text-disabled, as every kit control does, not Obsidian's text-faint
+   (.menu-item.is-disabled). The popup padding
+   is the kit's space-1 (the select popup's), not Obsidian's 6px. */
+.lk-menu {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  max-height: var(--available-height);
+  overflow-y: auto;
+  padding: var(--lk-space-1);
+  border-radius: var(--lk-radius-m);
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--lk-duration-fast) var(--lk-ease-expo-out),
+    transform var(--lk-duration-fast) var(--lk-ease-expo-out);
+}
+
+.lk-menu[data-starting-style],
+.lk-menu[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.lk-menu[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-fast) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-menu__item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--lk-space-2);
+  padding: var(--lk-space-1) var(--lk-space-2);
+  border-radius: var(--lk-radius-s);
+  outline: none;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-menu__item[data-highlighted] {
+  background: var(--lk-surface-hover);
+}
+
+.lk-menu__item[data-disabled] {
+  color: var(--lk-text-disabled);
+}
+
+.lk-menu__item--danger {
+  color: var(--lk-danger);
+}
+
+.lk-menu__item-icon {
+  display: flex;
+  flex: none;
+  color: var(--lk-text-muted);
+}
+
+.lk-menu__item--danger .lk-menu__item-icon {
+  color: var(--lk-danger);
+}
+
+.lk-menu__item[data-disabled] .lk-menu__item-icon {
+  color: var(--lk-text-disabled);
+}
+
+/* An item with no icon keeps none of the gap. */
+.lk-menu__item-icon:empty {
+  display: none;
+}
+
+.lk-menu__item-label {
+  flex: 1 0 0;
+}
+
+.lk-menu__separator {
+  height: 0;
+  margin: var(--lk-space-1) calc(var(--lk-space-1) * -1);
+  border-bottom: 1px solid var(--lk-border);
+}
+
+/* Reduce motion: the menu fades without scaling. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-menu {
+    transition-property: opacity;
+  }
+
+  .lk-menu[data-starting-style],
+  .lk-menu[data-ending-style] {
     transform: none;
   }
 }

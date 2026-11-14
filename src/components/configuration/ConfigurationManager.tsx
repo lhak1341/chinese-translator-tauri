@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import {
   PlusCircle,
   Loader,
@@ -16,78 +16,39 @@ import {
   isFictionProperNounsId,
   otherPairedTierId,
 } from '../../utils/dictionary/DictionaryIdClassifier';
-import { Checkbox } from '@lhak/style/react';
+import {
+  Checkbox,
+  ContextMenu,
+  ContextMenuPopup,
+  ContextMenuTrigger,
+  MenuItem,
+} from '@lhak/style/react';
 import { configurationDictionaryName } from '../../utils/dictionary/DictionaryLabels';
 import styles from '../../styles/ConfigurationManager.module.css';
-import menuStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { useDictionaryConfigManagement } from './useDictionaryConfigManagement';
 
 interface TierMenuProps {
   dictionaryId: string;
-  x: number;
-  y: number;
   /** Every dictionary id listed, to refuse a move onto a name the other tier already has. */
   existingIds: readonly string[];
   onMove: (dictionaryId: string) => void;
-  onClose: () => void;
 }
 
 /** Right-click menu for a fiction or generic row: promote to generic, or demote to fiction.
- * Either moves the pair — proper nouns and its patterns half — under the same name. */
-const TierMenu: React.FC<TierMenuProps> = ({
-  dictionaryId,
-  x,
-  y,
-  existingIds,
-  onMove,
-  onClose,
-}) => {
-  const menuRef = useRef<HTMLDivElement>(null);
+ * Either moves the pair — proper nouns and its patterns half — under the same name. The kit
+ * context menu opens it at the pointer and gives it arrow keys, typeahead and Escape. */
+const TierMenu: React.FC<TierMenuProps> = ({ dictionaryId, existingIds, onMove }) => {
   const targetId = otherPairedTierId(dictionaryId);
-  const promoting = isFictionProperNounsId(dictionaryId);
-  const taken = targetId !== null && existingIds.includes(targetId);
-
-  useEffect(() => {
-    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    document.addEventListener('click', onClose);
-    return () => document.removeEventListener('click', onClose);
-  }, [onClose]);
-
   if (!targetId) return null;
+  const promoting = isFictionProperNounsId(dictionaryId);
+  const taken = existingIds.includes(targetId);
   const targetName = bareNameOf(targetId);
 
   return (
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label="Dictionary actions"
-      style={{
-        position: 'fixed',
-        top: y,
-        left: x,
-        backgroundColor: 'var(--background-color)',
-        border: '1px solid var(--border-color)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        zIndex: 2000,
-        minWidth: '180px',
-        overflow: 'hidden',
-      }}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape' || e.key === 'Tab') {
-          e.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <button
-        role="menuitem"
-        tabIndex={0}
-        className={menuStyles.contextMenuItem}
+    <ContextMenuPopup aria-label="Dictionary actions">
+      <MenuItem
+        icon={promoting ? CircleArrowUp : CircleArrowDown}
         disabled={taken}
-        aria-disabled={taken}
-        style={taken ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
         title={
           taken
             ? `${targetName} already exists`
@@ -95,15 +56,11 @@ const TierMenu: React.FC<TierMenuProps> = ({
               ? `Move to Generic as ${targetName}, with its patterns. Books bound to it are unbound; every book reads it.`
               : `Move to Fiction as ${targetName}, with its patterns. Books can then bind to it.`
         }
-        onClick={() => {
-          onClose();
-          onMove(dictionaryId);
-        }}
+        onClick={() => onMove(dictionaryId)}
       >
-        {promoting ? <CircleArrowUp size={14} /> : <CircleArrowDown size={14} />}
-        <span>{promoting ? 'Promote to Generic' : 'Demote to Fiction'}</span>
-      </button>
-    </div>
+        {promoting ? 'Promote to Generic' : 'Demote to Fiction'}
+      </MenuItem>
+    </ContextMenuPopup>
   );
 };
 
@@ -146,11 +103,6 @@ const ConfigurationManager: React.FC = () => {
     handleMoveTier,
   } = useDictionaryConfigManagement();
 
-  const [tierMenu, setTierMenu] = useState<{ dictionaryId: string; x: number; y: number } | null>(
-    null
-  );
-  const closeTierMenu = useCallback(() => setTierMenu(null), []);
-
   // Render a single dictionary row (minimal style, no card borders)
   const renderDictionaryRow = (dictionaryId: string) => {
     const isChecked = activeDictionaries.includes(dictionaryId);
@@ -164,98 +116,94 @@ const ConfigurationManager: React.FC = () => {
     const isLocked = isRowLocked(dictionaryId);
 
     return (
-      <div
-        key={dictionaryId}
-        className={styles.dictionaryRow}
-        onContextMenu={
-          otherPairedTierId(dictionaryId) && !isRenaming
-            ? (e) => {
-                e.preventDefault();
-                setTierMenu({ dictionaryId, x: e.clientX, y: e.clientY });
-              }
-            : undefined
-        }
-      >
-        {isRenaming ? (
-          // Rename mode
-          <div className={styles.renameContainer}>
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => updateRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleConfirmRename();
-                if (e.key === 'Escape') handleCancelRename();
-              }}
-              autoFocus
-              className={styles.renameInput}
-            />
-            <button
-              onClick={handleConfirmRename}
-              className={styles.confirmButton}
-              title="Confirm rename"
-            >
-              <Check size={14} />
-            </button>
-            <button
-              onClick={handleCancelRename}
-              className={styles.cancelButton}
-              title="Cancel rename"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ) : (
-          // Normal mode
-          <>
-            <label
-              className={`${styles.dictionaryLabel} ${isChecked ? styles.dictionaryLabelActive : styles.dictionaryLabelInactive}`}
-              style={{
-                color: isChecked ? 'var(--primary-color)' : 'var(--text-color)',
-                fontWeight: isChecked ? 500 : 'normal',
-              }}
-            >
-              <Checkbox
-                checked={isChecked}
-                disabled={isLocked}
-                onCheckedChange={() => handleToggleDictionary(dictionaryId)}
-                title={
-                  isLocked
-                    ? `Set by the book open in the Reader${openBookTitle ? `: ${openBookTitle}` : ''}`
-                    : undefined
-                }
+      <ContextMenu key={dictionaryId} disabled={!otherPairedTierId(dictionaryId) || isRenaming}>
+        <ContextMenuTrigger className={styles.dictionaryRow}>
+          {isRenaming ? (
+            // Rename mode
+            <div className={styles.renameContainer}>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => updateRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmRename();
+                  if (e.key === 'Escape') handleCancelRename();
+                }}
+                autoFocus
+                className={styles.renameInput}
               />
-              {configurationDictionaryName(dictionaryId)}
-            </label>
-            {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
-            {isChecked && isNonRootProperNoun && (
               <button
-                onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
-                disabled={isDefaultLockedByBook}
-                className={`${styles.bookmarkButton} ${isDefaultQuickAdd ? styles.bookmarkButtonDefault : styles.bookmarkButtonInactive}`}
-                title={
-                  isDefaultLockedByBook
-                    ? `Cmd-5 follows the open book${openBookTitle ? `: ${openBookTitle}` : ''}`
-                    : isDefaultQuickAdd
-                      ? 'Default Cmd-5 dictionary (click to unset)'
-                      : 'Set as default Cmd-5 dictionary'
-                }
+                onClick={handleConfirmRename}
+                className={styles.confirmButton}
+                title="Confirm rename"
               >
-                <Bookmark size={14} fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'} />
+                <Check size={14} />
               </button>
-            )}
-            {canRename && (
               <button
-                onClick={() => handleStartRename(dictionaryId)}
-                className={styles.renameButton}
-                title="Rename dictionary"
+                onClick={handleCancelRename}
+                className={styles.cancelButton}
+                title="Cancel rename"
               >
-                <Pencil size={14} />
+                <X size={14} />
               </button>
-            )}
-          </>
-        )}
-      </div>
+            </div>
+          ) : (
+            // Normal mode
+            <>
+              <label
+                className={`${styles.dictionaryLabel} ${isChecked ? styles.dictionaryLabelActive : styles.dictionaryLabelInactive}`}
+                style={{
+                  color: isChecked ? 'var(--primary-color)' : 'var(--text-color)',
+                  fontWeight: isChecked ? 500 : 'normal',
+                }}
+              >
+                <Checkbox
+                  checked={isChecked}
+                  disabled={isLocked}
+                  onCheckedChange={() => handleToggleDictionary(dictionaryId)}
+                  title={
+                    isLocked
+                      ? `Set by the book open in the Reader${openBookTitle ? `: ${openBookTitle}` : ''}`
+                      : undefined
+                  }
+                />
+                {configurationDictionaryName(dictionaryId)}
+              </label>
+              {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
+              {isChecked && isNonRootProperNoun && (
+                <button
+                  onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
+                  disabled={isDefaultLockedByBook}
+                  className={`${styles.bookmarkButton} ${isDefaultQuickAdd ? styles.bookmarkButtonDefault : styles.bookmarkButtonInactive}`}
+                  title={
+                    isDefaultLockedByBook
+                      ? `Cmd-5 follows the open book${openBookTitle ? `: ${openBookTitle}` : ''}`
+                      : isDefaultQuickAdd
+                        ? 'Default Cmd-5 dictionary (click to unset)'
+                        : 'Set as default Cmd-5 dictionary'
+                  }
+                >
+                  <Bookmark size={14} fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'} />
+                </button>
+              )}
+              {canRename && (
+                <button
+                  onClick={() => handleStartRename(dictionaryId)}
+                  className={styles.renameButton}
+                  title="Rename dictionary"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </>
+          )}
+        </ContextMenuTrigger>
+        <TierMenu
+          dictionaryId={dictionaryId}
+          existingIds={availableDictionaries}
+          onMove={handleMoveTier}
+        />
+      </ContextMenu>
     );
   };
 
@@ -372,15 +320,6 @@ const ConfigurationManager: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {tierMenu && (
-        <TierMenu
-          {...tierMenu}
-          existingIds={availableDictionaries}
-          onMove={handleMoveTier}
-          onClose={closeTierMenu}
-        />
-      )}
 
       {showNewDictionaryModal && (
         <div className={styles.modalOverlay}>
