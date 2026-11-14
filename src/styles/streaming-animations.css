@@ -10,14 +10,9 @@
   /* Light theme colors */
   --streaming-bg-primary: #f8f9fa;
   --streaming-bg-secondary: #ffffff;
-  --streaming-bg-tertiary: #e9ecef;
   --streaming-text-primary: #6c757d;
-  --streaming-text-success: #28a745;
-  --streaming-text-error: #dc3545;
   --streaming-accent: #007bff;
-  --streaming-accent-rgb: 0, 123, 255;
   --streaming-accent-light: rgba(0, 123, 255, 0.1);
-  --streaming-accent-pulse: rgba(0, 123, 255, 0.4);
   --streaming-border: #dee2e6;
 }
 
@@ -26,28 +21,10 @@
 :root[data-mode='dark'] {
   --streaming-bg-primary: #2d3748;
   --streaming-bg-secondary: #1a202c;
-  --streaming-bg-tertiary: #4a5568;
   --streaming-text-primary: #a0aec0;
-  --streaming-text-success: #68d391;
-  --streaming-text-error: #fc8181;
   --streaming-accent: #63b3ed;
-  --streaming-accent-rgb: 99, 179, 237;
   --streaming-accent-light: rgba(99, 179, 237, 0.1);
-  --streaming-accent-pulse: rgba(99, 179, 237, 0.4);
   --streaming-border: #4a5568;
-}
-
-/* Progress pulse animation */
-@keyframes progress-pulse {
-  0% {
-    box-shadow: 0 0 0 0 var(--streaming-accent-pulse);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(var(--streaming-accent-rgb), 0.2);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
 }
 
 /* Typing cursor blink */
@@ -72,27 +49,6 @@
   font-family: monospace;
 }
 
-/* Progress bar styles */
-.streaming-progress-bar {
-  width: 100%;
-  height: 6px;
-  background-color: var(--streaming-bg-tertiary);
-  border-radius: 3px;
-  overflow: hidden;
-  margin: 4px 0;
-}
-
-.streaming-progress-fill {
-  height: 100%;
-  background-color: var(--streaming-accent);
-  border-radius: 3px;
-  transition: width 0.2s ease-out;
-}
-
-.streaming-progress-fill.animated {
-  animation: progress-pulse 2s infinite;
-}
-
 /* Typing cursor */
 .typing-cursor {
   display: inline-block;
@@ -102,24 +58,6 @@
   margin-left: 2px;
   animation: streaming-blink 1.2s infinite;
   vertical-align: baseline;
-}
-
-/* Completion status indicators */
-.streaming-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--streaming-text-primary);
-  margin-top: 4px;
-}
-
-.streaming-status.completed {
-  color: var(--streaming-text-success);
-}
-
-.streaming-status.error {
-  color: var(--streaming-text-error);
 }
 
 /* Text content during streaming */
@@ -132,15 +70,10 @@
 
 /* Performance optimizations */
 .streaming-progress-container,
-.streaming-progress-bar,
 .streaming-text {
   will-change: auto; /* Reset will-change after animations complete */
 }
 
 .streaming-progress-container.animating {
   will-change: transform, opacity;
-}
-
-.streaming-progress-fill.animating {
-  will-change: width, box-shadow;
 }

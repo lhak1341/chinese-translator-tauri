@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   PlusCircle,
-  Loader,
   AlertCircle,
   Pencil,
   Check,
@@ -21,6 +20,7 @@ import {
   ContextMenu,
   ContextMenuPopup,
   ContextMenuTrigger,
+  EmptyState,
   MenuItem,
 } from '@lhak/style/react';
 import { configurationDictionaryName } from '../../utils/dictionary/DictionaryLabels';
@@ -208,12 +208,7 @@ const ConfigurationManager: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <Loader size={20} className={`animate-spin ${styles.loadingSpinner}`} />
-        <span className={styles.loadingText}>Loading configuration...</span>
-      </div>
-    );
+    return <EmptyState loading title="Loading configuration…" />;
   }
 
   return (

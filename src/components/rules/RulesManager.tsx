@@ -4,6 +4,7 @@ import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { ITEM_HEIGHT, SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
+import { ROW_BASE, rowBand } from '../dictionary/rowShading';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { toggled } from '../../utils/ui/toggled';
@@ -206,8 +207,16 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
               className={styles.rowScroller}
             >
               {/* Spacer for the whole list; each row sits at its own index's offset, so
-                  nothing shifts in layout as rows enter or leave the rendered window. */}
-              <div style={{ height: filteredRules.length * ITEM_HEIGHT, position: 'relative' }}>
+                  nothing shifts in layout as rows enter or leave the rendered window. Each row
+                  paints its own opaque band from its global index (rowShading.ts), as the
+                  Dictionary table's do, so the page's dotted paper never shows through a rule. */}
+              <div
+                style={{
+                  height: filteredRules.length * ITEM_HEIGHT,
+                  position: 'relative',
+                  backgroundColor: ROW_BASE,
+                }}
+              >
                 {visibleRules.map((rule, index) => (
                   <div
                     key={rule.id}
@@ -217,6 +226,7 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
                       left: 0,
                       right: 0,
                       height: ITEM_HEIGHT,
+                      backgroundColor: rowBand(startIndex + index),
                     }}
                   >
                     <RuleRow

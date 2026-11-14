@@ -154,36 +154,6 @@
   gap: 4px;
 }
 
-/* Shared shape/layout for row-level icon actions — same padding, radius, and hover
-   mechanics for every action button, only the color differs per action. */
-.rowIconButton {
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  padding: 4px;
-  border-radius: 4px;
-}
-
-.viewMatchesButton {
-  composes: rowIconButton;
-  color: var(--text-secondary, var(--text-color));
-}
-
-.viewMatchesButton:hover {
-  background-color: var(--surface-color);
-}
-
-.deleteButton {
-  composes: rowIconButton;
-  color: var(--error-color, #ef4444);
-}
-
-.deleteButton:hover {
-  background-color: rgba(239, 68, 68, 0.1);
-}
-
 .overlay {
   composes: modalOverlay from './shared.module.css';
   background-color: rgba(0, 0, 0, 0.4);

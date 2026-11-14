@@ -4,6 +4,7 @@ import {
   type LinePart,
 } from '../../utils/reader/CandidateHighlight';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ToggleChip } from '@lhak/style/react';
 import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
@@ -518,50 +519,42 @@ const CandidateList: React.FC<{
       <div className={styles.candidateCard}>
         <div className={styles.candidateChips} role="group" aria-label="Filter by rule">
           {FILTER_CHIPS.map(({ filter: value, label }) => (
-            <button
+            <ToggleChip
               key={value}
-              onClick={() => setFilter(value)}
-              aria-pressed={filter === value}
-              className={styles.candidateChip}
+              pressed={filter === value}
+              onPressedChange={() => setFilter(value)}
             >
               {label}
-            </button>
+            </ToggleChip>
           ))}
         </div>
         <div className={styles.candidateChips} role="group" aria-label="Filter by length">
           {LENGTH_CHIPS.map(({ length: value, label }) => (
-            <button
+            <ToggleChip
               key={value}
-              onClick={() => setLength(value)}
-              aria-pressed={length === value}
-              className={styles.candidateChip}
+              pressed={length === value}
+              onPressedChange={() => setLength(value)}
             >
               {label}
-            </button>
+            </ToggleChip>
           ))}
         </div>
         <div className={styles.candidateChips} role="group" aria-label="Show only the top">
           {RANK_CHIPS.map(({ limit: value, label }) => (
-            <button
+            <ToggleChip
               key={value}
-              onClick={() => setLimit(value)}
-              aria-pressed={limit === value}
-              className={styles.candidateChip}
+              pressed={limit === value}
+              onPressedChange={() => setLimit(value)}
             >
               {label}
-            </button>
+            </ToggleChip>
           ))}
         </div>
         <div className={styles.candidateChips} role="group" aria-label="Sort">
           {SORT_CHIPS.map(({ sort: value, label }) => (
-            <button
-              key={value}
-              onClick={() => setSort(value)}
-              aria-pressed={sort === value}
-              className={styles.candidateChip}
-            >
+            <ToggleChip key={value} pressed={sort === value} onPressedChange={() => setSort(value)}>
               {label}
-            </button>
+            </ToggleChip>
           ))}
         </div>
         {remaining.length > 0 && (

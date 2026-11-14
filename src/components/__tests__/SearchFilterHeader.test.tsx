@@ -57,10 +57,10 @@ describe('SearchFilterHeader', () => {
       />
     );
 
-    expect(screen.queryByTitle('Filter things')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Filter things' })).toBeNull();
   });
 
-  test('shows the filter button with filterButtonLabel as title when closed, and calls onToggleFilter on click', () => {
+  test('shows the filter button named by filterButtonLabel, unpressed when closed, and calls onToggleFilter on click', () => {
     const onToggleFilter = vi.fn();
     render(
       <SearchFilterHeader
@@ -75,12 +75,12 @@ describe('SearchFilterHeader', () => {
       />
     );
 
-    const button = screen.getByTitle('Filter things');
+    const button = screen.getByRole('button', { name: 'Filter things', pressed: false });
     fireEvent.click(button);
     expect(onToggleFilter).toHaveBeenCalled();
   });
 
-  test('title switches to "Hide filters" when filterOpen is true', () => {
+  test('the filter button shows pressed while filterOpen, and says when a filter is active', () => {
     render(
       <SearchFilterHeader
         searchValue=""
@@ -88,14 +88,15 @@ describe('SearchFilterHeader', () => {
         searchPlaceholder="Search..."
         showFilterButton
         filterOpen
-        filterActive={false}
+        filterActive
         onToggleFilter={vi.fn()}
         filterButtonLabel="Filter things"
       />
     );
 
-    expect(screen.getByTitle('Hide filters')).toBeInTheDocument();
-    expect(screen.queryByTitle('Filter things')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Filter things (active)', pressed: true })
+    ).toBeInTheDocument();
   });
 
   test('renders trailingActions content', () => {

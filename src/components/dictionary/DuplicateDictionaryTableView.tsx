@@ -9,6 +9,7 @@ import {
 import { EntrySemanticCell } from './EntryCells';
 import { DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
 import { createDuplicateKey } from '../../utils/dictionary';
+import { rowBand } from './rowShading';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
@@ -108,18 +109,9 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
             const key = createDuplicateKey(row.source, row.dictionaryId);
             const isSelected = selectedEntries.has(key);
 
-            // Get pre-calculated group index for alternating backgrounds
+            // Pre-calculated group index: each duplicate group takes the next band (rowShading.ts).
             const actualIndex = startIndex + index;
             const groupIndex = duplicateGroupIndices[actualIndex] || 0;
-
-            // Alternating group background colors
-            // Light mode: slightly darker, Dark mode: slightly lighter
-            // Using opacity-based approach for consistency across themes
-            const groupBgColor =
-              groupIndex % 2 === 0
-                ? 'transparent'
-                : 'color-mix(in srgb, var(--text-color) 4%, transparent)';
-            const backgroundColor = isSelected ? 'var(--accent-light, #e0f2fe)' : groupBgColor;
 
             return (
               <div
@@ -133,7 +125,8 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                 }}
               >
                 <RowShell
-                  backgroundColor={backgroundColor}
+                  isSelected={isSelected}
+                  backgroundColor={rowBand(groupIndex)}
                   onContextMenu={
                     onContextMenu
                       ? (e) => onContextMenu(e, row.source, row.translation, row.dictionaryId)

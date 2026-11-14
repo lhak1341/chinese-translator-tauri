@@ -231,3 +231,43 @@ describe('DuplicateDictionaryTableView — semantic column', () => {
     expect(screen.getByLabelText('Set Character for 你好 in Phrases')).toBeInTheDocument();
   });
 });
+
+describe('DuplicateDictionaryTableView — group bands', () => {
+  // The app paints dotted paper behind the table; a see-through band let it show in the rows.
+  test('both group bands are opaque, so the dotted page never shows through a row', () => {
+    const rows = [
+      makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
+      makeRow({ source: '再见', translation: 'tạm biệt', dictionaryLabel: 'Phrases' }),
+    ];
+    renderView({ visibleDuplicateRows: rows, duplicateGroupIndices: [0, 1], totalHeight: 80 });
+    const band = (text: string) => {
+      let el: HTMLElement | null = screen.getByText(text);
+      while (el && !el.style.backgroundColor) el = el.parentElement;
+      return el?.style.backgroundColor ?? '';
+    };
+    const bands = [band('你好'), band('再见')];
+    expect(bands[0]).not.toBe(bands[1]);
+    for (const b of bands) {
+      expect(b).not.toBe('');
+      expect(b).not.toContain('transparent');
+    }
+  });
+
+  // One selected colour for every table, from the theme: was an undefined `--accent-light`
+  // falling back to a fixed light blue here, and a fixed translucent green in the normal view.
+  test('a selected row takes the theme soft accent, over its group band', () => {
+    const rows = [
+      makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
+      makeRow({ source: '再见', translation: 'tạm biệt', dictionaryLabel: 'Phrases' }),
+    ];
+    renderView({
+      visibleDuplicateRows: rows,
+      duplicateGroupIndices: [0, 1],
+      totalHeight: 80,
+      selectedEntries: new Set([createDuplicateKey('再见', rows[1]!.dictionaryId)]),
+    });
+    let el: HTMLElement | null = screen.getByText('再见');
+    while (el && !el.style.backgroundColor) el = el.parentElement;
+    expect(el?.style.backgroundColor).toBe('var(--primary-subtle)');
+  });
+});

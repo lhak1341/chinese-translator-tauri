@@ -389,6 +389,32 @@ describe('RulesManager', () => {
     expect(saveTransformRules).not.toHaveBeenCalled();
   });
 
+  // The tab paints dotted paper behind the list; transparent rows let it show through every rule.
+  test('adjacent rule rows paint different opaque bands, so the dotted page never shows through', async () => {
+    loadTransformRules.mockResolvedValue({
+      rules: [
+        makeRule({ id: 'a', key: '城' }),
+        makeRule({ id: 'b', key: '山', label: 'Mountain' }),
+      ],
+      droppedCount: 0,
+    });
+    render(<RulesManager />);
+    const band = (el: HTMLElement | null): string => {
+      for (; el; el = el.parentElement) {
+        const bg = el.style.backgroundColor;
+        if (bg && bg !== 'transparent') return bg;
+      }
+      return '';
+    };
+    const rows = [await screen.findByText('城'), await screen.findByText('山')];
+    const bands = rows.map(band);
+    expect(bands[0]).not.toBe(bands[1]);
+    for (const b of bands) {
+      expect(b).not.toBe('');
+      expect(b).not.toContain('transparent');
+    }
+  });
+
   test('delete button is an icon (Trash2), not text', async () => {
     loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);

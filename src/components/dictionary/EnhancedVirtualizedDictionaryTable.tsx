@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { EmptyState } from '@lhak/style/react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryTableView from './DictionaryTableView';
 import { ITEM_HEIGHT, SemanticTypeFilterChips, FilterChipButton } from './TableBuildingBlocks';
@@ -122,51 +123,27 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   const emptyState =
     !showDuplicatesMode && filteredEntries.length === 0 ? (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '3rem',
-        }}
-      >
-        <div
-          style={{
-            color: 'var(--text-color)',
-            opacity: 0.4,
-            textAlign: 'center',
-            fontSize: '1rem',
-            lineHeight: '1.8',
-          }}
-        >
-          {searchTerm || hasActiveFilter ? (
-            <>
-              <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
-                {searchTerm
-                  ? `No entries matching "${searchTerm}"`
-                  : 'No entries match the active filters'}
-              </div>
-              <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                {searchTerm && hasActiveFilter
-                  ? 'Try a different search term or adjust the filters'
-                  : searchTerm
-                    ? 'Try a different search term'
-                    : 'Try adjusting or clearing the filters'}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>Dictionary is empty</div>
-              <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                Use Add Entry above, or select text in the
-                <br />
-                Translator or Reader tab and press Cmd/Ctrl+1–6
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      searchTerm || hasActiveFilter ? (
+        <EmptyState
+          title={
+            searchTerm
+              ? `No entries matching "${searchTerm}"`
+              : 'No entries match the active filters'
+          }
+          description={
+            searchTerm && hasActiveFilter
+              ? 'Try a different search term or adjust the filters'
+              : searchTerm
+                ? 'Try a different search term'
+                : 'Try adjusting or clearing the filters'
+          }
+        />
+      ) : (
+        <EmptyState
+          title="Dictionary is empty"
+          description="Use Add Entry above, or select text in the Translator or Reader tab and press Cmd/Ctrl+1–6"
+        />
+      )
     ) : null;
 
   if (isLoading) {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ROW_SELECTED } from './rowShading';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -335,25 +336,29 @@ export const SemanticTypeFilterChips: React.FC<{
  * flex/align-center, bottom-border-only). Exported so any other table-shaped view
  * (e.g. Rules tab, `DuplicateDictionaryTableView`) can reuse the exact same row metrics
  * instead of re-deriving them. `backgroundColor` is an unselected-state override (falls
- * back to `'transparent'`) — added for `DuplicateDictionaryTableView`'s alternating
- * group-background color, which `isSelected`'s own highlight still takes priority over
+ * back to `'transparent'`, so the list's own stripes show) — added for
+ * `DuplicateDictionaryTableView`'s alternating group bands, which `isSelected`'s own
+ * highlight (`ROW_SELECTED`, rowShading.ts) still takes priority over
  * (architecture review 2026-08-28, candidate #2 grilling). */
 export const RowShell: React.FC<{
   onContextMenu?: (e: React.MouseEvent) => void;
   isSelected?: boolean;
   backgroundColor?: string;
   role?: string;
+  /** e.g. the kit's `ROW_CLASS`, so the row's hover and focus reveal its `RowActions`. */
+  className?: string;
   children: React.ReactNode;
-}> = ({ onContextMenu, isSelected = false, backgroundColor, role, children }) => (
+}> = ({ onContextMenu, isSelected = false, backgroundColor, role, className, children }) => (
   <div
     onContextMenu={onContextMenu}
     role={role}
+    className={className}
     style={{
       height: ITEM_HEIGHT,
       display: 'flex',
       alignItems: 'center',
       borderBottom: '1px solid var(--border-color)',
-      backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : (backgroundColor ?? 'transparent'),
+      backgroundColor: isSelected ? ROW_SELECTED : (backgroundColor ?? 'transparent'),
     }}
   >
     {children}

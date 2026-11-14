@@ -55,7 +55,7 @@ describe('StreamingTranslationDisplay', () => {
   });
 
   test('shows finalText and no progress bar once complete', () => {
-    const { container } = render(
+    render(
       <StreamingTranslationDisplay
         streamingState={makeStreamingState({ isStreaming: true })}
         finalText="Xin chào"
@@ -64,11 +64,11 @@ describe('StreamingTranslationDisplay', () => {
     );
 
     expect(screen.getByText('Xin chào')).toBeInTheDocument();
-    expect(container.querySelector('.streaming-progress-container')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
   test('shows partialText and the progress bar while streaming', () => {
-    const { container } = render(
+    render(
       <StreamingTranslationDisplay
         streamingState={makeStreamingState({
           isStreaming: true,
@@ -83,7 +83,9 @@ describe('StreamingTranslationDisplay', () => {
     );
 
     expect(screen.getByText('Đang dịch')).toBeInTheDocument();
-    expect(container.querySelector('.streaming-progress-container')).not.toBeNull();
+    const bar = screen.getByRole('progressbar', { name: 'Batch 1 • 2 / 5 chunks' });
+    expect(bar).toHaveAttribute('aria-valuenow', '42');
+    expect(bar).toHaveAttribute('aria-valuetext', '42.0%');
   });
 
   test('falls back to finalText when neither streaming nor complete', () => {

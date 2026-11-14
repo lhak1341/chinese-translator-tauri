@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { Filter } from 'lucide-react';
+import { SearchBar } from '@lhak/style/react';
 
 interface SearchFilterHeaderProps {
   searchValue: string;
@@ -17,7 +17,8 @@ interface SearchFilterHeaderProps {
 
 /** Search box + filter-toggle button, shared shell between RulesManager and
  * EnhancedVirtualizedDictionaryTable — see src/components/CLAUDE.md. Presentational only;
- * search/filter-open state stays owned by the caller. */
+ * search/filter-open state stays owned by the caller. The bar itself is the kit's `SearchBar`
+ * (clear button, Escape clears, filter toggle pressed while the panel is open). */
 export function SearchFilterHeader({
   searchValue,
   onSearchChange,
@@ -34,52 +35,31 @@ export function SearchFilterHeader({
   return (
     <div
       style={{
-        display: 'flex',
         padding: '1rem',
-        gap: '1rem',
-        alignItems: 'center',
         borderBottom: '1px solid var(--border-color)',
         background: 'var(--background-color)',
         flexShrink: 0,
       }}
     >
-      <input
-        type="text"
+      <SearchBar
+        label={searchAriaLabel ?? searchPlaceholder}
         placeholder={searchPlaceholder}
         value={searchValue}
-        onChange={(e) => onSearchChange(e.target.value)}
-        aria-label={searchAriaLabel}
-        ref={searchRef}
-        style={{
-          flex: 1,
-          padding: '0.5rem',
-          border: '1px solid var(--border-color)',
-          borderRadius: '4px',
-          backgroundColor: 'var(--background-color)',
-          color: 'var(--text-color)',
-          fontSize: '0.875rem',
-        }}
-      />
-      {showFilterButton && (
-        <button
-          onClick={onToggleFilter}
-          className="icon"
-          title={filterOpen ? 'Hide filters' : filterButtonLabel}
-          style={{
-            padding: '0.5rem',
-            backgroundColor: filterActive
-              ? 'var(--accent-color)'
-              : filterOpen
-                ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)'
-                : undefined,
-            color: filterActive ? 'white' : undefined,
-            borderRadius: '4px',
-          }}
-        >
-          <Filter size={16} />
-        </button>
-      )}
-      {trailingActions}
+        onValueChange={onSearchChange}
+        inputRef={searchRef}
+        filter={
+          showFilterButton
+            ? {
+                label: filterButtonLabel,
+                open: filterOpen,
+                onOpenChange: onToggleFilter,
+                active: filterActive,
+              }
+            : undefined
+        }
+      >
+        {trailingActions}
+      </SearchBar>
     </div>
   );
 }

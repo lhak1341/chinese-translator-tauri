@@ -309,6 +309,293 @@
   cursor: not-allowed;
 }
 
+/* ---- chip.css ---- */
+/* Chip (shared pattern): <span class="lk-chip">, pill-shaped.
+   - Category: add lk-chip--<hue> (blue, orange, green, purple, cyan, pink,
+     yellow, red) and a <span class="lk-chip__dot"> before the label, or
+     lk-chip--tint instead of the dot. The hue never fills the chip solid.
+   - Count: a <span class="lk-chip__count"> after the label.
+   - Status: lk-chip--success|warning|danger|info, always with an icon
+     (class lk-chip__icon) named by a word, or a word in the label.
+   - Toggle: <button class="lk-chip lk-chip--toggle" aria-pressed="false">.
+
+   The category hues are the one place the kit reads hue roles (category
+   only, SPEC user story 18). A toggle chip restates every property an app's
+   global `button` rules set, in each state, so they cannot leak through. */
+.lk-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lk-space-1);
+  min-width: 0;
+  min-height: var(--lk-space-6);
+  margin: 0;
+  padding: 0 var(--lk-space-2);
+  border: 1px solid var(--lk-border);
+  border-radius: var(--lk-radius-pill);
+  outline: none;
+  background: var(--lk-surface-raised);
+  box-shadow: none;
+  color: var(--lk-text);
+  opacity: 1;
+  font-family: var(--lk-font-label);
+  font-size: var(--lk-step-xs);
+  font-weight: var(--lk-weight-label);
+  letter-spacing: var(--lk-tracking-label);
+  line-height: var(--lk-line-height-ui);
+  white-space: nowrap;
+  vertical-align: middle;
+  transform: none;
+}
+
+.lk-chip__dot {
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: var(--lk-radius-pill);
+  background: var(--_chip-hue);
+}
+
+.lk-chip__count {
+  color: var(--lk-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sized here rather than by .lk-icon, so a plugin needs only this pattern. */
+.lk-chip__icon {
+  flex: none;
+  width: calc(1em * var(--lk-line-height-ui));
+  height: calc(1em * var(--lk-line-height-ui));
+  margin-inline-start: calc(var(--lk-space-1) * -0.5);
+  color: var(--_chip-status);
+}
+
+.lk-chip--tint {
+  border-color: transparent;
+  background: var(--_chip-soft);
+}
+
+.lk-chip--blue {
+  --_chip-hue: var(--lk-blue);
+  --_chip-soft: var(--lk-blue-soft);
+}
+
+.lk-chip--orange {
+  --_chip-hue: var(--lk-orange);
+  --_chip-soft: var(--lk-orange-soft);
+}
+
+.lk-chip--green {
+  --_chip-hue: var(--lk-green);
+  --_chip-soft: var(--lk-green-soft);
+}
+
+.lk-chip--purple {
+  --_chip-hue: var(--lk-purple);
+  --_chip-soft: var(--lk-purple-soft);
+}
+
+.lk-chip--cyan {
+  --_chip-hue: var(--lk-cyan);
+  --_chip-soft: var(--lk-cyan-soft);
+}
+
+.lk-chip--pink {
+  --_chip-hue: var(--lk-pink);
+  --_chip-soft: var(--lk-pink-soft);
+}
+
+.lk-chip--yellow {
+  --_chip-hue: var(--lk-yellow);
+  --_chip-soft: var(--lk-yellow-soft);
+}
+
+.lk-chip--red {
+  --_chip-hue: var(--lk-red);
+  --_chip-soft: var(--lk-red-soft);
+}
+
+/* Status: a soft tint of the status colour, the icon in the full colour. */
+.lk-chip--success,
+.lk-chip--warning,
+.lk-chip--danger,
+.lk-chip--info {
+  border-color: transparent;
+  background: var(--_chip-status-soft);
+}
+
+.lk-chip--success {
+  --_chip-status: var(--lk-success);
+  --_chip-status-soft: var(--lk-success-soft);
+}
+
+.lk-chip--warning {
+  --_chip-status: var(--lk-warning);
+  --_chip-status-soft: var(--lk-warning-soft);
+}
+
+.lk-chip--danger {
+  --_chip-status: var(--lk-danger);
+  --_chip-status-soft: var(--lk-danger-soft);
+}
+
+.lk-chip--info {
+  --_chip-status: var(--lk-info);
+  --_chip-status-soft: var(--lk-info-soft);
+}
+
+/* Toggle: pressed shows the accent's soft tint and border, not a solid fill. */
+.lk-chip--toggle {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background-color var(--lk-duration-fast) var(--lk-ease-standard),
+    border-color var(--lk-duration-fast) var(--lk-ease-standard),
+    color var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-chip--toggle:hover:not(:disabled, [data-disabled]) {
+  border-color: var(--lk-border-strong);
+  background: var(--lk-surface-hover);
+  color: var(--lk-text);
+}
+
+.lk-chip--toggle:active:not(:disabled, [data-disabled]) {
+  background: var(--lk-surface-active);
+  transform: none;
+}
+
+.lk-chip--toggle[aria-pressed='true'],
+.lk-chip--toggle[aria-pressed='true']:hover:not(:disabled, [data-disabled]),
+.lk-chip--toggle[aria-pressed='true']:active:not(:disabled, [data-disabled]) {
+  border-color: var(--lk-accent);
+  background: var(--lk-accent-soft);
+  color: var(--lk-text);
+}
+
+.lk-chip--toggle:focus-visible {
+  outline: 2px solid var(--lk-focus-ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.lk-chip--toggle:disabled,
+.lk-chip--toggle[data-disabled] {
+  border-color: var(--lk-border);
+  background: var(--lk-surface-sunken);
+  color: var(--lk-text-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+/* ---- spinner.css ---- */
+/* Spinner (shared pattern): <span class="lk-spinner" aria-hidden="true">
+   next to text that says what is loading, or
+   <span class="lk-spinner" role="status" aria-label="Saving"> on its own.
+   One line of its text tall: set font-size on it or a parent to resize it.
+
+   Reduce motion: no turning (movement off); the ring pulses its opacity
+   instead, so it still shows work in progress (fades on). */
+.lk-spinner {
+  box-sizing: border-box;
+  display: inline-block;
+  flex: none;
+  width: calc(1em * var(--lk-line-height-ui));
+  height: calc(1em * var(--lk-line-height-ui));
+  border: 2px solid var(--lk-border);
+  border-top-color: var(--lk-accent);
+  border-radius: var(--lk-radius-pill);
+  vertical-align: middle;
+  animation: lk-spinner-spin calc(var(--lk-duration-base) * 4) linear infinite;
+}
+
+@keyframes lk-spinner-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes lk-spinner-pulse {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-spinner {
+    animation-name: lk-spinner-pulse;
+    animation-duration: calc(var(--lk-duration-slow) * 3);
+    animation-timing-function: var(--lk-ease-standard);
+    animation-direction: alternate;
+  }
+}
+
+/* ---- empty-state.css ---- */
+/* Empty / loading state (shared pattern): what a list, table or panel shows
+   in place of content it does not have (yet).
+
+   <div class="lk-empty-state">
+     <span class="lk-empty-state__icon">(icon, optional)</span>
+     <p class="lk-empty-state__title">Dictionary is empty</p>
+     <p class="lk-empty-state__description">Add an entry to start.</p>
+     <div class="lk-empty-state__action">(button, optional)</div>
+   </div>
+
+   Loading: role="status" on the root, aria-labelledby its title (no
+   aria-busy: it would hold back the announcement), and a
+   <span class="lk-spinner" aria-hidden="true"> in place of the icon
+   (spinner.css). Centred in whatever space its parent gives it. */
+.lk-empty-state {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lk-space-2);
+  padding: var(--lk-space-8) var(--lk-space-4);
+  color: var(--lk-text-muted);
+  font-family: var(--lk-font-interface);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+  text-align: center;
+}
+
+.lk-empty-state__icon {
+  display: inline-flex;
+  color: var(--lk-text-faint);
+  font-size: var(--lk-step-xl);
+}
+
+.lk-empty-state > .lk-spinner {
+  font-size: var(--lk-step-lg);
+}
+
+.lk-empty-state__title {
+  margin: 0;
+  color: var(--lk-text);
+  font-size: var(--lk-step-md);
+}
+
+.lk-empty-state__description {
+  max-width: 40ch;
+  margin: 0;
+  font-size: var(--lk-step-sm);
+}
+
+.lk-empty-state__action {
+  display: flex;
+  gap: var(--lk-space-2);
+  margin-top: var(--lk-space-2);
+}
+
 /* ---- radio.css ---- */
 /* Radio (React kit): Base UI's Radio.Root (data-checked) inside a RadioGroup.
    Each radio sits in a .lk-choice label (checkbox.css). */
@@ -1947,4 +2234,205 @@
   .lk-tooltip[data-ending-style] {
     transform: none;
   }
+}
+
+/* ---- progress.css ---- */
+/* Progress bar (React kit, Base UI Progress): a label and its value above a
+   thin track. The fill grows at the base tier (a list-sized change, SPEC user
+   story 38). Indeterminate (no value): a short fill slides along the track.
+
+   Reduce motion: the fill jumps to each value and the indeterminate fill
+   stays put and pulses its opacity (movement off, fades on). */
+.lk-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: var(--lk-space-1);
+  column-gap: var(--lk-space-3);
+  min-width: 0;
+  color: var(--lk-text-muted);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-xs);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-progress__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lk-progress__value {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.lk-progress__track {
+  position: relative;
+  grid-column: 1 / -1;
+  height: var(--lk-space-1);
+  overflow: hidden;
+  border-radius: var(--lk-radius-pill);
+  background: var(--lk-surface-sunken);
+}
+
+.lk-progress__indicator {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lk-accent);
+  transition: width var(--lk-duration-base) var(--lk-ease-standard);
+}
+
+.lk-progress__indicator[data-indeterminate] {
+  position: absolute;
+  width: 40%;
+  animation: lk-progress-slide calc(var(--lk-duration-slow) * 5) var(--lk-ease-standard) infinite;
+}
+
+@keyframes lk-progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes lk-progress-pulse {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-progress__indicator {
+    transition: none;
+  }
+
+  .lk-progress__indicator[data-indeterminate] {
+    width: 100%;
+    animation-name: lk-progress-pulse;
+    animation-direction: alternate;
+  }
+}
+
+/* ---- search-bar.css ---- */
+/* Search/filter bar (React kit): a row holding the search field (the text
+   field pattern, with a magnifier inside its start and a clear button inside
+   its end), the filter toggle (a ghost icon button) and trailing actions.
+
+   The filter toggle shows pressed (accent soft tint) while the filter panel
+   is open, and a dot in its corner while any filter applies. */
+.lk-search-bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--lk-space-2);
+  min-width: 0;
+}
+
+.lk-search-bar__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.lk-search-bar__glass {
+  position: absolute;
+  inset-inline-start: var(--lk-space-2);
+  color: var(--lk-text-faint);
+  font-size: var(--lk-step-sm);
+  pointer-events: none;
+}
+
+.lk-search-bar__input {
+  flex: 1;
+  width: 100%;
+  padding-inline: var(--lk-space-8);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* WebKit draws its own cancel button in a search input; the kit's replaces it. */
+.lk-search-bar__input::-webkit-search-cancel-button,
+.lk-search-bar__input::-webkit-search-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.lk-search-bar__clear.lk-button {
+  position: absolute;
+  inset-inline-end: 0;
+  border-color: transparent;
+}
+
+.lk-search-bar__filter.lk-button {
+  position: relative;
+}
+
+.lk-search-bar__filter.lk-button[aria-pressed='true'],
+.lk-search-bar__filter.lk-button[aria-pressed='true']:hover:not(:disabled, [data-disabled]) {
+  background: var(--lk-accent-soft);
+  color: var(--lk-text);
+}
+
+.lk-search-bar__filter-dot {
+  position: absolute;
+  inset-block-start: var(--lk-space-1);
+  inset-inline-end: var(--lk-space-1);
+  width: var(--lk-space-2);
+  height: var(--lk-space-2);
+  border-radius: var(--lk-radius-pill);
+  background: var(--lk-accent);
+}
+
+/* ---- row-actions.css ---- */
+/* Row hover actions (React kit): <div class="lk-row-actions" role="group">
+   of ghost icon buttons (button.css) inside a row with class lk-row. They
+   fade in at the fast tier while the row is hovered or holds focus. Only the
+   opacity changes, so a hidden action keeps its place in the Tab order and
+   focusing it reveals the group. On a touch screen (no hover) they show. */
+.lk-row-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--lk-space-1);
+  opacity: 0;
+  transition: opacity var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.lk-row:hover .lk-row-actions,
+.lk-row:focus-within .lk-row-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .lk-row-actions {
+    opacity: 1;
+  }
+}
+
+/* A row action is a compact ghost icon button, one UI step smaller. */
+.lk-row-action.lk-button {
+  width: var(--lk-space-6);
+  min-height: var(--lk-space-6);
+  font-size: var(--lk-step-xs);
+}
+
+/* :not(disabled) so a disabled danger action keeps button.css's disabled colour. */
+.lk-row-action--danger.lk-button:not(:disabled, [data-disabled]) {
+  color: var(--lk-danger);
+}
+
+.lk-row-action--danger.lk-button:hover:not(:disabled, [data-disabled]),
+.lk-row-action--danger.lk-button:active:not(:disabled, [data-disabled]) {
+  background: var(--lk-danger-soft);
 }

@@ -4,13 +4,14 @@
  *
  * Features:
  * - Progressive text display as translation completes
- * - Progress bar with batch completion info
+ * - Progress bar with batch completion info (the kit's ProgressBar)
  * - Typing cursor animation during streaming
  * - Memory-efficient rendering for long texts
  * - Graceful fallback for non-streaming engines
  */
 
 import React, { memo, useMemo, useRef, useEffect } from 'react';
+import { ProgressBar } from '@lhak/style/react';
 import '../styles/streaming-animations.css';
 import styles from '../styles/StreamingTranslationDisplay.module.css';
 
@@ -74,32 +75,22 @@ interface StreamingTranslationDisplayProps {
   style?: React.CSSProperties;
 }
 
-// Streaming progress bar component - OPTIMIZED: Uses static CSS instead of dynamic injection
+// Streaming progress bar: the kit's ProgressBar, labelled with the batch and chunk count; its
+// value text adds the time per chunk.
 const StreamingProgressBar = memo<StreamingProgressBarProps>(({ streamingState }) => {
-  // Use CSS classes instead of inline styles for better performance
-  const progressBarClass =
-    streamingState.progress > 0 ? 'streaming-progress-fill animated' : 'streaming-progress-fill';
+  const { batchNumber, completedChunks, totalChunks, progress, avgTimePerChunk } = streamingState;
+  const valueText =
+    avgTimePerChunk > 0
+      ? `${progress.toFixed(1)}% • ${avgTimePerChunk.toFixed(0)}ms/chunk`
+      : `${progress.toFixed(1)}%`;
 
   return (
     <div className="streaming-progress-container">
-      {/* Progress bar */}
-      <div className="streaming-progress-bar">
-        <div className={progressBarClass} style={{ width: `${streamingState.progress}%` }} />
-      </div>
-
-      {/* Progress details */}
-      <div className="streaming-status">
-        <span>
-          Batch {streamingState.batchNumber} • {streamingState.completedChunks} /{' '}
-          {streamingState.totalChunks} chunks
-        </span>
-        <span>
-          {streamingState.progress.toFixed(1)}%
-          {streamingState.avgTimePerChunk > 0 && (
-            <span> • {streamingState.avgTimePerChunk.toFixed(0)}ms/chunk</span>
-          )}
-        </span>
-      </div>
+      <ProgressBar
+        label={`Batch ${batchNumber} • ${completedChunks} / ${totalChunks} chunks`}
+        value={progress}
+        valueText={valueText}
+      />
     </div>
   );
 });

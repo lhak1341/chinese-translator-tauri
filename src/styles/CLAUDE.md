@@ -30,7 +30,7 @@ A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which 
 - For shared animations, use `:global(@keyframes name) { ... }` in `shared.module.css`.
 - **`spin` and `pulse` are already global in `index.css`** — do not define local or `:global` duplicates in any module file or `shared.module.css`.
 - **A module names a global keyframes as `animation: global(spin) …`.** CSS Modules renames every bare name in `animation`, so `animation: spin` becomes `_spin_<hash>`, which nothing defines, and the animation silently never runs (seven did, found 2026-11-13). `:global(spin)` is a parse error there. `__tests__/AnimationNames.test.ts` compiles each module through Vite and fails on a name with no keyframes.
-- **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `progress-pulse` (used by `.streaming-progress-pulse`) and `streaming-blink` (used by `.typing-cursor`). Do not rename them or add new ones to that file.
+- **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `streaming-blink` (used by `.typing-cursor`); the progress bar is the kit's `ProgressBar`. Do not rename them or add new ones to that file.
 
 ## Styling Virtualized Text Must Be Metrics-Neutral
 

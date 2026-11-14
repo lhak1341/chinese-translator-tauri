@@ -16,6 +16,7 @@ import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMen
 import type { UseVirtualScrollRangeResult } from '../../hooks/useVirtualScrollRange';
 import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
 import { entryPatcher } from './EntryCells';
+import { ROW_BASE, rowBand } from './rowShading';
 
 export interface DictionaryTableViewProps {
   selectedDictionary: string;
@@ -263,13 +264,17 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
                   window. The earlier translateY'd slice shifted every row up 40px in layout
                   whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
                   that by pulling scrollTop back, which re-added the row: flicker, then stuck.
-                  The stripe gradient sits on the spacer, in global coordinates, so a row's stripe
-                  parity is its real index with no phase bookkeeping. */}
+                  Each row paints its own band from its global index (rowShading.ts). A stripe
+                  gradient on this spacer painted only for short dictionaries: proper nouns striped,
+                  while characters, phrases and patterns (165k-660k px tall spacers) showed none
+                  (user report 2026-11-14; WebKit's limit on painting so tall a background is
+                  inferred, not probed). The spacer itself is the solid base colour, so a gap in
+                  a fast scroll shows no dotted paper. */}
                 <div
                   style={{
                     height: totalHeight,
                     position: 'relative',
-                    backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
+                    backgroundColor: ROW_BASE,
                   }}
                 >
                   {visibleEntries.map(([source, translation], index) => (
@@ -283,6 +288,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
                         left: 0,
                         right: 0,
                         height: ITEM_HEIGHT,
+                        backgroundColor: rowBand(startIndex + index),
                       }}
                     >
                       <VirtualRowComponent

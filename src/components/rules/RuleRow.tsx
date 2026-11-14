@@ -1,4 +1,5 @@
 import { Trash2, Search } from 'lucide-react';
+import { ROW_CLASS, RowAction, RowActions } from '@lhak/style/react';
 import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import {
@@ -33,9 +34,10 @@ function RuleRow({
     const next = commitRuleField(rule, field, raw);
     if (next !== null) await updateRule(next);
   };
+  const name = rule.label || rule.key;
 
   return (
-    <RowShell role="row">
+    <RowShell role="row" className={ROW_CLASS}>
       <div role="cell" className={dictStyles.checkboxCell}>
         <input
           type="checkbox"
@@ -124,22 +126,19 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={`${styles.rowActions} ${styles.colActions}`}>
-        <button
-          onClick={() => onViewMatches(rule)}
-          aria-label={`View matching entries for ${rule.label || rule.key}`}
-          title="View matching dictionary entries"
-          className={styles.viewMatchesButton}
-        >
-          <Search size={14} />
-        </button>
-        <button
-          onClick={() => deleteRule(rule.id)}
-          aria-label={`Delete ${rule.label || rule.key}`}
-          title="Delete rule"
-          className={styles.deleteButton}
-        >
-          <Trash2 size={14} />
-        </button>
+        <RowActions label={`Actions for ${name}`}>
+          <RowAction
+            icon={Search}
+            label={`View matching entries for ${name}`}
+            onClick={() => onViewMatches(rule)}
+          />
+          <RowAction
+            icon={Trash2}
+            label={`Delete ${name}`}
+            tone="danger"
+            onClick={() => deleteRule(rule.id)}
+          />
+        </RowActions>
       </div>
     </RowShell>
   );
