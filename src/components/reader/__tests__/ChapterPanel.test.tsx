@@ -7,6 +7,7 @@
 
 import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 import ChapterPanel from '../ChapterPanel';
 import type { ChapterHeader } from '../../../types/ReaderTypes';
@@ -36,7 +37,7 @@ function makeChapters(overrides: Partial<Chapters> = {}): Chapters {
 function renderPanel(props: Partial<React.ComponentProps<typeof ChapterPanel>> = {}) {
   const onJump = vi.fn();
   const view = render(
-    <ChapterPanel chapters={makeChapters()} onJump={onJump} onClose={vi.fn()} {...props} />
+    <ChapterPanel open chapters={makeChapters()} onJump={onJump} onClose={vi.fn()} {...props} />
   );
   return { ...view, onJump };
 }
@@ -83,5 +84,47 @@ describe('ChapterPanel', () => {
     fireEvent.change(screen.getByLabelText('Search chapters'), { target: { value: 'đi đêm' } });
     expect(screen.getByText('Đi đêm')).toBeTruthy();
     expect(screen.queryByText('第一章 山雨')).toBeNull();
+  });
+
+  test('is a drawer named Chapters; Escape and its close button ask to close', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderPanel({ onClose, autoFocusSearch: true });
+    expect(screen.getByRole('dialog', { name: 'Chapters' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Close chapter panel' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  test('renders nothing while closed', () => {
+    renderPanel({ open: false });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  test('scrolls the current chapter into view when it opens', () => {
+    // jsdom has no `scrollIntoView`; record which row asks for it.
+    const scrolled: string[] = [];
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) {
+        scrolled.push(this.textContent ?? '');
+      },
+    });
+    try {
+      const view = renderPanel({ open: false, chapters: makeChapters({ currentIndex: 1 }) });
+      expect(scrolled).toEqual([]);
+      view.rerender(
+        <ChapterPanel
+          open
+          chapters={makeChapters({ currentIndex: 1 })}
+          onJump={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      expect(scrolled).toEqual(['第二章 夜行121']);
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
   });
 });

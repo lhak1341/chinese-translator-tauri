@@ -25,6 +25,7 @@
   --lk-ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
   --lk-ease-accel: cubic-bezier(0.4, 0, 1, 1);
   --lk-layer-overlay: 50;
+  --lk-layer-notice: 60;
   --lk-layer-tooltip: 70;
   --lk-font-label: 'SUSE', 'Rounded Mplus 1c', 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
   --lk-tracking-label: 0em;

@@ -356,14 +356,13 @@ const BookReader: React.FC<BookReaderProps> = ({
         chapterOverride={chapters.override}
       />
 
-      {outline && (
-        <ChapterPanel
-          chapters={chapters}
-          onJump={jumpToLine}
-          autoFocusSearch={outline.focusSearch}
-          onClose={() => setOutline(null)}
-        />
-      )}
+      <ChapterPanel
+        open={outline !== null}
+        chapters={chapters}
+        onJump={jumpToLine}
+        autoFocusSearch={outline?.focusSearch ?? false}
+        onClose={() => setOutline(null)}
+      />
 
       {finderOpen && (
         <CandidateFinderPanel

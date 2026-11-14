@@ -22,7 +22,7 @@ Vitest does not process CSS on import, so a stylesheet the build rejects can pas
 
 ## Modal Overlays
 
-A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which brings the scrim, box, focus trap and motion; `MoveDialog` is the example. A dialog its parent mounts to open and unmounts to close never plays its exit: keep `open` in state, set it false to close, and call the parent's `onClose` from `onOpenChangeComplete(false)`, as `MoveDialog` does. A hand-rolled overlay that is not yet moved uses `composes: modalOverlay from './shared.module.css'` then adds per-component `background-color`/`padding`.
+A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which brings the scrim, box, focus trap and motion; `MoveDialog` is the example. A kit overlay's content exists only while open, in a portal: a dialog or drawer its parent mounts to open and unmounts to close never plays its exit (keep `open` in state and call the parent's `onClose` from `onOpenChangeComplete(false)`, as `MoveDialog` does, or keep it mounted with an `open` prop, as `ChapterPanel` does), and the portal mounts its content a commit after `open` turns on, so an effect keyed on props finds its refs empty: focus or scroll inside it from a callback ref (`ChapterPanel`). A hand-rolled overlay that is not yet moved uses `composes: modalOverlay from './shared.module.css'` then adds per-component `background-color`/`padding`.
 
 ## Animations and Keyframes
 

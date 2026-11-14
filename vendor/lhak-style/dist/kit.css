@@ -1419,7 +1419,8 @@
   margin: calc(-1 * var(--lk-space-1)) calc(-1 * var(--lk-space-1)) 0 0;
 }
 
-.lk-dialog__title {
+.lk-dialog__title,
+.lk-drawer__title {
   margin: var(--lk-space-1) 0 0;
   color: var(--lk-text);
   font-family: var(--lk-font-interface);
@@ -1443,6 +1444,105 @@
   .lk-dialog[data-starting-style],
   .lk-dialog[data-ending-style] {
     transform: none;
+  }
+}
+
+/* ---- drawer.css ---- */
+/* Drawer (React kit): Base UI's Drawer as a side sheet on the overlay layer
+   (overlay.css), full height at the right edge (or left), with the dialog's
+   header and description (dialog.css). Motion from the motion lab
+   (prototypes/motion-lab/src/lab.css, wayfinder ticket 012): it slides in at
+   the slow tier on expo-out; while swiped it follows the finger (0ms) and the
+   scrim thins with the swipe; on release it runs the exit timing, 0.75× on the
+   accel curve. Reduce motion: it fades where it is instead of sliding. */
+.lk-drawer__viewport {
+  position: fixed;
+  inset: 0;
+  z-index: var(--lk-layer-overlay);
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.lk-drawer__viewport--left {
+  justify-content: flex-start;
+}
+
+.lk-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-3);
+  width: 352px;
+  max-width: 90vw;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--lk-space-4);
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  pointer-events: auto;
+  transform: translateX(var(--drawer-swipe-movement-x));
+  transition:
+    transform var(--lk-duration-slow) var(--lk-ease-expo-out),
+    opacity var(--lk-duration-slow) var(--lk-ease-expo-out);
+}
+
+.lk-drawer--left {
+  border-width: 0 1px 0 0;
+}
+
+.lk-drawer[data-starting-style],
+.lk-drawer[data-ending-style] {
+  transform: translateX(100%);
+}
+
+.lk-drawer--left[data-starting-style],
+.lk-drawer--left[data-ending-style] {
+  transform: translateX(-100%);
+}
+
+.lk-drawer[data-swiping] {
+  transition-duration: 0ms;
+}
+
+.lk-drawer[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-slow) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-drawer__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lk-space-3);
+  min-height: 0;
+}
+
+/* The scrim (overlay.css) thins as the drawer is swiped away. */
+.lk-drawer__backdrop {
+  opacity: calc(1 - var(--drawer-swipe-progress, 0));
+  transition-duration: var(--lk-duration-slow);
+}
+
+.lk-drawer__backdrop[data-swiping] {
+  transition-duration: 0ms;
+}
+
+.lk-drawer__backdrop[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-slow) * var(--lk-exit-factor));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lk-drawer {
+    transition-property: opacity;
+  }
+
+  .lk-drawer[data-starting-style],
+  .lk-drawer[data-ending-style],
+  .lk-drawer--left[data-starting-style],
+  .lk-drawer--left[data-ending-style] {
+    opacity: 0;
+    transform: translateX(var(--drawer-swipe-movement-x));
   }
 }
 
@@ -1605,6 +1705,191 @@
   .lk-menu[data-starting-style],
   .lk-menu[data-ending-style] {
     transform: none;
+  }
+}
+
+/* ---- toast.css ---- */
+/* Toast (React kit): Base UI's Toast stack (its stacking recipe, retimed) on
+   the overlay layer (overlay.css), above dialogs at `--lk-layer-notice`
+   (Obsidian's `--layer-notice`; a departure from SPEC user story 41's one
+   shared z-index, user decision in kit issue 13), bottom-right. Geometry from the motion lab
+   (prototypes/motion-lab/src/lab.css, accepted in wayfinder ticket 012): 340px
+   wide, toasts behind the front one peek 10px and shrink 6% a step, 10px gaps
+   when expanded. Base tier: a toast rises from below its own height plus 16px
+   (the lab's 2× travel, not wayfinder 012's 8px; user decision, kit issue 13), exits at 0.75× on the accel curve, and a swipe right
+   or down carries it off from where the finger left it. Base UI moves it with
+   the finger itself (inline `transition: none` while swiping).
+   `--_toast-rest` is where a toast sits in the stack; Reduce motion fades it
+   there instead of moving it. */
+.lk-toast__viewport {
+  position: fixed;
+  right: var(--lk-space-6);
+  bottom: var(--lk-space-6);
+  z-index: var(--lk-layer-notice);
+  width: 340px;
+  max-width: calc(100vw - 2 * var(--lk-space-4));
+  outline: none;
+}
+
+.lk-toast {
+  --_toast-gap: 10px;
+  --_toast-peek: 10px;
+  --_toast-scale: calc(max(0, 1 - (var(--toast-index) * 0.06)));
+  --_toast-height: var(--toast-frontmost-height, var(--toast-height));
+  --_toast-offset-y: calc(
+    var(--toast-offset-y) * -1 + (var(--toast-index) * var(--_toast-gap) * -1) + var(--toast-swipe-movement-y)
+  );
+  --_toast-rest: translateX(var(--toast-swipe-movement-x))
+    translateY(
+      calc(
+        var(--toast-swipe-movement-y) - (var(--toast-index) * var(--_toast-peek)) -
+          ((1 - var(--_toast-scale)) * var(--_toast-height))
+      )
+    )
+    scale(var(--_toast-scale));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: calc(1000 - var(--toast-index));
+  width: 100%;
+  height: var(--_toast-height);
+  border-radius: var(--lk-radius-l);
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  transform-origin: bottom center;
+  transform: var(--_toast-rest);
+  transition:
+    transform var(--lk-duration-base) var(--lk-ease-expo-out),
+    opacity var(--lk-duration-base) var(--lk-ease-expo-out),
+    height var(--lk-duration-base) var(--lk-ease-expo-out);
+}
+
+.lk-toast:focus-visible {
+  outline: 2px solid var(--lk-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Keeps the stack expanded while the pointer crosses the gap below a toast. */
+.lk-toast::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: calc(var(--_toast-gap) + 1px);
+}
+
+.lk-toast[data-expanded] {
+  --_toast-rest: translateX(var(--toast-swipe-movement-x)) translateY(var(--_toast-offset-y));
+  height: var(--toast-height);
+}
+
+.lk-toast[data-starting-style] {
+  opacity: 0;
+  transform: translateY(calc(100% + 16px));
+}
+
+/* Over the limit: kept mounted (and inert) by Base UI, hidden here. */
+.lk-toast[data-limited] {
+  opacity: 0;
+}
+
+.lk-toast[data-ending-style] {
+  opacity: 0;
+  transform: translateY(calc(100% + 16px));
+  transition-duration: calc(var(--lk-duration-base) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-toast[data-ending-style][data-swipe-direction='right'] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 120%)) translateY(var(--_toast-offset-y));
+}
+
+.lk-toast[data-ending-style][data-swipe-direction='down'] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+
+.lk-toast__content {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--lk-space-2);
+  padding: var(--lk-space-2) var(--lk-space-2) var(--lk-space-2) var(--lk-space-3);
+  overflow: hidden;
+  transition: opacity var(--lk-duration-base) var(--lk-ease-expo-out);
+}
+
+/* Toasts behind the front one show no content until the stack expands. */
+.lk-toast__content[data-behind] {
+  opacity: 0;
+}
+
+.lk-toast__content[data-expanded] {
+  opacity: 1;
+}
+
+.lk-toast__status {
+  flex-shrink: 0;
+}
+
+.lk-toast__status--success {
+  color: var(--lk-success);
+}
+
+.lk-toast__status--error {
+  color: var(--lk-danger);
+}
+
+.lk-toast__status--warning {
+  color: var(--lk-warning);
+}
+
+.lk-toast__status--info {
+  color: var(--lk-info);
+}
+
+.lk-toast__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lk-toast__title {
+  margin: 0;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-heading-weight);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+/* A title with no description is the whole message: interface weight, as
+   Obsidian's `.notice` and the translator's old toast (400). */
+.lk-toast__title:only-child {
+  font-weight: var(--lk-weight-interface);
+}
+
+.lk-toast__description {
+  margin: 0;
+  color: var(--lk-text-muted);
+}
+
+/* Reduce motion: a toast fades where it rests; the stack reflows without moving. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-toast {
+    transition-property: opacity;
+  }
+
+  .lk-toast[data-starting-style],
+  .lk-toast[data-ending-style],
+  .lk-toast[data-ending-style][data-swipe-direction='right'],
+  .lk-toast[data-ending-style][data-swipe-direction='down'] {
+    transform: var(--_toast-rest);
   }
 }
 

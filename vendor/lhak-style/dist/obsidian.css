@@ -81,5 +81,6 @@
   --lk-ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
   --lk-ease-accel: cubic-bezier(0.4, 0, 1, 1);
   --lk-layer-overlay: var(--layer-modal);
+  --lk-layer-notice: var(--layer-notice);
   --lk-layer-tooltip: var(--layer-tooltip);
 }
