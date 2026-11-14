@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, expect, test, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import TranslatorControls from '../TranslatorControls';
 
 function baseProps() {
@@ -35,10 +36,18 @@ describe('TranslatorControls hotkey hints', () => {
     }
   });
 
-  test('hint strip is decorative — has a title, not interactive controls', () => {
+  test('the strip opens the full hotkey list in a popover; Escape closes it', async () => {
+    const user = userEvent.setup();
     render(<TranslatorControls {...baseProps()} />);
-    const hint = screen.getByTitle("Quick-add hotkeys (see each button's tooltip)");
-    expect(hint.querySelector('button')).not.toBeInTheDocument();
+    const strip = screen.getByRole('button', { name: 'Quick-add hotkeys' });
+    await user.click(strip);
+    const popup = await screen.findByRole('dialog', { name: 'Quick-add hotkeys' });
+    expect(popup.textContent).toContain('⌘1');
+    expect(popup.textContent).toContain('Add → Characters dictionary');
+    expect(popup.textContent).toContain('Add → new Transform Rule (Rules tab)');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(strip);
   });
 });
 

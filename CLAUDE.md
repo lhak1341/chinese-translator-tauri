@@ -15,7 +15,7 @@ bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothin
 bun run type-check  # 0 errors expected; excludes **/*.test.ts(x) — a test file's own type errors surface only at test-run time, not here
 ```
 
-`git commit` runs the pre-commit hook (prettier, eslint, a full `tsc --noEmit`) and has taken over 300 s; a chained test + lint + commit run went past 600 s. Run long chains with `run_in_background`, then check `git log` rather than trusting the exit code.
+The full test run, `bun run lint` (the ratchet, over 300 s) and `git commit` (pre-commit hook: prettier, eslint, a full `tsc --noEmit`, over 300 s) each load every core: run them one at a time with `run_in_background`, never side by side. In parallel, untouched engine tests fail on load (`Failed to start forks worker`, 30 s hook timeouts; 2026-11-14) and pass when rerun alone. After a commit, check `git log` rather than trusting the exit code.
 
 Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, app-data and sandbox rules): `tauri-app-dev` skill.
 

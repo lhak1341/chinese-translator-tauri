@@ -8,6 +8,7 @@
 
 import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 import { WordTransformToolbar } from '../WordTransformToolbar';
 
@@ -121,5 +122,22 @@ describe('WordTransformToolbar — disabled prop overrides everything', () => {
     expect(screen.getByRole('button', { name: 'Move last word to beginning' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move last 2 words to beginning' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move last 3 words to beginning' })).toBeDisabled();
+  });
+});
+
+describe('WordTransformToolbar — preview tooltip', () => {
+  test('hovering a button previews its result; the button keeps its plain name', async () => {
+    const user = userEvent.setup();
+    renderToolbar('hello world');
+    const button = screen.getByRole('button', { name: 'Capitalize all words (Title Case)' });
+    await user.hover(button);
+    expect(
+      await screen.findByText(
+        'Capitalize all words (Title Case): Hello World',
+        {},
+        { timeout: 2000 }
+      )
+    ).toBeInTheDocument();
+    expect(button).not.toHaveAttribute('title');
   });
 });

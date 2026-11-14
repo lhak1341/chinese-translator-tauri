@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDictionary } from './DictionaryContext';
-import { X, AlertTriangle, Loader } from 'lucide-react';
+import { AlertTriangle, Loader } from 'lucide-react';
+import { Dialog, DialogClose, DialogPopup } from '@lhak/style/react';
 import styles from '../../styles/MoveDialog.module.css';
 import { logger } from '../../utils/logger';
 import { buildEntryMetadata, entryFields } from '../../utils/dictionary';
@@ -44,6 +45,12 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   const [selectedDictionary, setSelectedDictionary] = useState<string>('');
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Mounted means wanted: the parent mounts the dialog to open it and unmounts it in
+  // `onClose`. Closing first sets `open` false so the kit dialog can play its exit, then
+  // `onOpenChangeComplete` hands over to the parent (and `onSuccess` after a move).
+  const [open, setOpen] = useState(true);
+  const moved = useRef(false);
+  const selectRef = useRef<HTMLSelectElement>(null);
 
   const { moveEntries, dictionaries, loadDictionary } = useDictionary();
   const { availableDictionaries, sourceLabel: sourceDictionaryLabel } =
@@ -120,35 +127,25 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
         fullEntries.map((e) => e.source),
         getSelectedLabel()
       );
-      onClose();
-      onSuccess?.();
+      moved.current = true;
+      setOpen(false);
     } catch (err) {
       logger.error('Move operation failed:', err);
       const message = (err as Error)?.message || 'Unknown error';
       setError(`Failed to move ${isSingle ? 'entry' : 'entries'}: ${message}`);
       setIsMoving(false);
     }
-  }, [
-    selectedDictionary,
-    fullEntries,
-    isSingle,
-    moveEntries,
-    currentDictionary,
-    getSelectedLabel,
-    onClose,
-    onSuccess,
-  ]);
+  }, [selectedDictionary, fullEntries, isSingle, moveEntries, currentDictionary, getSelectedLabel]);
 
+  // Escape, outside press and Close are the kit dialog's; Enter submits.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' && selectedDictionary && !isMoving && !isLoadingTarget) {
         e.preventDefault();
         handleMove();
-      } else if (e.key === 'Escape' && !isMoving) {
-        onClose();
       }
     },
-    [selectedDictionary, isMoving, isLoadingTarget, handleMove, onClose]
+    [selectedDictionary, isMoving, isLoadingTarget, handleMove]
   );
 
   const previewEntries = fullEntries.slice(0, 3);
@@ -157,32 +154,24 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
   const buttonLabel = isSingle ? 'Move Entry' : `Move ${fullEntries.length} Entries`;
 
   return (
-    <div className={styles.overlay} onClick={isMoving ? undefined : onClose}>
-      <div
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !isMoving) setOpen(false);
+      }}
+      onOpenChangeComplete={(isOpen) => {
+        if (isOpen) return;
+        onClose();
+        if (moved.current) onSuccess?.();
+      }}
+    >
+      <DialogPopup
+        title={title}
         className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="move-dialog-title"
-        onClick={(e) => e.stopPropagation()}
+        closeDisabled={isMoving}
+        initialFocus={() => selectRef.current ?? true}
         onKeyDown={handleKeyDown}
-        tabIndex={-1}
-        ref={(el) => el?.focus()}
       >
-        {/* Header */}
-        <div className={styles.header}>
-          <h2 id="move-dialog-title" className={styles.title}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            disabled={isMoving}
-            className={styles.closeButton}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
         {/* Entry context display */}
         <div className={styles.content}>
           {isSingle && fullEntries[0] && (
@@ -248,12 +237,12 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
               </div>
             ) : (
               <select
+                ref={selectRef}
                 id="move-target-dict"
                 value={selectedDictionary}
                 onChange={(e) => setSelectedDictionary(e.target.value)}
                 disabled={isMoving}
                 className={`${styles.select} ${error ? styles.selectWithError : ''}`}
-                autoFocus
               >
                 <option value="">Choose destination dictionary...</option>
                 {availableDictionaries.map(({ id, label }) => (
@@ -281,9 +270,9 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
 
         {/* Footer */}
         <div className={styles.footer}>
-          <button onClick={onClose} disabled={isMoving} className={styles.cancelButton}>
+          <DialogClose disabled={isMoving} className={styles.cancelButton}>
             Cancel
-          </button>
+          </DialogClose>
           <button
             onClick={handleMove}
             className={styles.moveButton}
@@ -305,8 +294,8 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
             )}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogPopup>
+    </Dialog>
   );
 };
 

@@ -55,6 +55,7 @@
   --lk-heading-6: var(--h6-color, var(--text-normal));
   --lk-shadow-s: var(--shadow-s);
   --lk-shadow-l: var(--shadow-l);
+  --lk-scrim: var(--background-modifier-cover);
   --lk-space-1: var(--size-4-1);
   --lk-space-2: var(--size-4-2);
   --lk-space-3: var(--size-4-3);
@@ -79,4 +80,6 @@
   --lk-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --lk-ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
   --lk-ease-accel: cubic-bezier(0.4, 0, 1, 1);
+  --lk-layer-overlay: var(--layer-modal);
+  --lk-layer-tooltip: var(--layer-tooltip);
 }

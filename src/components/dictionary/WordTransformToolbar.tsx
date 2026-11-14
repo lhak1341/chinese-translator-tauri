@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tooltip, TooltipProvider } from '@lhak/style/react';
 import styles from '../../styles/DictionaryEntry.module.css';
 import {
   capitalizeAll,
@@ -63,8 +64,9 @@ const MOVE_TO_FRONT: Transform[] = [
 /**
  * The Add form's rewrite buttons, directly under the translation they change: capitalization
  * and word order, as two segmented groups. Hovering a button previews its result in the
- * tooltip. Out of the Tab order — they are mouse conveniences; the translation box is the
- * keyboard's place.
+ * kit tooltip (one provider, so moving along the row shows each at once). A disabled button
+ * gets no pointer events, so it shows no tooltip. Out of the Tab order — they are mouse
+ * conveniences; the translation box is the keyboard's place.
  */
 export function WordTransformToolbar({
   value,
@@ -75,28 +77,33 @@ export function WordTransformToolbar({
   const hasText = Boolean(value.trim());
 
   const button = (t: Transform, minWords: number, className: string): React.ReactElement => (
-    <button
+    <Tooltip
       key={t.label}
-      type="button"
-      onClick={() => onChange(t.apply(value))}
-      disabled={disabled || !hasText || wordCount < minWords}
-      tabIndex={-1}
-      className={`${styles.transformButton} ${className}`}
-      aria-label={t.description}
-      title={hasText ? `${t.description}: ${t.apply(value)}` : t.description}
+      label={t.description}
+      content={hasText ? `${t.description}: ${t.apply(value)}` : t.description}
     >
-      {t.label}
-    </button>
+      <button
+        type="button"
+        onClick={() => onChange(t.apply(value))}
+        disabled={disabled || !hasText || wordCount < minWords}
+        tabIndex={-1}
+        className={`${styles.transformButton} ${className}`}
+      >
+        {t.label}
+      </button>
+    </Tooltip>
   );
 
   return (
-    <div className={styles.transforms}>
-      <div className={styles.transformGroup} role="group" aria-label="Capitalize">
-        {CAPITALIZATION.map((t) => button(t, 1, styles.caseButton))}
+    <TooltipProvider>
+      <div className={styles.transforms}>
+        <div className={styles.transformGroup} role="group" aria-label="Capitalize">
+          {CAPITALIZATION.map((t) => button(t, 1, styles.caseButton))}
+        </div>
+        <div className={styles.transformGroup} role="group" aria-label="Move to front">
+          {MOVE_TO_FRONT.map((t, i) => button(t, i + 2, ''))}
+        </div>
       </div>
-      <div className={styles.transformGroup} role="group" aria-label="Move to front">
-        {MOVE_TO_FRONT.map((t, i) => button(t, i + 2, ''))}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }

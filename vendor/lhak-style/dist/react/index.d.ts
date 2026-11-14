@@ -10,4 +10,7 @@ export { Slider, type SliderProps } from './slider.tsx';
 export { NumberStepper, type NumberStepperProps } from './number-stepper.tsx';
 export { SegmentedControl, type SegmentedControlProps, type SegmentedItem } from './segmented.tsx';
 export { ThemeSwitch, type ThemeSwitchProps } from './theme-switch.tsx';
+export { Dialog, DialogClose, DialogPopup, DialogTrigger, type DialogCloseProps, type DialogPopupProps, type DialogProps, type DialogTriggerProps, } from './dialog.tsx';
+export { Popover, PopoverPopup, PopoverTrigger, type PopoverPopupProps, type PopoverProps, type PopoverTriggerProps, } from './popover.tsx';
+export { Tooltip, TooltipProvider, type TooltipProps, type TooltipProviderProps } from './tooltip.tsx';
 export { Tab, TabList, TabPanel, Tabs, type TabListProps, type TabPanelProps, type TabProps, type TabsProps } from './tabs.tsx';

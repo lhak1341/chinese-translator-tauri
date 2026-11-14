@@ -49,14 +49,53 @@
 }
 
 /* Hotkey hints — fainted (low-opacity) strip listing the quick-add keys, mirrors
-   docs/HOTKEYS.md's Translator-tab Add (1-7) table. Purely decorative (each button's
-   own `title` already carries the real hotkey text for assistive tech). */
+   docs/HOTKEYS.md's Translator-tab Add (1-7) table. A button: it opens the full list in the
+   kit popover. Restates what the global button rules set. */
 .hotkeyHints {
   display: flex;
   align-items: center;
   gap: 0.375rem;
   flex-wrap: wrap;
+  min-height: auto;
+  padding: 0.125rem 0.25rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
   opacity: 0.55;
+  transition: opacity var(--lk-duration-fast) var(--lk-ease-standard);
+}
+
+.hotkeyHints:hover,
+.hotkeyHints[data-popup-open] {
+  background: none;
+  opacity: 0.85;
+}
+
+.hotkeyHints:active {
+  transform: none;
+}
+
+/* The popover's list: key, then what it adds. */
+.hotkeyList {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--lk-space-1) var(--lk-space-3);
+  margin: 0;
+}
+
+.hotkeyListKey {
+  font-family: var(--font-mono);
+  color: var(--lk-text-muted);
+}
+
+.hotkeyListAction {
+  margin: 0;
+}
+
+.hotkeyNote {
+  max-width: 22rem;
+  margin: var(--lk-space-2) 0 0;
+  color: var(--lk-text-muted);
 }
 
 .hintModKey {

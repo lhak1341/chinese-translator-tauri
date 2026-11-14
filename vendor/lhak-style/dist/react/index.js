@@ -11,4 +11,7 @@ export { Slider } from "./slider.js";
 export { NumberStepper } from "./number-stepper.js";
 export { SegmentedControl } from "./segmented.js";
 export { ThemeSwitch } from "./theme-switch.js";
+export { Dialog, DialogClose, DialogPopup, DialogTrigger, } from "./dialog.js";
+export { Popover, PopoverPopup, PopoverTrigger, } from "./popover.js";
+export { Tooltip, TooltipProvider } from "./tooltip.js";
 export { Tab, TabList, TabPanel, Tabs } from "./tabs.js";

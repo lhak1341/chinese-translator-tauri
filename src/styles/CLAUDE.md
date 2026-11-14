@@ -22,7 +22,7 @@ Vitest does not process CSS on import, so a stylesheet the build rejects can pas
 
 ## Modal Overlays
 
-Use `composes: modalOverlay from './shared.module.css'` then add per-component `background-color`/`padding`.
+A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which brings the scrim, box, focus trap and motion; `MoveDialog` is the example. A dialog its parent mounts to open and unmounts to close never plays its exit: keep `open` in state, set it false to close, and call the parent's `onClose` from `onOpenChangeComplete(false)`, as `MoveDialog` does. A hand-rolled overlay that is not yet moved uses `composes: modalOverlay from './shared.module.css'` then adds per-component `background-color`/`padding`.
 
 ## Animations and Keyframes
 
@@ -51,6 +51,8 @@ Each `display: grid` element is its own formatting context — `auto`-sized trac
 ## Bare `button`/`select`/`input` Inherit index.css's Global Rules, and a Shorthand Wipes Them
 
 **Override a global control with longhands only.** `select` draws its chevron as a `background-image` and reserves `padding-right: 2.5rem`; a module's `background:` or `padding:` shorthand resets both, and the dropdown renders as a text input with no error (Candidate finder "Add to", 2026-10-25). Write `background-color` and `padding-right`, and re-set `background-position` if the padding changes.
+
+The state rules are `element:pseudo` (0,1,1) and outrank a module class (0,1,0): `button:hover` repaints its background, `:active` translates it, `:focus-visible` adds the glow, `:disabled` sets opacity. Restate each under the class's own state (`.hotkeyHints:hover`, `:active`), as `TranslatorControls.module.css` does.
 
 The base `button` rule (`index.css`) sets `align-items: center`, `justify-content: center`, `padding`, and `display: inline-flex` for every `<button>` in the app. A component styling a `<button>` as a custom flex/grid container (a card, a table row) must explicitly re-set every layout property it needs — setting only `flex-direction` lets `align-items:center` show through. Confirmed 2026-09-19: `.bookCard` set `flex-direction: column` but not `align-items`, so children shrank to content width and centered instead of stretching, which also broke the ellipsis/line-clamp sizing on the title text.
 

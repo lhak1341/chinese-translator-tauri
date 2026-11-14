@@ -450,7 +450,7 @@ describe('MoveDialog', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    test('close (X) button, Cancel button, and backdrop click all call onClose', async () => {
+    test.each(['Close', 'Cancel'])('the %s button calls onClose', async (name) => {
       render(
         <MoveDialog
           entries={['你好']}
@@ -459,11 +459,50 @@ describe('MoveDialog', () => {
           onSuccess={mockOnSuccess}
         />
       );
-      fireEvent.click(screen.getByLabelText('Close'));
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole('button', { name }));
+      await waitFor(() => expect(mockOnClose).toHaveBeenCalledTimes(1));
+      expect(mockOnSuccess).not.toHaveBeenCalled();
+    });
 
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      expect(mockOnClose).toHaveBeenCalledTimes(2);
+    test('opens with focus on the destination select', async () => {
+      render(
+        <MoveDialog
+          entries={['你好']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('combobox')));
+    });
+
+    test('Escape does not close while a move runs', async () => {
+      let resolveMove: () => void;
+      mockMoveEntries.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveMove = resolve;
+        })
+      );
+      render(
+        <MoveDialog
+          entries={['你好']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
+      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
+      await waitFor(() => expect(screen.getByText('Moving...')).toBeInTheDocument());
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(mockOnClose).not.toHaveBeenCalled();
+
+      await act(async () => resolveMove!());
+      await waitFor(() => expect(mockOnClose).toHaveBeenCalledTimes(1));
     });
 
     test('dialog content click does not close', async () => {

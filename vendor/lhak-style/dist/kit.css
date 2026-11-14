@@ -452,11 +452,62 @@
   }
 }
 
+/* ---- overlay.css ---- */
+/* The overlay layer (SPEC user story 41, kit issue 11): what every overlay
+   shares. One z-index for dialogs, popovers, menus and selects: Base UI portals
+   each into <body> as it opens, so a later overlay stacks above an earlier one
+   (a select inside a dialog). Tooltips sit above the layer (tooltip.css).
+   Values: tokens.css (`--lk-layer-*`, `--lk-scrim`, from Obsidian's
+   `--layer-modal`, `--layer-tooltip` and `--background-modifier-cover`). */
+
+/* A floating box's positioner (popover; menus later). */
+.lk-overlay-positioner {
+  z-index: var(--lk-layer-overlay);
+  outline: none;
+}
+
+/* The box: raised surface, hairline border, large shadow. Each overlay sets
+   its own radius and padding. Portalled out of the app, so it restates the
+   interface type the app would otherwise have given it. */
+.lk-overlay {
+  box-sizing: border-box;
+  border: 1px solid var(--lk-border);
+  outline: none;
+  background: var(--lk-surface-raised);
+  box-shadow: var(--lk-shadow-l);
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+/* The scrim behind a modal overlay: it fades at the base tier, and keeps the
+   fade under Reduce motion (it never moves). */
+.lk-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--lk-layer-overlay);
+  background: var(--lk-scrim);
+  transition: opacity var(--lk-duration-base) var(--lk-ease-expo-out);
+}
+
+.lk-scrim[data-starting-style],
+.lk-scrim[data-ending-style] {
+  opacity: 0;
+}
+
+.lk-scrim[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-base) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
 /* ---- select.css ---- */
 /* Select (React kit): Base UI's Select. The trigger looks like a text field;
    the popup opens at the fast tier, scaling from 0.96 at its transform
    origin, and exits at 0.75× on the accel curve (wayfinder ticket 012).
-   The z-index stands in until the overlay layer (kit ticket 11). */
+   It sits on the overlay layer (overlay.css), so it opens above a dialog. */
 .lk-select-field {
   display: inline-flex;
   flex-direction: column;
@@ -550,7 +601,7 @@
 }
 
 .lk-select__positioner {
-  z-index: 100;
+  z-index: var(--lk-layer-overlay);
   outline: none;
 }
 
@@ -1125,4 +1176,187 @@
   color: var(--lk-text-disabled);
   opacity: 1;
   cursor: not-allowed;
+}
+
+/* ---- dialog.css ---- */
+/* Dialog (React kit): Base UI's Dialog on the overlay layer (overlay.css).
+   Size from Obsidian's `.modal` (ref-app.css: `--dialog-width` 560px,
+   `--dialog-max-width` 80vw, `--dialog-max-height` 85vh, `--modal-radius`
+   radius-xl on macOS). It enters at the base tier travelling 8px up, and
+   exits at 0.75× on the accel curve (wayfinder ticket 012). */
+.lk-dialog__viewport {
+  position: fixed;
+  inset: 0;
+  z-index: var(--lk-layer-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lk-space-4);
+}
+
+.lk-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lk-space-3);
+  width: 560px;
+  max-width: 80vw;
+  max-height: 85vh;
+  overflow: auto;
+  padding: var(--lk-space-4);
+  border-radius: var(--lk-radius-xl);
+  transition:
+    opacity var(--lk-duration-base) var(--lk-ease-expo-out),
+    transform var(--lk-duration-base) var(--lk-ease-expo-out);
+}
+
+.lk-dialog[data-starting-style],
+.lk-dialog[data-ending-style] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.lk-dialog[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-base) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lk-space-2);
+  margin: calc(-1 * var(--lk-space-1)) calc(-1 * var(--lk-space-1)) 0 0;
+}
+
+.lk-dialog__title {
+  margin: var(--lk-space-1) 0 0;
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-lg);
+  font-weight: var(--lk-heading-weight);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+}
+
+.lk-dialog__description {
+  margin: 0;
+  color: var(--lk-text-muted);
+}
+
+/* Reduce motion: the dialog fades in place. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-dialog {
+    transition-property: opacity;
+  }
+
+  .lk-dialog[data-starting-style],
+  .lk-dialog[data-ending-style] {
+    transform: none;
+  }
+}
+
+/* ---- popover.css ---- */
+/* Popover (React kit): Base UI's Popover on the overlay layer (overlay.css).
+   It opens at the fast tier, scaling from 0.96 at its transform origin, and
+   exits at 0.75× on the accel curve (wayfinder ticket 012), as the select
+   popup does. */
+.lk-popover {
+  max-width: var(--available-width);
+  max-height: var(--available-height);
+  overflow: auto;
+  padding: var(--lk-space-3);
+  border-radius: var(--lk-radius-m);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--lk-duration-fast) var(--lk-ease-expo-out),
+    transform var(--lk-duration-fast) var(--lk-ease-expo-out);
+}
+
+.lk-popover[data-starting-style],
+.lk-popover[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.lk-popover[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-fast) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+.lk-popover__title {
+  margin: 0 0 var(--lk-space-2);
+  color: var(--lk-text-muted);
+  font-family: var(--lk-font-label);
+  font-size: var(--lk-step-sm);
+  font-weight: var(--lk-weight-label);
+  letter-spacing: var(--lk-tracking-label);
+  line-height: var(--lk-line-height-ui);
+}
+
+/* Reduce motion: the popover fades without scaling. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-popover {
+    transition-property: opacity;
+  }
+
+  .lk-popover[data-starting-style],
+  .lk-popover[data-ending-style] {
+    transform: none;
+  }
+}
+
+/* ---- tooltip.css ---- */
+/* Tooltip (React kit): Base UI's Tooltip, above the overlay layer
+   (`--lk-layer-tooltip`, Obsidian's `--layer-tooltip`), so a tooltip on a
+   control inside a dialog or popover shows over it. Small: radius-s and the
+   small shadow, as Obsidian's `.tooltip` (radius-s). It opens at the fast tier,
+   scaling from 0.96 at its transform origin, and exits at 0.75× on the accel
+   curve (wayfinder ticket 012). It never takes the pointer. */
+.lk-tooltip__positioner {
+  z-index: var(--lk-layer-tooltip);
+  pointer-events: none;
+}
+
+.lk-tooltip {
+  box-sizing: border-box;
+  max-width: 300px;
+  padding: var(--lk-space-1) var(--lk-space-2);
+  border: 1px solid var(--lk-border);
+  border-radius: var(--lk-radius-s);
+  background: var(--lk-surface-raised);
+  box-shadow: var(--lk-shadow-s);
+  color: var(--lk-text);
+  font-family: var(--lk-font-interface);
+  font-size: var(--lk-step-xs);
+  font-weight: var(--lk-weight-interface);
+  letter-spacing: var(--lk-tracking-interface);
+  line-height: var(--lk-line-height-ui);
+  white-space: pre-wrap;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--lk-duration-fast) var(--lk-ease-expo-out),
+    transform var(--lk-duration-fast) var(--lk-ease-expo-out);
+}
+
+.lk-tooltip[data-starting-style],
+.lk-tooltip[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.lk-tooltip[data-ending-style] {
+  transition-duration: calc(var(--lk-duration-fast) * var(--lk-exit-factor));
+  transition-timing-function: var(--lk-ease-accel);
+}
+
+/* Reduce motion: the tooltip fades without scaling. */
+@media (prefers-reduced-motion: reduce) {
+  .lk-tooltip {
+    transition-property: opacity;
+  }
+
+  .lk-tooltip[data-starting-style],
+  .lk-tooltip[data-ending-style] {
+    transform: none;
+  }
 }
