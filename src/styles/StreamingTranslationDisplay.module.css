@@ -7,7 +7,7 @@
   word-wrap: break-word;
   padding: 12px;
   line-height: 1.5;
-  font-size: 14px;
+  font-size: 0.875rem;
   background-color: transparent;
 }
 
@@ -24,16 +24,16 @@
 /* Truncation Notice */
 .truncationNotice {
   padding: 8px;
-  color: var(--streaming-text-primary);
+  color: var(--lk-text-muted);
   font-style: italic;
-  border-top: 1px solid var(--streaming-border);
+  border-top: 1px solid var(--lk-border);
   margin-top: 8px;
 }
 
 /* Ready Message */
 .readyMessage {
   padding: 20px;
-  color: var(--streaming-text-primary);
+  color: var(--lk-text-muted);
   text-align: center;
   background-color: transparent;
 }
@@ -45,9 +45,9 @@
 }
 
 .translationContentStreaming {
-  border: 1px solid var(--streaming-border);
+  border: 1px solid var(--lk-border);
   border-radius: 4px;
-  background-color: var(--streaming-bg-secondary);
+  background-color: var(--lk-surface);
 }
 
 .translationContentStatic {
@@ -60,11 +60,11 @@
 .debugInfo {
   margin-top: 8px;
   padding: 8px;
-  background-color: var(--streaming-bg-primary);
+  background-color: var(--lk-surface-sunken);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-family: monospace;
-  color: var(--streaming-text-primary);
+  color: var(--lk-text-muted);
 }
 
 /* Pulse Animation — references global @keyframes pulse defined in index.css */

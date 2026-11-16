@@ -1,4 +1,5 @@
 import React from 'react';
+import { textOnFill } from '../../utils/ui/textOnFill';
 import { TableCell } from '@lhak/style/react';
 import { entryCapabilities, showsSemanticType } from '../../utils/dictionary';
 import { logger } from '../../utils/logger';
@@ -62,7 +63,12 @@ export const EntryVarCell: React.FC<{
         <span
           className={styles.metadataBadge}
           title="Proper noun entries are always usable as variables — not toggleable here"
-          style={{ background: '#059669', color: 'white', border: 'none', cursor: 'default' }}
+          style={{
+            background: 'var(--lk-green)',
+            color: textOnFill('var(--lk-green)'),
+            border: 'none',
+            cursor: 'default',
+          }}
         >
           ✓ VAR
         </span>
@@ -128,7 +134,7 @@ const TypeToggleCell: React.FC<{
           justifyContent: 'center',
         }}
       >
-        <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>--</span>
+        <span style={{ fontSize: '0.65rem', color: 'var(--lk-text-faint)' }}>--</span>
       </TableCell>
     );
   }

@@ -15,7 +15,7 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json,md}\"",
     "lint": "node scripts/lint-ratchet.mjs && bun run lint:css",
-    "lint:css": "stylelint src/styles/AppearanceManager.module.css src/styles/ClickableOriginalSemantic.module.css src/styles/ClickableTranslationOptimized.module.css src/styles/ClickableTranslationSemantic.module.css src/styles/HighlightableSegment.module.css src/styles/shared.module.css src/styles/TabbedInterface.module.css src/styles/TranslatorDisplayPanels.module.css",
+    "lint:css": "stylelint 'src/**/*.css'",
     "lint:full": "eslint .",
     "type-check": "tsc --noEmit",
     "check": "bun run type-check",

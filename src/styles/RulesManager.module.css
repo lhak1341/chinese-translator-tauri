@@ -31,7 +31,7 @@
 .empty {
   padding: 32px;
   text-align: center;
-  color: var(--text-muted, #9ca3af);
+  color: var(--lk-text-faint);
 }
 
 .table {
@@ -132,7 +132,7 @@
 }
 
 .placeholderText {
-  color: var(--text-muted, #9ca3af);
+  color: var(--lk-text-faint);
   font-style: italic;
 }
 
@@ -145,7 +145,7 @@
 
 .overlay {
   composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--lk-scrim);
   padding: 1rem;
 }
 
@@ -155,7 +155,7 @@
   background-color: var(--surface-color, var(--background-color));
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--lk-shadow-l);
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 2rem);
@@ -198,7 +198,7 @@
   border-left: 1px solid var(--border-color);
   border-radius: 0;
   background: var(--secondary-button-bg);
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   font-size: 0.84rem;
   cursor: pointer;
 }
@@ -239,7 +239,7 @@
   align-items: center;
   gap: 6px;
   font-size: 0.82rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   white-space: nowrap;
 }
 
@@ -256,7 +256,7 @@
 .ruleThenLabel {
   width: 2.4rem;
   font-size: 0.8rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .stepper {
@@ -273,7 +273,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0 8px;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   white-space: nowrap;
 }
 
@@ -285,7 +285,7 @@
   border-left: 1px solid var(--border-color);
   border-radius: 0;
   background: var(--secondary-button-bg);
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   cursor: pointer;
 }
 
@@ -342,7 +342,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: 0.8rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .previewCols,
@@ -355,7 +355,7 @@
 
 .previewCols {
   font-size: 0.72rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   opacity: 0.8;
 }
 
@@ -391,7 +391,7 @@
 .previewSaved,
 .previewArrow,
 .previewSame {
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .previewGuess {
@@ -401,12 +401,12 @@
 .previewShadowed {
   font-weight: 400;
   font-size: 0.8rem;
-  color: var(--warning-color, #b45309);
+  color: var(--lk-warning);
 }
 
 .previewEmpty {
   font-size: 0.84rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .ruleMeta {

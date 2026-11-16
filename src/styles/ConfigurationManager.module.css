@@ -165,7 +165,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 .cancelButton {
@@ -176,7 +176,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 /* Normal Mode */
@@ -231,7 +231,7 @@
 /* Modal */
 .modalOverlay {
   composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--lk-scrim);
   padding: 1rem;
 }
 

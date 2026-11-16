@@ -18,6 +18,10 @@ const keyframes = (css: string) => [...css.matchAll(/@keyframes\s+([\w-]+)/g)].m
 const animationValues = (css: string) =>
   [...css.matchAll(/animation(?:-name)?\s*:([^;}]*)/g)].map((m) => m[1]!);
 
+/** An `@media (prefers-reduced-motion …) { … }` block, nested up to keyframes stops. */
+const REDUCED_MOTION_BLOCK =
+  /@media\s*\(prefers-reduced-motion[^{]*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g;
+
 type Compiled = { file: string; code: string; renamed: Record<string, string> };
 
 let compiled: Compiled[];
@@ -63,6 +67,25 @@ describe('animation names', () => {
         .map((name) => `${file}: ${name}`);
     });
     expect(missing).toEqual([]);
+  });
+
+  // A second copy drifts from the first, and a module's local copy hides the global one it shadows
+  // (TranslatorControls kept its own fadeIn beside index.css's; adoption ticket 17). A
+  // reduced-motion block redefines a keyframes on purpose, so it does not count.
+  it('defines each keyframes name once', () => {
+    const files = [...PLAIN, ...modules.map((f) => path.join(stylesDir, f))];
+    const definedIn = new Map<string, string[]>();
+    for (const file of files) {
+      // Comments go first: several name the global keyframes they rely on.
+      const css = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(REDUCED_MOTION_BLOCK, '');
+      for (const name of keyframes(css)) {
+        definedIn.set(name, [...(definedIn.get(name) ?? []), path.basename(file)]);
+      }
+    }
+    const duplicates = [...definedIn].filter(([, where]) => where.length > 1);
+    expect(duplicates).toEqual([]);
   });
 
   it('every global(name) a module uses has global keyframes', () => {

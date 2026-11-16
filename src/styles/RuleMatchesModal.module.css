@@ -35,7 +35,7 @@
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--text-muted, #9ca3af);
+  color: var(--lk-text-faint);
 }
 
 .tableArea {
@@ -79,6 +79,6 @@
 /* Muted styling for the Dictionary column's VALUE only — not its header, which stays
    the same size/weight as every other header cell. */
 .dictionaryValue {
-  color: var(--text-secondary, #6b7280);
+  color: var(--lk-text-muted);
   font-size: 0.8125rem;
 }

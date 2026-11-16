@@ -348,7 +348,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           {!showDuplicatesMode ? (
             <button
               onClick={() => handleFindDuplicates()}
-              className={`${styles.button} ${styles.buttonPrimary}`}
+              className={`primary ${styles.button}`}
               disabled={isLoadingDictionary}
               title="Find entries with same source but different translations across all dictionaries"
             >

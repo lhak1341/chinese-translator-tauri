@@ -6,6 +6,7 @@ import {
   BinaryToggleChips,
   SelectAllCheckboxHeaderCell,
 } from '../TableBuildingBlocks';
+import { textOnFill } from '../../../utils/ui/textOnFill';
 
 describe('SelectAllCheckboxHeaderCell', () => {
   it('reflects the checked prop', () => {
@@ -72,6 +73,14 @@ describe('BadgeChip', () => {
     expect(screen.getByTitle('X')).toHaveStyle({ background: '#059669', borderStyle: 'none' });
   });
 
+  it('active on a hue: the text colour follows the fill (textOnFill), not a fixed white', () => {
+    render(
+      <BadgeChip label="X" active activeColor="var(--lk-yellow)" onClick={vi.fn()} title="X" />
+    );
+
+    expect(screen.getByTitle('X').style.color).toBe(textOnFill('var(--lk-yellow)'));
+  });
+
   it('inactive: transparent background, fixed inactive text/border colors', () => {
     render(
       <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
@@ -80,8 +89,8 @@ describe('BadgeChip', () => {
     // Inline style, not computed: jsdom 31 serializes `transparent` as `none` inline.
     const { style } = screen.getByTitle('X');
     expect(style.background).toBe('none');
-    expect(style.color).toBe('rgb(156, 163, 175)');
-    expect(style.border).toBe('1px solid rgb(209, 213, 219)');
+    expect(style.color).toBe('var(--lk-text-faint)');
+    expect(style.border).toBe('1px solid var(--lk-border)');
   });
 
   it('click fires onClick and stops propagation', () => {

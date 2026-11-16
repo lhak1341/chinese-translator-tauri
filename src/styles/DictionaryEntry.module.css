@@ -3,14 +3,14 @@
 
 .overlay {
   composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--lk-scrim);
   padding: 1rem;
 }
 
 .modal {
   background-color: var(--surface-color, var(--background-color));
   border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--lk-shadow-l);
   width: 100%;
   max-width: 600px;
   position: relative;
@@ -93,7 +93,7 @@
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   background-color: var(--info-bg);
-  color: white;
+  color: var(--lk-text-on-accent);
   border: none;
   border-radius: 3px;
   cursor: pointer;
@@ -101,10 +101,11 @@
 }
 
 /* Override the global button:hover (light gray bg) — it left white text on a
-   near-white background in light theme, unreadable. Darken the same blue
-   instead of switching to the generic secondary-button hover shade. */
+   near-white background in light theme, unreadable. Shade the same blue
+   towards the text colour, the contract's --lk-accent-hover recipe, instead of
+   switching to the generic secondary-button hover shade. */
 .notificationButton:hover {
-  background-color: color-mix(in srgb, var(--info-bg) 85%, black);
+  background-color: color-mix(in oklab, var(--lk-info), var(--lk-text) 15%);
 }
 
 .notificationButtonText {
@@ -141,8 +142,8 @@
 .existingEntryWarning {
   margin-top: 0.5rem;
   padding: 0.75rem;
-  background-color: #fff3cd;
-  border: 1px solid #ffc107;
+  background-color: var(--lk-warning-soft);
+  border: 1px solid color-mix(in oklab, var(--lk-warning), var(--lk-surface) 60%);
   border-radius: 4px;
   font-size: 0.9rem;
 }
@@ -159,7 +160,7 @@
 
 .existingEntryItem {
   padding: 0.5rem;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--lk-surface-sunken);
   border-radius: 4px;
   margin-bottom: 0.5rem;
 }
@@ -170,7 +171,7 @@
 
 .existingEntryDictionary {
   font-weight: 600;
-  color: #856404;
+  color: color-mix(in oklab, var(--lk-warning), var(--lk-text) 35%);
 }
 
 .existingEntrySourceTranslation {
@@ -208,7 +209,7 @@
 .shortlistButtonActive {
   background-color: var(--primary-color);
   border-color: var(--primary-color);
-  color: #fff;
+  color: var(--lk-text-on-accent);
 }
 
 .shortlistButton:disabled {
@@ -260,7 +261,7 @@
 .headLabel,
 .headMeta {
   font-size: 0.82rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   white-space: nowrap;
 }
 
@@ -279,15 +280,15 @@
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 var(--fade-left),
-    #000 calc(100% - var(--fade-right)),
+    currentcolor var(--fade-left),
+    currentcolor calc(100% - var(--fade-right)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 var(--fade-left),
-    #000 calc(100% - var(--fade-right)),
+    currentcolor var(--fade-left),
+    currentcolor calc(100% - var(--fade-right)),
     transparent 100%
   );
 }
@@ -314,7 +315,7 @@
   border-radius: 7px;
   border: 1px solid var(--border-color);
   background-color: var(--background-color);
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   min-height: auto;
 }
 
@@ -330,7 +331,7 @@
   border: 1px solid var(--border-color);
   border-radius: 999px;
   font-size: 0.86rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -351,7 +352,7 @@
 .pillToggle:has(input:checked) {
   border-color: var(--pill-color);
   background: var(--pill-color);
-  color: #fff;
+  color: var(--lk-text-on-accent);
 }
 
 .pillToggle:has(input:focus-visible) {
@@ -366,7 +367,7 @@
 
 /* The Add form's "Usable as X/Y": a pill in the pattern-variable purple, at the row's end. */
 .reuseToggle {
-  --pill-color: #8b5cf6;
+  --pill-color: var(--lk-purple);
   margin-left: auto;
 }
 
@@ -375,8 +376,10 @@
   font-weight: 700;
 }
 
+/* Text on the purple fill follows its lightness (APCA split, utils/ui/textOnFill.ts). */
+.reuseToggle:has(input:checked),
 .reuseToggle:has(input:checked) b {
-  color: #fff;
+  color: oklch(from var(--pill-color) clamp(0, (0.73 - l) * 1000, 1) 0 0);
 }
 
 /* Source ⟶ translation, with the rewrite buttons under the translation and the gloss across
@@ -419,7 +422,7 @@
 }
 
 .entryArrow {
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .translationInput {
@@ -441,12 +444,12 @@
 }
 
 .translationInput.invalid {
-  border-color: color-mix(in srgb, var(--danger-button-text, #dc2626) 55%, var(--border-color));
+  border-color: color-mix(in srgb, var(--lk-danger) 55%, var(--lk-border));
 }
 
 .sourceVars {
   font-size: 0.78rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   display: flex;
   gap: 5px;
   white-space: nowrap;
@@ -478,7 +481,7 @@
   border-left: 1px solid var(--border-color);
   border-radius: 0;
   background: var(--secondary-button-bg);
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   font-size: 0.76rem;
   cursor: pointer;
   white-space: nowrap;
@@ -511,7 +514,7 @@
   padding-top: 8px;
   border-top: 1px dotted var(--border-color);
   font-size: 0.82rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   min-width: 0;
 }
 
@@ -540,7 +543,7 @@
 }
 
 .glossUseButton:disabled {
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   opacity: 0.6;
   cursor: default;
 }
@@ -567,7 +570,7 @@
 .typeRowLabel {
   grid-column: 1;
   font-size: 0.8rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   white-space: nowrap;
 }
 
@@ -580,7 +583,7 @@
 }
 
 .typeCell {
-  --c: var(--text-muted, #6b7280);
+  --c: var(--lk-text-faint);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -602,7 +605,7 @@
 
 .badge.checked {
   background: var(--c);
-  color: #fff;
+  color: oklch(from var(--c) clamp(0, (0.73 - l) * 1000, 1) 0 0);
 }
 
 .badge.dashed:not(.checked) {
@@ -623,7 +626,7 @@
 
 .box.checked::before {
   content: '✓';
-  color: #fff;
+  color: oklch(from var(--c) clamp(0, (0.73 - l) * 1000, 1) 0 0);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -632,7 +635,7 @@
   height: 18px;
   border-radius: 5px;
   border: 1px dashed var(--border-color);
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   font-size: 0.7rem;
   font-weight: 600;
   opacity: 0.7;
@@ -640,7 +643,7 @@
 
 .any.checked {
   border-style: solid;
-  border-color: var(--text-muted, #6b7280);
+  border-color: var(--lk-text-faint);
   opacity: 1;
 }
 
@@ -666,7 +669,7 @@
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   background-color: var(--surface-color, var(--background-color));
   border: 1px solid var(--border-color);
   border-radius: 999px;
@@ -689,11 +692,11 @@
   gap: 6px;
   min-width: 0;
   font-size: 0.82rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
 }
 
 .footError {
-  color: var(--danger-button-text, #dc2626);
+  color: var(--lk-danger);
   font-weight: 500;
 }
 

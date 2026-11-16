@@ -8,8 +8,8 @@
   justify-content: center;
   min-height: 100vh;
   padding: 2rem;
-  background-color: var(--background, #f5f5f5);
-  color: var(--text, #333);
+  background-color: var(--lk-surface-chrome);
+  color: var(--lk-text);
   font-family:
     system-ui,
     -apple-system,
@@ -18,17 +18,17 @@
 
 .errorCard {
   max-width: 600px;
-  background-color: white;
+  background-color: var(--lk-surface-raised);
   border-radius: 8px;
   padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--lk-shadow-s);
 }
 
 .title {
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 1rem;
-  color: #dc2626;
+  color: var(--lk-danger);
 }
 
 .description {
@@ -39,9 +39,9 @@
 .errorDetails {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background-color: #fef2f2;
+  background-color: var(--lk-danger-soft);
   border-radius: 4px;
-  border: 1px solid #fecaca;
+  border: 1px solid color-mix(in oklab, var(--lk-danger), var(--lk-surface) 60%);
 }
 
 .errorSummary {
@@ -55,7 +55,7 @@
   font-size: 0.875rem;
   font-family: monospace;
   white-space: pre-wrap;
-  color: #991b1b;
+  color: color-mix(in oklab, var(--lk-danger), var(--lk-text) 35%);
 }
 
 .actions {
@@ -66,8 +66,8 @@
 
 .tryAgainButton {
   padding: 0.5rem 1rem;
-  background-color: #3b82f6;
-  color: white;
+  background-color: var(--lk-accent);
+  color: var(--lk-text-on-accent);
   border: none;
   border-radius: 6px;
   font-size: 0.875rem;
@@ -76,13 +76,13 @@
 }
 
 .tryAgainButton:hover {
-  background-color: #2563eb;
+  background-color: var(--lk-accent-hover);
 }
 
 .reloadButton {
   padding: 0.5rem 1rem;
-  background-color: #10b981;
-  color: white;
+  background-color: var(--lk-success);
+  color: var(--lk-text-on-accent);
   border: none;
   border-radius: 6px;
   font-size: 0.875rem;
@@ -91,13 +91,13 @@
 }
 
 .reloadButton:hover {
-  background-color: #059669;
+  background-color: color-mix(in oklab, var(--lk-success), var(--lk-text) 15%);
 }
 
 .troubleshooting {
   margin-top: 1.5rem;
   padding: 1rem;
-  background-color: #f0f9ff;
+  background-color: var(--lk-info-soft);
   border-radius: 4px;
   font-size: 0.875rem;
   line-height: 1.6;

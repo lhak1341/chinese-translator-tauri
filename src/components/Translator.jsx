@@ -590,8 +590,8 @@ const Translator = ({ isActive }) => {
     () => ({
       padding: '1.5rem',
       backgroundColor: 'var(--background-color)',
-      color: 'var(--text-color, #213547)',
-      border: '1px solid var(--border-color, #e5e7eb)',
+      color: 'var(--lk-text)',
+      border: '1px solid var(--lk-border)',
       borderRadius: '8px',
       fontSize: '1.25rem',
       outline: 'none',

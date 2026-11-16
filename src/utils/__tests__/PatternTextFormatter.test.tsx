@@ -2,8 +2,8 @@ import { describe, test, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { highlightPatternVariables } from '../text/PatternTextFormatter';
 
-// jsdom normalizes inline hex colors to rgb() on readback — assert against the normalized form.
-const RGB = { X: 'rgb(220, 38, 38)', Y: 'rgb(22, 163, 74)', DEFAULT: 'rgb(5, 150, 105)' };
+// The colours are @lhak/style hue roles, which jsdom keeps as written.
+const RGB = { X: 'var(--lk-red)', Y: 'var(--lk-blue)', DEFAULT: 'var(--lk-green)' };
 
 describe('highlightPatternVariables', () => {
   test('wraps each pattern variable letter in a colored span', () => {

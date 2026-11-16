@@ -1,4 +1,5 @@
 import React from 'react';
+import { textOnFill } from '../../utils/ui/textOnFill';
 import { TableCell, TableHeaderCell, TableRow } from '@lhak/style/react';
 import {
   SEMANTIC_TYPE_COLORS,
@@ -25,8 +26,8 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
   const config = {
     label: 'VAR',
     title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
-    activeColor: '#059669',
-    inactiveColor: '#6b7280',
+    activeColor: 'var(--lk-green)',
+    inactiveColor: 'var(--lk-text-muted)',
   };
 
   return (
@@ -39,7 +40,7 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
       className={styles.metadataBadge}
       style={{
         background: active ? config.activeColor : 'transparent',
-        color: active ? 'white' : config.inactiveColor,
+        color: active ? textOnFill(config.activeColor) : config.inactiveColor,
         border: active ? 'none' : `1px solid ${config.inactiveColor}`,
       }}
     >
@@ -66,7 +67,7 @@ interface BadgeChipProps {
  * candidate #1 grilling) after it was found hand-copied 8 times (`TypeToggleCell`,
  * `SemanticTypeToggleCell`'s per-type badges, `MatchKindToggle`, `MoveModeToggle` — see
  * `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks entry for the earlier 7).
- * Inactive text/border colors (`#9ca3af`/`#d1d5db`) are fixed, not props — every real caller
+ * Inactive text/border colors (`--lk-text-faint`/`--lk-border`) are fixed, not props — every real caller
  * used the identical pair; only `activeColor` ever varied. Deliberately NOT used for
  * `MetadataBadge` (a single-purpose VAR toggle with its own identity) or
  * `SemanticTypeToggleCell`'s dashed `$X`/`$Y` reference chips (a genuinely different visual
@@ -92,8 +93,8 @@ export const BadgeChip: React.FC<BadgeChipProps> = ({
     {...(ariaLabel && { 'aria-label': ariaLabel })}
     style={{
       background: active ? activeColor : 'transparent',
-      color: active ? 'white' : '#9ca3af',
-      border: active ? 'none' : '1px solid #d1d5db',
+      color: active ? textOnFill(activeColor) : 'var(--lk-text-faint)',
+      border: active ? 'none' : '1px solid var(--lk-border)',
       fontSize,
       padding,
       cursor: 'pointer',
@@ -137,7 +138,7 @@ export function BinaryToggleChips<T>({
             key={String(option.value)}
             label={option.abbrev}
             active={isActive}
-            activeColor="var(--primary-color, #3b82f6)"
+            activeColor="var(--lk-accent)"
             onClick={() => !isActive && onSelect(option.value)}
             title={isActive ? option.title : `Set: ${option.title}`}
             ariaLabel={`Set ${option.title} for ${label}`}
@@ -183,7 +184,7 @@ export const FilterChipButton: React.FC<FilterChipButtonProps> = ({
       border: `1px solid ${active ? activeColor : 'var(--border-color)'}`,
       cursor: 'pointer',
       backgroundColor: active ? activeColor : 'transparent',
-      color: active ? 'white' : inactiveColor,
+      color: active ? textOnFill(activeColor) : inactiveColor,
       fontWeight: active ? 600 : 400,
       ...style,
     }}
@@ -288,9 +289,9 @@ export const SemanticTypeToggleCell: React.FC<{
                   isActive ? `${typeRef} (click to remove)` : `Inherit type from ${typeRef[1]}`
                 }
                 style={{
-                  background: isActive ? '#8b5cf6' : 'transparent',
-                  color: isActive ? 'white' : '#8b5cf6',
-                  border: isActive ? 'none' : '1px dashed #8b5cf6',
+                  background: isActive ? 'var(--lk-purple)' : 'transparent',
+                  color: isActive ? textOnFill('var(--lk-purple)') : 'var(--lk-purple)',
+                  border: isActive ? 'none' : '1px dashed var(--lk-purple)',
                   fontSize: '0.6rem',
                   cursor: 'pointer',
                   padding: '1px 3px',

@@ -24,8 +24,8 @@ interface SemanticTypePickerProps {
   isSaving: boolean;
 }
 
-const REF_COLOR = '#8b5cf6';
-const NONE_COLOR = 'var(--text-muted, #6b7280)';
+const REF_COLOR = 'var(--lk-purple)';
+const NONE_COLOR = 'var(--lk-text-faint)';
 
 /**
  * Each badge row is one Tab stop (roving tabindex): Tab/Shift-Tab leave the row, and the

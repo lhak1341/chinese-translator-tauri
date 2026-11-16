@@ -2,30 +2,8 @@
  * Streaming Translation Animations
  * Static CSS definitions for streaming translation display
  * Optimized: Moved from dynamic injection to static stylesheet (2-4x UI performance improvement)
- * Dark mode: Supports automatic system theme detection
+ * Colours are @lhak/style roles, which follow the flavor and mode themselves.
  */
-
-/* CSS Custom Properties for theme-aware colors */
-:root {
-  /* Light theme colors */
-  --streaming-bg-primary: #f8f9fa;
-  --streaming-bg-secondary: #ffffff;
-  --streaming-text-primary: #6c757d;
-  --streaming-accent: #007bff;
-  --streaming-accent-light: rgba(0, 123, 255, 0.1);
-  --streaming-border: #dee2e6;
-}
-
-/* Dark theme colors. Dark mode is <html data-mode="dark">, set by the ThemeProvider from the user's pick or the
-   system, so a picked mode wins over the system appearance. */
-:root[data-mode='dark'] {
-  --streaming-bg-primary: #2d3748;
-  --streaming-bg-secondary: #1a202c;
-  --streaming-text-primary: #a0aec0;
-  --streaming-accent: #63b3ed;
-  --streaming-accent-light: rgba(99, 179, 237, 0.1);
-  --streaming-border: #4a5568;
-}
 
 /* Typing cursor blink */
 @keyframes streaming-blink {
@@ -42,10 +20,10 @@
 /* Streaming progress container */
 .streaming-progress-container {
   padding: 8px 12px;
-  background-color: var(--streaming-bg-primary);
+  background-color: var(--lk-surface-sunken);
   border-radius: 4px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-family: monospace;
 }
 
@@ -54,7 +32,7 @@
   display: inline-block;
   width: 2px;
   height: 1.2em;
-  background-color: var(--streaming-accent);
+  background-color: var(--lk-accent);
   margin-left: 2px;
   animation: streaming-blink 1.2s infinite;
   vertical-align: baseline;

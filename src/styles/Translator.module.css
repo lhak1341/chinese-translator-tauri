@@ -3,8 +3,8 @@
 
 /* Error Banner Styles */
 .errorBanner {
-  background-color: var(--error-subtle, #fef2f2);
-  border-left: 4px solid var(--error-color, var(--danger-button-text, #dc2626));
+  background-color: var(--lk-danger-soft);
+  border-left: 4px solid var(--lk-danger);
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 4px;
@@ -12,12 +12,12 @@
 
 /* CODE REVIEW FIX (CRITICAL-2): Critical warning banner for cache poisoning */
 .criticalWarningBanner {
-  background-color: var(--warning-subtle, #fffbeb);
-  border-left: 4px solid var(--warning-color, #f59e0b);
+  background-color: var(--lk-warning-soft);
+  border-left: 4px solid var(--lk-warning);
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 4px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--lk-shadow-s);
 }
 
 .errorHeader {
@@ -28,11 +28,11 @@
 }
 
 .errorTitle {
-  color: var(--error-color, var(--danger-button-text, #dc2626));
+  color: var(--lk-danger);
 }
 
 .errorMessage {
-  color: var(--danger-button-text, #991b1b);
+  color: var(--lk-danger);
   margin-bottom: 0.75rem;
 }
 
@@ -42,8 +42,8 @@
 }
 
 .errorButton {
-  background-color: var(--danger-button-bg, #dc2626);
-  color: var(--danger-button-text, white);
+  background-color: var(--lk-danger-soft);
+  color: var(--lk-danger);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -56,8 +56,8 @@
 }
 
 .errorButtonSecondary {
-  background-color: var(--text-muted, #9ca3af);
-  color: white;
+  background-color: var(--lk-text-faint);
+  color: var(--lk-text-on-accent);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -83,9 +83,9 @@
 .statsContainer {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: var(--secondary-bg, #f9fafb);
+  background-color: var(--lk-surface-sunken);
   border-radius: 8px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--lk-border);
 }
 
 .statsGrid {
@@ -96,21 +96,21 @@
 
 .statItem {
   padding: 0.75rem;
-  background-color: var(--background-color, white);
+  background-color: var(--lk-surface-chrome);
   border-radius: 4px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--lk-border);
 }
 
 .statLabel {
   font-size: 0.875rem;
-  color: var(--text-muted, #6b7280);
+  color: var(--lk-text-faint);
   margin-bottom: 0.25rem;
 }
 
 .statValue {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-color, #111827);
+  color: var(--lk-text);
 }
 
 /* Text Display Styles */

@@ -18,18 +18,9 @@
 }
 
 /**
- * Shared modal entrance animations.
- * Defined as :global so any CSS module can reference fadeIn / slideIn
- * without needing a local @keyframes declaration.
+ * Shared modal entrance animation, :global so any CSS module can name it as global(slideIn).
+ * fadeIn is index.css's.
  */
-:global(@keyframes fadeIn) {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 
 :global(@keyframes slideIn) {
   from {

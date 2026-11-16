@@ -82,6 +82,16 @@ const DETECTORS = [
     violating: 'const url = new URL(`../../wasm/${name}_bg.wasm`, import.meta.url);',
     clean: "const url = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);",
   },
+  {
+    name: 'colour literal',
+    fix: 'use a var(--lk-…) role, and textOnFill(fill) from utils/ui/textOnFill for text on a fill — a literal stays one colour in every flavor and mode, and stylelint never reads TS (adoption ticket 19)',
+    // Hex (3, 4, 6 or 8 digits, not an `&#…` entity), quoted white/black, and numeric
+    // rgb()/hsl() calls. A `var()` inside the call, as in `rgb(var(--x))`, is not a literal.
+    pattern:
+      /(?<![&\w])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])|(['"`])(?:white|black)\1|\b(?:rgba?|hsla?)\(\s*[\d.]/,
+    violating: "border: active ? 'none' : '1px solid #d1d5db',",
+    clean: "border: active ? 'none' : '1px solid var(--lk-border)',",
+  },
 ];
 
 // Scans everything but tests, declarations and generated wasm-bindgen glue (gitignored build

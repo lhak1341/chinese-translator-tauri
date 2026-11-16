@@ -16,11 +16,11 @@
 
 .metadataBadge:hover {
   transform: scale(1.05);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--lk-shadow-s);
 }
 
 .metadataBadgeActive {
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 .metadataBadgeInactive {
@@ -28,13 +28,13 @@
 }
 
 .metadataBadgeVariable {
-  background: #059669;
-  border-color: #059669;
+  background: var(--lk-green);
+  border-color: var(--lk-green);
 }
 
 .metadataBadgeLowPriority {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: var(--lk-red);
+  border-color: var(--lk-red);
 }
 
 /* Inline Edit Input */

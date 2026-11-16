@@ -28,7 +28,7 @@ A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which 
 
 - CSS Modules scopes `@keyframes` locally — `composes` does NOT work for keyframes.
 - For shared animations, use `:global(@keyframes name) { ... }` in `shared.module.css`.
-- **`spin` and `pulse` are already global in `index.css`** — do not define local or `:global` duplicates in any module file or `shared.module.css`.
+- **`fadeIn`, `slideUp`, `spin` and `pulse` are already global in `index.css`; `slideIn` in `shared.module.css`** — do not define local or `:global` duplicates anywhere. `AnimationNames.test.ts` fails on a keyframes name defined twice outside a reduced-motion block (TranslatorControls' local `fadeIn` and shared's `:global` one were removed, adoption ticket 17).
 - **A module names a global keyframes as `animation: global(spin) …`.** CSS Modules renames every bare name in `animation`, so `animation: spin` becomes `_spin_<hash>`, which nothing defines, and the animation silently never runs (seven did, found 2026-11-13). `:global(spin)` is a parse error there. `__tests__/AnimationNames.test.ts` compiles each module through Vite and fails on a name with no keyframes.
 - **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `streaming-blink` (used by `.typing-cursor`); the progress bar is the kit's `ProgressBar`. Do not rename them or add new ones to that file.
 
@@ -38,11 +38,11 @@ A style the Reader toggles on a row (`.clickableSegmentHighlighted`) may change 
 
 ## Hiding Elements — Use Conditional Rendering, Not `visibility: hidden`
 
-`visibility: hidden` reserves flex layout space — invisible items shift siblings. For status pills/badges that should take no space when absent, use conditional rendering (`{cond && <div>}`) with a CSS `@keyframes` entrance animation defined locally in the component's `.module.css` file.
+`visibility: hidden` reserves flex layout space — invisible items shift siblings. For status pills/badges that should take no space when absent, use conditional rendering (`{cond && <div>}`) with a CSS `@keyframes` entrance animation (`animation: global(fadeIn) …` for a fade; a new local keyframes only when no global one fits).
 
 CSS `transition` cannot fire on unmount — exit is always a hard cut with conditional rendering. Do NOT use `visibility: hidden` + `opacity: 0` to "hide" flex items.
 
-Affected: `TranslatorControls.module.css` `.progressIndicator` uses `@keyframes fadeIn`.
+Affected: `TranslatorControls.module.css` `.progressIndicator` uses `global(fadeIn)`.
 
 ## Grid Rows Aren't Shared Across Sibling Grid Containers
 

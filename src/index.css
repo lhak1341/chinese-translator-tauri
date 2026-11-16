@@ -653,7 +653,7 @@ input[type='range'] {
    -------------------------------------------------------------------------- */
 @media print {
   body {
-    background: white;
+    background: none;
   }
 
   .no-print {

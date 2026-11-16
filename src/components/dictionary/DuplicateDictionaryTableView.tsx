@@ -118,7 +118,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                   className={`${styles.cell} ${styles.duplicateDictionaryCol}`}
                   style={{
                     fontSize: '0.8125rem',
-                    color: 'var(--text-secondary, #6b7280)',
+                    color: 'var(--lk-text-muted)',
                     fontWeight:
                       row.dictionaryLabel === 'Phrases' || row.dictionaryLabel === 'Proper Nouns'
                         ? 'bold'

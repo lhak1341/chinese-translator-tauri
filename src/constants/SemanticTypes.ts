@@ -29,13 +29,16 @@ export const SEMANTIC_TYPE_ABBREVIATIONS: Record<SemanticType, string> = {
 
 export const SEMANTIC_TYPE_LIST: SemanticType[] = Object.values(SEMANTIC_TYPES);
 
+/** Each type's @lhak/style hue, so it follows the flavor and mode (user decision, adoption
+ * ticket 19). Creature takes yellow and location green, not their nearest hues (orange, cyan),
+ * so the six stay distinct. */
 export const SEMANTIC_TYPE_COLORS: Record<SemanticType, string> = {
-  character: '#2563eb',
-  creature: '#d97706',
-  location: '#059669',
-  organization: '#dc2626',
-  concept: '#7c3aed',
-  object: '#ea580c',
+  character: 'var(--lk-blue)',
+  creature: 'var(--lk-yellow)',
+  location: 'var(--lk-green)',
+  organization: 'var(--lk-red)',
+  concept: 'var(--lk-purple)',
+  object: 'var(--lk-orange)',
 };
 
 /** Pattern-only semantic type references — resolved at match time from variable's type */

@@ -98,7 +98,7 @@
 .primaryButton {
   background: var(--primary-color);
   border: 1px solid var(--primary-color);
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 .primaryButton:hover {
@@ -511,7 +511,7 @@
   padding: 0.75rem;
   background: var(--background-color);
   border-left: 1px solid var(--border-color);
-  box-shadow: -0.5rem 0 1rem rgba(0, 0, 0, 0.08);
+  box-shadow: var(--lk-shadow-l);
   z-index: 5;
   min-height: 0;
 }
@@ -764,7 +764,7 @@
   flex-shrink: 0;
   padding: 0.02rem 0.4rem;
   border-radius: var(--radius-md);
-  background: var(--warning-subtle, rgba(180, 83, 9, 0.12));
+  background: var(--lk-warning-soft);
   color: color-mix(in srgb, var(--warning-color) 65%, var(--text-color));
   font-size: 0.78rem;
   font-weight: 500;
@@ -812,7 +812,7 @@
   font-size: 0.85rem;
   background: var(--primary-color);
   border-color: var(--primary-color);
-  color: white;
+  color: var(--lk-text-on-accent);
 }
 
 .candidateAddButton:hover {
@@ -862,7 +862,7 @@
 .candidateMatch {
   padding: 0 0.1em;
   border-radius: 3px;
-  background: var(--highlight-bg, rgba(255, 213, 79, 0.28));
+  background: var(--highlight-bg);
   color: inherit;
   font-weight: 700;
 }
@@ -893,7 +893,7 @@
   margin-top: auto;
   padding: 0.5rem 0.75rem;
   border-top: 1px solid var(--border-color);
-  background: var(--primary-subtle, rgba(16, 185, 129, 0.12));
+  background: var(--lk-accent-soft);
   font-size: 0.9rem;
 }
 
@@ -1164,7 +1164,7 @@
 
 /* The line a Candidate finder jump landed on. */
 .litLine {
-  background: var(--highlight-bg, rgba(255, 213, 79, 0.28));
+  background: var(--highlight-bg);
 }
 
 /* Quiet progress: a fill is running somewhere in the buffer. Deliberately not a spinner
@@ -1237,8 +1237,8 @@
   padding: 0.5rem 0.75rem;
   border-radius: 0.3rem;
   font-size: 0.82rem;
-  color: var(--error-color, #b3261e);
-  border: 1px solid var(--error-color, #b3261e);
+  color: var(--lk-danger);
+  border: 1px solid var(--lk-danger);
 }
 
 .centeredNotice {
@@ -1285,7 +1285,7 @@
 
 .bindingOverlay {
   composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.35);
+  background-color: var(--lk-scrim);
   padding: 1rem;
 }
 
@@ -1299,7 +1299,7 @@
   border-radius: 0.5rem;
   border: 1px solid var(--border-color);
   background: var(--background-color);
-  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.2);
+  box-shadow: var(--lk-shadow-l);
   min-height: 0;
 }
 
@@ -1421,7 +1421,7 @@
 
 .paletteOverlay {
   composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.35);
+  background-color: var(--lk-scrim);
   padding: 4rem 1rem 1rem;
   align-items: flex-start;
 }
@@ -1436,7 +1436,7 @@
   border-radius: 0.5rem;
   border: 1px solid var(--border-color);
   background: var(--background-color);
-  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.18);
+  box-shadow: var(--lk-shadow-l);
 }
 
 .paletteSearch {
