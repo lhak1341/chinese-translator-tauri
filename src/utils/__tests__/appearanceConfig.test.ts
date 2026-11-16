@@ -19,14 +19,20 @@ describe('appearanceConfig.fromRaw', () => {
         paragraphSpacing: '2rem',
       },
       fullTranslation: {
+        face: 'custom',
         fontFamily: 'Georgia',
+        fontWeight: '500',
+        wordSpacing: '-0.05em',
         fontSize: '1.5rem',
         letterSpacing: '0.05em',
         lineHeight: '1.4',
         paragraphSpacing: '1.5rem',
       },
       characterOnly: {
+        face: 'sans',
         fontFamily: 'Times',
+        fontWeight: '400',
+        wordSpacing: 'normal',
         fontSize: '1rem',
         letterSpacing: 'normal',
         lineHeight: '28px',
@@ -370,5 +376,72 @@ describe('appearanceConfig — overlapping saves', () => {
 
     expect(maxInFlight).toBe(1);
     expect(onDisk).toEqual(ticked);
+  });
+});
+
+describe('appearanceConfig — reading faces (Serif / Sans / Custom)', () => {
+  const section = (fontFamily: string, extra: Record<string, unknown> = {}) => ({
+    fontFamily,
+    fontSize: '1.45rem',
+    letterSpacing: 'normal',
+    lineHeight: '1.35',
+    paragraphSpacing: '1rem',
+    ...extra,
+  });
+
+  it('defaults both reading boxes to Serif at Bookerly weight 400', () => {
+    expect(DEFAULT_APPEARANCE.fullTranslation.face).toBe('serif');
+    expect(DEFAULT_APPEARANCE.characterOnly.face).toBe('serif');
+    expect(DEFAULT_APPEARANCE.fullTranslation.fontWeight).toBe('400');
+  });
+
+  it('opens a saved stack that starts with Bookerly on Serif, keeping the stack for Custom', () => {
+    const stack = 'Bookerly, Maple Mono, Inter, Arial, sans-serif';
+    const result = fromRaw({ fullTranslation: section(stack), characterOnly: section(stack) });
+    expect(result.fullTranslation.face).toBe('serif');
+    expect(result.characterOnly.face).toBe('serif');
+    expect(result.fullTranslation.fontFamily).toBe(stack);
+  });
+
+  it('opens a saved stack that starts with Work Sans on Sans, quoted or not', () => {
+    expect(
+      fromRaw({ fullTranslation: section('"Work Sans", sans-serif') }).fullTranslation.face
+    ).toBe('sans');
+    expect(fromRaw({ characterOnly: section('work sans') }).characterOnly.face).toBe('sans');
+  });
+
+  it('opens any other saved stack on Custom with its stack, tracking and weight', () => {
+    const result = fromRaw({
+      fullTranslation: section('Georgia, serif', { letterSpacing: '0.05em', fontWeight: '500' }),
+    });
+    expect(result.fullTranslation).toMatchObject({
+      face: 'custom',
+      fontFamily: 'Georgia, serif',
+      letterSpacing: '0.05em',
+      fontWeight: '500',
+    });
+  });
+
+  it('keeps a saved face even when the stack suggests another', () => {
+    const result = fromRaw({ fullTranslation: section('Bookerly', { face: 'sans' }) });
+    expect(result.fullTranslation.face).toBe('sans');
+  });
+
+  it('keeps a saved word spacing, defaults it to normal, and drops one that is not a length', () => {
+    expect(DEFAULT_APPEARANCE.fullTranslation.wordSpacing).toBe('normal');
+    expect(DEFAULT_APPEARANCE.chineseText.wordSpacing).toBeUndefined();
+    const ws = (wordSpacing: unknown) =>
+      fromRaw({ fullTranslation: section('Georgia', { wordSpacing }) }).fullTranslation.wordSpacing;
+    expect(ws('-0.05em')).toBe('-0.05em');
+    expect(ws(' 2px ')).toBe('2px');
+    expect(ws(undefined)).toBe('normal');
+    expect(ws('tighter')).toBe('normal');
+  });
+
+  it('drops a weight that is not a CSS font weight', () => {
+    for (const fontWeight of ['heavy', '0', '1200', 500])
+      expect(
+        fromRaw({ fullTranslation: section('Georgia', { fontWeight }) }).fullTranslation.fontWeight
+      ).toBe('400');
   });
 });

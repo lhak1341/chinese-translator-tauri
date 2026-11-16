@@ -13,13 +13,20 @@ import {
 import styles from '../../styles/AppearanceManager.module.css';
 import { useAppearanceSettings } from '../../hooks/useAppearanceSettings';
 import { UI_SCALES } from '../../utils/appearanceConfig';
-import type { AppearanceSection, FontProperty } from '../../utils/ui/AppearanceReducer';
-import type { AppearanceSettings } from '../../types/ComponentTypes';
+import {
+  resolveReadingType,
+  type AppearanceSection,
+  type FontProperty,
+} from '../../utils/ui/AppearanceReducer';
+import type { AppearanceSettings, FontSettings, ReadingFace } from '../../types/ComponentTypes';
 
 interface FieldConfig {
   property: FontProperty;
   label: string;
   placeholder: string;
+  /** The faces that show this field (all when unset): Serif and Sans bring their own font,
+   * weight and letter spacing; word spacing is the reader's on Sans and Custom. */
+  shownOn?: ReadingFace[];
 }
 
 interface FieldGroup {
@@ -28,7 +35,29 @@ interface FieldGroup {
   column: 'left' | 'right';
   fields: FieldConfig[];
   previewText?: string;
+  /** The box offers the reading faces (Serif / Sans / Custom). */
+  faces?: boolean;
 }
+
+const FACE_ITEMS: { value: ReadingFace; label: string }[] = [
+  { value: 'serif', label: 'Serif' },
+  { value: 'sans', label: 'Sans' },
+  { value: 'custom', label: 'Custom' },
+];
+
+const WORD_SPACING_FIELD: FieldConfig = {
+  property: 'wordSpacing',
+  label: 'Word Spacing:',
+  placeholder: 'e.g., normal, -0.05em (tighter), 0.1em (wider)',
+  shownOn: ['sans', 'custom'],
+};
+
+const WEIGHT_FIELD: FieldConfig = {
+  property: 'fontWeight',
+  label: 'Weight:',
+  placeholder: 'e.g., 400, 450, 500',
+  shownOn: ['custom'],
+};
 
 const LETTER_SPACING_PLACEHOLDER = 'e.g., normal, 0.05em (wider), -0.02em (tighter)';
 const FONT_SIZE_PLACEHOLDER = 'e.g., 1.25rem, 20px, 14pt';
@@ -77,18 +106,23 @@ const FIELD_GROUPS: FieldGroup[] = [
     section: 'fullTranslation',
     title: 'Full Translation Box',
     column: 'right',
+    faces: true,
     fields: [
       {
         property: 'fontFamily',
         label: 'Font:',
-        placeholder: 'e.g., Bookerly, "Times New Roman", serif',
+        placeholder: 'e.g., Literata, "Times New Roman", serif',
+        shownOn: ['custom'],
       },
-      { property: 'fontSize', label: 'Size:', placeholder: FONT_SIZE_PLACEHOLDER },
+      WEIGHT_FIELD,
       {
         property: 'letterSpacing',
         label: 'Letter Spacing:',
         placeholder: LETTER_SPACING_PLACEHOLDER,
+        shownOn: ['custom'],
       },
+      WORD_SPACING_FIELD,
+      { property: 'fontSize', label: 'Size:', placeholder: FONT_SIZE_PLACEHOLDER },
       LINE_HEIGHT_FIELD,
       {
         property: 'paragraphSpacing',
@@ -102,14 +136,23 @@ const FIELD_GROUPS: FieldGroup[] = [
     section: 'characterOnly',
     title: 'Character Only Box',
     column: 'right',
+    faces: true,
     fields: [
-      { property: 'fontFamily', label: 'Font:', placeholder: 'e.g., Bookerly, Arial, sans-serif' },
-      { property: 'fontSize', label: 'Size:', placeholder: FONT_SIZE_PLACEHOLDER },
+      {
+        property: 'fontFamily',
+        label: 'Font:',
+        placeholder: 'e.g., Literata, Arial, sans-serif',
+        shownOn: ['custom'],
+      },
+      WEIGHT_FIELD,
       {
         property: 'letterSpacing',
         label: 'Letter Spacing:',
         placeholder: LETTER_SPACING_PLACEHOLDER,
+        shownOn: ['custom'],
       },
+      WORD_SPACING_FIELD,
+      { property: 'fontSize', label: 'Size:', placeholder: FONT_SIZE_PLACEHOLDER },
       LINE_HEIGHT_FIELD,
       {
         property: 'paragraphSpacing',
@@ -181,6 +224,7 @@ interface FontControlGroupProps {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: () => void;
   onReset: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onFaceChange: (section: AppearanceSection, face: ReadingFace) => void;
   /** The section this one can follow (character-only follows full translation). */
   follows?: SettingFollows;
   /** Rows after the font fields (the UI Font group's size). */
@@ -193,10 +237,13 @@ function FontControlGroup({
   onChange,
   onBlur,
   onReset,
+  onFaceChange,
   follows,
   extraRows,
 }: FontControlGroupProps) {
   const sectionValues = appearance[group.section] as unknown as Record<string, string | undefined>;
+  // A box without a saved face (a fixture, or a section that has none) shows every field.
+  const face = group.faces ? (sectionValues.face as ReadingFace | undefined) : undefined;
   // Following another section disables this one's rows. The kit group's fieldset already
   // does; each row also says so itself, so its field and reset button read disabled
   // wherever a <fieldset disabled> is not honoured (happy-dom).
@@ -204,9 +251,29 @@ function FontControlGroup({
 
   return (
     <SettingGroup title={group.title} follows={follows}>
+      {group.faces && (
+        // A group row only fades its label (kit SettingRow): the control is disabled itself.
+        <SettingRow group label="Face:">
+          <SegmentedControl<ReadingFace>
+            aria-label="Face"
+            items={FACE_ITEMS}
+            value={face ?? 'custom'}
+            disabled={disabled}
+            onValueChange={(value) => onFaceChange(group.section, value)}
+          />
+        </SettingRow>
+      )}
       {group.fields.map((field) => {
+        if (field.shownOn && face !== undefined && !field.shownOn.includes(face)) return null;
         const raw = sectionValues[field.property];
-        const value = field.property === 'paragraphSpacing' ? (raw ?? '1rem') : (raw ?? '');
+        const value =
+          field.property === 'paragraphSpacing'
+            ? (raw ?? '1rem')
+            : field.property === 'fontWeight'
+              ? (raw ?? '400')
+              : field.property === 'wordSpacing'
+                ? (raw ?? 'normal')
+                : (raw ?? '');
         return (
           <FontControlRow
             key={field.property}
@@ -227,9 +294,8 @@ function FontControlGroup({
         <div
           className={styles.preview}
           style={{
-            fontFamily: sectionValues.fontFamily,
+            ...resolveReadingType(appearance[group.section] as FontSettings),
             fontSize: sectionValues.fontSize,
-            letterSpacing: sectionValues.letterSpacing,
             lineHeight: sectionValues.lineHeight,
           }}
         >
@@ -266,6 +332,7 @@ const AppearanceManager: React.FC = () => {
     handleResetClick,
     handleFollowFullTranslationChange,
     handleUiScaleChange,
+    handleFaceChange,
   } = useAppearanceSettings();
 
   if (isLoading) {
@@ -313,6 +380,7 @@ const AppearanceManager: React.FC = () => {
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
+              onFaceChange={(section, face) => void handleFaceChange(section, face)}
               extraRows={group.section === 'uiFont' ? uiSizeRow : undefined}
             />
           ))}
@@ -327,6 +395,7 @@ const AppearanceManager: React.FC = () => {
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
+              onFaceChange={(section, face) => void handleFaceChange(section, face)}
               follows={group.section === 'characterOnly' ? followFullTranslation : undefined}
             />
           ))}

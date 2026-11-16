@@ -263,3 +263,55 @@ describe('applyReset', () => {
     expect(result.fullTranslation.fontFamily).toBe('FontB');
   });
 });
+
+describe('reading faces reach the reading boxes', () => {
+  const css = (name: string) => document.documentElement.style.getPropertyValue(name);
+  const withFace = (
+    face: 'serif' | 'sans' | 'custom',
+    extra: Partial<AppearanceSettings['fullTranslation']> = {}
+  ): AppearanceSettings => ({
+    ...base,
+    fullTranslation: { ...base.fullTranslation, face, fontWeight: '520', ...extra },
+    characterOnly: { ...base.characterOnly, face: 'sans', letterSpacing: '0.1em' },
+  });
+
+  it('Serif is Bookerly at its own weight and tracking, whatever Custom holds', () => {
+    applyAppearanceToCssVars(withFace('serif', { letterSpacing: '0.2em' }));
+    expect(css('--full-translation-font')).toBe(TYPE.faces['reading-serif'].family);
+    expect(css('--full-translation-spacing')).toBe('0em');
+    expect(css('--full-translation-weight')).toBe('400');
+  });
+
+  it('Sans is Work Sans at 430 and -0.02em', () => {
+    applyAppearanceToCssVars(withFace('serif'));
+    expect(css('--character-only-font')).toBe(TYPE.faces['reading-sans'].family);
+    expect(css('--character-only-spacing')).toBe('-0.02em');
+    expect(css('--character-only-weight')).toBe('430');
+  });
+
+  it("Custom is the reader's own stack, tracking and weight", () => {
+    applyAppearanceToCssVars(withFace('custom', { letterSpacing: '0.05em' }));
+    expect(css('--full-translation-font')).toBe('FontB');
+    expect(css('--full-translation-spacing')).toBe('0.05em');
+    expect(css('--full-translation-weight')).toBe('520');
+  });
+
+  it('word spacing reaches Sans and Custom, while Serif stays normal', () => {
+    applyAppearanceToCssVars(withFace('custom', { wordSpacing: '-0.05em' }));
+    expect(css('--full-translation-word-spacing')).toBe('-0.05em');
+    applyAppearanceToCssVars(withFace('sans', { wordSpacing: '-0.04em' }));
+    expect(css('--full-translation-word-spacing')).toBe('-0.04em');
+    applyAppearanceToCssVars(withFace('serif', { wordSpacing: '-0.04em' }));
+    expect(css('--full-translation-word-spacing')).toBe('normal');
+  });
+
+  it('a face change reaches character-only while it follows', () => {
+    const next = applyFontChange(
+      { ...base, characterOnlyFollowsFullTranslation: true },
+      'fullTranslation',
+      'face',
+      'sans'
+    );
+    expect(next.characterOnly.face).toBe('sans');
+  });
+});

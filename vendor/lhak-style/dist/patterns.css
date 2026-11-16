@@ -320,6 +320,7 @@
   justify-content: center;
   gap: var(--lk-space-1);
   min-width: 0;
+  height: auto;
   min-height: var(--lk-space-6);
   margin: 0;
   padding: 0 var(--lk-space-2);

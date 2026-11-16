@@ -110,11 +110,24 @@ export interface FontSettings {
   /** Line height: `normal`, a unitless ratio ('1.45'), a length or a percentage. Free text
    * in the Appearance tab, validated on load (appearanceConfig `normalizeLineHeight`). */
   lineHeight: string;
-  /** Font weight (optional, CSS value) */
-  fontWeight?: string | number;
+  /** Font weight: a number from 1 to 1000 as text ('400'). Used only on Custom (`face`);
+   * Serif and Sans take their face's own weight. Validated on load. */
+  fontWeight?: string;
+  /** Word spacing: `normal` or a CSS length ('-0.05em'). Reading boxes only; used on Sans and
+   * Custom (Serif renders `normal`). Vietnamese spaces every syllable, so a line holds about
+   * twice the gaps of English (adoption ticket 16). Validated on load like letter spacing. */
+  wordSpacing?: string;
+  /** The reading face (Full Translation and Character Only boxes): Serif and Sans are the
+   * kit's Bookerly and Work Sans at their own weight and tracking; Custom uses `fontFamily`,
+   * `letterSpacing` and `fontWeight`. A file saved before faces had none (appearanceConfig
+   * infers it from the stack). */
+  face?: ReadingFace;
   /** Paragraph spacing (optional, CSS value for margin-bottom, e.g., '1rem', '16px') */
   paragraphSpacing?: string;
 }
+
+/** The reading face choice (lhak-style-guide adoption ticket 16, as FanFiction Reader's). */
+export type ReadingFace = 'serif' | 'sans' | 'custom';
 
 /**
  * Theme options

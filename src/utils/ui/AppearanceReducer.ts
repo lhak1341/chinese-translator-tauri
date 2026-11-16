@@ -1,9 +1,46 @@
 import { TYPE } from '@lhak/style';
-import type { AppearanceSettings } from '../../types/ComponentTypes';
+import type { AppearanceSettings, FontSettings } from '../../types/ComponentTypes';
 
 export type AppearanceSection = 'chineseText' | 'fullTranslation' | 'characterOnly' | 'uiFont';
 export type FontProperty =
-  'fontFamily' | 'fontSize' | 'letterSpacing' | 'lineHeight' | 'paragraphSpacing';
+  | 'face'
+  | 'fontFamily'
+  | 'fontSize'
+  | 'fontWeight'
+  | 'letterSpacing'
+  | 'wordSpacing'
+  | 'lineHeight'
+  | 'paragraphSpacing';
+
+/**
+ * The family, tracking and weight a reading box renders: Serif and Sans are the kit's
+ * Bookerly and Work Sans at their own weight and tracking (FanFiction Reader's rule); Custom,
+ * or a section without a face (Chinese), is the saved stack, tracking and weight.
+ */
+export function resolveReadingType(fs: FontSettings): {
+  fontFamily: string;
+  letterSpacing: string;
+  fontWeight: string;
+  wordSpacing: string;
+} {
+  // Word spacing is the reader's on Sans and Custom; Serif keeps the face's own (normal).
+  const wordSpacing = fs.face === 'serif' ? 'normal' : (fs.wordSpacing ?? 'normal');
+  if (fs.face === 'serif' || fs.face === 'sans') {
+    const face = TYPE.faces[fs.face === 'serif' ? 'reading-serif' : 'reading-sans'];
+    return {
+      fontFamily: face.family,
+      letterSpacing: face.tracking,
+      fontWeight: String(face.weight),
+      wordSpacing,
+    };
+  }
+  return {
+    fontFamily: fs.fontFamily,
+    letterSpacing: fs.letterSpacing,
+    fontWeight: fs.fontWeight ?? '400',
+    wordSpacing,
+  };
+}
 
 /**
  * Apply a single font property change. When the section is fullTranslation and
@@ -50,17 +87,23 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
     '--chinese-text-paragraph-spacing',
     appearance.chineseText.paragraphSpacing ?? '1rem'
   );
-  root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
+  const full = resolveReadingType(appearance.fullTranslation);
+  root.style.setProperty('--full-translation-font', full.fontFamily);
   root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
-  root.style.setProperty('--full-translation-spacing', appearance.fullTranslation.letterSpacing);
+  root.style.setProperty('--full-translation-spacing', full.letterSpacing);
+  root.style.setProperty('--full-translation-weight', full.fontWeight);
+  root.style.setProperty('--full-translation-word-spacing', full.wordSpacing);
   root.style.setProperty('--full-translation-line-height', appearance.fullTranslation.lineHeight);
   root.style.setProperty(
     '--full-translation-paragraph-spacing',
     appearance.fullTranslation.paragraphSpacing ?? '1rem'
   );
-  root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
+  const charOnly = resolveReadingType(appearance.characterOnly);
+  root.style.setProperty('--character-only-font', charOnly.fontFamily);
   root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
-  root.style.setProperty('--character-only-spacing', appearance.characterOnly.letterSpacing);
+  root.style.setProperty('--character-only-spacing', charOnly.letterSpacing);
+  root.style.setProperty('--character-only-weight', charOnly.fontWeight);
+  root.style.setProperty('--character-only-word-spacing', charOnly.wordSpacing);
   root.style.setProperty('--character-only-line-height', appearance.characterOnly.lineHeight);
   root.style.setProperty(
     '--character-only-paragraph-spacing',

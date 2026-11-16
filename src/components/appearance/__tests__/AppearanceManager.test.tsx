@@ -17,6 +17,7 @@ const handleAutoSave = vi.fn();
 const handleResetClick = vi.fn();
 const handleFollowFullTranslationChange = vi.fn();
 const handleUiScaleChange = vi.fn();
+const handleFaceChange = vi.fn();
 
 const baseAppearance: AppearanceSettings = {
   chineseText: {
@@ -56,6 +57,7 @@ function buildMockReturn(appearance: AppearanceSettings) {
     handleResetClick,
     handleFollowFullTranslationChange,
     handleUiScaleChange,
+    handleFaceChange,
   };
 }
 
@@ -284,5 +286,76 @@ describe('AppearanceManager — line height per section', () => {
     const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
     expect(lineHeightInput(container, 'characterOnly').disabled).toBe(true);
     expect(lineHeightInput(container, 'fullTranslation').disabled).toBe(false);
+  });
+});
+
+describe('AppearanceManager — reading faces (Serif / Sans / Custom)', () => {
+  const withFaces = (
+    full: 'serif' | 'sans' | 'custom',
+    char: 'serif' | 'sans' | 'custom' = full,
+    follows = true
+  ) =>
+    buildMockReturn({
+      ...baseAppearance,
+      fullTranslation: { ...baseAppearance.fullTranslation, face: full, fontWeight: '450' },
+      characterOnly: { ...baseAppearance.characterOnly, face: char },
+      characterOnlyFollowsFullTranslation: follows,
+    });
+  const box = (name: string) => screen.getByRole('region', { name });
+
+  test('Serif and Sans offer no font, weight or letter spacing of their own', () => {
+    mockHookReturn = withFaces('serif');
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const full = box('Full Translation Box');
+    expect(within(full).getByRole('radio', { name: 'Serif' })).toBeChecked();
+    for (const name of ['Font:', 'Weight:', 'Letter Spacing:', 'Word Spacing:'])
+      expect(within(full).queryByRole('textbox', { name })).toBeNull();
+    expect(within(full).getByRole('textbox', { name: 'Size:' })).toBeInTheDocument();
+  });
+
+  test('Sans offers word spacing, and nothing else of the face', () => {
+    mockHookReturn = withFaces('sans');
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const full = box('Full Translation Box');
+    expect(within(full).getByRole('textbox', { name: 'Word Spacing:' })).toHaveValue('normal');
+    for (const name of ['Font:', 'Weight:', 'Letter Spacing:'])
+      expect(within(full).queryByRole('textbox', { name })).toBeNull();
+  });
+
+  test("Custom offers the reader's own font, weight and letter spacing", () => {
+    mockHookReturn = withFaces('custom');
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const full = box('Full Translation Box');
+    expect(within(full).getByRole('textbox', { name: 'Font:' })).toHaveValue('BookerlyFull');
+    expect(within(full).getByRole('textbox', { name: 'Weight:' })).toHaveValue('450');
+    expect(within(full).getByRole('textbox', { name: 'Letter Spacing:' })).toBeInTheDocument();
+    expect(within(full).getByRole('textbox', { name: 'Word Spacing:' })).toBeInTheDocument();
+  });
+
+  test('choosing a face saves it for that box', () => {
+    mockHookReturn = withFaces('serif', 'serif', false);
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    fireEvent.click(within(box('Character Only Box')).getByRole('radio', { name: 'Sans' }));
+    expect(handleFaceChange).toHaveBeenCalledWith('characterOnly', 'sans');
+  });
+
+  test("character-only's face is disabled while it follows full translation", () => {
+    mockHookReturn = withFaces('serif');
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    // Base UI's radio is a span: disabled shows as aria-disabled.
+    const sans = (name: string) => within(box(name)).getByRole('radio', { name: 'Sans' });
+    expect(sans('Character Only Box')).toHaveAttribute('aria-disabled', 'true');
+    expect(sans('Full Translation Box')).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test("the preview shows the face's own weight", () => {
+    mockHookReturn = withFaces('sans');
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const preview = screen.getByText(
+      'This is a preview of the full translation style. Hello world!'
+    );
+    // The inline style itself: happy-dom's toHaveStyle reads none of it back.
+    expect(preview.style.fontWeight).toBe('430');
+    expect(preview.style.letterSpacing).toBe('-0.02em');
   });
 });

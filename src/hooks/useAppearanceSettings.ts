@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { AppearanceSettings } from '../types/ComponentTypes';
+import type { AppearanceSettings, ReadingFace } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
 import {
   DEFAULT_APPEARANCE,
@@ -90,6 +90,23 @@ export function useAppearanceSettings() {
     }
   }, []);
 
+  /** A face choice saves at once, like the UI size: there is no field to blur. While
+   * character-only follows, a full-translation face reaches it too (applyFontChange). */
+  const handleFaceChange = useCallback(
+    async (section: AppearanceSection, face: ReadingFace): Promise<void> => {
+      const next = applyFontChange(appearanceRef.current, section, 'face', face);
+      setAppearance(next);
+      try {
+        await saveAppearanceConfig(next);
+        setError(null);
+      } catch (err) {
+        logger.error('Failed to save after the face changed:', err);
+        setError('Failed to save appearance settings');
+      }
+    },
+    []
+  );
+
   const resetToDefault = useCallback(
     async (section: AppearanceSection, property: FontProperty): Promise<void> => {
       const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
@@ -133,5 +150,6 @@ export function useAppearanceSettings() {
     handleResetClick,
     handleFollowFullTranslationChange,
     handleUiScaleChange,
+    handleFaceChange,
   };
 }

@@ -1,7 +1,7 @@
 import { TYPE } from '@lhak/style';
 import { createAppFile } from './appFile';
 import { lineHeightToPx } from './ui/CssLength';
-import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
+import type { AppearanceSettings, FontSettings, ReadingFace, Theme } from '../types/ComponentTypes';
 
 /** The token px sizes as the rem the fields hold. The app never sets a root size, so 1rem = 16px. */
 const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
@@ -9,10 +9,14 @@ const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
 /** One reading line-height for every section, Chinese included (lhak-style-guide ticket 009). */
 const READING_LINE_HEIGHT = String(TYPE.reading.lineHeight);
 
+// Serif by default. The family, tracking and weight are what Custom starts from: Bookerly's.
 const reading: FontSettings = {
+  face: 'serif',
   fontFamily: TYPE.faces['reading-serif'].family,
   fontSize: rem(TYPE.reading.size),
   letterSpacing: TYPE.faces['reading-serif'].tracking,
+  fontWeight: String(TYPE.faces['reading-serif'].weight),
+  wordSpacing: 'normal',
   lineHeight: READING_LINE_HEIGHT,
   paragraphSpacing: '1rem',
 };
@@ -83,6 +87,34 @@ function normalizeLineHeight(v: unknown): string | null {
   return lineHeightToPx(value, { rootFontSizePx: 16, fontSizePx: 16 }) === null ? null : value;
 }
 
+/** A numeric CSS font weight (1-1000) as text, or `null` when it is not one. */
+function normalizeFontWeight(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const value = v.trim();
+  if (!/^\d+$/.test(value)) return null;
+  const n = Number(value);
+  return n >= 1 && n <= 1000 ? String(n) : null;
+}
+
+const FACES: ReadingFace[] = ['serif', 'sans', 'custom'];
+
+/**
+ * The face a file saved before faces meant, from the first family in its stack: Bookerly is
+ * Serif and Work Sans is Sans (each at its own weight and tracking from now on); any other
+ * stack is Custom, which keeps the stack, tracking and weight as they were (user decision,
+ * adoption ticket 16).
+ */
+function inferFace(fontFamily: string): ReadingFace {
+  const first = fontFamily
+    .split(',')[0]
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
+  if (first === 'bookerly') return 'serif';
+  if (first === 'work sans') return 'sans';
+  return 'custom';
+}
+
 function isTheme(v: unknown): v is Theme {
   return typeof v === 'string' && (THEMES as string[]).includes(v);
 }
@@ -97,6 +129,21 @@ function fromRawFontSettings(raw: unknown, defaults: FontSettings): FontSettings
   const lineHeight = normalizeLineHeight(obj.lineHeight);
   if (lineHeight !== null) result.lineHeight = lineHeight;
   if (typeof obj.paragraphSpacing === 'string') result.paragraphSpacing = obj.paragraphSpacing;
+  if (defaults.face !== undefined) {
+    const fontWeight = normalizeFontWeight(obj.fontWeight);
+    if (fontWeight !== null) result.fontWeight = fontWeight;
+    // The same CSS values as letter spacing, minus its legacy keywords.
+    const wordSpacing =
+      typeof obj.wordSpacing === 'string' && !(obj.wordSpacing.trim() in LEGACY_LETTER_SPACINGS)
+        ? normalizeLetterSpacing(obj.wordSpacing)
+        : null;
+    if (wordSpacing !== null) result.wordSpacing = wordSpacing;
+    result.face = (FACES as unknown[]).includes(obj.face)
+      ? (obj.face as ReadingFace)
+      : typeof obj.fontFamily === 'string'
+        ? inferFace(obj.fontFamily)
+        : defaults.face;
+  }
   return result;
 }
 

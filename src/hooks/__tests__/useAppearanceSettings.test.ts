@@ -449,3 +449,28 @@ describe('handleUiScaleChange', () => {
     expect(mockSave).toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// handleFaceChange
+// ---------------------------------------------------------------------------
+describe('handleFaceChange', () => {
+  it('sets the face, renders it, reaches character-only while it follows, and saves at once', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData({}) });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.appearance.fullTranslation.face).toBe('custom');
+
+    await act(() => result.current.handleFaceChange('fullTranslation', 'sans'));
+
+    expect(result.current.appearance.fullTranslation.face).toBe('sans');
+    expect(result.current.appearance.characterOnly.face).toBe('sans');
+    expect(document.documentElement.style.getPropertyValue('--full-translation-weight')).toBe(
+      '430'
+    );
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fullTranslation: expect.objectContaining({ face: 'sans', fontFamily: 'Georgia' }),
+      })
+    );
+  });
+});

@@ -1030,6 +1030,8 @@
   );
   font-size: var(--full-translation-size, 1.25rem);
   letter-spacing: var(--full-translation-spacing, normal);
+  font-weight: var(--full-translation-weight, 400);
+  word-spacing: var(--full-translation-word-spacing, normal);
   --reader-line-height: var(--full-translation-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--full-translation-paragraph-spacing, 1rem);
 }
@@ -1045,6 +1047,8 @@
   );
   font-size: var(--character-only-size, 1.25rem);
   letter-spacing: var(--character-only-spacing, normal);
+  font-weight: var(--character-only-weight, 400);
+  word-spacing: var(--character-only-word-spacing, normal);
   --reader-line-height: var(--character-only-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--character-only-paragraph-spacing, 1rem);
 }
