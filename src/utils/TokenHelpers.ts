@@ -179,8 +179,10 @@ export function reconstructChineseText(tokens: TextToken[]): string {
 /**
  * Reconstruct text from specific index until punctuation
  *
- * Builds text starting from startIndex, including only Chinese
- * words/characters, stopping at the first punctuation boundary.
+ * Builds text starting from startIndex out of the semantic tokens (`isSemanticTokenType`:
+ * Chinese, Latin words, numbers), skipping whitespace and stopping at the first punctuation
+ * boundary. Digits and Latin letters stay in the text, so a key holding them (`绝对战警2`)
+ * can match and a key without them (`王五`) never matches across them (`王5五`).
  *
  * Used for context-aware dictionary matching that respects
  * punctuation boundaries.
@@ -203,8 +205,7 @@ export function reconstructTextFromIndex(tokens: TextToken[], startIndex: number
       break;
     }
 
-    // Only include Chinese characters and words
-    if (token.type === TokenType.CHINESE_WORD || token.type === TokenType.CHINESE_CHAR) {
+    if (isSemanticTokenType(token.type)) {
       result.push(token.value);
     }
   }

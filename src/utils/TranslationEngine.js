@@ -126,7 +126,7 @@ import {
   filterDictionariesForEngine,
   isActiveProperNounSource,
 } from './dictionary/FictionDictionaryFilter';
-import { getTokenSpanForText } from './TokenHelpers.js';
+import { getTokenSpanForText, isSemanticTokenType } from './TokenHelpers.js';
 import { PatternStore } from './pattern/PatternStore.js';
 import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
@@ -809,9 +809,10 @@ export class TranslationEngine {
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
       const isProcessed = isClaimed(token);
-      const isChinese = token.type === 'chinese_char' || token.type === 'chinese_word';
+      // A phrase key may start with a Latin word or a number (`T恤`), so they open a range too
+      const canStartMatch = isSemanticTokenType(token.type);
 
-      if (!isProcessed && isChinese) {
+      if (!isProcessed && canStartMatch) {
         // Start of unprocessed range
         if (rangeStart === null) {
           rangeStart = i;
@@ -963,8 +964,9 @@ export class TranslationEngine {
         // Skip tokens an earlier phase claimed
         if (isClaimed(token)) continue;
 
-        // Only translate Chinese content
-        if (token.type !== TokenType.CHINESE_WORD && token.type !== TokenType.CHINESE_CHAR) {
+        // A key may start with a Latin word or a number (`X战警`); punctuation and whitespace
+        // never start one
+        if (!isSemanticTokenType(token.type)) {
           continue;
         }
 
@@ -1278,8 +1280,8 @@ export class TranslationEngine {
     }
 
     const startToken = tokens[startIndex];
-    if (startToken.type !== TokenType.CHINESE_CHAR && startToken.type !== TokenType.CHINESE_WORD) {
-      // Skip non-Chinese tokens (validation handled by caller)
+    if (!isSemanticTokenType(startToken.type)) {
+      // Punctuation and whitespace never start a match (validation handled by caller)
       return;
     }
 

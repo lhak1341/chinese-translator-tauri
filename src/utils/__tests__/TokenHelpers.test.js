@@ -375,17 +375,19 @@ describe('reconstructTextFromIndex', () => {
     expect(text).toBe('在那些');
   });
 
-  test('should skip non-Chinese tokens (except punctuation)', () => {
+  test('skips whitespace but keeps numbers and Latin words', () => {
+    // Keeping them lets a key like 绝对战警2 match and stops 王五 matching across 王5五
     const tokens = [
       createToken(TokenType.CHINESE_CHAR, '在', 0),
       createToken(TokenType.WHITESPACE, ' ', 1),
       createToken(TokenType.CHINESE_CHAR, '那', 2),
       createToken(TokenType.NUMBER, '123', 3),
-      createToken(TokenType.CHINESE_CHAR, '里', 6),
+      createToken(TokenType.LATIN_WORD, 'abc', 6),
+      createToken(TokenType.CHINESE_CHAR, '里', 9),
     ];
 
     const text = reconstructTextFromIndex(tokens, 0);
-    expect(text).toBe('在那里');
+    expect(text).toBe('在那123abc里');
   });
 
   test('should return empty string if starting at punctuation', () => {
