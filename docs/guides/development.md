@@ -76,33 +76,27 @@ Moved to [gotchas.md](gotchas.md) — environment and tooling traps, JavaScript/
 
 ---
 
-## Fallow Dead-Code Analysis
+## Dead-Code Deletion
 
-Fallow reports are a starting point, not a deletion list. Four blind spots:
+Code that looks unused is a starting point, not a deletion list. Blind spots:
 
-1. **Class dead ≠ file dead.** Fallow tracks `export class Foo` and `export const foo = new Foo()` separately. If only the class is listed dead, the singleton may still have callers — check both before touching the file.
+1. **Class dead ≠ file dead.** `export class Foo` and `export const foo = new Foo()` are separate exports. A class with no callers can still have a singleton that does — check both before touching the file.
 
-2. **CSS `composes` is invisible.** `composes: X from './shared.module.css'` is a hard dependency fallow never sees. Before deleting any `.module.css`, grep: `composes.*from.*'./filename'` across all CSS files.
+2. **CSS `composes` is invisible to import tracing.** `composes: X from './shared.module.css'` is a hard dependency. Before deleting any `.module.css`, grep: `composes.*from.*'./filename'` across all CSS files.
 
-3. **Dynamic `import()` calls not tracked.** `import("./SomeFile.js")` lazy imports are invisible to fallow. Before deleting, grep: `import(.*filename` across `src/`.
+3. **Dynamic `import()` calls.** `import("./SomeFile.js")` lazy imports are easy to miss. Before deleting, grep: `import(.*filename` across `src/`.
 
-4. **Test imports count.** Fallow may flag exports used only in `__tests__/` files as dead. Check test files before removing.
+4. **Test imports count.** An export used only in `__tests__/` files still has a caller. Check test files before removing.
 
 4b. **A test-only caller isn't automatically "delete it."** If the test unit-tests real, substantial edge-case logic that only works via direct import, keep the export — a real test surface justifies an interface with zero cross-module callers. Reserve unexport/delete for trivial constants or logic the surviving public function already covers indirectly. (2026-08-08: kept `VocabularyWarmup.js`'s `extractHighFrequencyVocabulary`/`generateCharacterCombinations` exported for this reason; unexported `CharacterOnlyBridge`/`PerformanceMonitor`'s trivial constants safely since their tests lost nothing hardcoding literals instead.)
 
 5. **Partial-dead ≠ file-dead.** A file with some dead exports is NOT a dead file. Verify every export has zero callers before deleting the file.
 
-6. **JSDoc `@import {...} from '...'` and inline `@type {import('...').X}` are invisible to `analyze`/`trace_export`.** This codebase types many `.js` files via JSDoc, not real ES imports — a `.d.ts` file consumed only this way shows `file_reachable: false` even when genuinely alive. Grep for `@import\s*{` and `import\(['"].*['"]\)\.` referencing a file before trusting fallow's verdict on it.
-
-7. **`analyze` with a `file:` filter suppresses `unused_files`** (dependency-level checks are disabled in file-scoped mode — the tool's own docs say so, easy to miss). Re-run without `file:` for a real answer.
-
-8. **`fix_apply`/`fix_preview` have no file/name scoping and only cover `unused-exports`, not `unused-types`.** Confirmed false positives: wanted to strip exports from a barrel that real code imports, and delete npm deps wired through Rust, not JS. Not usable for a scoped cleanup — verify every proposed fix manually, or don't use it for `.d.ts`/type pruning at all.
-
-9. **`find_dupes` (structural/`weak` mode) misses small-scale near-duplicates.** Tested against a deliberate ~15-line near-copy of a React component — 0 hits at `top: 200`. Its clone detector needs larger duplicated blocks to fire; don't trust it for component/JSX-level drift detection. Keep `top` modest — very large values (200+) can disconnect the MCP server outright. Full account: `src/components/dictionary/CLAUDE.md`'s "mechanized gate ... investigated and rejected" note.
+6. **JSDoc `@import {...} from '...'` and inline `@type {import('...').X}` are references too.** This codebase types many `.js` files via JSDoc, not real ES imports — a `.d.ts` file consumed only this way has no ES import pointing at it even when genuinely alive. Grep for `@import\s*{` and `import\(['"].*['"]\)\.` referencing a file before deleting it.
 
 **Protocol per file:**
 
-- Grep each export (not just fallow-listed ones): `grep -r "ExportName" src/` — confirm zero results outside the definition.
+- Grep each export: `grep -r "ExportName" src/` — confirm zero results outside the definition.
 - Grep dynamic imports: `grep -r "import(.*filename" src/`
 - For `.module.css`: grep `composes.*from.*'./filename'` in all CSS files.
 

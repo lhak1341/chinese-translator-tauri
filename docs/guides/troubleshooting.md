@@ -261,7 +261,7 @@ Moved out of root `CLAUDE.md` 2026-08-17 (agent-config-hygiene restructure) — 
 
 **A failing pre-existing test can mean the fix is working, not that it broke something** — when deliberately tightening a validation/classification rule, some tests may have locked in the old (now-intentionally-wrong) behavior as their expected value. Confirmed 3 times in one session (2026-09-07): `PatternTemplateEngine.test.js`'s `Xabc → ['X']` case, `PersistTimeValidator.test.ts`'s `'X' + 'a'.repeat(...)` length fixture, and `DictionaryTrieBuilder.test.ts`'s `frequency: 1` assertion all encoded behavior the fix correctly changed. Read what the fixture actually asserts before reverting the fix or patching around the failure.
 
-**Dead-code cleanup with fallow has multiple blind spots** (dynamic imports, CSS `composes`, class vs singleton, test-only). See [Fallow Protocol](./development.md#fallow-dead-code-analysis) before deleting anything.
+**Dead-code cleanup has multiple blind spots** (dynamic imports, CSS `composes`, class vs singleton, test-only). See [Dead-Code Deletion](./development.md#dead-code-deletion) before deleting anything.
 
 **A CI failure on your own push isn't necessarily caused by your push.** `gh run list` then `gh run view <run-id> --log-failed` before assuming a red check traces to the diff just pushed — confirmed 2026-09-19: `src-tauri`'s `book_loader`/`chapter_outline` corpus tests (`src-tauri/CLAUDE.md`'s Reader Corpus Tests entry) had failed on every run since 2026-09-13, unrelated to the Reader UI work under review; `ci.yml` never set the tests' own documented `SKIP_READER_CORPUS_TESTS` opt-out.
 

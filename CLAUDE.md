@@ -45,7 +45,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 
 This file stays short on purpose — everything task-scoped moved to where it's discoverable when you actually need it:
 
-- **Tooling/environment gotchas** (repo-wide search and ad-hoc scripts importing `src/` — read before either; RTK proxy output is lossy, Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
+- **Tooling/environment gotchas** (repo-wide search and ad-hoc scripts importing `src/` — read before either; Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
 - **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing, and before deleting a method with no production callers (dev-console commands and contract tests look dead on grep, e.g. `getWasmStatus`) → [`docs/guides/deleted-symbols.md`](docs/guides/deleted-symbols.md).
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing, and before presenting a candidate run the prior-decision greps in troubleshooting.md: rounds 23, 28 and 30 shipped candidates an ADR addendum or scoped `CLAUDE.md` had already declined) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.
@@ -54,15 +54,3 @@ This file stays short on purpose — everything task-scoped moved to where it's 
 - **Architectural decisions** → `docs/adr/` — each new ADR also gets a row in `docs/adr/README.md`'s index table (keep every cell within the existing column widths, or Prettier re-aligns the whole table) **and** its id on the dated line at the bottom (the table sat stale at ADR-006 until 2026-09-26); a supersession also edits the old ADR's `Status:` line **and** its README status cell (two copies).
 
 📖 [Architecture](docs/guides/architecture.md) · [Development](docs/guides/development.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Hotkeys](docs/HOTKEYS.md) · [ADRs](docs/adr/) · [CSP Security](docs/CSP_SECURITY.md)
-
-## graphify
-
-This project has a graphify knowledge graph at graphify-out/.
-
-- For a codebase question or exploration with no map in hand, start from graphify-out/GRAPH_REPORT.md before grepping. When a report, plan or named file already says where to work, go there directly.
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep
-- `graphify-out/` is untracked; a post-commit hook, tracked in `.husky/`, rebuilds it (run `graphify hook install` only if the hooks are missing). Run `graphify update .` yourself only before querying uncommitted changes, after doc-only edits, or once on a fresh clone. If it refuses ("fewer nodes", "saved semantic node(s) are missing"), that's a safety guard — copy `graphify-out/` to the scratchpad, then run `graphify update . --force`. `bad interpreter: …/graphifyy/bin/python3: no such file` means Homebrew dropped the Python the tool's venv linked to; `uv tool install graphifyy --reinstall --python 3.14 --managed-python` pins uv's own copy (fixed 2026-10-24).
-- `graphify update .` reporting success is NOT proof the graph is current — a scan can silently exclude files (a scoping bug in graphify 0.9.15's `detect.py` did, until the 0.9.94 upgrade on 2026-10-24). After a session that added new files, spot-check with `grep -o "<new-file-name>" graphify-out/graph.json | wc -l` before trusting the update (`graph.json` is one line, so `grep -c` always prints 1) — pick a non-test module or exported function; test files and callbacks defined inside hooks or components are never nodes, so they read 0 on a healthy graph. The reverse also holds: a deleted file's nodes stay in `graph.json` after `update` (19 entries for a deleted script, 2026-10-04), so a grep hit proves nothing about a file that is gone — check the filesystem.
-- `graphify-out/graph.json` is gitignored and NOT safely reconstructible from `manifest.json` alone if deleted — never delete it as a troubleshooting step without a copy first.
-- A high god-node edge count can be text co-occurrence noise (doc/ADR titles mentioning the name), not import coupling — cross-check `graphify-out/GRAPH_REPORT.md`'s "Surprising Connections" and community cohesion before trusting it as a real signal (confirmed 2026-09-08: `Logger`'s 105 edges were noise; `logger.ts` itself is a clean, deep module).
