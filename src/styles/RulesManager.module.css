@@ -95,6 +95,13 @@
   justify-content: center;
 }
 
+/* STAY + MOVE chips plus the kit cell's 8px each side; the ticked chip's 1px border took
+   the last 2px of 64px and cropped MOVE. */
+.colMove {
+  width: 72px;
+  min-width: 72px;
+}
+
 /* Replace and Label are the two free-text columns, so both share the row's leftover
    width (like Dictionary's Source/Translation split) instead of one column hogging all
    of it while the other stays pinned at a fixed width. */

@@ -8,6 +8,17 @@ import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFi
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import type { SelectionState } from '../../hooks/useEntrySelection';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
+import { tiersInDuplicates } from '../../utils/dictionary/DuplicateGroupFilter';
+import type { DictionaryTier } from '../../utils/dictionary/DictionaryIdClassifier';
+
+/** Chip text per tier in the duplicates filter. "Base" is the root dictionaries only (the ones
+ * the Dictionary column shows in bold); a custom proper-nouns dictionary has its own chip. */
+const DUPLICATE_TIER_LABELS: Record<DictionaryTier, string> = {
+  root: 'Base',
+  generic: 'Generic',
+  fiction: 'Fiction',
+  custom: 'Custom',
+};
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -77,6 +88,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     toggleSemanticType,
     togglePatternType,
     setVariable,
+    duplicateFilter,
+    toggleDuplicateThreeOrMore,
+    toggleDuplicateTier,
+    setDuplicateTranslations,
     clearFilters,
   } = useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, showDuplicatesMode);
 
@@ -94,6 +109,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       filterVariable,
       [...filterSemanticTypes].sort().join(','),
       [...filterPatternType].sort().join(','),
+      String(duplicateFilter.threeOrMore),
+      [...duplicateFilter.includesTiers].sort().join(','),
+      duplicateFilter.translations,
     ].join('\u0000'),
   });
 
@@ -104,7 +122,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   } = availableFilters;
 
   const hasFilterOptions =
-    !showDuplicatesMode && (showPatternFilter || showVariableFilter || showSemanticTypeFilter);
+    showDuplicatesMode || showPatternFilter || showVariableFilter || showSemanticTypeFilter;
+
+  const duplicateTiers = useMemo(
+    () => (showDuplicatesMode ? tiersInDuplicates(duplicateRows) : []),
+    [showDuplicatesMode, duplicateRows]
+  );
 
   // "Rows 1,201–1,220 of 40,512" — where the viewport is in the whole list. The old
   // "Showing <rendered slice size> of N" counted the virtualization buffer, not what's on screen.
@@ -121,30 +144,34 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     scroll.visibleRange.visibleCount,
   ]);
 
-  const emptyState =
-    !showDuplicatesMode && filteredEntries.length === 0 ? (
-      searchTerm || hasActiveFilter ? (
-        <EmptyState
-          title={
-            searchTerm
-              ? `No entries matching "${searchTerm}"`
-              : 'No entries match the active filters'
-          }
-          description={
-            searchTerm && hasActiveFilter
-              ? 'Try a different search term or adjust the filters'
-              : searchTerm
-                ? 'Try a different search term'
-                : 'Try adjusting or clearing the filters'
-          }
-        />
-      ) : (
-        <EmptyState
-          title="Dictionary is empty"
-          description="Use Add Entry above, or select text in the Translator or Reader tab and press Cmd/Ctrl+1–6"
-        />
-      )
-    ) : null;
+  const emptyState = showDuplicatesMode ? (
+    filteredDuplicateRows.length === 0 && duplicateRows.length > 0 ? (
+      <EmptyState
+        title="No duplicates match"
+        description="Try a different search term or adjust the filters"
+      />
+    ) : null
+  ) : filteredEntries.length === 0 ? (
+    searchTerm || hasActiveFilter ? (
+      <EmptyState
+        title={
+          searchTerm ? `No entries matching "${searchTerm}"` : 'No entries match the active filters'
+        }
+        description={
+          searchTerm && hasActiveFilter
+            ? 'Try a different search term or adjust the filters'
+            : searchTerm
+              ? 'Try a different search term'
+              : 'Try adjusting or clearing the filters'
+        }
+      />
+    ) : (
+      <EmptyState
+        title="Dictionary is empty"
+        description="Use Add Entry above, or select text in the Translator or Reader tab and press Cmd/Ctrl+1–6"
+      />
+    )
+  ) : null;
 
   if (isLoading) {
     return (
@@ -197,7 +224,49 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
       {/* Filter panel */}
       <FilterPanel open={showFilterPanel && hasFilterOptions}>
-        {showPatternFilter && (
+        {showDuplicatesMode && (
+          <>
+            <FilterDimensionRow label="Copies:">
+              <FilterChipButton
+                active={duplicateFilter.threeOrMore}
+                activeColor="var(--accent-color)"
+                label="3+"
+                ariaLabel="Only sources in three or more dictionaries"
+                onClick={toggleDuplicateThreeOrMore}
+              />
+            </FilterDimensionRow>
+            <FilterDimensionRow label="Includes:">
+              {duplicateTiers.map((tier) => (
+                <FilterChipButton
+                  key={tier}
+                  active={duplicateFilter.includesTiers.has(tier)}
+                  activeColor="var(--accent-color)"
+                  label={DUPLICATE_TIER_LABELS[tier]}
+                  ariaLabel={`Only duplicates involving a ${DUPLICATE_TIER_LABELS[tier]} dictionary`}
+                  onClick={() => toggleDuplicateTier(tier)}
+                />
+              ))}
+            </FilterDimensionRow>
+            <FilterDimensionRow label="Translations:">
+              {(
+                [
+                  ['all', 'All'],
+                  ['differ', 'Differ'],
+                  ['match', 'Match'],
+                ] as const
+              ).map(([value, label]) => (
+                <FilterChipButton
+                  key={value}
+                  active={duplicateFilter.translations === value}
+                  activeColor="var(--accent-color)"
+                  label={label}
+                  onClick={() => setDuplicateTranslations(value)}
+                />
+              ))}
+            </FilterDimensionRow>
+          </>
+        )}
+        {!showDuplicatesMode && showPatternFilter && (
           <FilterDimensionRow label="Pattern:">
             {(
               [
@@ -216,7 +285,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             ))}
           </FilterDimensionRow>
         )}
-        {showVariableFilter && (
+        {!showDuplicatesMode && showVariableFilter && (
           <FilterDimensionRow label="Variable:">
             {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
               <FilterChipButton
@@ -229,7 +298,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             ))}
           </FilterDimensionRow>
         )}
-        {showSemanticTypeFilter && (
+        {!showDuplicatesMode && showSemanticTypeFilter && (
           <FilterDimensionRow label="Type:">
             <SemanticTypeFilterChips
               activeTypes={filterSemanticTypes}

@@ -66,7 +66,7 @@ export const EntryVarCell: React.FC<{
           style={{
             background: 'var(--lk-green)',
             color: textOnFill('var(--lk-green)'),
-            border: 'none',
+            border: '1px solid var(--lk-green)',
             cursor: 'default',
           }}
         >

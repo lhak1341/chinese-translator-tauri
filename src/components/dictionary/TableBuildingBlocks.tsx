@@ -41,7 +41,7 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
       style={{
         background: active ? config.activeColor : 'transparent',
         color: active ? textOnFill(config.activeColor) : config.inactiveColor,
-        border: active ? 'none' : `1px solid ${config.inactiveColor}`,
+        border: `1px solid ${active ? config.activeColor : config.inactiveColor}`,
       }}
     >
       {active && '✓ '}
@@ -80,7 +80,7 @@ export const BadgeChip: React.FC<BadgeChipProps> = ({
   title,
   ariaLabel,
   fontSize = '0.6rem',
-  padding = '1px 3px',
+  padding = '2px 3px',
   borderRadius,
 }) => (
   <span
@@ -94,7 +94,7 @@ export const BadgeChip: React.FC<BadgeChipProps> = ({
     style={{
       background: active ? activeColor : 'transparent',
       color: active ? textOnFill(activeColor) : 'var(--lk-text-faint)',
-      border: active ? 'none' : '1px solid var(--lk-border)',
+      border: `1px solid ${active ? activeColor : 'var(--lk-border)'}`,
       fontSize,
       padding,
       cursor: 'pointer',
@@ -232,7 +232,7 @@ export const SemanticTypeToggleCell: React.FC<{
       ? { fontSize: '0.7rem', padding: '2px 6px', borderRadius: 'var(--radius-md)' }
       : size === 'form'
         ? { fontSize: '0.7rem', padding: '2px 6px' }
-        : { fontSize: '0.6rem', padding: '1px 3px' };
+        : { fontSize: '0.6rem', padding: '2px 3px' };
   const Container = cell ? TableCell : 'div';
   return (
     <Container
@@ -291,10 +291,10 @@ export const SemanticTypeToggleCell: React.FC<{
                 style={{
                   background: isActive ? 'var(--lk-purple)' : 'transparent',
                   color: isActive ? textOnFill('var(--lk-purple)') : 'var(--lk-purple)',
-                  border: isActive ? 'none' : '1px dashed var(--lk-purple)',
+                  border: isActive ? '1px solid var(--lk-purple)' : '1px dashed var(--lk-purple)',
                   fontSize: '0.6rem',
                   cursor: 'pointer',
-                  padding: '1px 3px',
+                  padding: '2px 3px',
                 }}
               >
                 {typeRef}
@@ -388,7 +388,7 @@ export const CheckboxCell: React.FC<{
       type="checkbox"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
-      className={styles.checkboxInput}
+      className={`lk-checkbox ${styles.checkboxInput}`}
       title="Select for deletion"
       {...(ariaLabel && { 'aria-label': ariaLabel })}
     />
@@ -411,7 +411,7 @@ export const SelectAllCheckboxHeaderCell: React.FC<{
       type="checkbox"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
-      style={{ cursor: 'pointer' }}
+      className="lk-checkbox"
       title="Select all"
       aria-label="Select all entries"
     />

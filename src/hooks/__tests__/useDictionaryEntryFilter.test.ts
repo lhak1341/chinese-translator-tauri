@@ -440,3 +440,47 @@ describe('useDictionaryEntryFilter — availableFilters', () => {
     expect(result.current.availableFilters).toEqual({ patternType, variable, semantic });
   });
 });
+
+describe('useDictionaryEntryFilter — duplicate group filters', () => {
+  // 龙: phrases + a generic dictionary, translations differ. 凤: two generic copies, matching.
+  const rows = makeRows([
+    { source: '龙', translation: 'rồng', dictionaryId: 'phrases', dictionaryLabel: 'Phrases' },
+    { source: '龙', translation: 'Long', dictionaryId: 'properNouns-_X', dictionaryLabel: '_X' },
+    { source: '凤', translation: 'Phượng', dictionaryId: 'properNouns-_X', dictionaryLabel: '_X' },
+    { source: '凤', translation: 'Phượng', dictionaryId: 'properNouns-_Y', dictionaryLabel: '_Y' },
+  ]);
+
+  it('judges a group whole before the search narrows rows', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', rows, true));
+    act(() => result.current.toggleDuplicateTier('root'));
+    // Only 龙's group holds a Base dictionary; both its rows stay, the generic one included.
+    expect(result.current.filteredDuplicateRows.map((r) => r.dictionaryId)).toEqual([
+      'phrases',
+      'properNouns-_X',
+    ]);
+    act(() => {
+      result.current.setSearchTerm('Long');
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(result.current.filteredDuplicateRows.map((r) => r.translation)).toEqual(['Long']);
+  });
+
+  it('hasActiveFilter follows the duplicate filters in duplicates mode, and clearFilters resets them', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', rows, true));
+    expect(result.current.hasActiveFilter).toBe(false);
+    act(() => result.current.setDuplicateTranslations('match'));
+    expect(result.current.hasActiveFilter).toBe(true);
+    expect(result.current.filteredDuplicateRows.map((r) => r.source)).toEqual(['凤', '凤']);
+    act(() => result.current.clearFilters());
+    expect(result.current.hasActiveFilter).toBe(false);
+    expect(result.current.filteredDuplicateRows).toHaveLength(4);
+  });
+
+  it('a per-dictionary filter does not count as active in duplicates mode', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', rows, true));
+    act(() => result.current.setVariable('allowed'));
+    expect(result.current.hasActiveFilter).toBe(false);
+  });
+});

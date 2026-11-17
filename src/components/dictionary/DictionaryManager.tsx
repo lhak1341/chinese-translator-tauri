@@ -311,7 +311,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             type="checkbox"
             checked={showAllDictionaries}
             onChange={(e) => setShowAllDictionaries(e.target.checked)}
-            className={styles.filterCheckbox}
+            className={`lk-checkbox ${styles.filterCheckbox}`}
             disabled={showDuplicatesMode}
           />
           Show all

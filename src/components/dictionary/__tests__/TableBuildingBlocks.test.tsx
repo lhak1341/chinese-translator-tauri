@@ -67,10 +67,13 @@ describe('SemanticTypeToggleCell', () => {
 });
 
 describe('BadgeChip', () => {
-  it('active: fills with activeColor, no border', () => {
+  it('active: fills with activeColor and keeps a 1px border in it, so it stands as tall as an inactive chip', () => {
     render(<BadgeChip label="X" active activeColor="#059669" onClick={vi.fn()} title="X" />);
 
-    expect(screen.getByTitle('X')).toHaveStyle({ background: '#059669', borderStyle: 'none' });
+    expect(screen.getByTitle('X')).toHaveStyle({
+      background: '#059669',
+      border: '1px solid #059669',
+    });
   });
 
   it('active on a hue: the text colour follows the fill (textOnFill), not a fixed white', () => {
@@ -112,7 +115,7 @@ describe('BadgeChip', () => {
       <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
     );
     expect(screen.getByTitle('X').style.fontSize).toBe('0.6rem');
-    expect(screen.getByTitle('X').style.padding).toBe('1px 3px');
+    expect(screen.getByTitle('X').style.padding).toBe('2px 3px');
 
     rerender(
       <BadgeChip

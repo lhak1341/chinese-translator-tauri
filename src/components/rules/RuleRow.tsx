@@ -44,6 +44,7 @@ function RuleRow({
       <TableCell className={dictStyles.checkboxCell}>
         <input
           type="checkbox"
+          className="lk-checkbox"
           checked={rule.enabled}
           onChange={() => toggleEnabled(rule.id)}
           aria-label={`Toggle ${rule.label || rule.key} enabled`}

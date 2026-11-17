@@ -10,10 +10,20 @@ import {
 import { EntrySemanticCell } from './EntryCells';
 import { DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
 import { createDuplicateKey } from '../../utils/dictionary';
+import { tierOf, type DictionaryTier } from '../../utils/dictionary/DictionaryIdClassifier';
 import EntryContextMenu from './EntryContextMenu';
 import type { OpenEntryMenu, useContextMenu } from '../../hooks/useContextMenu';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
+
+/** How the Dictionary column tells the tiers apart, the same tiers the filter's "Includes" chips
+ * name: Base (root) bold, Generic italic, Fiction and Custom plain. */
+const TIER_LABEL_STYLE: Record<DictionaryTier, React.CSSProperties> = {
+  root: { fontWeight: 'bold' },
+  generic: { fontStyle: 'italic' },
+  fiction: {},
+  custom: {},
+};
 
 /** The duplicate-mode table body (column header + virtualized rows). Search box, row count and
  * scroll buttons are rendered by `EnhancedVirtualizedDictionaryTable` for both modes, so the two
@@ -119,10 +129,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                   style={{
                     fontSize: '0.8125rem',
                     color: 'var(--lk-text-muted)',
-                    fontWeight:
-                      row.dictionaryLabel === 'Phrases' || row.dictionaryLabel === 'Proper Nouns'
-                        ? 'bold'
-                        : 'normal',
+                    ...TIER_LABEL_STYLE[tierOf(row.dictionaryId)],
                   }}
                 >
                   {row.dictionaryLabel}

@@ -16,7 +16,7 @@ import { EntryVarCell, EntrySemanticCell, EntryTypeCells, entryPatcher } from '.
  * outside Dictionary (Rules tab) with its own widths, so the column-width mechanism here can't
  * be a className the way Source/Translation are (architecture review 2026-08-28, candidate #2
  * grilling). */
-export const DICTIONARY_SEMANTIC_COLUMN_WIDTH = '15%';
+export const DICTIONARY_SEMANTIC_COLUMN_WIDTH = '16%';
 
 export interface VirtualRowProps {
   source: string;

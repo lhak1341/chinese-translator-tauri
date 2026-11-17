@@ -4,6 +4,13 @@ import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTy
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
 import { entryCapabilities, entryFields } from '../utils/dictionary';
 import { toggled } from '../utils/ui/toggled';
+import {
+  filterDuplicateGroups,
+  isDuplicateFilterActive,
+  NO_DUPLICATE_FILTER,
+  type DuplicateGroupFilter,
+} from '../utils/dictionary/DuplicateGroupFilter';
+import type { DictionaryTier } from '../utils/dictionary/DictionaryIdClassifier';
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -49,6 +56,10 @@ export function useDictionaryEntryFilter(
   toggleSemanticType: (type: string) => void;
   togglePatternType: (type: 'x-only' | 'x-y' | 'no-variable') => void;
   setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
+  duplicateFilter: DuplicateGroupFilter;
+  toggleDuplicateThreeOrMore: () => void;
+  toggleDuplicateTier: (tier: DictionaryTier) => void;
+  setDuplicateTranslations: (v: DuplicateGroupFilter['translations']) => void;
   clearFilters: () => void;
 } {
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,6 +67,9 @@ export function useDictionaryEntryFilter(
   const [filterVariable, setFilterVariable] = useState<'all' | 'allowed' | 'not-allowed'>('all');
   const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
   const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set());
+  // Find Duplicates' own filters, kept apart from the per-dictionary ones above: they survive
+  // a dictionary switch and apply only in duplicates mode.
+  const [duplicateFilter, setDuplicateFilter] = useState<DuplicateGroupFilter>(NO_DUPLICATE_FILTER);
 
   const debouncedSearchTerm = useThrottledValue(searchTerm, SEARCH_DEBOUNCE_MS);
 
@@ -74,8 +88,9 @@ export function useDictionaryEntryFilter(
     }
   }
 
-  const hasActiveFilter =
-    filterVariable !== 'all' || filterSemanticTypes.size > 0 || filterPatternType.size > 0;
+  const hasActiveFilter = showDuplicatesMode
+    ? isDuplicateFilterActive(duplicateFilter)
+    : filterVariable !== 'all' || filterSemanticTypes.size > 0 || filterPatternType.size > 0;
 
   const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
     if (showDuplicatesMode) return [];
@@ -143,16 +158,18 @@ export function useDictionaryEntryFilter(
 
   const filteredDuplicateRows = useMemo(() => {
     if (!showDuplicatesMode) return [];
-    if (!debouncedSearchTerm) return duplicateRows;
+    // Groups first, over every row, so a group is judged whole; the search then narrows rows.
+    const grouped = filterDuplicateGroups(duplicateRows, duplicateFilter);
+    if (!debouncedSearchTerm) return grouped;
 
     const searchLower = debouncedSearchTerm.toLowerCase();
-    return duplicateRows.filter(
+    return grouped.filter(
       (row) =>
         row.source.toLowerCase().includes(searchLower) ||
         row.translation.toLowerCase().includes(searchLower) ||
         row.dictionaryLabel.toLowerCase().includes(searchLower)
     );
-  }, [duplicateRows, debouncedSearchTerm, showDuplicatesMode]);
+  }, [duplicateRows, duplicateFilter, debouncedSearchTerm, showDuplicatesMode]);
 
   const duplicateGroupIndices = useMemo(() => {
     if (!showDuplicatesMode || filteredDuplicateRows.length === 0) return [];
@@ -184,7 +201,23 @@ export function useDictionaryEntryFilter(
     setFilterVariable(v);
   }, []);
 
+  const toggleDuplicateThreeOrMore = useCallback((): void => {
+    setDuplicateFilter((prev) => ({ ...prev, threeOrMore: !prev.threeOrMore }));
+  }, []);
+
+  const toggleDuplicateTier = useCallback((tier: DictionaryTier): void => {
+    setDuplicateFilter((prev) => ({ ...prev, includesTiers: toggled(prev.includesTiers, tier) }));
+  }, []);
+
+  const setDuplicateTranslations = useCallback(
+    (translations: DuplicateGroupFilter['translations']): void => {
+      setDuplicateFilter((prev) => ({ ...prev, translations }));
+    },
+    []
+  );
+
   const clearFilters = useCallback((): void => {
+    setDuplicateFilter(NO_DUPLICATE_FILTER);
     setFilterVariable('all');
     setFilterSemanticTypes(new Set());
     setFilterPatternType(new Set());
@@ -207,6 +240,10 @@ export function useDictionaryEntryFilter(
     toggleSemanticType,
     togglePatternType,
     setVariable,
+    duplicateFilter,
+    toggleDuplicateThreeOrMore,
+    toggleDuplicateTier,
+    setDuplicateTranslations,
     clearFilters,
   };
 }

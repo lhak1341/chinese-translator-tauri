@@ -32,9 +32,9 @@ A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which 
 - **A module names a global keyframes as `animation: global(spin) …`.** CSS Modules renames every bare name in `animation`, so `animation: spin` becomes `_spin_<hash>`, which nothing defines, and the animation silently never runs (seven did, found 2026-11-13). `:global(spin)` is a parse error there. `__tests__/AnimationNames.test.ts` compiles each module through Vite and fails on a name with no keyframes.
 - **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `streaming-blink` (used by `.typing-cursor`); the progress bar is the kit's `ProgressBar`. Do not rename them or add new ones to that file.
 
-## Styling Virtualized Text Must Be Metrics-Neutral
+## A State Style Changes Colour, Never Box Metrics
 
-A style the Reader toggles on a row (`.clickableSegmentHighlighted`) may change color and background but never weight, size, or spacing: a wider run can rewrap the line, which changes that row's measured height and moves every row below it — on a click, in a 75,000-line document. The Translator bolds its highlight because its panels hold one translation and reflow costs nothing there. Same family as `Reader.module.css`'s "no margins on a row": resize observations exclude margins, so a margin makes every row under-report its height.
+An active, selected or highlighted state may change color, background and border _colour_, never weight, size, spacing or border _width_. Chips: `border: 'none'` on the active state of a chip whose inactive state is `1px solid` made every ticked chip (VAR, CHA, PRE, STAY) 2px shorter than an unticked one; keep the 1px border in the fill colour (`BadgeChip`, 2026-11-17). Virtualized text: a style the Reader toggles on a row (`.clickableSegmentHighlighted`) must not change weight, size or spacing either: a wider run can rewrap the line, which changes that row's measured height and moves every row below it — on a click, in a 75,000-line document. The Translator bolds its highlight because its panels hold one translation and reflow costs nothing there. Same family as `Reader.module.css`'s "no margins on a row": resize observations exclude margins, so a margin makes every row under-report its height.
 
 ## Hiding Elements — Use Conditional Rendering, Not `visibility: hidden`
 
@@ -49,6 +49,8 @@ Affected: `TranslatorControls.module.css` `.progressIndicator` uses `global(fade
 Each `display: grid` element is its own formatting context — `auto`-sized tracks size to that instance's own content, so two rows built as separate grid containers (e.g. a `<button>` per `<li>`) can end up with different column widths even with identical `grid-template-columns`; any `fr` track absorbs whatever's left over, so it drifts row to row. Give every non-title column (icons, badges, numeric fields) a fixed length instead of `auto`, or promote to a real shared grid (`display:grid` on the list + `display:contents` per row) if content-based sizing is required. Confirmed 2026-09-19: `Bookshelf.tsx`'s `.bookRow` — progress/size columns were `auto`, so title columns drifted per row.
 
 ## Bare `button`/`select`/`input` Inherit index.css's Global Rules, and a Shorthand Wipes Them
+
+A native `<input type="checkbox">` takes the kit `Checkbox`'s look from `className="lk-checkbox"` (kit.css), keeping native `.checked`/`onChange` for tests; the Dictionary and Rules tables use it.
 
 **Override a global control with longhands only.** `select` draws its chevron as a `background-image` and reserves `padding-right: 2.5rem`; a module's `background:` or `padding:` shorthand resets both, and the dropdown renders as a text input with no error (Candidate finder "Add to", 2026-10-25). Write `background-color` and `padding-right`, and re-set `background-position` if the padding changes.
 

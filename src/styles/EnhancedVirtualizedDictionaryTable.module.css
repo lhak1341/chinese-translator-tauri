@@ -10,6 +10,9 @@
   border-radius: 3px;
   font-size: 0.65rem;
   font-weight: 600;
+  /* One line box for every chip, whatever its font size: the 0.6rem chips (CHA, PRE, STAY,
+     $X) stand as tall as the 0.65rem VAR chip; the larger form/panel chips keep 1.2em. */
+  line-height: max(calc(0.65rem * 1.2), 1.2em);
   user-select: none;
   border: 1px solid transparent;
 }
@@ -120,7 +123,7 @@
    (dictionary type, column) pair, even where two types currently share the same value —
    keeps each type's column set independently editable without hunting who else reuses it.
 
-   Patterns: checkbox | source (25%) | translation+badges (34%) | semantic (15%, JS constant —
+   Patterns: checkbox | source (25%) | translation+badges (33%) | semantic (16%, JS constant —
    see DICTIONARY_SEMANTIC_COLUMN_WIDTH in VirtualRowComponent.tsx, SemanticTypeToggleCell is
    reused outside Dictionary with its own widths so its width stays a prop, not a class) |
    X types (13%) | Y types (13%, same class as X — identical width). */
@@ -129,29 +132,29 @@
 }
 
 .patternsTranslationCol {
-  width: 34%;
+  width: 33%;
 }
 
 .patternsTypeCol {
   width: 13%;
 }
 
-/* Phrases: checkbox | source (25%) | translation+badge (60%) | semantic (15%, JS constant). */
+/* Phrases: checkbox | source (25%) | translation+badge (59%) | semantic (16%, JS constant). */
 .phrasesSourceCol {
   width: calc(25% - 20px);
 }
 
 .phrasesTranslationCol {
-  width: calc(60% - 20px);
+  width: calc(59% - 20px);
 }
 
-/* Proper Nouns: checkbox | source (25%) | translation (60%) | semantic (15%, JS constant). */
+/* Proper Nouns: checkbox | source (25%) | translation (59%) | semantic (16%, JS constant). */
 .properNounsSourceCol {
   width: calc(25% - 20px);
 }
 
 .properNounsTranslationCol {
-  width: calc(60% - 20px);
+  width: calc(59% - 20px);
 }
 
 /* Simple dictionaries (characters, conversion, punctuation, etc.): checkbox | source (35%) |
@@ -165,14 +168,14 @@
 }
 
 /* Duplicate-mode view (DuplicateDictionaryTableView): checkbox (reuses the row `.checkboxCell`
-   component) | source (18%) | translation (42%) | dictionary label (25%) | semantic (15%, JS
+   component) | source (18%) | translation (41%) | dictionary label (25%) | semantic (16%, JS
    constant). Fixed regardless of dictionary type — not one of the 4 type-scoped schemas above. */
 .duplicateSourceCol {
   width: 18%;
 }
 
 .duplicateTranslationCol {
-  width: 42%;
+  width: 41%;
 }
 
 .duplicateDictionaryCol {
