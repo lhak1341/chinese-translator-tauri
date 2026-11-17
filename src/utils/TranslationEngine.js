@@ -1247,7 +1247,12 @@ export class TranslationEngine {
       }
     }
 
-    const cleaned = cleanupFormatting(result, { capitalizeStart: false }, (char) =>
+    // A proper noun keeps the dictionary's exact text through cleanup ("S.W.A.T.", not
+    // "S. W. A. T."); assembledPositions holds one entry per segment, in segment order.
+    const protectedRanges = assembledPositions
+      .filter((_, i) => segments[i].isProperNoun)
+      .map(({ start, end }) => ({ start, end }));
+    const cleaned = cleanupFormatting(result, { capitalizeStart: false, protectedRanges }, (char) =>
       this.lookupPunctuation(char)
     );
 

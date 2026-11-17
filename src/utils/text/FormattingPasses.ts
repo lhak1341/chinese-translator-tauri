@@ -19,6 +19,21 @@ const SPACE_AFTER_PUNCTUATION = new RegExp(
   `([.!?:;，。！？：；])(?!\\s|$|[“${CLOSING_QUOTES}\\])}】》）])`,
   'g'
 );
+// An initialism: single capital letters joined by dots ("S.W.A.T", "U.S.A"). Each letter stands
+// alone (no letter or digit before the run, none after any letter), so "Hạng A.Hắn" is a
+// sentence end, not an initialism.
+const INITIALISM = /(?<![\p{L}\d.])\p{Lu}(?:\.\p{Lu}(?!\p{L}))+/gu;
+
+/** UTF-16 offsets of the dots inside initialisms, which the space-after-punctuation rule skips. */
+function initialismDotOffsets(text: string): Set<number> {
+  const offsets = new Set<number>();
+  for (const match of text.matchAll(INITIALISM)) {
+    for (let i = 0; i < match[0].length; i++) {
+      if (match[0][i] === '.') offsets.add(match.index + i);
+    }
+  }
+  return offsets;
+}
 const SPACE_AFTER_COMMA = new RegExp(`,(?!\\s|$|[“${CLOSING_QUOTES}\\d])`, 'g');
 
 /** Looks up the translation of one punctuation character; null when the dictionary has none. */
@@ -31,6 +46,70 @@ export interface CleanupOptions {
    * and a per-chunk capital would uppercase every chunk's first letter.
    */
   capitalizeStart: boolean;
+  /**
+   * Spans of `text` (UTF-16 [start, end)) that keep their exact characters: Full Translation's
+   * proper-noun translations, as the dictionary has them. No spacing or punctuation rule edits
+   * inside a span; capitalization may still change a letter in one (a name at a sentence start).
+   */
+  protectedRanges?: ReadonlyArray<{ start: number; end: number }>;
+}
+
+/** A text plus, per UTF-16 code unit, whether it lies in a protected span (null: none does). */
+interface MaskedText {
+  text: string;
+  locked: boolean[] | null;
+}
+
+function maskText(text: string, ranges: CleanupOptions['protectedRanges']): MaskedText {
+  if (!ranges?.length) return { text, locked: null };
+  const locked = new Array<boolean>(text.length).fill(false);
+  for (const { start, end } of ranges) {
+    for (let i = Math.max(0, start); i < Math.min(end, text.length); i++) locked[i] = true;
+  }
+  return { text, locked };
+}
+
+/**
+ * `text.replace(pattern, …)` that leaves protected spans alone. `guard: 'match'` (spacing and
+ * punctuation rules) skips a match touching any protected char, unless the replacement only
+ * appends at a span's end: the space after "S.W.A.T." lies outside the name. `guard: 'trigger'`
+ * (capitalization) skips one only when its first char (the colon, line break or start) is
+ * protected, so a name after a colon is capitalized but a colon inside a name triggers nothing.
+ * `pattern` must be global.
+ */
+function replaceUnprotected(
+  { text, locked }: MaskedText,
+  pattern: RegExp,
+  replace: (match: RegExpExecArray) => string,
+  guard: 'match' | 'trigger' = 'match'
+): MaskedText {
+  let out = '';
+  const outLocked: boolean[] | null = locked ? [] : null;
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (locked && guard === 'trigger' && locked[start]) continue;
+    const replacement = replace(match as RegExpExecArray);
+    // An append keeps the match's chars, so only where the insertion lands matters.
+    const keepsMatch = replacement.length === match[0].length || replacement.startsWith(match[0]);
+    if (locked && guard === 'match' && locked.slice(start, end).some(Boolean)) {
+      const insertsInsideSpan = end < text.length && locked[end - 1] && locked[end];
+      if (!replacement.startsWith(match[0]) || insertsInsideSpan) continue;
+    }
+    out += text.slice(last, start) + replacement;
+    if (outLocked && locked) {
+      outLocked.push(...locked.slice(last, start));
+      // A kept char keeps its flag (capitalization, an append); anything else was unlocked.
+      for (let i = 0; i < replacement.length; i++) {
+        outLocked.push(keepsMatch && i < match[0].length ? locked[start + i] : false);
+      }
+    }
+    last = end;
+  }
+  out += text.slice(last);
+  if (outLocked && locked) outLocked.push(...locked.slice(last));
+  return { text: out, locked: outLocked };
 }
 
 /** The chunk fields the formatting passes read; the shape is `TextChunk` (src/types/TextChunk.d.ts). */
@@ -44,7 +123,10 @@ export function cleanupFormatting(
   options: CleanupOptions,
   translatePunct: PunctuationLookup
 ): string {
-  let result = text;
+  // Every rule below runs through replaceUnprotected, so a proper noun keeps the dictionary's
+  // exact characters ("S.W.A.T.", "O’Brien"). Each inserted char would also shift every
+  // click-to-highlight position after it: they are recorded before this pass runs.
+  let masked = maskText(text, options.protectedRanges);
 
   // Apply punctuation translations FIRST using the actual punctuation dictionary
   // Get punctuation mappings by checking common punctuation marks from the dictionary
@@ -82,13 +164,13 @@ export function cleanupFormatting(
     if (translation) {
       // Escape special regex characters in the source punctuation
       const escapedChar = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(escapedChar, 'g'), translation);
+      masked = replaceUnprotected(masked, new RegExp(escapedChar, 'g'), () => translation);
     }
   }
 
   // Tilde/wave is a range operator — never gets surrounding spaces regardless of path.
   // (Source of spaces is unclear from static analysis; this normalizes both paths.)
-  result = result.replace(/[ \t]*([~～])[ \t]*/g, '$1');
+  masked = replaceUnprotected(masked, /[ \t]*([~～])[ \t]*/g, (m) => m[1]);
 
   // Space after closing quotes before content (mirrors processSequence trailing-space logic).
   // Dict translation has already run, so Chinese 》→» etc. are in their translated form.
@@ -96,13 +178,14 @@ export function cleanupFormatting(
   // A ’ with a letter on both sides is an apostrophe inside a word ("Thori’dal", "don’t"),
   // not a closing quote: spacing it split dictionary translations, and the inserted char
   // shifted every click-to-highlight position after it.
-  result = result.replace(SPACE_AFTER_CLOSING_QUOTE, (match, quote, offset, string) =>
-    quote === '’' &&
-    /\p{L}/u.test(string[offset - 1] ?? '') &&
-    /\p{L}/u.test(string[offset + 1] ?? '')
-      ? match
-      : quote + ' '
-  );
+  masked = replaceUnprotected(masked, SPACE_AFTER_CLOSING_QUOTE, (m) => {
+    const quote = m[1];
+    return quote === '’' &&
+      /\p{L}/u.test(m.input[m.index - 1] ?? '') &&
+      /\p{L}/u.test(m.input[m.index + 1] ?? '')
+      ? m[0]
+      : quote + ' ';
+  });
 
   // Add space after punctuation (except at end of string, before closing quotes, or when
   // it's a decimal point inside a converted number's own translated value, e.g.
@@ -112,44 +195,49 @@ export function cleanupFormatting(
   // inserted char. Checking only the following digit (fixed 2026-08-29) over-excluded: a
   // real sentence-ending punct followed by a digit-led new sentence (preceding char NOT a
   // digit) also lost its space, e.g. "...rồi.5 người" stayed unspaced. Checking both
-  // neighbors distinguishes the two cases.
-  result = result.replace(SPACE_AFTER_PUNCTUATION, (match, punct, offset, string) => {
-    const prevChar = offset > 0 ? string[offset - 1] : '';
-    const nextChar = string[offset + punct.length] || '';
-    if (/\d/.test(prevChar) && /\d/.test(nextChar)) {
+  // neighbors distinguishes the two cases. The same goes for a dot inside an initialism
+  // ("S.W.A.T." from a proper-noun dictionary came out "S. W. A. T.", with the same position
+  // shift); a lowercase or multi-letter word before the dot stays a sentence end ("Đi.Hắn").
+  const initialismDots = initialismDotOffsets(masked.text);
+  masked = replaceUnprotected(masked, SPACE_AFTER_PUNCTUATION, (m) => {
+    const punct = m[1];
+    const prevChar = m.index > 0 ? m.input[m.index - 1] : '';
+    const nextChar = m.input[m.index + punct.length] || '';
+    if ((/\d/.test(prevChar) && /\d/.test(nextChar)) || initialismDots.has(m.index)) {
       return punct;
     }
     return punct + ' ';
   });
   // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
   // or a closing quote (`,’` is a comma closing a quote, not a list comma)
-  result = result.replace(SPACE_AFTER_COMMA, ', ');
-  // Note: Line 615 uses mixed quote characters (literal curly + straight quotes)
+  masked = replaceUnprotected(masked, SPACE_AFTER_COMMA, () => ', ');
 
   // Special case: Add space between colon and opening quote (colon-quote combinations)
-  result = result.replace(/:\u201c/g, ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
-  result = result.replace(/:”(?!\s)/g, ': “'); // Regular quote version
+  masked = replaceUnprotected(masked, /:\u201c/g, () => ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
+  masked = replaceUnprotected(masked, /:”(?!\s)/g, () => ': “'); // Regular quote version
 
   // Capitalize first word after colon or linebreak, skipping any intervening non-letter chars
   // \P{L}*? lazily consumes quotes/spaces — no char class needed, works for any quote encoding
-  result = result.replace(/(:\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
-  result = result.replace(/(\n\P{L}*?)(\p{L})/gu, (m, pre, letter) => pre + letter.toUpperCase());
+  const capitalizeAfter = (m: RegExpExecArray) => m[1] + m[2].toUpperCase();
+  masked = replaceUnprotected(masked, /(:\P{L}*?)(\p{L})/gu, capitalizeAfter, 'trigger');
+  masked = replaceUnprotected(masked, /(\n\P{L}*?)(\p{L})/gu, capitalizeAfter, 'trigger');
   // Capitalize start of text only when the caller owns it (character-only). A Full Translation
   // chunk leaves it to applySmartCapitalization via startedBy='start'; capitalizing per chunk
   // would uppercase the first letter of every chunk, not just the first.
   if (options.capitalizeStart) {
-    result = result.replace(/^(\P{L}*)(\p{L})/u, (m, pre, letter) =>
-      /\d/.test(pre) ? m : pre + letter.toUpperCase()
+    masked = replaceUnprotected(
+      masked,
+      /^(\P{L}*)(\p{L})/gu,
+      (m) => (/\d/.test(m[1]) ? m[0] : m[1] + m[2].toUpperCase()),
+      'trigger'
     );
   }
 
   // Remove excessive spaces but preserve line breaks
-  result = result.replace(/[ \t]+/g, ' '); // Only collapse spaces and tabs, not newlines
+  masked = replaceUnprotected(masked, /[ \t]+/g, () => ' '); // Only collapse spaces and tabs, not newlines
 
   // Trim leading/trailing spaces
-  result = result.trim();
-
-  return result;
+  return masked.text.trim();
 }
 
 export function capitalizeFirstLetter(text: string): string {

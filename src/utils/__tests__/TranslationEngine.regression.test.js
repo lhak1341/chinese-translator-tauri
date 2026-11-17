@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TranslationEngine } from '../TranslationEngine.js';
+import { TranslationEngine, createTranslationEngine } from '../TranslationEngine.js';
 import { cleanFullText, cleanupFormatting } from '../text/FormattingPasses';
 
 describe('TranslationEngine Regression Tests', () => {
@@ -198,6 +198,52 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
+  describe('Bug Fix: cleanupFormatting splitting an initialism', () => {
+    // 反恐特警组 → "S.W.A.T." (a proper-noun translation) came out "S. W. A. T.": the
+    // space-after-punctuation rule took each inner dot for a sentence end. The three inserted
+    // chars also shifted every click-to-highlight position after it.
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
+
+    it('keeps the dots between single capital letters unspaced', () => {
+      expect(cleanup('Đội S.W.A.T. đã tới')).toBe('Đội S.W.A.T. đã tới');
+      expect(cleanup('người U.S.A đó')).toBe('người U.S.A đó');
+      expect(cleanup('F.B.I.')).toBe('F.B.I.');
+    });
+
+    it('still spaces a sentence end between words, even after a one-letter word', () => {
+      expect(cleanup('Xin chào.Tạm biệt')).toBe('Xin chào. Tạm biệt');
+      expect(cleanup('Hạng A.Hắn đi')).toBe('Hạng A. Hắn đi');
+      expect(cleanup('Đi.Hắn')).toBe('Đi. Hắn');
+    });
+  });
+
+  describe('cleanupFormatting keeps a protected span (a proper noun) as the dictionary has it', () => {
+    const cleanup = (text, ranges) =>
+      cleanupFormatting(text, { capitalizeStart: false, protectedRanges: ranges }, () => null);
+    const span = (text, part) => [
+      { start: text.indexOf(part), end: text.indexOf(part) + part.length },
+    ];
+
+    it('applies no spacing rule inside the span, but still spaces around it', () => {
+      const text = 'Gặp Mr.Bean,O’Neil:x,bạn';
+      expect(cleanup(text, [])).toBe('Gặp Mr. Bean, O’Neil: X, bạn');
+      expect(cleanup(text, span(text, 'Mr.Bean,O’Neil:x'))).toBe('Gặp Mr.Bean,O’Neil:x, bạn');
+      expect(cleanup('Gặp Mr.Bean.Hắn', span('Gặp Mr.Bean.Hắn', 'Mr.Bean.'))).toBe(
+        'Gặp Mr.Bean. Hắn'
+      );
+    });
+
+    it('keeps two spaces inside the span', () => {
+      const text = 'Gặp A  B  đó';
+      expect(cleanup(text, span(text, 'A  B'))).toBe('Gặp A  B đó');
+    });
+
+    it('still capitalizes the span after a colon, but a colon inside the span capitalizes nothing', () => {
+      const text = 'nói: director’s cut:hay';
+      expect(cleanup(text, span(text, 'director’s cut:hay'))).toBe('nói: Director’s cut:hay');
+    });
+  });
+
   describe('Bug Fix: cleanupFormatting spacing an apostrophe inside a word', () => {
     // 索瑞达尔 → "Thori’dal" (U+2019 as an apostrophe) came out "Thori’ dal": the
     // space-after-closing-quote rule took every ’ for a closing quote. The inserted char also
@@ -220,5 +266,36 @@ describe('TranslationEngine Regression Tests', () => {
         'xin chào'
       );
     });
+  });
+});
+
+// Through the real engine: the spans come from postProcess's segments, so only an engine run
+// proves the wiring. 反恐特警组 → "S.W.A.T." came out "S. W. A. T." and broke highlighting.
+describe('a proper noun keeps its dictionary text in Full Translation', () => {
+  const dictionaries = {
+    characters: { 好: 'hảo', 他: 'tha', 说: 'thuyết' },
+    phrases: {},
+    patterns: {},
+    properNouns: { 憨豆: 'Mr.Bean', 导演剪辑版: 'director’s cut' },
+    conversion: {},
+    punctuation: {},
+  };
+
+  async function translate(text) {
+    const engine = createTranslationEngine();
+    await engine.initialize(dictionaries, { activeProperNouns: ['properNouns'] });
+    return engine.translateWithSegments(text, {});
+  }
+
+  it('applies no spacing rule inside the name, and its highlight segment covers it', async () => {
+    const { translatedText, prebuiltSegments } = await translate('他说憨豆好');
+    expect(translatedText).toBe('Tha thuyết Mr.Bean hảo');
+    const name = prebuiltSegments.find((s) => translatedText.slice(s.start, s.end) === 'Mr.Bean');
+    expect(name).toBeDefined();
+  });
+
+  it('still capitalizes a name at the start of a sentence', async () => {
+    const { translatedText } = await translate('导演剪辑版好');
+    expect(translatedText).toBe('Director’s cut hảo');
   });
 });

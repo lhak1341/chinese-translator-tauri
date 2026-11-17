@@ -16,7 +16,7 @@ Deleted symbols live separately, in [deleted-symbols.md](deleted-symbols.md) —
 
 **Edit fails by doing less than asked, not by erroring** — verify the result rather than trusting the call. Three known cases, none of which report a problem:
 
-- **Vietnamese diacritics** (`à`, `ở`) in `old_string` can fail to match even when `Read` shows byte-identical content, and survive the tool's own unicode-escape-swap retry. Don't attempt a third Edit.
+- **Non-ASCII text** (Vietnamese diacritics `à`, `ở`) in `old_string` can fail to match even when `Read` shows byte-identical content, and survive the tool's own unicode-escape-swap retry. Same for curly quotes beside `\uXXXX` escape text in source (`/:\u201c/g` in `FormattingPasses.ts`, 2026-11-17). Don't attempt a third Edit: split it so `old_string` avoids that line, then patch the line alone.
 - **`replace_all` matches exact whitespace**, so near-identical blocks differing only in indentation (this codebase's copy-pasted JSX, duplicated row/cell markup) get skipped. Grep-verify the replacement count afterward.
 - **Blocks over ~100 lines** in `old_string` fail outright.
 
