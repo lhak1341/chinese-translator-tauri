@@ -34,7 +34,7 @@ A new dialog uses the kit's `Dialog`/`DialogPopup` (`@lhak/style/react`), which 
 
 ## A State Style Changes Colour, Never Box Metrics
 
-An active, selected or highlighted state may change color, background and border _colour_, never weight, size, spacing or border _width_. Chips: `border: 'none'` on the active state of a chip whose inactive state is `1px solid` made every ticked chip (VAR, CHA, PRE, STAY) 2px shorter than an unticked one; keep the 1px border in the fill colour (`BadgeChip`, 2026-11-17). Virtualized text: a style the Reader toggles on a row (`.clickableSegmentHighlighted`) must not change weight, size or spacing either: a wider run can rewrap the line, which changes that row's measured height and moves every row below it — on a click, in a 75,000-line document. The Translator bolds its highlight because its panels hold one translation and reflow costs nothing there. Same family as `Reader.module.css`'s "no margins on a row": resize observations exclude margins, so a margin makes every row under-report its height.
+An active, selected or highlighted state may change color, background and border _colour_, never weight, size, spacing or border _width_. Chips: `border: 'none'` on the active state of a chip whose inactive state is `1px solid` made every ticked chip (VAR, CHA, PRE, STAY) 2px shorter than an unticked one; keep the 1px border in the fill colour (`BadgeChip`). Virtualized text: a style the Reader toggles on a row (`.clickableSegmentHighlighted`) must not change weight, size or spacing either: a wider run can rewrap the line, which changes that row's measured height and moves every row below it — on a click, in a 75,000-line document. The Translator bolds its highlight because its panels hold one translation and reflow costs nothing there. Same family as `Reader.module.css`'s "no margins on a row": resize observations exclude margins, so a margin makes every row under-report its height.
 
 ## Hiding Elements — Use Conditional Rendering, Not `visibility: hidden`
 
@@ -52,7 +52,7 @@ Each `display: grid` element is its own formatting context — `auto`-sized trac
 
 A native `<input type="checkbox">` takes the kit `Checkbox`'s look from `className="lk-checkbox"` (kit.css), keeping native `.checked`/`onChange` for tests; the Dictionary and Rules tables use it.
 
-**Override a global control with longhands only.** `select` draws its chevron as a `background-image` and reserves `padding-right: 2.5rem`; a module's `background:` or `padding:` shorthand resets both, and the dropdown renders as a text input with no error (Candidate finder "Add to", 2026-10-25). Write `background-color` and `padding-right`, and re-set `background-position` if the padding changes.
+**Override a global control with longhands only.** `select` draws its chevron as a `background-image` and reserves `padding-right: 2.5rem`; a module's `background:` or `padding:` shorthand resets both, and the dropdown renders as a text input with no error (Candidate finder "Add to"). Write `background-color` and `padding-right`, and re-set `background-position` if the padding changes.
 
 The state rules are `element:pseudo` (0,1,1) and outrank a module class (0,1,0): `button:hover` repaints its background, `:active` translates it, `:focus-visible` adds the glow, `:disabled` sets opacity. Restate each under the class's own state (`.hotkeyHints:hover`, `:active`), as `TranslatorControls.module.css` does.
 

@@ -37,7 +37,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 
 **App-owned files** in `~/Library/Application Support/com.lhak.chinese-translator/`: dictionaries, `transform-rules.json`, `config.json`, `appearance.json`. Editing any of them follows the `tauri-app-dev` app-data rules (unsandboxed write and read, full quit and relaunch).
 
-**Large files are intentional.** `TranslationEngine.js` and `Translator.jsx` coordinate state that can't be extracted. Can extract: pure functions → `src/utils/`; single-concern hooks → `src/hooks/`. Cannot extract: anything using `this.*`, `setState`, refs, or requiring 10+ parameters. **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx` (`SemanticPatternProcessor.js` was the third until ADR-101 replaced it with `PatternStore.js`, which has no such rule).
+**Large files are intentional.** `TranslationEngine.js` and `Translator.jsx` coordinate state that can't be extracted. Can extract: pure functions → `src/utils/`; single-concern hooks → `src/hooks/`. Cannot extract: anything using `this.*`, `setState`, refs, or requiring 10+ parameters. **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx`. `PatternStore.js` is not bound by this rule.
 
 ---
 

@@ -38,7 +38,7 @@ some queryable control in both `NewRuleModal` and `RuleRow`, and its own second 
 (`every TransformRule field has a parity entry above`) fails loudly if a new field is
 added to the type but never added to the test's own field list. Add a new field's locator
 pair there when you add the field to the two components — a full schema-driven
-dual-renderer was considered and rejected (Grill #4, 2026-08-15): the two surfaces'
+dual-renderer was considered and rejected (Grill #4): the two surfaces'
 widgets are legitimately different per field (a form checkbox vs. a compact table-cell
 toggle chip, see below) and unifying rendering would trade locality for no real leverage
 gain at this fixed 2-surface, 9-field scope.
