@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List, ScanSearch } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
@@ -21,6 +21,12 @@ import CandidateFinderPanel from './CandidateFinderPanel';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { ShelfNavigation } from '../../utils/reader/PaletteCommands';
+import {
+  NO_SLIDE_OVER,
+  nextSlideOver,
+  type SlideOver,
+  type SlideOverRequest,
+} from '../../utils/reader/SlideOver';
 import type { ReaderEngineCalls } from '../../utils/reader/ReaderEngine';
 import ReaderEngineErrorBanner from './ReaderEngineErrorBanner';
 import ReaderPanel from './ReaderPanel';
@@ -72,25 +78,29 @@ const BookReader: React.FC<BookReaderProps> = ({
     book.fingerprint,
     book.lineCount
   );
-  /** The outline panel, and whether it should take focus into its search on open. The
-   * jump-to-chapter shortcut opens it ready to type; the chapter-strip button opens it
-   * for the eye, leaving the keyboard where it was. */
-  const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
-  /** The Candidate finder slide-over. It sits where the outline does, so they exclude each
-   * other. Closing it cancels a running run; a finished list stays for the session. */
-  const [finderOpen, setFinderOpen] = useState(false);
   const finder = useCandidateFinder(book.fingerprint);
   const { cancel: cancelFinder } = finder;
-  /** The line a finder jump landed on, lit in all three panels until the finder closes. */
-  const [litLine, setLitLine] = useState<number | null>(null);
-  const closeFinder = useCallback((): void => {
-    cancelFinder();
-    setFinderOpen(false);
-    setLitLine(null);
-  }, [cancelFinder]);
-  useEffect(() => {
-    if (outline) closeFinder();
-  }, [outline, closeFinder]);
+  /** The outline or the Candidate finder, never both (`SlideOver.ts`). Leaving the finder
+   * cancels a running run; a finished list stays for the session. */
+  const [slideOver, setSlideOver] = useState<SlideOver>(NO_SLIDE_OVER);
+  // Mirrors `slideOver` in the same breath as state, so two requests before the next render
+  // each see the one before, and the finder's exit runs outside a state updater.
+  const slideOverRef = useRef<SlideOver>(NO_SLIDE_OVER);
+  const requestSlideOver = useCallback(
+    (request: SlideOverRequest): void => {
+      const { next, leftFinder } = nextSlideOver(slideOverRef.current, request);
+      if (next === slideOverRef.current) return;
+      slideOverRef.current = next;
+      if (leftFinder) cancelFinder();
+      setSlideOver(next);
+    },
+    [cancelFinder]
+  );
+  const litLine = slideOver.kind === 'finder' ? slideOver.litLine : null;
+  const lightLine = useCallback(
+    (line: number): void => requestSlideOver({ kind: 'lit', line }),
+    [requestSlideOver]
+  );
   const { enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
   // The palette's "Bind dictionaries" opens the dialog; everything else about the binding
@@ -176,22 +186,22 @@ const BookReader: React.FC<BookReaderProps> = ({
     canTranslate,
     dictionaryVersion: engineVersion,
     scrollToLine,
-    onLit: setLitLine,
+    onLit: lightLine,
   });
 
   const jumpToLine = useCallback(
     (line: number): void => {
       scrollToLine(line);
-      setOutline(null);
+      requestSlideOver({ kind: 'close', panel: 'outline' });
     },
-    [scrollToLine]
+    [scrollToLine, requestSlideOver]
   );
 
   /** Open the outline ready to be typed into — what both the jump-to-chapter shortcut and
    * the palette's own row do. The chapter-strip button opens it without taking focus. */
   const openOutlineForSearch = useCallback((): void => {
-    setOutline({ focusSearch: true });
-  }, []);
+    requestSlideOver({ kind: 'outline', focusSearch: true });
+  }, [requestSlideOver]);
 
   const { actions, paletteCommands, hotkeyProps, palette, quickAddDialog } = useReaderCommands({
     shelf,
@@ -222,10 +232,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         </span>
         <BindingButton fileName={book.fileName} />
         <button
-          onClick={() => {
-            setOutline(null);
-            setFinderOpen(true);
-          }}
+          onClick={() => requestSlideOver({ kind: 'finder' })}
           className={styles.secondaryButton}
           title="Find proper nouns missing from the dictionaries"
         >
@@ -275,7 +282,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         <div className={styles.chapterStripTranslation}>
           <button
             className={styles.chapterStripCurrent}
-            onClick={() => setOutline({ focusSearch: false })}
+            onClick={() => requestSlideOver({ kind: 'outline', focusSearch: false })}
             title="Open chapter list"
           >
             <List size={13} />
@@ -357,14 +364,14 @@ const BookReader: React.FC<BookReaderProps> = ({
       />
 
       <ChapterPanel
-        open={outline !== null}
+        open={slideOver.kind === 'outline'}
         chapters={chapters}
         onJump={jumpToLine}
-        autoFocusSearch={outline?.focusSearch ?? false}
-        onClose={() => setOutline(null)}
+        autoFocusSearch={slideOver.kind === 'outline' && slideOver.focusSearch}
+        onClose={() => requestSlideOver({ kind: 'close', panel: 'outline' })}
       />
 
-      {finderOpen && (
+      {slideOver.kind === 'finder' && (
         <CandidateFinderPanel
           snapshot={finder.snapshot}
           adder={finder.adder}
@@ -372,7 +379,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           reading={candidateReading}
           onRun={finder.run}
           onCancel={finder.cancel}
-          onClose={closeFinder}
+          onClose={() => requestSlideOver({ kind: 'close', panel: 'finder' })}
         />
       )}
 

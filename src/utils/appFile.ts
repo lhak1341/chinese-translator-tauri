@@ -66,6 +66,32 @@ export interface AppFileRead<T> {
   dropped: number;
 }
 
+/**
+ * Where an App File's load stands, replaced (never mutated) on every change:
+ * - `unloaded`: nothing cached — before the first load, after an invalidate, after a
+ *   successful external write.
+ * - `loaded`: `value` is the cache.
+ * - `unreadable`: the last load failed; `reason` is what a save would say. Saves refuse
+ *   until a later load succeeds. A `'defaults'` file still reads as its defaults, but
+ *   `value` stays `null`: nothing was read.
+ */
+export type AppFileState<T> =
+  | { status: 'unloaded'; value: null; reason: null }
+  | { status: 'loaded'; value: T; reason: null }
+  | { status: 'unreadable'; value: null; reason: string };
+
+/**
+ * What a view needs to render from an App File and nothing more — no write. A file's own
+ * module exports this, so its domain setters stay the only writers. `useAppFile`
+ * (`src/hooks`) is the React adapter.
+ */
+export interface AppFileReadable<T> {
+  subscribe: (listener: () => void) => () => void;
+  state: () => AppFileState<T>;
+  /** Start a load if none is cached or in flight. The outcome lands in `state`. */
+  load: () => Promise<void>;
+}
+
 export interface AppFile<T> {
   /** The cached value, loading it first if needed. */
   read: () => Promise<AppFileRead<T>>;
@@ -89,7 +115,13 @@ export interface AppFile<T> {
   subscribe: (listener: () => void) => () => void;
   /** The cached value, or `null` before the first load. Replaced, never mutated. */
   snapshot: () => T | null;
+  /** The load state, the same object until the next change. */
+  state: () => AppFileState<T>;
+  /** `subscribe`, `state` and a load, for a file's module to export to views. */
+  readable: AppFileReadable<T>;
 }
+
+const UNLOADED = Object.freeze({ status: 'unloaded', value: null, reason: null } as const);
 
 export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
   if (spec.onUnreadable === 'defaults' && !spec.defaults) {
@@ -99,6 +131,9 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
   let cache: T | null = null;
   /** True from a failed read until a load succeeds. */
   let unread = false;
+  let state: AppFileState<T> = UNLOADED;
+  /** The load in flight, shared by every read that arrives while it runs. */
+  let inFlight: Promise<AppFileRead<T>> | null = null;
   const listeners = new Set<() => void>();
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -109,6 +144,13 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
   function setCache(next: T | null, isLoad = false): void {
     if (!isLoad) epoch++;
     cache = next;
+    state = next === null ? UNLOADED : { status: 'loaded', value: next, reason: null };
+    listeners.forEach((listener) => listener());
+  }
+
+  function markUnreadable(): void {
+    unread = true;
+    state = { status: 'unreadable', value: null, reason: unreadFileError(spec.fileName).message };
     listeners.forEach((listener) => listener());
   }
 
@@ -121,17 +163,41 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
     return result;
   }
 
-  async function read(): Promise<AppFileRead<T>> {
-    if (cache !== null) return { value: cache, dropped: 0 };
-    const startedAt = epoch;
-    const raw = await spec.load();
-    // A save, external write or invalidate landed while this load was in flight: what it
-    // read may predate it, and caching it would resurrect the old file. Read again.
-    if (epoch !== startedAt) return read();
-    const result = validateApiResult<unknown>(raw, `load ${spec.fileName}`);
+  function read(): Promise<AppFileRead<T>> {
+    if (cache !== null) return Promise.resolve({ value: cache, dropped: 0 });
+    if (!inFlight) {
+      inFlight = loadFromDisk().finally(() => {
+        inFlight = null;
+      });
+    }
+    return inFlight;
+  }
+
+  async function loadFromDisk(): Promise<AppFileRead<T>> {
+    let raw: unknown;
+    let result;
+    for (;;) {
+      const startedAt = epoch;
+      try {
+        raw = await spec.load();
+        if (epoch !== startedAt) {
+          // A save, external write or invalidate landed while this load was in flight: what
+          // it read may predate it, and caching it would resurrect the old file. Read again,
+          // unless the write cached the file itself.
+          if (cache !== null) return { value: cache, dropped: 0 };
+          continue;
+        }
+        result = validateApiResult<unknown>(raw, `load ${spec.fileName}`);
+      } catch (error) {
+        // The IPC itself failed: the file is as unread as after `success: false`.
+        markUnreadable();
+        throw error;
+      }
+      break;
+    }
     if (!result.success) {
       // Cached nowhere: the next read tries the file again.
-      unread = true;
+      markUnreadable();
       if (spec.onUnreadable === 'throw') throw unreadFileError(spec.fileName);
       logger.error(`Could not read ${spec.fileName}; running on defaults:`, result.error);
       return { value: (spec.defaults as () => T)(), dropped: 0 };
@@ -149,6 +215,14 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
     if (!result?.success) throw new Error(result?.error || spec.saveError);
     setCache(value);
   }
+
+  const subscribe = (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+  const getState = (): AppFileState<T> => state;
 
   return {
     read,
@@ -174,12 +248,13 @@ export function createAppFile<T>(spec: AppFileSpec<T>): AppFile<T> {
       unread = false;
       setCache(null);
     },
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe,
     snapshot: () => cache,
+    state: getState,
+    readable: {
+      subscribe,
+      state: getState,
+      load: () => read().then(() => undefined),
+    },
   };
 }

@@ -1,6 +1,6 @@
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { validateTransformRule } from './TransformRuleValidation';
-import { createAppFile } from '../appFile';
+import { createAppFile, type AppFileReadable } from '../appFile';
 
 /** Pre-2026-08-24 persisted rules stored the relocate flag as `moveWords: number`
  * (0/1, occasionally a legacy literal word count from before 2026-08-15 — see
@@ -40,6 +40,9 @@ const rulesFile = createAppFile<TransformRule[]>({
   onUnreadable: 'throw',
   saveError: 'Failed to save transform rules',
 });
+
+/** `transform-rules.json` as a view reads it: render with `useTransformRules`. */
+export const transformRulesFile: AppFileReadable<TransformRule[]> = rulesFile.readable;
 
 export interface LoadTransformRulesResult {
   rules: TransformRule[];

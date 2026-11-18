@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useAppFile } from './useAppFile';
+import type { AppFileState } from '../utils/appFile';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { useBookBinding } from '../components/BookBindingContext';
 import { useTransformRules } from './useTransformRules';
@@ -13,14 +15,14 @@ import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionarie
 import { loadAppConfig } from '../utils/appConfig';
 import { backgroundBooks } from '../utils/reader/CandidateBackground';
 import {
+  bookRecordsFile,
   dismissCandidate,
   dismissCandidates,
   getBookRecordsSnapshot,
   loadBookRecords,
   restoreCandidate,
-  subscribeBookRecords,
 } from '../utils/reader/BookRecordsBackend';
-import { extractErrorMessage } from '../utils/errorHelpers';
+import type { BookRecords } from '../types/ReaderTypes';
 import {
   CandidateFinderStore,
   type CandidateFinderSnapshot,
@@ -51,6 +53,9 @@ export interface CandidateFinder {
 
 /** A stable empty list, so a book with none dismissed does not re-render on every records write. */
 const NONE_DISMISSED: string[] = [];
+
+const selectStatus = (state: AppFileState<BookRecords>) => state.status;
+const selectReason = (state: AppFileState<BookRecords>) => state.reason;
 
 /**
  * One open book's Candidate finder run, adapted to React from `CandidateFinderStore`.
@@ -108,36 +113,27 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
 
   // Only this book's list is read, so the position writes that land while reading (each a new
   // record, the same list) do not re-render the reading view.
-  const names = useSyncExternalStore(
-    subscribeBookRecords,
+  // The load these start is not a spare read: a success is cached, so `getBackground`'s read
+  // costs no IPC.
+  const names = useAppFile(
+    bookRecordsFile,
     useCallback(
       () => getBookRecordsSnapshot()[fingerprint]?.dismissedCandidates ?? NONE_DISMISSED,
       [fingerprint]
     )
   );
-  const [loaded, setLoaded] = useState<{ unreadable: string | null } | null>(null);
-  // Not a spare read: it loads the records cache that `names` reads synchronously (empty until
-  // loaded) and gates `canDismiss`. A success is cached, so `getBackground`'s read costs no IPC.
-  useEffect(() => {
-    let current = true;
-    loadBookRecords().then(
-      () => current && setLoaded({ unreadable: null }),
-      (error: unknown) => current && setLoaded({ unreadable: extractErrorMessage(error) })
-    );
-    return () => {
-      current = false;
-    };
-  }, []);
+  const recordsStatus = useAppFile(bookRecordsFile, selectStatus);
+  const unreadable = useAppFile(bookRecordsFile, selectReason);
   const dismissals = useMemo(
     (): CandidateDismissals => ({
       names,
-      unreadable: loaded?.unreadable ?? null,
-      canDismiss: loaded !== null && loaded.unreadable === null,
+      unreadable,
+      canDismiss: recordsStatus === 'loaded',
       dismiss: (text) => dismissCandidate(fingerprint, text),
       dismissAll: (texts) => dismissCandidates(fingerprint, texts),
       restore: (text) => restoreCandidate(fingerprint, text),
     }),
-    [names, loaded, fingerprint]
+    [names, unreadable, recordsStatus, fingerprint]
   );
 
   // The quick-add view of the run whose list is shown: it says which dictionaries are active.

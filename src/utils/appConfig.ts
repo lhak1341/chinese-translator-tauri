@@ -1,4 +1,4 @@
-import { createAppFile } from './appFile';
+import { createAppFile, type AppFileReadable } from './appFile';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 export interface EngineConfig {
@@ -91,19 +91,15 @@ const configFile = createAppFile<AppConfig>({
   saveError: 'Failed to save configuration',
 });
 
+/** `config.json` as a view reads it: render with `useAppConfig`, which adapts this. */
+export const appConfigFile: AppFileReadable<AppConfig> = configFile.readable;
+
 export async function loadAppConfig(): Promise<AppConfig> {
   return (await configFile.read()).value;
 }
 
 /** What the app runs on while `config.json` is unread or unreadable. */
 export const DEFAULT_APP_CONFIG: AppConfig = fromRaw({});
-
-/** The cached config, or `null` before the first successful load and between an invalidate and
- * the next load. Replaced, never mutated. A render-time reader subscribes with
- * `subscribeAppConfig` (`useAppConfig`); a handler reads with `loadAppConfig`. */
-export function getAppConfigSnapshot(): AppConfig | null {
-  return configFile.snapshot();
-}
 
 /**
  * The one write: once every write queued ahead of it has settled, `fn` gets the freshest

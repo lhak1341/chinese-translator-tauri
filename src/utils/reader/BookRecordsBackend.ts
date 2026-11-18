@@ -1,4 +1,4 @@
-import { createAppFile } from '../appFile';
+import { createAppFile, type AppFileReadable } from '../appFile';
 import type {
   BookBinding,
   BookRecord,
@@ -59,6 +59,11 @@ export function subscribeBookRecords(listener: () => void): () => void {
 export function getBookRecordsSnapshot(): BookRecords {
   return booksFile.snapshot() ?? EMPTY_RECORDS;
 }
+
+/** `books.json` as a view reads it, through `useAppFile` (`useBookRecords`, the Candidate
+ * finder's dismissals). Select only what is on screen: a position write lands about once a
+ * second while reading. */
+export const bookRecordsFile: AppFileReadable<BookRecords> = booksFile.readable;
 
 export interface LoadBookRecordsResult {
   records: BookRecords;

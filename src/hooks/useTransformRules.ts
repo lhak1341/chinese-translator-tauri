@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TransformRule } from '../types/TransformRuleTypes';
 import {
   commitRuleChange,
   getTransformRulesSnapshot,
   loadTransformRules,
-  subscribeTransformRules,
+  transformRulesFile,
   type RuleChange,
 } from '../utils/dictionary/TransformRuleBackend';
 import { findConflict } from '../utils/dictionary/TransformRuleEngine';
 import toast from '../utils/toast';
+import { useAppFile } from './useAppFile';
 
 export function generateTransformRuleId(): string {
   return `rule_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -49,26 +50,12 @@ const NO_RULES: TransformRule[] = [];
 
 /**
  * The saved Transform Rules, read-only — what the Add form seeds from (GLOSSARY.md "Transform
- * Rule"). Reads the backend's cache, so it follows every save the moment it lands. Starts a
- * load if none has happened; says nothing about a failed one — the Rules tab's editor does.
+ * Rule"), through `useAppFile`, so it follows every save the moment it lands. Says nothing
+ * about a failed load — the Rules tab's editor does.
  */
 export function useTransformRules(): { rules: TransformRule[]; isLoading: boolean } {
-  const saved = useSyncExternalStore(subscribeTransformRules, getTransformRulesSnapshot);
-  const [loadSettled, setLoadSettled] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadTransformRules()
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setLoadSettled(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { rules: saved ?? NO_RULES, isLoading: saved === null && !loadSettled };
+  const { status, value } = useAppFile(transformRulesFile);
+  return { rules: value ?? NO_RULES, isLoading: status === 'unloaded' };
 }
 
 /**

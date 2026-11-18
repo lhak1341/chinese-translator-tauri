@@ -163,6 +163,68 @@ describe('observing', () => {
   });
 });
 
+describe('state', () => {
+  const unreadable = {
+    status: 'unreadable',
+    value: null,
+    reason: "Couldn't read items.json; not saving over it",
+  };
+
+  test('unloaded, then loaded with the value; the object is the same until a change', async () => {
+    const file = createAppFile(spec());
+    expect(file.state()).toEqual({ status: 'unloaded', value: null, reason: null });
+
+    await file.read();
+    const loaded = file.state();
+    expect(loaded).toEqual({ status: 'loaded', value: ['a'], reason: null });
+    await file.read();
+    expect(file.state()).toBe(loaded);
+    expect(file.readable.state()).toBe(loaded);
+  });
+
+  test.each(['throw', 'defaults'] as const)(
+    'a failed read (onUnreadable: %s) is unreadable, notifies, and a later load clears it',
+    async (policy) => {
+      const file = createAppFile(spec({ onUnreadable: policy, defaults: () => ['default'] }));
+      const listener = vi.fn();
+      file.subscribe(listener);
+      load.mockResolvedValueOnce(failed);
+
+      await file.read().catch(() => undefined);
+      expect(file.state()).toEqual(unreadable);
+      expect(listener).toHaveBeenCalledTimes(1);
+
+      await file.read();
+      expect(file.state()).toEqual({ status: 'loaded', value: ['a'], reason: null });
+    }
+  );
+
+  test('a load whose IPC throws is unreadable too', async () => {
+    const file = createAppFile(spec());
+    load.mockRejectedValueOnce(new Error('IPC down'));
+    await expect(file.read()).rejects.toThrow('IPC down');
+    expect(file.state()).toEqual(unreadable);
+  });
+
+  test('an invalidate and a successful external write each go back to unloaded', async () => {
+    const file = createAppFile(spec());
+    await file.read();
+    file.invalidate();
+    expect(file.state().status).toBe('unloaded');
+
+    await file.read();
+    await file.writeExternally(async () => ({ success: true }));
+    expect(file.state().status).toBe('unloaded');
+  });
+
+  test('readable.load starts one load, shared with a read already in flight', async () => {
+    const file = createAppFile(spec());
+    await Promise.all([file.read(), file.readable.load(), file.readable.load()]);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(file.state().status).toBe('loaded');
+  });
+});
+
 describe('writeExternally', () => {
   test('holds the lock, and a success drops the cache so the next read sees the write', async () => {
     const file = createAppFile(spec());

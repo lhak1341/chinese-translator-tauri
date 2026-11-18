@@ -1,16 +1,9 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  DEFAULT_APP_CONFIG,
-  getAppConfigSnapshot,
-  loadAppConfig,
-  subscribeAppConfig,
-  type AppConfig,
-} from '../utils/appConfig';
+import { useRef } from 'react';
+import { DEFAULT_APP_CONFIG, appConfigFile, type AppConfig } from '../utils/appConfig';
+import { useAppFile } from './useAppFile';
 
 /**
- * The saved app config, for a component that renders from it. Follows every change the moment
- * it lands, whoever wrote it; starts a load if none has happened (every tab stays mounted, so
- * a read taken once at mount goes stale).
+ * The saved app config, for a component that renders from it (`useAppFile`).
  *
  * Between an invalidate (force reload, a Rust-side write) and the next load the cache is
  * empty; this serves the last config it saw, so a row does not blank for one round trip.
@@ -18,25 +11,10 @@ import {
  * reports "Couldn't read config.json".
  */
 export function useAppConfig(): { config: AppConfig; isLoading: boolean } {
-  const saved = useSyncExternalStore(subscribeAppConfig, getAppConfigSnapshot);
+  const { status, value } = useAppFile(appConfigFile);
   const lastSeenRef = useRef<AppConfig | null>(null);
-  if (saved !== null) lastSeenRef.current = saved;
-  const [loadSettled, setLoadSettled] = useState(false);
+  if (value !== null) lastSeenRef.current = value;
 
-  const isEmpty = saved === null;
-  useEffect(() => {
-    if (!isEmpty) return;
-    let cancelled = false;
-    loadAppConfig()
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setLoadSettled(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isEmpty]);
-
-  const config = saved ?? lastSeenRef.current ?? DEFAULT_APP_CONFIG;
-  return { config, isLoading: isEmpty && lastSeenRef.current === null && !loadSettled };
+  const config = value ?? lastSeenRef.current ?? DEFAULT_APP_CONFIG;
+  return { config, isLoading: status === 'unloaded' && lastSeenRef.current === null };
 }
