@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Table, TableBody, TableHeader, TableHeaderCell } from '@lhak/style/react';
+import { Table, TableHeader, TableHeaderCell } from '@lhak/style/react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveDialog from './MoveDialog';
@@ -10,8 +10,10 @@ import { entryCapabilities } from '../../utils/dictionary';
 import { tableColumns } from './TableColumns';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
+import type { EntryRef } from '../../utils/dictionary/DictionaryEdit';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import { ITEM_HEIGHT, SelectAllCheckboxHeaderCell } from './TableBuildingBlocks';
+import { SelectAllCheckboxHeaderCell } from './TableBuildingBlocks';
+import { VirtualTableBody } from './VirtualTableBody';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
 import type { UseVirtualScrollRangeResult } from '../../hooks/useVirtualScrollRange';
@@ -88,37 +90,32 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
 }) => {
   const { dictionaries, bulkDeleteEntries, renameEntry, patchEntry } = useDictionary();
 
+  // The rows this view shows, as entries: select-all selects these.
+  const viewEntries = useMemo(
+    (): EntryRef[] =>
+      showDuplicatesMode
+        ? filteredDuplicateRows.map((row) => ({ dictionaryId: row.dictionaryId, key: row.source }))
+        : filteredEntries.map(([source]) => ({ dictionaryId: selectedDictionary, key: source })),
+    [showDuplicatesMode, filteredDuplicateRows, filteredEntries, selectedDictionary]
+  );
+
   const {
-    selectedEntries,
+    isSelected,
+    selectedRefs,
+    selectedCount,
     showBulkMoveDialog,
     setShowBulkMoveDialog,
-    handleSelectEntry,
+    setSelected,
     handleSelectAll,
     resetSelection,
   } = useEntrySelection({
-    selectedDictionary,
-    filteredEntries,
-    filteredDuplicateRows,
+    entries: viewEntries,
     dictionaries,
-    showDuplicatesMode,
+    canBulkMove: !showDuplicatesMode,
     withScrollPreservation: scroll.withScrollPreservation,
     bulkDeleteEntries,
     onSelectionChange,
   });
-
-  const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
-  const { startIndex, endIndex } = scroll.visibleRange;
-
-  // Use different data source based on mode
-  const visibleEntries = showDuplicatesMode
-    ? [] // Not used in duplicate mode
-    : filteredEntries.slice(startIndex, endIndex);
-
-  const visibleDuplicateRows = showDuplicatesMode
-    ? filteredDuplicateRows.slice(startIndex, endIndex)
-    : [];
-
-  const totalHeight = totalItems * ITEM_HEIGHT;
 
   const {
     editingEntry,
@@ -168,6 +165,13 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
     [patchEntryWithScrollPreservation]
   );
 
+  // A normal-view row names its entry by source; the entry is in the selected dictionary.
+  const selectSource = useCallback(
+    (source: string, on: boolean): void =>
+      setSelected({ dictionaryId: selectedDictionary, key: source }, on),
+    [setSelected, selectedDictionary]
+  );
+
   const headerColumns = useMemo(() => getHeaderColumns(selectedDictionary), [selectedDictionary]);
 
   return (
@@ -175,17 +179,12 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
       {showDuplicatesMode
         ? (emptyState ?? (
             <DuplicateDictionaryTableView
-              scrollRefCallback={scroll.scrollRefCallback}
-              onScroll={scroll.handleScroll}
-              totalHeight={totalHeight}
-              visibleDuplicateRows={visibleDuplicateRows}
-              startIndex={startIndex}
+              scroll={scroll}
+              rows={filteredDuplicateRows}
               duplicateGroupIndices={duplicateGroupIndices}
-              selectedEntries={selectedEntries}
-              onSelectEntry={handleSelectEntry}
-              allSelected={
-                selectedEntries.size > 0 && selectedEntries.size === filteredDuplicateRows.length
-              }
+              isSelected={isSelected}
+              onSelectEntry={setSelected}
+              allSelected={selectedCount > 0 && selectedCount === filteredDuplicateRows.length}
               onSelectAll={handleSelectAll}
               onSetSemanticType={handleSetDuplicateSemanticType}
               onContextMenu={handleContextMenu}
@@ -201,9 +200,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
               {/* Fixed table header */}
               <TableHeader>
                 <SelectAllCheckboxHeaderCell
-                  checked={
-                    selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                  }
+                  checked={selectedCount > 0 && selectedCount === filteredEntries.length}
                   onChange={handleSelectAll}
                 />
                 {headerColumns.map((col) =>
@@ -233,56 +230,28 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
               <EntryContextMenu
                 menu={contextMenuApi}
                 body={
-                  <TableBody
-                    ref={scroll.scrollRefCallback}
-                    onScroll={scroll.handleScroll}
-                    style={{
-                      flex: 1,
-                      minHeight: 0,
-                      maxHeight: '100%',
-                      overflow: 'auto',
-                      overflowAnchor: 'none',
-                    }}
-                  />
-                }
-              >
-                {/* Virtual spacer for total height. Each row is absolutely positioned at its own
-                global index — nothing shifts in layout when rows enter or leave the rendered
-                window. The earlier translateY'd slice shifted every row up 40px in layout
-                whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
-                that by pulling scrollTop back, which re-added the row: flicker, then stuck.
-                Each row paints its own opaque band from its global index (the kit's TableRow,
-                via RowShell); the body behind the spacer is the kit's solid surface, so a gap
-                in a fast scroll shows no dotted paper. */}
-                <div style={{ height: totalHeight, position: 'relative' }}>
-                  {visibleEntries.map(([source, translation], index) => (
-                    // Keyed by source alone (unique within a dictionary): an index in the key
-                    // remounted every row below an insert/delete, dropping inline-edit state.
-                    <div
-                      key={`${selectedDictionary}\u0000${source}`}
-                      style={{
-                        position: 'absolute',
-                        top: (startIndex + index) * ITEM_HEIGHT,
-                        left: 0,
-                        right: 0,
-                        height: ITEM_HEIGHT,
-                      }}
-                    >
+                  <VirtualTableBody
+                    scroll={scroll}
+                    items={filteredEntries}
+                    // Source alone is unique within a dictionary.
+                    getKey={([source]) => source}
+                    renderRow={([source, translation], index) => (
                       <VirtualRowComponent
                         source={source}
                         translation={translation}
-                        isSelected={selectedEntries.has(source)}
-                        index={startIndex + index}
+                        isSelected={isSelected({ dictionaryId: selectedDictionary, key: source })}
+                        index={index}
                         selectedDictionary={selectedDictionary}
                         onRenameEntry={renameEntryWithScrollPreservation}
                         onPatchEntry={patchEntryWithScrollPreservation}
-                        onSelectEntry={handleSelectEntry}
+                        onSelectEntry={selectSource}
                         onContextMenu={handleContextMenu}
                       />
-                    </div>
-                  ))}
-                </div>
-              </EntryContextMenu>
+                    )}
+                    style={{ flex: 1, minHeight: 0, maxHeight: '100%', overflow: 'auto' }}
+                  />
+                }
+              />
             </Table>
           ))}
 
@@ -298,7 +267,8 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
       {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
       {(moveEntry !== null || showBulkMoveDialog) && (
         <MoveDialog
-          entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}
+          // Bulk move is normal-view only, so every selected entry is in the selected dictionary.
+          entries={moveEntry ? [moveEntry.source] : selectedRefs.map((ref) => ref.key)}
           currentDictionary={moveEntry ? moveEntry.dictionaryId : selectedDictionary}
           onClose={() => {
             closeMove();

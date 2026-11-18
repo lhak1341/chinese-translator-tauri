@@ -114,22 +114,6 @@
 }
 
 /* Text Display Styles */
-.paragraph {
-  margin-bottom: var(--chinese-text-paragraph-spacing, 1rem);
-}
-
-.paragraph:last-child {
-  margin-bottom: 0;
-}
-
-.translatedParagraph {
-  margin-bottom: var(--full-translation-paragraph-spacing, 1rem);
-}
-
-.translatedParagraph:last-child {
-  margin-bottom: 0;
-}
-
 .textLine {
   margin-bottom: 0.5rem;
 }

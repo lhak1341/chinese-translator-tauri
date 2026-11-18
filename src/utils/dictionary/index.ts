@@ -13,7 +13,7 @@ export { sortDictionaryEntries } from './sortDictionaryEntries';
 
 // --- Duplicate detection ---
 export type { DuplicateRow } from './DuplicateAnalyzer';
-export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
+export { findConflictingEntries } from './DuplicateAnalyzer';
 
 // --- Entry validation ---
 export { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';

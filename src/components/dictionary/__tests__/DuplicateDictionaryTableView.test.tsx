@@ -8,7 +8,7 @@ import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import DuplicateDictionaryTableView from '../DuplicateDictionaryTableView';
-import { createDuplicateKey } from '../../../utils/dictionary';
+import type { EntryRef } from '../../../utils/dictionary/DictionaryEdit';
 import type { DuplicateRow } from '../../../utils/dictionary/DuplicateAnalyzer';
 
 function makeRow(overrides: Partial<DuplicateRow> = {}): DuplicateRow {
@@ -21,26 +21,42 @@ function makeRow(overrides: Partial<DuplicateRow> = {}): DuplicateRow {
   };
 }
 
-function renderView(overrides: Record<string, any> = {}) {
-  const onScroll = vi.fn();
-  const scrollRefCallback = vi.fn();
+const entryOf = (row: DuplicateRow): EntryRef => ({
+  dictionaryId: row.dictionaryId,
+  key: row.source,
+});
+
+/** `selected` lists the entries the selection holds. */
+function renderView({ selected = [], ...overrides }: Record<string, any> = {}) {
   const onSelectEntry = vi.fn();
   const onSelectAll = vi.fn();
+  const rows: DuplicateRow[] = overrides.rows ?? [];
+  // Every row in view: the window itself is VirtualTableBody's, tested there.
+  const scroll = {
+    visibleRange: {
+      firstVisibleIndex: 0,
+      startIndex: 0,
+      endIndex: rows.length,
+      visibleCount: rows.length,
+    },
+    handleScroll: vi.fn(),
+    scrollRefCallback: vi.fn(),
+  };
   const props = {
-    scrollRefCallback,
-    onScroll,
-    totalHeight: 0,
-    visibleDuplicateRows: [] as DuplicateRow[],
-    startIndex: 0,
+    scroll,
+    rows,
     duplicateGroupIndices: [] as number[],
-    selectedEntries: new Set<string>(),
+    isSelected: (ref: EntryRef) =>
+      (selected as EntryRef[]).some(
+        (s) => s.dictionaryId === ref.dictionaryId && s.key === ref.key
+      ),
     onSelectEntry,
     allSelected: false,
     onSelectAll,
     ...overrides,
   };
   render(<DuplicateDictionaryTableView {...props} />);
-  return { onScroll, scrollRefCallback, onSelectEntry, onSelectAll };
+  return { onSelectEntry, onSelectAll };
 }
 
 describe('DuplicateDictionaryTableView — header', () => {
@@ -79,7 +95,7 @@ describe('DuplicateDictionaryTableView — row rendering', () => {
         dictionaryLabel: 'Proper Nouns',
       }),
     ];
-    renderView({ visibleDuplicateRows: rows });
+    renderView({ rows: rows });
 
     expect(screen.getByText('你好')).toBeInTheDocument();
     expect(screen.getByText('xin chào')).toBeInTheDocument();
@@ -89,95 +105,68 @@ describe('DuplicateDictionaryTableView — row rendering', () => {
     expect(screen.getByText('Proper Nouns')).toBeInTheDocument();
   });
 
-  test('renders a row for every entry in visibleDuplicateRows, keyed by createDuplicateKey', () => {
-    // Same source text in two different dictionaries — createDuplicateKey (not source alone)
-    // must disambiguate them, so both rows render instead of React deduping on a colliding key.
+  test('renders a row for every entry in rows, keyed by its entry', () => {
+    // Same source text in two different dictionaries. React renders both rows even when their
+    // keys collide and only warns, so the row count alone pins no key: the warning is the
+    // symptom of a key built from the source alone.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const rows = [
       makeRow({ source: '你好', dictionaryId: 'phrases', dictionaryLabel: 'Phrases' }),
       makeRow({ source: '你好', dictionaryId: 'properNouns', dictionaryLabel: 'Proper Nouns' }),
     ];
-    renderView({ visibleDuplicateRows: rows });
+    try {
+      renderView({ rows: rows });
 
-    expect(screen.getAllByText('你好')).toHaveLength(2);
-    expect(screen.getByText('Phrases')).toBeInTheDocument();
-    expect(screen.getByText('Proper Nouns')).toBeInTheDocument();
+      expect(screen.getAllByText('你好')).toHaveLength(2);
+      expect(screen.getByText('Phrases')).toBeInTheDocument();
+      expect(screen.getByText('Proper Nouns')).toBeInTheDocument();
+      const keyWarnings = consoleError.mock.calls.filter((args) =>
+        args.some((arg) => String(arg).includes('same key'))
+      );
+      expect(keyWarnings).toEqual([]);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 
 describe('DuplicateDictionaryTableView — selection checkbox', () => {
-  test('checkbox is unchecked when the row key is not in selectedEntries', () => {
+  test('checkbox is unchecked when the row entry is not selected', () => {
     const row = makeRow();
-    renderView({ visibleDuplicateRows: [row], selectedEntries: new Set<string>() });
+    renderView({ rows: [row] });
     expect(screen.getByRole('checkbox', { name: /Select 你好 from Phrases/ })).not.toBeChecked();
   });
 
-  test('checkbox is checked when the row key IS in selectedEntries', () => {
+  test('checkbox is checked when the row entry IS selected', () => {
     const row = makeRow();
-    const key = createDuplicateKey(row.source, row.dictionaryId);
-    renderView({ visibleDuplicateRows: [row], selectedEntries: new Set([key]) });
+    renderView({ rows: [row], selected: [entryOf(row)] });
     expect(screen.getByRole('checkbox', { name: /Select 你好 from Phrases/ })).toBeChecked();
   });
 
-  test('clicking an unchecked checkbox calls onSelectEntry(key, true)', () => {
+  test('clicking an unchecked checkbox calls onSelectEntry(entry, true)', () => {
     const row = makeRow();
-    const key = createDuplicateKey(row.source, row.dictionaryId);
-    const { onSelectEntry } = renderView({
-      visibleDuplicateRows: [row],
-      selectedEntries: new Set<string>(),
-    });
+    const { onSelectEntry } = renderView({ rows: [row] });
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Select 你好 from Phrases/ }));
-    expect(onSelectEntry).toHaveBeenCalledWith(key, true);
+    expect(onSelectEntry).toHaveBeenCalledWith({ dictionaryId: 'phrases', key: '你好' }, true);
   });
 
-  test('clicking a checked checkbox calls onSelectEntry(key, false)', () => {
+  test('clicking a checked checkbox calls onSelectEntry(entry, false)', () => {
     const row = makeRow();
-    const key = createDuplicateKey(row.source, row.dictionaryId);
-    const { onSelectEntry } = renderView({
-      visibleDuplicateRows: [row],
-      selectedEntries: new Set([key]),
-    });
+    const { onSelectEntry } = renderView({ rows: [row], selected: [entryOf(row)] });
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Select 你好 from Phrases/ }));
-    expect(onSelectEntry).toHaveBeenCalledWith(key, false);
-  });
-});
-
-describe('DuplicateDictionaryTableView — scroll wiring', () => {
-  test('positions each row absolutely at its global index inside a totalHeight spacer', () => {
-    renderView({
-      totalHeight: 400,
-      startIndex: 2,
-      visibleDuplicateRows: [makeRow(), makeRow({ dictionaryId: 'properNouns' })],
-    });
-
-    const [first, second] = screen.getAllByText('你好');
-    // cell -> RowShell -> absolute wrapper
-    const firstWrapper = first.parentElement?.parentElement;
-    const secondWrapper = second.parentElement?.parentElement;
-    expect(firstWrapper).toHaveStyle({ position: 'absolute', top: '80px', height: '40px' });
-    expect(secondWrapper).toHaveStyle({ position: 'absolute', top: '120px' });
-    expect(firstWrapper?.parentElement).toHaveStyle({ height: '400px' });
+    expect(onSelectEntry).toHaveBeenCalledWith(entryOf(row), false);
   });
 
-  test('disables scroll anchoring on the scroll container', () => {
-    const { scrollRefCallback } = renderView({ visibleDuplicateRows: [makeRow()] });
-    const container = scrollRefCallback.mock.calls.at(-1)![0] as HTMLDivElement;
-    expect(container.style.overflowAnchor).toBe('none');
-  });
+  // The old composite key `source::dictionaryId` threw on such a source while rendering, which
+  // would have taken every tab down through the provider's error boundary.
+  test('a row whose source holds "::" renders and selects by its own entry', () => {
+    const row = makeRow({ source: 'a::b', translation: 'ab' });
+    const { onSelectEntry } = renderView({ rows: [row] });
 
-  test('fires onScroll when the scroll container is scrolled', () => {
-    let scrollNode: HTMLDivElement | null = null;
-    const { onScroll } = renderView({
-      visibleDuplicateRows: [makeRow()],
-      scrollRefCallback: (node: HTMLDivElement | null) => {
-        scrollNode = node;
-      },
-    });
-
-    expect(scrollNode).not.toBeNull();
-    fireEvent.scroll(scrollNode as unknown as HTMLDivElement);
-    expect(onScroll).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Select a::b from Phrases/ }));
+    expect(onSelectEntry).toHaveBeenCalledWith({ dictionaryId: 'phrases', key: 'a::b' }, true);
   });
 });
 
@@ -188,7 +177,7 @@ describe('DuplicateDictionaryTableView — context menu', () => {
       makeRow({ source: '你好', translation: 'xin chào', dictionaryId: 'phrases' }),
       makeRow({ source: '你好', translation: 'chào', dictionaryId: 'properNouns-A' }),
     ];
-    renderView({ visibleDuplicateRows: rows, onContextMenu });
+    renderView({ rows: rows, onContextMenu });
 
     fireEvent.contextMenu(screen.getByText('chào'));
 
@@ -205,7 +194,7 @@ describe('DuplicateDictionaryTableView — semantic column', () => {
       dictionaryLabel: 'Proper Nouns',
       metadata: { semanticType: 'location' },
     });
-    renderView({ visibleDuplicateRows: [row], onSetSemanticType });
+    renderView({ rows: [row], onSetSemanticType });
 
     fireEvent.click(screen.getByLabelText('Set Organization for 青云 in Proper Nouns'));
     expect(onSetSemanticType).toHaveBeenCalledWith(row, 'organization');
@@ -216,7 +205,7 @@ describe('DuplicateDictionaryTableView — semantic column', () => {
 
   test('hides the chips for a phrase not allowed as a variable', () => {
     const row = makeRow({ source: '你好', dictionaryId: 'phrases', dictionaryLabel: 'Phrases' });
-    renderView({ visibleDuplicateRows: [row], onSetSemanticType: vi.fn() });
+    renderView({ rows: [row], onSetSemanticType: vi.fn() });
     expect(screen.queryByLabelText(/^Set .* for 你好 in Phrases$/)).toBeNull();
   });
 
@@ -227,7 +216,7 @@ describe('DuplicateDictionaryTableView — semantic column', () => {
       dictionaryLabel: 'Phrases',
       metadata: { allowAsPatternVariable: true },
     });
-    renderView({ visibleDuplicateRows: [row], onSetSemanticType: vi.fn() });
+    renderView({ rows: [row], onSetSemanticType: vi.fn() });
     expect(screen.getByLabelText('Set Character for 你好 in Phrases')).toBeInTheDocument();
   });
 });
@@ -241,7 +230,7 @@ describe('DuplicateDictionaryTableView — group bands', () => {
       makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
       makeRow({ source: '再见', translation: 'tạm biệt', dictionaryLabel: 'Phrases' }),
     ];
-    renderView({ visibleDuplicateRows: rows, duplicateGroupIndices: [0, 1], totalHeight: 80 });
+    renderView({ rows: rows, duplicateGroupIndices: [0, 1] });
     const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;
     expect(row('你好').hasAttribute('data-stripe')).toBe(false);
     expect(row('再见').hasAttribute('data-stripe')).toBe(true);
@@ -252,7 +241,7 @@ describe('DuplicateDictionaryTableView — group bands', () => {
       makeRow({ source: '你好', translation: 'xin chào', dictionaryLabel: 'Phrases' }),
       makeRow({ source: '你好', translation: 'chào', dictionaryLabel: 'Proper Nouns' }),
     ];
-    renderView({ visibleDuplicateRows: rows, duplicateGroupIndices: [1, 1], totalHeight: 80 });
+    renderView({ rows: rows, duplicateGroupIndices: [1, 1] });
     const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;
     expect(row('xin chào').hasAttribute('data-stripe')).toBe(true);
     expect(row('chào').hasAttribute('data-stripe')).toBe(true);
@@ -266,10 +255,9 @@ describe('DuplicateDictionaryTableView — group bands', () => {
       makeRow({ source: '再见', translation: 'tạm biệt', dictionaryLabel: 'Phrases' }),
     ];
     renderView({
-      visibleDuplicateRows: rows,
+      rows: rows,
       duplicateGroupIndices: [0, 1],
-      totalHeight: 80,
-      selectedEntries: new Set([createDuplicateKey('再见', rows[1]!.dictionaryId)]),
+      selected: [entryOf(rows[1]!)],
     });
     // The kit paints a selected row with the theme's soft accent (--lk-accent-soft).
     const row = (text: string) => screen.getByText(text).closest('[role="row"]')!;

@@ -11,7 +11,7 @@ import {
 import type { SemanticType } from '../../constants/SemanticTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
-/** Height of each table row in pixels. Exported so the table can compute totalHeight. */
+/** Height of each table row in pixels: `RowShell` draws it, `VirtualTableBody` places rows by it. */
 export const ITEM_HEIGHT = 40;
 
 interface BadgeProps {

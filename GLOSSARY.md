@@ -384,7 +384,7 @@ One backend call, `moveEntries(...)`, for one entry or many (ADR-110; the single
 
 The dialog owns its own close-on-success (calls `onClose()` itself, then `onSuccess?.()` for parent-side cleanup like `resetSelection()`) — the old `BulkMoveDialog` didn't call `onClose` itself and instead relied on the parent's `onMoveSuccess` callback incidentally also flipping `showBulkMoveDialog` false.
 
-Trigger hooks stayed untouched: `useEntryEditAndMove` (single, context-menu — `moveEntry`/`closeMove`) and `useEntrySelection` (bulk, multi-select — `selectedEntries`/`showBulkMoveDialog`) are still two separate hooks with their own state. `DictionaryTableView.tsx` converges them at the render site only: `entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}`, rendering exactly one `<MoveDialog>`.
+Trigger hooks stayed untouched: `useEntryEditAndMove` (single, context-menu — `moveEntry`/`closeMove`) and `useEntrySelection` (bulk, multi-select — `selectedRefs`/`showBulkMoveDialog`) are still two separate hooks with their own state. `DictionaryTableView.tsx` converges them at the render site only: `entries={moveEntry ? [moveEntry.source] : selectedRefs.map((ref) => ref.key)}` (bulk move is normal-view only, so every selected entry is in the selected dictionary), rendering exactly one `<MoveDialog>`.
 
 Entry point: `src/components/dictionary/MoveDialog.tsx`, styled by `src/styles/MoveDialog.module.css` (unprefixed class names — the old `bulkMove*`-prefixed classes that lived inside `EnhancedVirtualizedDictionaryTable.module.css` were deleted, not migrated).
 
@@ -401,6 +401,12 @@ What survives a switch lives above the view, in the table: the search term, any 
 Switching modes (duplicates or not) remounts the whole table: `DictionaryManager.tsx` keys it by mode.
 
 Tested through the table: `EnhancedVirtualizedDictionaryTable.test.tsx`'s "dictionary switch" block. Its two dictionaries share their sources, because `useEntrySelection` prunes selected keys whose entry is gone, which would hide a missing remount.
+
+## Virtual table body
+
+The scroll container and rows of a fixed-height virtualized table: `VirtualTableBody` (`src/components/dictionary/VirtualTableBody.tsx`). The Dictionary table view, the duplicate view and the Rules tab render their rows through it. It takes the list's `useVirtualScrollRange` result, every row (not the rendered slice), `getKey` and `renderRow(item, globalIndex)`, and owns the rest of `src/components/CLAUDE.md`'s virtualized-scroller rule: the slice, the whole-list spacer, each row's absolute offset at its global index, and `overflow-anchor: none`. The caller keeps the scroll hook (the row-position bar and scroll buttons read it) and its layout through `style`/`className`. Rows are `ITEM_HEIGHT` tall, not a prop: every list shares that height.
+
+It can be `EntryContextMenu`'s `body`: the trigger's props and ref land on the scroll container, the ref beside `scrollRefCallback`. Before it, each of the three lists hand-copied the spacer and row wrapper and explained the rule in its own comment, and the copies had begun to drift (a spacer background the kit body already paints, a comment pointing at the wrong file). Architecture review 2026-11-17, candidate #3. The Reader is not one of these: its rows vary in height and it uses TanStack (ADR-042). Tested in `VirtualTableBody.test.tsx`.
 
 ## DictionaryColumnSchema
 

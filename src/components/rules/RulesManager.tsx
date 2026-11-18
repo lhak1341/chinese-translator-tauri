@@ -1,10 +1,11 @@
 import { memo, useMemo, useState, forwardRef, useImperativeHandle } from 'react';
 import { PlusCircle } from 'lucide-react';
-import { Table, TableBody, TableHeader, TableHeaderCell } from '@lhak/style/react';
+import { Table, TableHeader, TableHeaderCell } from '@lhak/style/react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { ITEM_HEIGHT, SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
+import { VirtualTableBody } from '../dictionary/VirtualTableBody';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { toggled } from '../../utils/ui/toggled';
@@ -84,8 +85,6 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
     itemHeight: ITEM_HEIGHT,
     resetKey: `${searchTerm}\u0000${[...filterSemanticTypes].sort().join(',')}`,
   });
-  const { startIndex, endIndex } = scroll.visibleRange;
-  const visibleRules = filteredRules.slice(startIndex, endIndex);
 
   const openNew = (prefillText?: string) => {
     if (!prefillText) {
@@ -204,46 +203,22 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
               </TableHeaderCell>
               <TableHeaderCell className={`${styles.headerCell} ${styles.colActions}`} />
             </TableHeader>
-            <TableBody
-              ref={scroll.scrollRefCallback}
-              onScroll={scroll.handleScroll}
+            <VirtualTableBody
+              scroll={scroll}
+              items={filteredRules}
+              getKey={(rule) => rule.id}
+              renderRow={(rule, index) => (
+                <RuleRow
+                  rule={rule}
+                  updateRule={updateRule}
+                  deleteRule={deleteRule}
+                  toggleEnabled={toggleEnabled}
+                  onViewMatches={setViewingMatches}
+                  index={index}
+                />
+              )}
               className={styles.rowScroller}
-            >
-              {/* Spacer for the whole list; each row sits at its own index's offset, so
-                  nothing shifts in layout as rows enter or leave the rendered window. Each row
-                  paints its own opaque band from its global index (the kit's TableRow, via
-                  RowShell), as the Dictionary table's do, so the page's dotted paper never
-                  shows through a rule. The spacer is the kit's surface for the same reason. */}
-              <div
-                style={{
-                  height: filteredRules.length * ITEM_HEIGHT,
-                  position: 'relative',
-                  backgroundColor: 'var(--lk-surface)',
-                }}
-              >
-                {visibleRules.map((rule, index) => (
-                  <div
-                    key={rule.id}
-                    style={{
-                      position: 'absolute',
-                      top: (startIndex + index) * ITEM_HEIGHT,
-                      left: 0,
-                      right: 0,
-                      height: ITEM_HEIGHT,
-                    }}
-                  >
-                    <RuleRow
-                      rule={rule}
-                      updateRule={updateRule}
-                      deleteRule={deleteRule}
-                      toggleEnabled={toggleEnabled}
-                      onViewMatches={setViewingMatches}
-                      index={startIndex + index}
-                    />
-                  </div>
-                ))}
-              </div>
-            </TableBody>
+            />
           </Table>
         )}
       </div>

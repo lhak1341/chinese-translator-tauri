@@ -40,6 +40,13 @@ export interface EntryRef {
   key: string;
 }
 
+/** A string naming one entry, for a `Map` key or a React key. One-to-one, since a dictionary id
+ * holds no `:` (`isValidDictionaryId`) and any source text is allowed after it; never parsed
+ * back, so it has no failure path. */
+export function entryRefKey(ref: EntryRef): string {
+  return `${ref.dictionaryId}:${ref.key}`;
+}
+
 /** What the edit did, for the caller's message. Plans set it; `invert` keeps it. */
 export type EditOutcome =
   | { kind: 'added' }

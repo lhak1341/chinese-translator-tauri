@@ -16,8 +16,8 @@ interface EntryContextMenuProps {
   /** The element that holds the rows (the table body, often the scroll container): a right
    * click on a row in it opens the menu. Its own props and ref are kept. */
   body: React.ReactElement;
-  /** The rows. */
-  children: React.ReactNode;
+  /** The rows, unless `body` renders its own (`VirtualTableBody`). */
+  children?: React.ReactNode;
   /** Hide "Edit Entry" where the view already edits inline and has no edit modal
    * (the Rules tab's Matches view). */
   showEdit?: boolean;

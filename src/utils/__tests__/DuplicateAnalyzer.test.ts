@@ -1,106 +1,14 @@
 /**
  * Unit tests for DuplicateAnalyzer
  *
- * Tests the core functionality of finding duplicate dictionary entries
- * and handling composite keys for cross-dictionary operations.
+ * Tests the core functionality of finding duplicate dictionary entries.
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  createDuplicateKey,
-  parseDuplicateKey,
-  findConflictingEntries,
-  type DuplicateRow,
-} from '../dictionary/DuplicateAnalyzer';
+import { findConflictingEntries, type DuplicateRow } from '../dictionary/DuplicateAnalyzer';
 import { getDictionaryLabel } from '../dictionary/DictionaryLabels';
 
 describe('DuplicateAnalyzer', () => {
-  describe('createDuplicateKey', () => {
-    it('should create valid composite keys', () => {
-      expect(createDuplicateKey('哈利', 'properNouns')).toBe('哈利::properNouns');
-      expect(createDuplicateKey('小明', 'properNouns-HarryPotter')).toBe(
-        '小明::properNouns-HarryPotter'
-      );
-    });
-
-    it('should allow empty source text (edge case)', () => {
-      // While unusual, empty source is technically valid for createDuplicateKey
-      // However, parseDuplicateKey will reject it as invalid
-      expect(createDuplicateKey('', 'properNouns')).toBe('::properNouns');
-    });
-
-    it('should throw when source contains separator', () => {
-      expect(() => createDuplicateKey('test::evil', 'properNouns')).toThrow(
-        'Source text cannot contain "::" separator'
-      );
-    });
-
-    it('should throw when dictionaryId contains separator', () => {
-      expect(() => createDuplicateKey('test', 'proper::Nouns')).toThrow(
-        'Dictionary ID cannot contain "::" separator'
-      );
-    });
-
-    it('should handle source with single colon', () => {
-      expect(createDuplicateKey('test:value', 'properNouns')).toBe('test:value::properNouns');
-    });
-  });
-
-  describe('parseDuplicateKey', () => {
-    it('should parse valid composite keys', () => {
-      const result = parseDuplicateKey('哈利::properNouns');
-      expect(result).toEqual({ source: '哈利', dictionaryId: 'properNouns' });
-    });
-
-    it('should throw on empty source (separator at start)', () => {
-      // Empty source is not allowed - would create ambiguous keys
-      expect(() => parseDuplicateKey('::properNouns')).toThrow('Invalid duplicate key format');
-    });
-
-    it('should handle source text with single colon', () => {
-      const result = parseDuplicateKey('test:value::properNouns');
-      expect(result).toEqual({ source: 'test:value', dictionaryId: 'properNouns' });
-    });
-
-    it('should handle source text with multiple double colons (use last one)', () => {
-      // Uses lastIndexOf, so "a::b::c" splits as source="a::b", dictionaryId="c"
-      const result = parseDuplicateKey('a::b::properNouns');
-      expect(result).toEqual({ source: 'a::b', dictionaryId: 'properNouns' });
-    });
-
-    it('should throw on malformed keys - no separator', () => {
-      expect(() => parseDuplicateKey('noSeparator')).toThrow('Invalid duplicate key format');
-    });
-
-    it('should throw on malformed keys - separator at start', () => {
-      expect(() => parseDuplicateKey('::emptySource')).toThrow('Invalid duplicate key format');
-    });
-
-    it('should throw on malformed keys - separator at end', () => {
-      expect(() => parseDuplicateKey('emptyDict::')).toThrow('Invalid duplicate key format');
-    });
-
-    it('should throw on malformed keys - only separator', () => {
-      expect(() => parseDuplicateKey('::')).toThrow('Invalid duplicate key format');
-    });
-  });
-
-  describe('createDuplicateKey and parseDuplicateKey round-trip', () => {
-    it('should correctly round-trip normal entries', () => {
-      const original = { source: '哈利', dictionaryId: 'properNouns' };
-      const key = createDuplicateKey(original.source, original.dictionaryId);
-      const parsed = parseDuplicateKey(key);
-      expect(parsed).toEqual(original);
-    });
-
-    it('should correctly round-trip entries with single colons', () => {
-      const original = { source: 'test:value:here', dictionaryId: 'phrases' };
-      const key = createDuplicateKey(original.source, original.dictionaryId);
-      const parsed = parseDuplicateKey(key);
-      expect(parsed).toEqual(original);
-    });
-  });
-
   describe('getDictionaryLabel', () => {
     it('should format base properNouns', () => {
       expect(getDictionaryLabel('properNouns')).toBe('Proper Nouns');

@@ -1,17 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import type {
-  DictionaryContextInterface,
-  DictionaryData,
-  DictionaryEntryValue,
-} from '../types/DictionaryTypes';
-import { parseDuplicateKey, createDuplicateKey } from '../utils/dictionary';
-import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
-import type { EntryRef } from '../utils/dictionary/DictionaryEdit';
-import toast from '../utils/toast';
-import { logger } from '../utils/logger';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import type { DictionaryContextInterface, DictionaryData } from '../types/DictionaryTypes';
+import { entryRefKey, type EntryRef } from '../utils/dictionary/DictionaryEdit';
 
 export interface SelectionState {
-  selectedEntries: Set<string>;
   selectedCount: number;
   onBulkDelete: () => Promise<void>;
   isDeleting: boolean;
@@ -21,36 +12,44 @@ export interface SelectionState {
 }
 
 interface UseEntrySelectionDeps {
-  selectedDictionary: string;
-  filteredEntries: [string, DictionaryEntryValue][];
-  filteredDuplicateRows: DuplicateRow[];
+  /** Every row the view shows after its filters, which select-all selects. */
+  entries: EntryRef[];
   dictionaries: Record<string, DictionaryData>;
-  showDuplicatesMode: boolean;
+  /** Whether a selection can move as a whole. The duplicate view's spans several dictionaries
+   * and one move dialog has one source, so it passes false; single rows still move from the
+   * context menu. */
+  canBulkMove: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
   bulkDeleteEntries: DictionaryContextInterface['bulkDeleteEntries'];
   onSelectionChange?: (state: SelectionState) => void;
 }
 
+/** A selection, by entry. Keyed by `entryRefKey`, which is never parsed back: the entries
+ * themselves are the values, so nothing here can be unreadable. */
+type Selection = Map<string, EntryRef>;
+
+/**
+ * The Dictionary table's multi-select, bulk delete and bulk move. It speaks entries (`EntryRef`)
+ * in both views: a normal-view row names the selected dictionary, a duplicate-view row its own.
+ */
 export function useEntrySelection({
-  selectedDictionary,
-  filteredEntries,
-  filteredDuplicateRows,
+  entries,
   dictionaries,
-  showDuplicatesMode,
+  canBulkMove,
   withScrollPreservation,
   bulkDeleteEntries,
   onSelectionChange,
 }: UseEntrySelectionDeps) {
-  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
-  const selectedEntriesRef = useRef<Set<string>>(new Set());
-  selectedEntriesRef.current = selectedEntries;
+  const [selection, setSelection] = useState<Selection>(new Map());
+  const selectionRef = useRef<Selection>(selection);
+  selectionRef.current = selection;
 
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const resetSelection = useCallback(() => {
-    setSelectedEntries(new Set());
+    setSelection(new Map());
     setShowBulkDeleteConfirm(false);
     setShowBulkMoveDialog(false);
     setIsDeleting(false);
@@ -61,36 +60,29 @@ export function useEntrySelection({
   // delete reports the ghosts as "not found" failures. Keys merely hidden by the search/filter
   // are kept — only a key with no entry behind it is removed.
   useEffect(() => {
-    setSelectedEntries((prev) => {
+    setSelection((prev) => {
       if (prev.size === 0) return prev;
-      const next = new Set<string>();
-      for (const key of prev) {
-        let dictionaryId = selectedDictionary;
-        let source = key;
-        if (showDuplicatesMode) {
-          try {
-            ({ source, dictionaryId } = parseDuplicateKey(key));
-          } catch {
-            continue;
-          }
-        }
-        if (dictionaries[dictionaryId]?.[source] !== undefined) next.add(key);
+      const next: Selection = new Map();
+      for (const [k, ref] of prev) {
+        if (dictionaries[ref.dictionaryId]?.[ref.key] !== undefined) next.set(k, ref);
       }
       return next.size === prev.size ? prev : next;
     });
-  }, [dictionaries, selectedDictionary, showDuplicatesMode]);
+  }, [dictionaries]);
 
-  const handleSelectEntry = useCallback(
-    (source: string, isSelected: boolean): void => {
+  const isSelected = useCallback(
+    (ref: EntryRef): boolean => selection.has(entryRefKey(ref)),
+    [selection]
+  );
+
+  const setSelected = useCallback(
+    (ref: EntryRef, on: boolean): void => {
       void withScrollPreservation(async () => {
-        setSelectedEntries((prev) => {
-          const newSet = new Set(prev);
-          if (isSelected) {
-            newSet.add(source);
-          } else {
-            newSet.delete(source);
-          }
-          return newSet;
+        setSelection((prev) => {
+          const next = new Map(prev);
+          if (on) next.set(entryRefKey(ref), ref);
+          else next.delete(entryRefKey(ref));
+          return next;
         });
       });
     },
@@ -98,46 +90,25 @@ export function useEntrySelection({
   );
 
   const handleSelectAll = useCallback(
-    (isSelected: boolean): void => {
+    (on: boolean): void => {
       void withScrollPreservation(async () => {
-        if (isSelected) {
-          const allKeys = showDuplicatesMode
-            ? filteredDuplicateRows.map((row) => createDuplicateKey(row.source, row.dictionaryId))
-            : filteredEntries.map(([source]) => source);
-          setSelectedEntries(new Set(allKeys));
-        } else {
-          setSelectedEntries(new Set());
-        }
+        setSelection(on ? new Map(entries.map((ref) => [entryRefKey(ref), ref])) : new Map());
       });
     },
-    [filteredEntries, filteredDuplicateRows, showDuplicatesMode, withScrollPreservation]
+    [entries, withScrollPreservation]
   );
 
   // The selection becomes one list of entries and one `bulkDeleteEntries` call, which commits
-  // it as one Dictionary Edit and owns every message. This hook toasts only a selection it
-  // cannot read: a malformed duplicate-view key is a bug, so nothing is deleted.
+  // it as one Dictionary Edit and owns every message.
   const handleBulkDelete = useCallback(async (): Promise<void> => {
-    const entries = selectedEntriesRef.current;
-    if (entries.size === 0) return;
-
-    let targets: EntryRef[];
-    try {
-      targets = Array.from(entries, (key) => {
-        if (!showDuplicatesMode) return { dictionaryId: selectedDictionary, key };
-        const { source, dictionaryId } = parseDuplicateKey(key);
-        return { dictionaryId, key: source };
-      });
-    } catch (error) {
-      logger.error('Bulk delete: unreadable selection key', error);
-      toast.error('Could not delete: the selection could not be read. Nothing was deleted.');
-      return;
-    }
+    const current = selectionRef.current;
+    if (current.size === 0) return;
 
     setIsDeleting(true);
     try {
-      const { count } = await bulkDeleteEntries(targets);
+      const { count } = await bulkDeleteEntries([...current.values()]);
       if (count > 0) {
-        setSelectedEntries(new Set());
+        setSelection(new Map());
         setShowBulkDeleteConfirm(false);
       }
     } catch {
@@ -145,10 +116,10 @@ export function useEntrySelection({
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDictionary, bulkDeleteEntries, showDuplicatesMode]);
+  }, [bulkDeleteEntries]);
 
   const handleBulkMove = useCallback((): void => {
-    if (selectedEntriesRef.current.size === 0) return;
+    if (selectionRef.current.size === 0) return;
     setShowBulkMoveDialog(true);
   }, []);
 
@@ -157,21 +128,17 @@ export function useEntrySelection({
   useEffect(() => {
     if (onSelectionChange) {
       onSelectionChange({
-        selectedEntries,
-        selectedCount: selectedEntries.size,
+        selectedCount: selection.size,
         onBulkDelete: handleBulkDelete,
         isDeleting,
         showBulkDeleteConfirm,
         setShowBulkDeleteConfirm,
-        // Duplicate-mode selections span several dictionaries (composite keys) — one move
-        // dialog has one source dictionary, so bulk move is offered only in the normal view.
-        // Single rows still move from the duplicate view's context menu.
-        onBulkMove: showDuplicatesMode ? undefined : handleBulkMove,
+        onBulkMove: canBulkMove ? handleBulkMove : undefined,
       });
     }
   }, [
-    showDuplicatesMode,
-    selectedEntries,
+    canBulkMove,
+    selection,
     isDeleting,
     showBulkDeleteConfirm,
     onSelectionChange,
@@ -179,15 +146,18 @@ export function useEntrySelection({
     handleBulkMove,
   ]);
 
+  const selectedRefs = useMemo(() => [...selection.values()], [selection]);
+
   return {
-    selectedEntries,
-    selectedEntriesRef,
+    isSelected,
+    selectedRefs,
+    selectedCount: selection.size,
     isDeleting,
     showBulkDeleteConfirm,
     setShowBulkDeleteConfirm,
     showBulkMoveDialog,
     setShowBulkMoveDialog,
-    handleSelectEntry,
+    setSelected,
     handleSelectAll,
     handleBulkDelete,
     handleBulkMove,

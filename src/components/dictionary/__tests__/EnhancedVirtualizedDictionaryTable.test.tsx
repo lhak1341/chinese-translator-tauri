@@ -103,7 +103,7 @@ describe('duplicate mode', () => {
     expect(screen.getByTestId('duplicate-view')).toBeTruthy();
     expect(duplicateViewSpy).toHaveBeenCalled();
     const props = duplicateViewSpy.mock.calls.at(-1)![0];
-    expect(props.visibleDuplicateRows).toHaveLength(2);
+    expect(props.rows).toHaveLength(2);
     expect(props.duplicateGroupIndices).toEqual([0, 0]); // same source -> same group
   });
 

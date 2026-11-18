@@ -1,15 +1,10 @@
 import React from 'react';
-import type { RefCallback } from 'react';
-import { Table, TableBody, TableCell, TableHeader, TableHeaderCell } from '@lhak/style/react';
-import {
-  RowShell,
-  CheckboxCell,
-  SelectAllCheckboxHeaderCell,
-  ITEM_HEIGHT,
-} from './TableBuildingBlocks';
+import { Table, TableCell, TableHeader, TableHeaderCell } from '@lhak/style/react';
+import { RowShell, CheckboxCell, SelectAllCheckboxHeaderCell } from './TableBuildingBlocks';
+import { VirtualTableBody, type VirtualTableBodyProps } from './VirtualTableBody';
 import { EntrySemanticCell } from './EntryCells';
 import { DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import { createDuplicateKey } from '../../utils/dictionary';
+import { entryRefKey, type EntryRef } from '../../utils/dictionary/DictionaryEdit';
 import { tierOf, type DictionaryTier } from '../../utils/dictionary/DictionaryIdClassifier';
 import EntryContextMenu from './EntryContextMenu';
 import type { OpenEntryMenu, useContextMenu } from '../../hooks/useContextMenu';
@@ -29,14 +24,14 @@ const TIER_LABEL_STYLE: Record<DictionaryTier, React.CSSProperties> = {
  * scroll buttons are rendered by `EnhancedVirtualizedDictionaryTable` for both modes, so the two
  * views cannot drift apart in their chrome. */
 interface DuplicateDictionaryTableViewProps {
-  scrollRefCallback: RefCallback<HTMLDivElement>;
-  onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
-  totalHeight: number;
-  visibleDuplicateRows: DuplicateRow[];
-  startIndex: number;
+  /** The table's scroll state (`useVirtualScrollRange`), owned by `EnhancedVirtualizedDictionaryTable`. */
+  scroll: VirtualTableBodyProps<DuplicateRow>['scroll'];
+  /** Every row after the filters, not the rendered slice. */
+  rows: DuplicateRow[];
+  /** Each row's duplicate group, by global index. */
   duplicateGroupIndices: number[];
-  selectedEntries: Set<string>;
-  onSelectEntry: (key: string, selected: boolean) => void;
+  isSelected: (ref: EntryRef) => boolean;
+  onSelectEntry: (ref: EntryRef, selected: boolean) => void;
   allSelected: boolean;
   onSelectAll: (selected: boolean) => void;
   /** Right-click on a row — same Edit / Move / Delete menu as the normal view, acting on the
@@ -49,14 +44,16 @@ interface DuplicateDictionaryTableViewProps {
   menu?: ReturnType<typeof useContextMenu>;
 }
 
+const entryOf = (row: DuplicateRow): EntryRef => ({
+  dictionaryId: row.dictionaryId,
+  key: row.source,
+});
+
 const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> = ({
-  scrollRefCallback,
-  onScroll,
-  totalHeight,
-  visibleDuplicateRows,
-  startIndex,
+  scroll,
+  rows,
   duplicateGroupIndices,
-  selectedEntries,
+  isSelected,
   onSelectEntry,
   allSelected,
   onSelectAll,
@@ -65,90 +62,65 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
   menu,
 }) => {
   const body = (
-    <TableBody
-      ref={scrollRefCallback}
-      onScroll={onScroll}
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: 'auto',
-        overflowAnchor: 'none',
-      }}
-    />
-  );
-  const rows = (
-    <>
-      {/* Rows absolutely positioned at their global index — same reason as the normal view
-            (EnhancedVirtualizedDictionaryTable): no layout shift for scroll anchoring to fight. */}
-      <div style={{ height: totalHeight, position: 'relative' }}>
-        {visibleDuplicateRows.map((row, index) => {
-          const key = createDuplicateKey(row.source, row.dictionaryId);
-          const isSelected = selectedEntries.has(key);
+    <VirtualTableBody
+      scroll={scroll}
+      items={rows}
+      getKey={(row) => entryRefKey(entryOf(row))}
+      renderRow={(row, index) => {
+        const ref = entryOf(row);
+        const selected = isSelected(ref);
+        // Pre-calculated group index: each duplicate group takes the next band (the row's `stripe`).
+        const groupIndex = duplicateGroupIndices[index] || 0;
 
-          // Pre-calculated group index: each duplicate group takes the next band (the row's `stripe`).
-          const actualIndex = startIndex + index;
-          const groupIndex = duplicateGroupIndices[actualIndex] || 0;
-
-          return (
-            <div
-              key={key}
+        return (
+          <RowShell
+            isSelected={selected}
+            index={index}
+            stripe={groupIndex % 2 === 1}
+            onContextMenu={
+              onContextMenu
+                ? () => onContextMenu(row.source, row.translation, row.dictionaryId)
+                : undefined
+            }
+          >
+            <CheckboxCell
+              checked={selected}
+              onChange={() => onSelectEntry(ref, !selected)}
+              ariaLabel={`Select ${row.source} from ${row.dictionaryLabel}`}
+            />
+            <TableCell
+              lang="zh"
+              className={`${styles.cell} ${styles.duplicateSourceCol} lk-face-chinese`}
+            >
+              {row.source}
+            </TableCell>
+            <TableCell className={`${styles.cell} ${styles.duplicateTranslationCol}`}>
+              {row.translation}
+            </TableCell>
+            <TableCell
+              className={`${styles.cell} ${styles.duplicateDictionaryCol}`}
               style={{
-                position: 'absolute',
-                top: actualIndex * ITEM_HEIGHT,
-                left: 0,
-                right: 0,
-                height: ITEM_HEIGHT,
+                fontSize: '0.8125rem',
+                color: 'var(--lk-text-muted)',
+                ...TIER_LABEL_STYLE[tierOf(row.dictionaryId)],
               }}
             >
-              <RowShell
-                isSelected={isSelected}
-                index={actualIndex}
-                stripe={groupIndex % 2 === 1}
-                onContextMenu={
-                  onContextMenu
-                    ? () => onContextMenu(row.source, row.translation, row.dictionaryId)
-                    : undefined
-                }
-              >
-                <CheckboxCell
-                  checked={isSelected}
-                  onChange={() => onSelectEntry(key, !isSelected)}
-                  ariaLabel={`Select ${row.source} from ${row.dictionaryLabel}`}
-                />
-                <TableCell
-                  lang="zh"
-                  className={`${styles.cell} ${styles.duplicateSourceCol} lk-face-chinese`}
-                >
-                  {row.source}
-                </TableCell>
-                <TableCell className={`${styles.cell} ${styles.duplicateTranslationCol}`}>
-                  {row.translation}
-                </TableCell>
-                <TableCell
-                  className={`${styles.cell} ${styles.duplicateDictionaryCol}`}
-                  style={{
-                    fontSize: '0.8125rem',
-                    color: 'var(--lk-text-muted)',
-                    ...TIER_LABEL_STYLE[tierOf(row.dictionaryId)],
-                  }}
-                >
-                  {row.dictionaryLabel}
-                </TableCell>
-                <EntrySemanticCell
-                  dictionaryId={row.dictionaryId}
-                  source={row.source}
-                  allowAsPatternVariable={row.metadata?.allowAsPatternVariable === true}
-                  semanticType={row.metadata?.semanticType ?? ''}
-                  onSelect={(type) => onSetSemanticType?.(row, type)}
-                  width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
-                  rowLabel={`${row.source} in ${row.dictionaryLabel}`}
-                />
-              </RowShell>
-            </div>
-          );
-        })}
-      </div>
-    </>
+              {row.dictionaryLabel}
+            </TableCell>
+            <EntrySemanticCell
+              dictionaryId={row.dictionaryId}
+              source={row.source}
+              allowAsPatternVariable={row.metadata?.allowAsPatternVariable === true}
+              semanticType={row.metadata?.semanticType ?? ''}
+              onSelect={(type) => onSetSemanticType?.(row, type)}
+              width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
+              rowLabel={`${row.source} in ${row.dictionaryLabel}`}
+            />
+          </RowShell>
+        );
+      }}
+      style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+    />
   );
 
   return (
@@ -176,13 +148,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
           Semantic
         </TableHeaderCell>
       </TableHeader>
-      {menu ? (
-        <EntryContextMenu menu={menu} body={body}>
-          {rows}
-        </EntryContextMenu>
-      ) : (
-        React.cloneElement(body, undefined, rows)
-      )}
+      {menu ? <EntryContextMenu menu={menu} body={body} /> : body}
     </Table>
   );
 };
