@@ -9,10 +9,7 @@ import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 import {
-  filterByLength,
-  filterByRule,
-  limitToTop,
-  sortRanked,
+  candidateListView,
   type CandidateSort,
   type LengthFilter,
   type RankLimit,
@@ -430,13 +427,12 @@ const CandidateList: React.FC<{
   // does not, since pattern coverage was applied when the run landed.
   const { rank } = adder;
   const ranked = useMemo(() => rank(candidates), [rank, candidates]);
-  const notDismissed = ranked.filter((row) => !dismissals.names.includes(row.candidate.text));
-  const unadded = notDismissed.filter((row) => !adder.isAdded(row.candidate.text));
-  const remaining = sortRanked(
-    limitToTop(filterByLength(filterByRule(unadded, filter), length), limit),
-    sort
-  );
-  const added = notDismissed.length - unadded.length;
+  const { rows: remaining, added } = candidateListView(ranked, dismissals.names, adder.isAdded, {
+    filter,
+    length,
+    limit,
+    sort,
+  });
 
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const patchDraft = (text: string, patch: Partial<RowDraft>): void =>

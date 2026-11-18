@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { CandidateFinderStore, type FinderBackground } from '../CandidateFinderStore';
-import type { FinderDictionaries } from '../CandidateDictionaries';
+import {
+  CandidateFinderStore,
+  type FinderBackground,
+  type FinderRunDictionaries,
+} from '../CandidateFinderStore';
+import type { QuickAddView } from '../../dictionary/QuickAddTarget';
 import type { Candidate, CandidateProgress, CandidateRunResult } from '../../../types/ReaderTypes';
 
 const findCandidates = vi.fn();
@@ -33,8 +37,15 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const DICTIONARIES: FinderDictionaries = {
+const VIEW: QuickAddView = {
+  defaultQuickAddDictionary: 'properNouns-f_Novel',
+  activeProperNouns: ['properNouns-f_Novel'],
+};
+const DONE = { status: 'done' as const, view: VIEW };
+
+const DICTIONARIES: FinderRunDictionaries = {
   ok: true,
+  view: VIEW,
   phrases: ['phrase'],
   activeKeys: ['active'],
   inactive: [{ id: 'properNouns-f_Other', keys: ['other'] }],
@@ -77,7 +88,7 @@ describe('CandidateFinderStore', () => {
       '/library',
       BACKGROUND.books
     );
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
+    expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
     expect(unlisten).toHaveBeenCalled();
   });
 
@@ -169,7 +180,7 @@ describe('CandidateFinderStore', () => {
     store.dispose();
     store.open();
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
+    expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
   });
 
   it('a refused snapshot ends the run with its message and starts nothing', async () => {
@@ -191,7 +202,7 @@ describe('CandidateFinderStore', () => {
     const recovering = makeStore();
     await recovering.run();
     expect(recovering.getSnapshot()).toEqual({
-      status: 'done',
+      ...DONE,
       candidates: NAMES,
       weakFiltering: true,
     });
@@ -209,7 +220,7 @@ describe('CandidateFinderStore', () => {
     await store.run();
 
     expect(store.getSnapshot()).toEqual({
-      status: 'done',
+      ...DONE,
       candidates: NAMES,
       weakFiltering: false,
     });
@@ -229,7 +240,7 @@ describe('CandidateFinderStore', () => {
     await store.run();
     store.cancel();
 
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
+    expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
     expect(cancelCandidateRun).not.toHaveBeenCalled();
   });
 
@@ -261,7 +272,7 @@ describe('CandidateFinderStore', () => {
 
     findCandidates.mockResolvedValue({ candidates: [], weakFiltering: false });
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: [], weakFiltering: false });
+    expect(store.getSnapshot()).toEqual({ ...DONE, candidates: [], weakFiltering: false });
   });
 
   it('a second run call while one is running starts nothing', async () => {
@@ -281,6 +292,38 @@ describe('CandidateFinderStore', () => {
     findCandidates.mockResolvedValue(RESULT);
     const store = makeStore();
     await store.run();
-    expect(store.getSnapshot()).toEqual({ status: 'done', candidates: NAMES, weakFiltering: true });
+    expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
+  });
+
+  it("the list carries the quick-add view its own run read, and only a finished run's", async () => {
+    const rebound: QuickAddView = {
+      defaultQuickAddDictionary: 'properNouns-f_Other',
+      activeProperNouns: ['properNouns-f_Other'],
+    };
+    let view = VIEW;
+    const store = new CandidateFinderStore({
+      fingerprint: 'fp',
+      getDictionaries: async () => ({ ...DICTIONARIES, view }),
+      getBackground: async () => BACKGROUND,
+    });
+    findCandidates.mockResolvedValue(RESULT);
+    await store.run();
+    expect(store.getSnapshot()).toMatchObject({ status: 'done', view: VIEW });
+
+    // A rebind, then a run the reader cancels: it read the new view, but its list never
+    // landed, so nothing is shown that the new view could be paired with.
+    view = rebound;
+    const pending = deferred<CandidateRunResult | null>();
+    findCandidates.mockReturnValue(pending.promise);
+    const cancelled = store.run();
+    await flush();
+    store.cancel();
+    pending.resolve(RESULT);
+    await cancelled;
+    expect(store.getSnapshot()).not.toMatchObject({ view: rebound });
+
+    findCandidates.mockResolvedValue(RESULT);
+    await store.run();
+    expect(store.getSnapshot()).toMatchObject({ status: 'done', view: rebound });
   });
 });

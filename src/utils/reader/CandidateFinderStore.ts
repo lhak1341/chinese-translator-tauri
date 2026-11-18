@@ -7,6 +7,7 @@ import type {
   CandidateStage,
 } from '../../types/ReaderTypes';
 import type { FinderDictionaries } from './CandidateDictionaries';
+import type { QuickAddView } from '../dictionary/QuickAddTarget';
 
 /**
  * One open book's Candidate finder run: starts it, relays its progress, cancels it, and
@@ -32,15 +33,28 @@ export interface CandidateFinderInputs {
   fingerprint: string;
   /** The spread gate's books, read when a run starts like the dictionaries. */
   getBackground: () => Promise<FinderBackground>;
-  /** The dictionaries a run reads, snapshotted at the moment it starts. A refusal (an unread
-   * active dictionary) ends the run with its message. */
-  getDictionaries: () => Promise<FinderDictionaries>;
+  /** The dictionaries a run reads, snapshotted at the moment it starts, with the book's
+   * quick-add view they were read for. A refusal (an unread active dictionary) ends the run
+   * with its message. */
+  getDictionaries: () => Promise<FinderRunDictionaries>;
 }
+
+/** A run's dictionaries and the quick-add view that chose the active ones. */
+export type FinderRunDictionaries =
+  | (Extract<FinderDictionaries, { ok: true }> & { view: QuickAddView })
+  | Extract<FinderDictionaries, { ok: false }>;
 
 export type CandidateFinderSnapshot =
   | { status: 'idle' }
   | { status: 'running'; stage: CandidateStage; percent: number }
-  | { status: 'done'; candidates: Candidate[]; weakFiltering: boolean }
+  | {
+      status: 'done';
+      candidates: Candidate[];
+      weakFiltering: boolean;
+      /** The quick-add view the run read: the list's Add targets come from it, so they always
+       * belong to the run whose list is shown. */
+      view: QuickAddView;
+    }
   | { status: 'error'; message: string };
 
 const IDLE: CandidateFinderSnapshot = { status: 'idle' };
@@ -124,6 +138,7 @@ export class CandidateFinderStore {
                 (candidate) => !dictionaries.isPatternCovered(candidate.text)
               ),
               weakFiltering: result.weakFiltering,
+              view: dictionaries.view,
             }
       );
     } catch (error) {

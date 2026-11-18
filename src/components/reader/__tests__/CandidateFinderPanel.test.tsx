@@ -8,10 +8,21 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import React from 'react';
 import CandidateFinderPanel from '../CandidateFinderPanel';
 import type { CandidateFinderSnapshot } from '../../../utils/reader/CandidateFinderStore';
-import type { CandidateAdder } from '../../../utils/reader/CandidateAdd';
+import { createCandidateAdder, type CandidateAdder } from '../../../utils/reader/CandidateAdd';
+import { rankCandidates } from '../../../utils/reader/CandidateRanking';
+import type { TransformRule } from '../../../types/TransformRuleTypes';
 import type { CandidateDismissals } from '../../../hooks/useCandidateFinder';
 import type { CandidateReading } from '../CandidateFinderPanel';
 import type { CandidateContext } from '../../../types/ReaderTypes';
+import type { QuickAddView } from '../../../utils/dictionary/QuickAddTarget';
+
+/** The quick-add view a run read; the panel never reads it, the adder does. */
+const VIEW: QuickAddView = {
+  defaultQuickAddDictionary: 'properNouns-f_Novel',
+  activeProperNouns: ['properNouns', 'properNouns-f_Novel'],
+};
+/** What every finished run's snapshot starts with. */
+const DONE = { status: 'done' as const, view: VIEW };
 
 function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
   return {
@@ -87,7 +98,7 @@ describe('CandidateFinderPanel', () => {
 
   test('results: one row per candidate with its count and line count, in the order given', () => {
     renderPanel({
-      status: 'done',
+      ...DONE,
       candidates: [
         { text: '滕青山', count: 32, lineCount: 31, alsoIn: [] },
         { text: '云梦泽', count: 12, lineCount: 12, alsoIn: [] },
@@ -108,7 +119,7 @@ describe('CandidateFinderPanel', () => {
 
   test('a candidate held by an inactive dictionary carries an "in X, not active here" tag', () => {
     renderPanel({
-      status: 'done',
+      ...DONE,
       candidates: [
         { text: '滕青山', count: 32, lineCount: 31, alsoIn: ['properNouns-f_Novel'] },
         { text: '云梦泽', count: 12, lineCount: 12, alsoIn: [] },
@@ -125,17 +136,17 @@ describe('CandidateFinderPanel', () => {
   });
 
   test('a run that skipped the spread gate says common-word filtering is weak, listed or not', () => {
-    renderPanel({ status: 'done', candidates: [], weakFiltering: true });
+    renderPanel({ ...DONE, candidates: [], weakFiltering: true });
     expect(screen.getByText(/Common-word filtering is weak/)).toBeTruthy();
   });
 
   test('a run with the spread gate shows no such notice', () => {
-    renderPanel({ status: 'done', candidates: [], weakFiltering: false });
+    renderPanel({ ...DONE, candidates: [], weakFiltering: false });
     expect(screen.queryByText(/Common-word filtering is weak/)).toBeNull();
   });
 
   test('empty result: says no new names were found, and offers Run again', () => {
-    const { onRun } = renderPanel({ status: 'done', candidates: [], weakFiltering: false });
+    const { onRun } = renderPanel({ ...DONE, candidates: [], weakFiltering: false });
     expect(screen.getByText('No new names found.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
     expect(onRun).toHaveBeenCalledOnce();
@@ -155,7 +166,7 @@ describe('CandidateFinderPanel', () => {
 
   describe('add one candidate', () => {
     const done = (...texts: string[]): CandidateFinderSnapshot => ({
-      status: 'done',
+      ...DONE,
       candidates: texts.map((text) => ({ text, count: 5, lineCount: 4, alsoIn: [] })),
     });
 
@@ -289,7 +300,7 @@ describe('CandidateFinderPanel', () => {
   });
   describe('dismiss and restore', () => {
     const done = (...texts: string[]): CandidateFinderSnapshot => ({
-      status: 'done',
+      ...DONE,
       candidates: texts.map((text) => ({ text, count: 5, lineCount: 4, alsoIn: [] })),
     });
 
@@ -351,7 +362,7 @@ describe('CandidateFinderPanel', () => {
 
   describe('context lines, glosses and jump', () => {
     const done = (...texts: string[]): CandidateFinderSnapshot => ({
-      status: 'done',
+      ...DONE,
       candidates: texts.map((text) => ({ text, count: 9, lineCount: 7, alsoIn: [] })),
     });
     const contextOf = (total: number): CandidateContext => ({
@@ -452,27 +463,46 @@ describe('CandidateFinderPanel', () => {
     const SWORD = { text: '青云剑法', count: 4, lineCount: 4, alsoIn: [] };
     const NAME = { text: '滕青山', count: 10, lineCount: 10, alsoIn: [] };
     const snapshot = (): CandidateFinderSnapshot => ({
-      status: 'done',
+      ...DONE,
       candidates: [NAME, SWORD],
       weakFiltering: false,
     });
-    // A one-rule adder: names ending 剑法 are objects, ranked first.
-    const ruledAdder = (overrides: Partial<CandidateAdder> = {}): CandidateAdder =>
-      makeAdder({
-        typeFor: (text) =>
-          text.endsWith('剑法')
-            ? { semanticType: 'object', ruled: true }
-            : { semanticType: 'character', ruled: false },
-        rank: (candidates) =>
-          [...candidates]
-            .sort((a, b) => Number(b.text.endsWith('剑法')) - Number(a.text.endsWith('剑法')))
-            .map((candidate) => ({
-              candidate,
-              semanticType: candidate.text.endsWith('剑法') ? 'object' : 'character',
-              ruled: candidate.text.endsWith('剑法'),
-            })),
+    // The real adder over one real rule (names ending 剑法 are objects, boosted ×3, so 青云剑法
+    // at 4 outranks 滕青山 at 10), writing to fakes.
+    const RULES: TransformRule[] = [
+      {
+        id: 'sword',
+        matchKind: 'suffix',
+        key: '剑法',
+        relocate: false,
+        capitalizeExceptN: 0,
+        semanticType: 'object',
+        enabled: true,
+      },
+    ];
+    const OPENED = 'properNouns-f_Novel';
+    const ruledAdder = (overrides: Partial<CandidateAdder> = {}) => {
+      const writers = {
+        addEntry: vi.fn().mockResolvedValue(undefined),
+        addEntries: vi.fn().mockResolvedValue(undefined),
+      };
+      const adder: CandidateAdder = {
+        ...createCandidateAdder({
+          addChoices: { opened: OPENED, choices: [OPENED, 'properNouns'] },
+          // Characters to gloss from, so each row arrives with a translation to add.
+          dictionaries: {
+            properNouns: {},
+            [OPENED]: {},
+            characters: { 青: 'thanh', 云: 'vân', 剑: 'kiếm', 法: 'pháp', 滕: 'đằng', 山: 'sơn' },
+          },
+          rules: RULES,
+          rank: (candidates) => rankCandidates(candidates, RULES, OPENED),
+          writers,
+        }),
         ...overrides,
-      });
+      };
+      return Object.assign(adder, { writers });
+    };
     const order = () =>
       screen
         .getAllByLabelText(/^Translation of /)
@@ -533,22 +563,27 @@ describe('CandidateFinderPanel', () => {
     });
 
     test('Add writes the type shown in the row, including one the reader changed', () => {
-      const adder = ruledAdder();
+      const { writers, ...adder } = ruledAdder();
       renderPanel(snapshot(), adder);
+      const shown = (text: string): string =>
+        (screen.getByLabelText(`Translation of ${text}`) as HTMLInputElement).value;
+      const swordTranslation = shown('青云剑法');
+      expect(swordTranslation).not.toBe('');
       fireEvent.click(screen.getByRole('button', { name: 'Add 青云剑法' }));
-      expect(adder.add).toHaveBeenLastCalledWith(
-        '青云剑法',
+      expect(writers.addEntry).toHaveBeenLastCalledWith(
         'properNouns-f_Novel',
-        'guess:青云剑法',
-        'object'
+        '青云剑法',
+        swordTranslation,
+        { allowAsPatternVariable: false, semanticType: 'object' }
       );
+      const nameTranslation = shown('滕青山');
       fireEvent.click(screen.getByLabelText('Set Location for 滕青山'));
       fireEvent.click(screen.getByRole('button', { name: 'Add 滕青山' }));
-      expect(adder.add).toHaveBeenLastCalledWith(
-        '滕青山',
+      expect(writers.addEntry).toHaveBeenLastCalledWith(
         'properNouns-f_Novel',
-        'guess:滕青山',
-        'location'
+        '滕青山',
+        nameTranslation,
+        { allowAsPatternVariable: false, semanticType: 'location' }
       );
     });
 
@@ -568,7 +603,7 @@ describe('CandidateFinderPanel', () => {
 
   describe('batch add and batch dismiss', () => {
     const three: CandidateFinderSnapshot = {
-      status: 'done',
+      ...DONE,
       candidates: ['滕青山', '云梦泽', '青云剑法'].map((text) => ({
         text,
         count: 5,
@@ -734,5 +769,31 @@ describe('CandidateFinderPanel', () => {
       );
       expect(screen.getByRole('button', { name: 'Dismiss 1' })).toBeTruthy();
     });
+  });
+
+  // The order of the steps is pinned in `CandidateRanking.test.ts` (`candidateListView`); this
+  // checks only that the chips reach it.
+  test('the rank and length chips narrow the listed rows', () => {
+    const threeChar = Array.from({ length: 100 }, (_, i) => ({
+      text: `甲${String(i).padStart(2, '0')}`,
+      count: 200 - i,
+      lineCount: 1,
+      alsoIn: [],
+    }));
+    renderPanel({
+      ...DONE,
+      candidates: [...threeChar, { text: '乙乙', count: 1, lineCount: 1, alsoIn: [] }],
+    });
+    const listed = (): number => screen.getAllByLabelText(/^Translation of /).length;
+    expect(screen.getByRole('button', { name: 'Top 250' }).getAttribute('aria-pressed')).toBe(
+      'true'
+    );
+    expect(listed()).toBe(101);
+    fireEvent.click(screen.getByRole('button', { name: 'Top 100' }));
+    expect(listed()).toBe(100);
+    expect(screen.queryByLabelText('Translation of 乙乙')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '2 chars' }));
+    expect(listed()).toBe(1);
+    expect(screen.getByLabelText('Translation of 乙乙')).toBeTruthy();
   });
 });

@@ -1,5 +1,11 @@
 import { isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
-import { defaultSemanticType, matchingRule } from '../dictionary/TransformRuleEngine';
+import {
+  defaultSemanticType,
+  initialEntryGuess,
+  matchingRule,
+} from '../dictionary/TransformRuleEngine';
+import type { NewEntry } from '../dictionary/DictionaryEdit';
+import type { DictionaryContextInterface, DictionaryData } from '../../types/DictionaryTypes';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 import type { Candidate } from '../../types/ReaderTypes';
@@ -108,4 +114,58 @@ export interface CandidateAdder {
   /** A run's survivors with the Transform Rules' boost, order and cut applied, typed for the
    * opened dictionary. Changes identity only when the rules do, so the panel re-ranks then. */
   rank: (candidates: readonly Candidate[]) => RankedCandidate[];
+}
+
+/** The Dictionary Store's two writes an Add goes through. */
+export type CandidateWriters = Pick<DictionaryContextInterface, 'addEntry' | 'addEntries'>;
+
+export interface CandidateAdderInputs {
+  /** The "Add to" dropdown, from the quick-add view the run read (`candidateAddChoices`). */
+  addChoices: { opened: string; choices: string[] };
+  /** The Dictionary Store as it is now: an Add changes it, and the row leaves the list. */
+  dictionaries: Record<string, DictionaryData>;
+  rules: TransformRule[];
+  /** Built by the caller over the rules and `addChoices.opened` only, so an Add (new
+   * dictionaries, a new adder) keeps it and the list is not re-ranked. */
+  rank: CandidateAdder['rank'];
+  writers: CandidateWriters;
+}
+
+/** What one row's Add writes: the translation trimmed, never a pattern variable, and the type
+ * shown in the row ('' writes none). Both `add` and `addAll` write through it. */
+function candidateEntry(row: CandidateAddRow): NewEntry {
+  return {
+    dictionaryId: row.dictionaryId,
+    source: row.text,
+    translation: row.translation.trim(),
+    metadata: { allowAsPatternVariable: false, semanticType: row.semanticType || undefined },
+  };
+}
+
+/** The Candidate adder (GLOSSARY.md "Candidate row Add"). Plain, so the panel's tests build the
+ * real one over fake writers. `typeFor`, `typeNote` and `guess` all read the same rules, so
+ * the type a row shows, the note that explains it and the type Add writes agree. */
+export function createCandidateAdder({
+  addChoices: { opened, choices },
+  dictionaries,
+  rules,
+  rank,
+  writers,
+}: CandidateAdderInputs): CandidateAdder {
+  return {
+    opened,
+    choices,
+    isAdded: (text) => isCandidateAdded(text, dictionaries, choices),
+    // The Add form's guess: Transform Rules for a proper-noun target, else the rough gloss.
+    guess: (text, dictionaryId) =>
+      initialEntryGuess(rules, dictionaries, text, dictionaryId).translation,
+    typeNote: (text, dictionaryId) => typeProvenance(rules, text, dictionaryId),
+    typeFor: (text, dictionaryId) => candidateType(rules, text, dictionaryId),
+    rank,
+    add: (text, dictionaryId, translation, semanticType) => {
+      const entry = candidateEntry({ text, dictionaryId, translation, semanticType });
+      return writers.addEntry(entry.dictionaryId, entry.source, entry.translation, entry.metadata);
+    },
+    addAll: (rows) => writers.addEntries(rows.map(candidateEntry)),
+  };
 }

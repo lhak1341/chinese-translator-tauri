@@ -58,7 +58,7 @@ export type RankLimit = 'all' | 100 | 250 | 500;
 
 /** Keeps the first `limit` rows. Applied after the other filters, so "Top 100" of "4 chars" is
  * the 100 likeliest four-character rows, and before the sort, so a sort reorders the kept rows. */
-export function limitToTop(ranked: RankedCandidate[], limit: number | 'all'): RankedCandidate[] {
+function limitToTop(ranked: RankedCandidate[], limit: RankLimit): RankedCandidate[] {
   return limit === 'all' ? ranked : ranked.slice(0, limit);
 }
 
@@ -67,7 +67,7 @@ export type CandidateSort = 'likely' | 'length';
 
 /** Orders ranked rows for display. 'length' is a view over the rows the cut already kept (never
  * a different cut) and is stable, so equal lengths keep their likelihood order. */
-export function sortRanked(ranked: RankedCandidate[], sort: CandidateSort): RankedCandidate[] {
+function sortRanked(ranked: RankedCandidate[], sort: CandidateSort): RankedCandidate[] {
   if (sort === 'likely') return ranked;
   return [...ranked].sort((a, b) => textLength(b.candidate.text) - textLength(a.candidate.text));
 }
@@ -75,7 +75,7 @@ export function sortRanked(ranked: RankedCandidate[], sort: CandidateSort): Rank
 /** The length chips: every row, exactly 2, 3 or 4 characters, or 5 and up. */
 export type LengthFilter = 'all' | 2 | 3 | 4 | '5+';
 
-export function filterByLength(ranked: RankedCandidate[], filter: LengthFilter): RankedCandidate[] {
+function filterByLength(ranked: RankedCandidate[], filter: LengthFilter): RankedCandidate[] {
   if (filter === 'all') return ranked;
   return ranked.filter((row) => {
     const length = textLength(row.candidate.text);
@@ -83,7 +83,45 @@ export function filterByLength(ranked: RankedCandidate[], filter: LengthFilter):
   });
 }
 
-export function filterByRule(ranked: RankedCandidate[], filter: RuleFilter): RankedCandidate[] {
+function filterByRule(ranked: RankedCandidate[], filter: RuleFilter): RankedCandidate[] {
   if (filter === 'all') return ranked;
   return ranked.filter((row) => row.ruled === (filter === 'rule'));
+}
+
+/** The panel's four chip groups. */
+export interface CandidateListChips {
+  filter: RuleFilter;
+  length: LengthFilter;
+  limit: RankLimit;
+  sort: CandidateSort;
+}
+
+export interface CandidateListView {
+  /** The rows the panel lists, in display order. */
+  rows: RankedCandidate[];
+  /** Rows the dictionaries came to hold since the run, dismissed ones aside, whatever the chips. */
+  added: number;
+}
+
+/**
+ * The **Candidate list view** (GLOSSARY.md): from the ranked survivors to the rows the panel
+ * shows. The order is ADR-111's (addendum 2026-11-08): dismissed and added rows leave first,
+ * then the rule and length chips filter, then the Top N cut, then the sort. Because the cut
+ * comes after the removals, Top N refills as the reader adds or dismisses: an Add under
+ * Top 250 brings rank 251 into view.
+ */
+export function candidateListView(
+  ranked: RankedCandidate[],
+  dismissed: readonly string[],
+  isAdded: (text: string) => boolean,
+  chips: CandidateListChips
+): CandidateListView {
+  const dismissedSet = new Set(dismissed);
+  const notDismissed = ranked.filter((row) => !dismissedSet.has(row.candidate.text));
+  const unadded = notDismissed.filter((row) => !isAdded(row.candidate.text));
+  const filtered = filterByLength(filterByRule(unadded, chips.filter), chips.length);
+  return {
+    rows: sortRanked(limitToTop(filtered, chips.limit), chips.sort),
+    added: notDismissed.length - unadded.length,
+  };
 }

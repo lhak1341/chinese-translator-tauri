@@ -2,14 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { useBookBinding } from '../components/BookBindingContext';
 import { useTransformRules } from './useTransformRules';
-import { initialEntryGuess } from '../utils/dictionary/TransformRuleEngine';
 import type { Candidate } from '../types/ReaderTypes';
-import type { QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import {
   candidateAddChoices,
-  isCandidateAdded,
-  candidateType,
-  typeProvenance,
+  createCandidateAdder,
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
 import { rankCandidates } from '../utils/reader/CandidateRanking';
@@ -68,8 +64,6 @@ const NONE_DISMISSED: string[] = [];
 export function useCandidateFinder(fingerprint: string): CandidateFinder {
   const { dictionaries, unreadDictionaryIds, addEntry, addEntries } = useDictionary();
   const { rules } = useTransformRules();
-  // The book's quick-add view as of the last run: it says which dictionaries are active.
-  const [view, setView] = useState<QuickAddView | null>(null);
   const { loadQuickAddView } = useBookBinding();
   const dictionariesRef = useRef({ dictionaries, unreadDictionaryIds });
   dictionariesRef.current = { dictionaries, unreadDictionaryIds };
@@ -95,13 +89,13 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
           if (!view) {
             return { ok: false, message: "Can't run: the configuration couldn't be read." };
           }
-          setView(view);
           const { dictionaries, unreadDictionaryIds } = dictionariesRef.current;
-          return snapshotFinderDictionaries(
+          const finder = snapshotFinderDictionaries(
             dictionaries,
             unreadDictionaryIds,
             view.activeProperNouns
           );
+          return finder.ok ? { ...finder, view } : finder;
         },
       })
   );
@@ -146,10 +140,10 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     [names, loaded, fingerprint]
   );
 
-  const { opened, choices } = useMemo(
-    () => candidateAddChoices(view, dictionaries),
-    [view, dictionaries]
-  );
+  // The quick-add view of the run whose list is shown: it says which dictionaries are active.
+  const view = snapshot.status === 'done' ? snapshot.view : null;
+  const addChoices = useMemo(() => candidateAddChoices(view, dictionaries), [view, dictionaries]);
+  const { opened } = addChoices;
   // Apart from the adder so adding an entry (new dictionaries) does not re-rank the list: it
   // reads no dictionary, since pattern coverage was applied when the run landed.
   const rank = useCallback(
@@ -157,37 +151,17 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
     [rules, opened]
   );
 
-  const adder = useMemo((): CandidateAdder => {
-    // The guess is the Add form's: Transform Rules for a proper-noun target, else the rough gloss.
-    const guess = (text: string, dictionaryId: string) =>
-      initialEntryGuess(rules, dictionaries, text, dictionaryId);
-    return {
-      opened,
-      choices,
-      isAdded: (text) => isCandidateAdded(text, dictionaries, choices),
-      guess: (text, dictionaryId) => guess(text, dictionaryId).translation,
-      typeNote: (text, dictionaryId) => typeProvenance(rules, text, dictionaryId),
-      typeFor: (text, dictionaryId) => candidateType(rules, text, dictionaryId),
-      rank,
-      add: (text, dictionaryId, translation, semanticType) =>
-        addEntry(dictionaryId, text, translation.trim(), {
-          allowAsPatternVariable: false,
-          semanticType: semanticType || undefined,
-        }),
-      addAll: (rows) =>
-        addEntries(
-          rows.map(({ text, dictionaryId, translation, semanticType }) => ({
-            dictionaryId,
-            source: text,
-            translation: translation.trim(),
-            metadata: {
-              allowAsPatternVariable: false,
-              semanticType: semanticType || undefined,
-            },
-          }))
-        ),
-    };
-  }, [opened, choices, dictionaries, rules, rank, addEntry, addEntries]);
+  const adder = useMemo(
+    (): CandidateAdder =>
+      createCandidateAdder({
+        addChoices,
+        dictionaries,
+        rules,
+        rank,
+        writers: { addEntry, addEntries },
+      }),
+    [addChoices, dictionaries, rules, rank, addEntry, addEntries]
+  );
 
   return {
     snapshot,
