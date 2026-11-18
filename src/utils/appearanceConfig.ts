@@ -1,7 +1,13 @@
 import { TYPE } from '@lhak/style';
 import { createAppFile } from './appFile';
-import { lineHeightToPx } from './ui/CssLength';
-import type { AppearanceSettings, FontSettings, ReadingFace, Theme } from '../types/ComponentTypes';
+import { isTextProperty, parseAppearanceValue } from './appearanceProperties';
+import type {
+  AppearanceSettings,
+  ChineseFontSettings,
+  ReadingFace,
+  ReadingFontSettings,
+  Theme,
+} from '../types/ComponentTypes';
 
 /** The token px sizes as the rem the fields hold. The app never sets a root size, so 1rem = 16px. */
 const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
@@ -10,7 +16,7 @@ const rem = (px: number) => `${Number((px / 16).toFixed(4))}rem`;
 const READING_LINE_HEIGHT = String(TYPE.reading.lineHeight);
 
 // Serif by default. The family, tracking and weight are what Custom starts from: Bookerly's.
-const reading: FontSettings = {
+const reading: ReadingFontSettings = {
   face: 'serif',
   fontFamily: TYPE.faces['reading-serif'].family,
   fontSize: rem(TYPE.reading.size),
@@ -44,58 +50,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseFaceMigrated: true,
 };
 
-/**
- * What the letter-spacing field held before it was a free-text CSS value, mapped to the
- * lengths those words meant. Saved settings still carry them, and `letter-spacing: tight`
- * is not valid CSS — it was being dropped by the browser, so a book set to `tight` was
- * rendered at `normal` and the setting appeared to do nothing.
- */
-const LEGACY_LETTER_SPACINGS: Record<string, string> = {
-  tight: '-0.02em',
-  wide: '0.05em',
-};
-
-/** `normal` or a length in a unit that means the same thing everywhere it is used. */
-const LETTER_SPACING_LENGTH = /^-?\d*\.?\d+(px|rem|em)$/;
 const THEMES: Theme[] = ['light', 'dark', 'auto'];
-
-/**
- * The stored letter spacing as a usable CSS value, or `null` when it is not one.
- *
- * Validated on the way *in* rather than on the way out: the field is free text, so this is
- * the only place a typo can be caught — and it must accept what the field's own
- * placeholder tells the reader to type, which a fixed set of keywords did not.
- */
-function normalizeLetterSpacing(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const value = v.trim();
-  if (value === 'normal') return 'normal';
-  return LEGACY_LETTER_SPACINGS[value] ?? (LETTER_SPACING_LENGTH.test(value) ? value : null);
-}
-
-/**
- * The stored line height as a usable CSS value, or `null` when it is not one. Validated on
- * the way in for the same reason as letter spacing: the field is free text, and a value the
- * browser drops would leave the panel at its inherited line height with no sign why.
- * Accepts `normal` and whatever the Reader's row estimate can resolve (`lineHeightToPx`),
- * so the two never disagree about what a line height is.
- */
-function normalizeLineHeight(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const value = v.trim();
-  if (value === 'normal') return value;
-  return lineHeightToPx(value, { rootFontSizePx: 16, fontSizePx: 16 }) === null ? null : value;
-}
-
-/** A numeric CSS font weight (1-1000) as text, or `null` when it is not one. */
-function normalizeFontWeight(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const value = v.trim();
-  if (!/^\d+$/.test(value)) return null;
-  const n = Number(value);
-  return n >= 1 && n <= 1000 ? String(n) : null;
-}
-
 const FACES: ReadingFace[] = ['serif', 'sans', 'custom'];
 
 /**
@@ -119,31 +74,34 @@ function isTheme(v: unknown): v is Theme {
   return typeof v === 'string' && (THEMES as string[]).includes(v);
 }
 
-function fromRawFontSettings(raw: unknown, defaults: FontSettings): FontSettings {
-  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const result = { ...defaults };
-  if (typeof obj.fontFamily === 'string') result.fontFamily = obj.fontFamily;
-  if (typeof obj.fontSize === 'string') result.fontSize = obj.fontSize;
-  const letterSpacing = normalizeLetterSpacing(obj.letterSpacing);
-  if (letterSpacing !== null) result.letterSpacing = letterSpacing;
-  const lineHeight = normalizeLineHeight(obj.lineHeight);
-  if (lineHeight !== null) result.lineHeight = lineHeight;
-  if (typeof obj.paragraphSpacing === 'string') result.paragraphSpacing = obj.paragraphSpacing;
-  if (defaults.face !== undefined) {
-    const fontWeight = normalizeFontWeight(obj.fontWeight);
-    if (fontWeight !== null) result.fontWeight = fontWeight;
-    // The same CSS values as letter spacing, minus its legacy keywords.
-    const wordSpacing =
-      typeof obj.wordSpacing === 'string' && !(obj.wordSpacing.trim() in LEGACY_LETTER_SPACINGS)
-        ? normalizeLetterSpacing(obj.wordSpacing)
-        : null;
-    if (wordSpacing !== null) result.wordSpacing = wordSpacing;
-    result.face = (FACES as unknown[]).includes(obj.face)
-      ? (obj.face as ReadingFace)
-      : typeof obj.fontFamily === 'string'
-        ? inferFace(obj.fontFamily)
-        : defaults.face;
+/** Each text field a section has (its defaults' keys), checked by its Appearance property: a
+ * value the property rejects keeps the default, and its siblings are kept. */
+function fromRawText<T extends ChineseFontSettings>(obj: Record<string, unknown>, defaults: T): T {
+  const result: Record<string, unknown> = { ...(defaults as object) };
+  for (const property of Object.keys(defaults)) {
+    if (!isTextProperty(property)) continue;
+    const value = parseAppearanceValue(property, obj[property]);
+    if (value !== null) result[property] = value;
   }
+  return result as T;
+}
+
+function asRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+}
+
+function fromRawChinese(raw: unknown, defaults: ChineseFontSettings): ChineseFontSettings {
+  return fromRawText(asRecord(raw), defaults);
+}
+
+function fromRawReading(raw: unknown, defaults: ReadingFontSettings): ReadingFontSettings {
+  const obj = asRecord(raw);
+  const result = fromRawText(obj, defaults);
+  result.face = (FACES as unknown[]).includes(obj.face)
+    ? (obj.face as ReadingFace)
+    : typeof obj.fontFamily === 'string'
+      ? inferFace(obj.fontFamily)
+      : defaults.face;
   return result;
 }
 
@@ -160,7 +118,7 @@ function fromRawUiFont(
 }
 
 export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
-  const chineseText = fromRawFontSettings(raw.chineseText, DEFAULT_APPEARANCE.chineseText);
+  const chineseText = fromRawChinese(raw.chineseText, DEFAULT_APPEARANCE.chineseText);
   // A file saved before the type tokens holds the old Chinese face (Maple Mono): it moves to
   // the Obsidian mix once. The flag is written with the next save, so a face picked after
   // the move is kept.
@@ -169,8 +127,8 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
   }
   return {
     chineseText,
-    fullTranslation: fromRawFontSettings(raw.fullTranslation, DEFAULT_APPEARANCE.fullTranslation),
-    characterOnly: fromRawFontSettings(raw.characterOnly, DEFAULT_APPEARANCE.characterOnly),
+    fullTranslation: fromRawReading(raw.fullTranslation, DEFAULT_APPEARANCE.fullTranslation),
+    characterOnly: fromRawReading(raw.characterOnly, DEFAULT_APPEARANCE.characterOnly),
     uiFont: fromRawUiFont(raw.uiFont, DEFAULT_APPEARANCE.uiFont),
     theme: isTheme(raw.theme) ? raw.theme : DEFAULT_APPEARANCE.theme,
     characterOnlyFollowsFullTranslation:

@@ -445,3 +445,44 @@ describe('appearanceConfig — reading faces (Serif / Sans / Custom)', () => {
       ).toBe('400');
   });
 });
+
+describe('appearanceConfig — the fields that had no check (Appearance properties)', () => {
+  it('a saved letter spacing named like an Object prototype key is not a legacy keyword', () => {
+    // The legacy keywords were a plain object, so `constructor` came back as a function.
+    for (const letterSpacing of ['constructor', 'toString', '__proto__'])
+      expect(fromRaw({ chineseText: { letterSpacing } }).chineseText.letterSpacing).toBe(
+        DEFAULT_APPEARANCE.chineseText.letterSpacing
+      );
+  });
+
+  it('still maps the legacy letter-spacing keywords to their lengths', () => {
+    expect(fromRaw({ chineseText: { letterSpacing: 'tight' } }).chineseText.letterSpacing).toBe(
+      '-0.02em'
+    );
+  });
+
+  it("keeps only a paragraph spacing the Reader's row estimate can resolve", () => {
+    for (const paragraphSpacing of ['12pt', '5%', '12', '-1rem'])
+      expect(
+        fromRaw({ fullTranslation: { paragraphSpacing } }).fullTranslation.paragraphSpacing
+      ).toBe(DEFAULT_APPEARANCE.fullTranslation.paragraphSpacing);
+    expect(
+      fromRaw({ chineseText: { paragraphSpacing: '1.5em' } }).chineseText.paragraphSpacing
+    ).toBe('1.5em');
+  });
+
+  it('keeps a positive font size in px, rem, em or pt and drops anything else', () => {
+    expect(fromRaw({ chineseText: { fontSize: '14pt' } }).chineseText.fontSize).toBe('14pt');
+    for (const fontSize of ['0rem', '-1rem', 'big', '5%', '12'])
+      expect(fromRaw({ chineseText: { fontSize } }).chineseText.fontSize).toBe(
+        DEFAULT_APPEARANCE.chineseText.fontSize
+      );
+  });
+
+  it('drops an empty font family', () => {
+    // Full translation: a Chinese family is reset anyway until the face move is recorded.
+    expect(fromRaw({ fullTranslation: { fontFamily: '  ' } }).fullTranslation.fontFamily).toBe(
+      DEFAULT_APPEARANCE.fullTranslation.fontFamily
+    );
+  });
+});

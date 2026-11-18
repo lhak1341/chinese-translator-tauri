@@ -218,6 +218,73 @@ describe('handleFontChange', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Typed text the field's Appearance property rejects
+// ---------------------------------------------------------------------------
+describe('rejected typed text', () => {
+  const type = (
+    result: { current: ReturnType<typeof useAppearanceSettings> },
+    section: string,
+    property: string,
+    value: string
+  ) =>
+    act(() =>
+      result.current.handleInputChange({
+        target: { dataset: { section, property }, value },
+      } as unknown as React.ChangeEvent<HTMLInputElement>)
+    );
+
+  it('is held as field text and reaches neither the settings nor the CSS variable', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const setProperty = vi.spyOn(document.documentElement.style, 'setProperty');
+
+    type(result, 'chineseText', 'lineHeight', '1.8x');
+
+    expect(result.current.rejectedText).toEqual({ 'chineseText.lineHeight': '1.8x' });
+    expect(result.current.appearance.chineseText.lineHeight).toBe(
+      DEFAULT_APPEARANCE.chineseText.lineHeight
+    );
+    expect(setProperty).not.toHaveBeenCalledWith('--chinese-text-line-height', '1.8x');
+  });
+
+  it('a blur drops it and saves nothing', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    type(result, 'fullTranslation', 'paragraphSpacing', '12pt');
+    await act(() => result.current.handleAutoSave());
+
+    expect(result.current.rejectedText).toEqual({});
+    expect(result.current.appearance.fullTranslation.paragraphSpacing).toBe('1rem');
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it('typing on to an accepted value applies it and clears the mark', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    type(result, 'chineseText', 'fontSize', '2re');
+    type(result, 'chineseText', 'fontSize', '2rem');
+
+    expect(result.current.rejectedText).toEqual({});
+    expect(result.current.appearance.chineseText.fontSize).toBe('2rem');
+  });
+
+  it('the UI Font takes any text, empty included (it restores the kit face)', async () => {
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    type(result, 'uiFont', 'fontFamily', '');
+
+    expect(result.current.rejectedText).toEqual({});
+    expect(result.current.appearance.uiFont.fontFamily).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // handleAutoSave
 // ---------------------------------------------------------------------------
 describe('handleAutoSave', () => {

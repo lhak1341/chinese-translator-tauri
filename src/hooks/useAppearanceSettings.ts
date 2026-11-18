@@ -15,6 +15,7 @@ import {
   type AppearanceSection,
   type FontProperty,
 } from '../utils/ui/AppearanceReducer';
+import { isTextProperty, parseAppearanceValue } from '../utils/appearanceProperties';
 
 export type { AppearanceSection, FontProperty } from '../utils/ui/AppearanceReducer';
 export { DEFAULT_APPEARANCE } from '../utils/appearanceConfig';
@@ -23,6 +24,10 @@ export function useAppearanceSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Text typed into a field that its Appearance property does not accept, by
+  // `section.property`. The field shows it, marked invalid; the settings (and so the CSS
+  // variables and the file) keep the last value it accepted. A blur or reset drops it.
+  const [rejectedText, setRejectedText] = useState<Record<string, string>>({});
 
   // Ref mirror so async handlers always read current appearance without closing over stale state.
   const appearanceRef = useRef(appearance);
@@ -50,12 +55,25 @@ export function useAppearanceSettings() {
 
   const handleFontChange = useCallback(
     (section: AppearanceSection, property: FontProperty, value: string): void => {
-      setAppearance((prev) => applyFontChange(prev, section, property, value));
+      const key = `${section}.${property}`;
+      // The UI Font is not a text box: any family, and empty restores the kit's.
+      const accepted =
+        section === 'uiFont' || !isTextProperty(property)
+          ? value
+          : parseAppearanceValue(property, value);
+      if (accepted === null) {
+        setRejectedText((prev) => ({ ...prev, [key]: value }));
+        return;
+      }
+      setRejectedText((prev) => withoutKey(prev, key));
+      setAppearance((prev) => applyFontChange(prev, section, property, accepted));
     },
     []
   );
 
+  // A blur puts every field back to the value it holds; an unchanged file is not rewritten.
   const handleAutoSave = useCallback(async (): Promise<void> => {
+    setRejectedText({});
     try {
       await saveAppearanceConfig(appearanceRef.current);
       setError(null);
@@ -110,6 +128,7 @@ export function useAppearanceSettings() {
   const resetToDefault = useCallback(
     async (section: AppearanceSection, property: FontProperty): Promise<void> => {
       const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
+      setRejectedText((prev) => withoutKey(prev, `${section}.${property}`));
       setAppearance(next);
       try {
         await saveAppearanceConfig(next);
@@ -143,6 +162,7 @@ export function useAppearanceSettings() {
 
   return {
     appearance,
+    rejectedText,
     isLoading,
     error,
     handleInputChange,
@@ -152,4 +172,11 @@ export function useAppearanceSettings() {
     handleUiScaleChange,
     handleFaceChange,
   };
+}
+
+function withoutKey(record: Record<string, string>, key: string): Record<string, string> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
 }

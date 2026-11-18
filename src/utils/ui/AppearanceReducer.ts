@@ -1,30 +1,29 @@
 import { TYPE } from '@lhak/style';
-import type { AppearanceSettings, FontSettings } from '../../types/ComponentTypes';
+import type {
+  AppearanceSettings,
+  ChineseFontSettings,
+  ReadingFontSettings,
+} from '../../types/ComponentTypes';
+import { appearanceCssVar, isTextProperty, type FontSection } from '../appearanceProperties';
 
-export type AppearanceSection = 'chineseText' | 'fullTranslation' | 'characterOnly' | 'uiFont';
-export type FontProperty =
-  | 'face'
-  | 'fontFamily'
-  | 'fontSize'
-  | 'fontWeight'
-  | 'letterSpacing'
-  | 'wordSpacing'
-  | 'lineHeight'
-  | 'paragraphSpacing';
+export type AppearanceSection = FontSection | 'uiFont';
+export type FontProperty = keyof ReadingFontSettings;
+
+const FONT_SECTIONS: FontSection[] = ['chineseText', 'fullTranslation', 'characterOnly'];
 
 /**
  * The family, tracking and weight a reading box renders: Serif and Sans are the kit's
- * Bookerly and Work Sans at their own weight and tracking (FanFiction Reader's rule); Custom,
- * or a section without a face (Chinese), is the saved stack, tracking and weight.
+ * Bookerly and Work Sans at their own weight and tracking (FanFiction Reader's rule); Custom
+ * is the saved stack, tracking and weight.
  */
-export function resolveReadingType(fs: FontSettings): {
+export function resolveReadingType(fs: ReadingFontSettings): {
   fontFamily: string;
   letterSpacing: string;
   fontWeight: string;
   wordSpacing: string;
 } {
   // Word spacing is the reader's on Sans and Custom; Serif keeps the face's own (normal).
-  const wordSpacing = fs.face === 'serif' ? 'normal' : (fs.wordSpacing ?? 'normal');
+  const wordSpacing = fs.face === 'serif' ? 'normal' : fs.wordSpacing;
   if (fs.face === 'serif' || fs.face === 'sans') {
     const face = TYPE.faces[fs.face === 'serif' ? 'reading-serif' : 'reading-sans'];
     return {
@@ -37,9 +36,19 @@ export function resolveReadingType(fs: FontSettings): {
   return {
     fontFamily: fs.fontFamily,
     letterSpacing: fs.letterSpacing,
-    fontWeight: fs.fontWeight ?? '400',
+    fontWeight: fs.fontWeight,
     wordSpacing,
   };
+}
+
+/** What a box renders: its settings, with a reading box's face applied. */
+function renderedSection(
+  appearance: AppearanceSettings,
+  section: FontSection
+): ChineseFontSettings | ReadingFontSettings {
+  if (section === 'chineseText') return appearance.chineseText;
+  const fs = appearance[section];
+  return { ...fs, ...resolveReadingType(fs) };
 }
 
 /**
@@ -77,38 +86,18 @@ export function applyFollowFullTranslation(
   return { ...current, characterOnlyFollowsFullTranslation: false };
 }
 
+/**
+ * Write every box's settings to its CSS custom properties (`appearanceCssVar`), then the UI
+ * Font and size to the kit's. The one writer of `<html>`'s inline style.
+ */
 export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
   const root = document.documentElement;
-  root.style.setProperty('--chinese-text-font', appearance.chineseText.fontFamily);
-  root.style.setProperty('--chinese-text-size', appearance.chineseText.fontSize);
-  root.style.setProperty('--chinese-text-spacing', appearance.chineseText.letterSpacing);
-  root.style.setProperty('--chinese-text-line-height', appearance.chineseText.lineHeight);
-  root.style.setProperty(
-    '--chinese-text-paragraph-spacing',
-    appearance.chineseText.paragraphSpacing ?? '1rem'
-  );
-  const full = resolveReadingType(appearance.fullTranslation);
-  root.style.setProperty('--full-translation-font', full.fontFamily);
-  root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
-  root.style.setProperty('--full-translation-spacing', full.letterSpacing);
-  root.style.setProperty('--full-translation-weight', full.fontWeight);
-  root.style.setProperty('--full-translation-word-spacing', full.wordSpacing);
-  root.style.setProperty('--full-translation-line-height', appearance.fullTranslation.lineHeight);
-  root.style.setProperty(
-    '--full-translation-paragraph-spacing',
-    appearance.fullTranslation.paragraphSpacing ?? '1rem'
-  );
-  const charOnly = resolveReadingType(appearance.characterOnly);
-  root.style.setProperty('--character-only-font', charOnly.fontFamily);
-  root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
-  root.style.setProperty('--character-only-spacing', charOnly.letterSpacing);
-  root.style.setProperty('--character-only-weight', charOnly.fontWeight);
-  root.style.setProperty('--character-only-word-spacing', charOnly.wordSpacing);
-  root.style.setProperty('--character-only-line-height', appearance.characterOnly.lineHeight);
-  root.style.setProperty(
-    '--character-only-paragraph-spacing',
-    appearance.characterOnly.paragraphSpacing ?? '1rem'
-  );
+  for (const section of FONT_SECTIONS) {
+    for (const [property, value] of Object.entries(renderedSection(appearance, section))) {
+      if (isTextProperty(property))
+        root.style.setProperty(appearanceCssVar(section, property), value);
+    }
+  }
   root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
   applyUiFontToKit(root, appearance.uiFont.fontFamily);
   applyUiScaleToKit(root, appearance.uiFont.scale ?? 1);

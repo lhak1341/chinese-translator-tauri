@@ -13,6 +13,7 @@ import { fromRaw } from '../../../utils/appearanceConfig';
 vi.mock('../../../hooks/useAppearanceSettings', () => ({
   useAppearanceSettings: () => ({
     appearance: fromRaw({}),
+    rejectedText: {},
     isLoading: false,
     error: null,
     handleInputChange: vi.fn(),

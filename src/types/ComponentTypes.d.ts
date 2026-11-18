@@ -97,33 +97,37 @@ export interface AppConfiguration {
 // =============================================================================
 
 /**
- * Font settings for a text area
+ * The Chinese Text Box's settings. Every value is free text in the Appearance tab, checked by
+ * its Appearance property (`src/utils/appearanceProperties.ts`) on load and as it is typed.
  */
-export interface FontSettings {
-  /** Font family name */
+export interface ChineseFontSettings {
+  /** Font family list: any non-empty text. */
   fontFamily: string;
-  /** Font size (CSS value, e.g., '1rem', '14px') */
+  /** Font size: a positive length in px, rem, em or pt. */
   fontSize: string;
-  /** Letter spacing: `normal`, or a CSS length ('0.05em', '-0.02em', '1px') — the
-   * Appearance tab's field is free text, and the value is passed to CSS verbatim. */
+  /** Letter spacing: `normal` or a length ('0.05em', '-0.02em', '1px'). */
   letterSpacing: string;
-  /** Line height: `normal`, a unitless ratio ('1.45'), a length or a percentage. Free text
-   * in the Appearance tab, validated on load (appearanceConfig `normalizeLineHeight`). */
+  /** Line height: `normal`, a unitless ratio ('1.45'), a length or a percentage. */
   lineHeight: string;
-  /** Font weight: a number from 1 to 1000 as text ('400'). Used only on Custom (`face`);
-   * Serif and Sans take their face's own weight. Validated on load. */
-  fontWeight?: string;
-  /** Word spacing: `normal` or a CSS length ('-0.05em'). Reading boxes only; used on Sans and
-   * Custom (Serif renders `normal`). Vietnamese spaces every syllable, so a line holds about
-   * twice the gaps of English (adoption ticket 16). Validated on load like letter spacing. */
-  wordSpacing?: string;
-  /** The reading face (Full Translation and Character Only boxes): Serif and Sans are the
-   * kit's Bookerly and Work Sans at their own weight and tracking; Custom uses `fontFamily`,
-   * `letterSpacing` and `fontWeight`. A file saved before faces had none (appearanceConfig
-   * infers it from the stack). */
-  face?: ReadingFace;
-  /** Paragraph spacing (optional, CSS value for margin-bottom, e.g., '1rem', '16px') */
-  paragraphSpacing?: string;
+  /** Space after a paragraph: a length the Reader's row estimate can resolve (px, rem, em). */
+  paragraphSpacing: string;
+}
+
+/**
+ * A reading box's settings (Full Translation and Character Only): the Chinese box's, plus a
+ * face and the two values only Custom or Sans use.
+ */
+export interface ReadingFontSettings extends ChineseFontSettings {
+  /** Serif and Sans are the kit's Bookerly and Work Sans at their own weight and tracking;
+   * Custom uses `fontFamily`, `letterSpacing` and `fontWeight`. A file saved before faces had
+   * none (appearanceConfig infers it from the stack). */
+  face: ReadingFace;
+  /** Font weight: a number from 1 to 1000 as text ('400'). Used only on Custom. */
+  fontWeight: string;
+  /** Word spacing: `normal` or a length ('-0.05em'). Used on Sans and Custom (Serif renders
+   * `normal`). Vietnamese spaces every syllable, so a line holds about twice the gaps of
+   * English (adoption ticket 16). */
+  wordSpacing: string;
 }
 
 /** The reading face choice (lhak-style-guide adoption ticket 16, as FanFiction Reader's). */
@@ -139,14 +143,14 @@ export type Theme = 'light' | 'dark' | 'auto';
  */
 export interface AppearanceSettings {
   /** Font settings for Chinese/original text */
-  chineseText: FontSettings;
+  chineseText: ChineseFontSettings;
   /** Font settings for full translation */
-  fullTranslation: FontSettings;
+  fullTranslation: ReadingFontSettings;
   /** Font settings for character-only translation */
-  characterOnly: FontSettings;
+  characterOnly: ReadingFontSettings;
   /** Font family for UI elements, and the UI size: a scale on the kit's UI steps (1 = 100%;
    * one of `UI_SCALES`, appearanceConfig.ts). A file saved before the size had none. */
-  uiFont: Pick<FontSettings, 'fontFamily'> & { scale?: number };
+  uiFont: { fontFamily: string; scale?: number };
   /** Theme selection */
   theme: Theme;
   /** Whether Character Only Box follows Full Translation Box style */

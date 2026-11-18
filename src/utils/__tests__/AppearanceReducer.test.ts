@@ -22,6 +22,9 @@ const base: AppearanceSettings = {
     letterSpacing: 'normal',
     lineHeight: '1.45',
     paragraphSpacing: '1rem',
+    face: 'custom',
+    fontWeight: '400',
+    wordSpacing: 'normal',
   },
   characterOnly: {
     fontFamily: 'FontC',
@@ -29,6 +32,9 @@ const base: AppearanceSettings = {
     letterSpacing: 'normal',
     lineHeight: '1.45',
     paragraphSpacing: '1rem',
+    face: 'custom',
+    fontWeight: '400',
+    wordSpacing: 'normal',
   },
   uiFont: { fontFamily: 'FontD' },
   theme: 'auto',
@@ -313,5 +319,29 @@ describe('reading faces reach the reading boxes', () => {
       'sans'
     );
     expect(next.characterOnly.face).toBe('sans');
+  });
+});
+
+describe('the variables each box writes (Appearance properties)', () => {
+  it('writes exactly the variables the stylesheets read, Chinese paragraph spacing included', () => {
+    const style = document.documentElement.style;
+    for (const name of Array.from(style)) style.removeProperty(name);
+    applyAppearanceToCssVars({
+      ...base,
+      chineseText: { ...base.chineseText, paragraphSpacing: '2rem' },
+    });
+    const written = Array.from(style)
+      .filter((name) => /^--(chinese-text|full-translation|character-only)-/.test(name))
+      .sort();
+    const box = ['font', 'size', 'spacing', 'line-height', 'paragraph-spacing'];
+    const reading = [...box, 'weight', 'word-spacing'];
+    expect(written).toEqual(
+      [
+        ...box.map((v) => `--chinese-text-${v}`),
+        ...reading.map((v) => `--full-translation-${v}`),
+        ...reading.map((v) => `--character-only-${v}`),
+      ].sort()
+    );
+    expect(style.getPropertyValue('--chinese-text-paragraph-spacing')).toBe('2rem');
   });
 });

@@ -1003,32 +1003,16 @@
   settings identically. The fallbacks are only ever seen before the settings load.
 */
 .paneOriginal {
-  font-family: var(
-    --chinese-text-font,
-    'Noto Sans CJK SC',
-    SimSun,
-    'Microsoft YaHei',
-    Inter,
-    system-ui,
-    Arial,
-    sans-serif
-  );
-  font-size: var(--chinese-text-size, 1.25rem);
+  font-family: var(--chinese-text-font, var(--lk-font-chinese));
+  font-size: var(--chinese-text-size, var(--lk-chinese-size));
   letter-spacing: var(--chinese-text-spacing, normal);
   --reader-line-height: var(--chinese-text-line-height, var(--lk-reading-line-height));
   --reader-paragraph-spacing: var(--chinese-text-paragraph-spacing, 1rem);
 }
 
 .paneTranslation {
-  font-family: var(
-    --full-translation-font,
-    Bookerly,
-    Amstelvar,
-    'Noto Sans CJK SC',
-    Arial,
-    sans-serif
-  );
-  font-size: var(--full-translation-size, 1.25rem);
+  font-family: var(--full-translation-font, var(--lk-font-reading-serif));
+  font-size: var(--full-translation-size, var(--lk-reading-size));
   letter-spacing: var(--full-translation-spacing, normal);
   font-weight: var(--full-translation-weight, 400);
   word-spacing: var(--full-translation-word-spacing, normal);
@@ -1037,15 +1021,8 @@
 }
 
 .paneCharacterOnly {
-  font-family: var(
-    --character-only-font,
-    Bookerly,
-    Amstelvar,
-    'Noto Sans CJK SC',
-    Arial,
-    sans-serif
-  );
-  font-size: var(--character-only-size, 1.25rem);
+  font-family: var(--character-only-font, var(--lk-font-reading-serif));
+  font-size: var(--character-only-size, var(--lk-reading-size));
   letter-spacing: var(--character-only-spacing, normal);
   font-weight: var(--character-only-weight, 400);
   word-spacing: var(--character-only-word-spacing, normal);

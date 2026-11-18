@@ -13,12 +13,9 @@ import {
 import styles from '../../styles/AppearanceManager.module.css';
 import { useAppearanceSettings } from '../../hooks/useAppearanceSettings';
 import { UI_SCALES } from '../../utils/appearanceConfig';
-import {
-  resolveReadingType,
-  type AppearanceSection,
-  type FontProperty,
-} from '../../utils/ui/AppearanceReducer';
-import type { AppearanceSettings, FontSettings, ReadingFace } from '../../types/ComponentTypes';
+import type { AppearanceSection, FontProperty } from '../../utils/ui/AppearanceReducer';
+import { appearanceCssVar, isFontSection, isTextProperty } from '../../utils/appearanceProperties';
+import type { AppearanceSettings, ReadingFace } from '../../types/ComponentTypes';
 
 interface FieldConfig {
   property: FontProperty;
@@ -87,6 +84,11 @@ const FIELD_GROUPS: FieldGroup[] = [
         placeholder: LETTER_SPACING_PLACEHOLDER,
       },
       LINE_HEIGHT_FIELD,
+      {
+        property: 'paragraphSpacing',
+        label: 'Paragraph Spacing:',
+        placeholder: PARAGRAPH_SPACING_PLACEHOLDER,
+      },
     ],
     previewText: '这是中文文本的预览样式。你好世界！',
   },
@@ -170,6 +172,8 @@ interface FontControlRowProps {
   label: string;
   placeholder: string;
   value: string;
+  /** The field holds text its property does not accept (nothing was applied or saved). */
+  invalid: boolean;
   disabled?: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: () => void;
@@ -182,6 +186,7 @@ function FontControlRow({
   label,
   placeholder,
   value,
+  invalid,
   disabled,
   onChange,
   onBlur,
@@ -196,6 +201,7 @@ function FontControlRow({
         id={id}
         type="text"
         value={value}
+        invalid={invalid}
         data-section={section}
         data-property={property}
         onChange={onChange}
@@ -221,6 +227,8 @@ function FontControlRow({
 interface FontControlGroupProps {
   group: FieldGroup;
   appearance: AppearanceSettings;
+  /** Typed text a field's property rejected, by `section.property` (useAppearanceSettings). */
+  rejectedText: Record<string, string>;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: () => void;
   onReset: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -234,6 +242,7 @@ interface FontControlGroupProps {
 function FontControlGroup({
   group,
   appearance,
+  rejectedText,
   onChange,
   onBlur,
   onReset,
@@ -265,15 +274,8 @@ function FontControlGroup({
       )}
       {group.fields.map((field) => {
         if (field.shownOn && face !== undefined && !field.shownOn.includes(face)) return null;
-        const raw = sectionValues[field.property];
-        const value =
-          field.property === 'paragraphSpacing'
-            ? (raw ?? '1rem')
-            : field.property === 'fontWeight'
-              ? (raw ?? '400')
-              : field.property === 'wordSpacing'
-                ? (raw ?? 'normal')
-                : (raw ?? '');
+        const rejected = rejectedText[`${group.section}.${field.property}`];
+        const value = rejected ?? sectionValues[field.property] ?? '';
         return (
           <FontControlRow
             key={field.property}
@@ -282,6 +284,7 @@ function FontControlGroup({
             label={field.label}
             placeholder={field.placeholder}
             value={value}
+            invalid={rejected !== undefined}
             disabled={disabled}
             onChange={onChange}
             onBlur={onBlur}
@@ -291,19 +294,29 @@ function FontControlGroup({
       })}
       {extraRows}
       {group.previewText && (
-        <div
-          className={styles.preview}
-          style={{
-            ...resolveReadingType(appearance[group.section] as FontSettings),
-            fontSize: sectionValues.fontSize,
-            lineHeight: sectionValues.lineHeight,
-          }}
-        >
+        <div className={styles.preview} style={previewStyle(group.section, sectionValues)}>
           {group.previewText}
         </div>
       )}
     </SettingGroup>
   );
+}
+
+/**
+ * The preview reads the box's own CSS variables, so it renders exactly what the box does
+ * (face applied, last accepted values). Paragraph spacing is not a property of one line.
+ */
+function previewStyle(
+  section: AppearanceSection,
+  sectionValues: Record<string, string | undefined>
+): React.CSSProperties {
+  if (!isFontSection(section)) return {};
+  const style: Record<string, string> = {};
+  for (const property of Object.keys(sectionValues)) {
+    if (!isTextProperty(property) || property === 'paragraphSpacing') continue;
+    style[property] = `var(${appearanceCssVar(section, property)})`;
+  }
+  return style;
 }
 
 /** The UI size choices: each scale as a percentage. */
@@ -325,6 +338,7 @@ function ThemeSection() {
 const AppearanceManager: React.FC = () => {
   const {
     appearance,
+    rejectedText,
     isLoading,
     error,
     handleInputChange,
@@ -377,6 +391,7 @@ const AppearanceManager: React.FC = () => {
               key={group.section}
               group={group}
               appearance={appearance}
+              rejectedText={rejectedText}
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}
@@ -392,6 +407,7 @@ const AppearanceManager: React.FC = () => {
               key={group.section}
               group={group}
               appearance={appearance}
+              rejectedText={rejectedText}
               onChange={handleInputChange}
               onBlur={handleAutoSave}
               onReset={handleResetClick}

@@ -607,9 +607,8 @@ const Translator = ({ isActive }) => {
   const inputTextStyle = useMemo(
     () => ({
       ...sharedTextStyle,
-      fontFamily:
-        'var(--chinese-text-font, "Noto Sans CJK SC", SimSun, "Microsoft YaHei", Inter, system-ui, Arial, sans-serif)',
-      fontSize: 'var(--chinese-text-size, 1.25rem)',
+      fontFamily: 'var(--chinese-text-font, var(--lk-font-chinese))',
+      fontSize: 'var(--chinese-text-size, var(--lk-chinese-size))',
       letterSpacing: 'var(--chinese-text-spacing, normal)',
       lineHeight: 'var(--chinese-text-line-height, var(--lk-reading-line-height))',
       flex: 1,
@@ -622,9 +621,8 @@ const Translator = ({ isActive }) => {
   const outputTextStyle = useMemo(
     () => ({
       ...sharedTextStyle,
-      fontFamily:
-        'var(--full-translation-font, Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif)',
-      fontSize: 'var(--full-translation-size, 1.25rem)',
+      fontFamily: 'var(--full-translation-font, var(--lk-font-reading-serif))',
+      fontSize: 'var(--full-translation-size, var(--lk-reading-size))',
       letterSpacing: 'var(--full-translation-spacing, normal)',
       fontWeight: 'var(--full-translation-weight, 400)',
       wordSpacing: 'var(--full-translation-word-spacing, normal)',
@@ -639,9 +637,8 @@ const Translator = ({ isActive }) => {
   const characterOnlyTextStyle = useMemo(
     () => ({
       ...sharedTextStyle,
-      fontFamily:
-        'var(--character-only-font, Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif)',
-      fontSize: 'var(--character-only-size, 1.25rem)',
+      fontFamily: 'var(--character-only-font, var(--lk-font-reading-serif))',
+      fontSize: 'var(--character-only-size, var(--lk-reading-size))',
       letterSpacing: 'var(--character-only-spacing, normal)',
       fontWeight: 'var(--character-only-weight, 400)',
       wordSpacing: 'var(--character-only-word-spacing, normal)',

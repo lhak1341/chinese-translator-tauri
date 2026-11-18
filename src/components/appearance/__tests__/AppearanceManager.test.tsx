@@ -25,6 +25,7 @@ const baseAppearance: AppearanceSettings = {
     fontSize: '1.25rem',
     letterSpacing: 'normal',
     lineHeight: '1.9',
+    paragraphSpacing: '1rem',
   },
   fullTranslation: {
     fontFamily: 'BookerlyFull',
@@ -32,6 +33,9 @@ const baseAppearance: AppearanceSettings = {
     letterSpacing: 'normal',
     lineHeight: '1.6',
     paragraphSpacing: '1rem',
+    face: 'custom',
+    fontWeight: '400',
+    wordSpacing: 'normal',
   },
   characterOnly: {
     fontFamily: 'BookerlyChar',
@@ -39,6 +43,9 @@ const baseAppearance: AppearanceSettings = {
     letterSpacing: 'normal',
     lineHeight: '1.6',
     paragraphSpacing: '1rem',
+    face: 'custom',
+    fontWeight: '400',
+    wordSpacing: 'normal',
   },
   uiFont: { fontFamily: 'InterUI' },
   theme: 'light',
@@ -47,9 +54,10 @@ const baseAppearance: AppearanceSettings = {
 
 let mockHookReturn: ReturnType<typeof buildMockReturn>;
 
-function buildMockReturn(appearance: AppearanceSettings) {
+function buildMockReturn(appearance: AppearanceSettings, rejectedText = {}) {
   return {
     appearance,
+    rejectedText: rejectedText as Record<string, string>,
     isLoading: false,
     error: null as string | null,
     handleInputChange,
@@ -277,9 +285,11 @@ describe('AppearanceManager — line height per section', () => {
     expect(lineHeightInput(container, 'uiFont')).toBeNull();
   });
 
-  test('the preview uses the section line height', () => {
+  test("the preview reads its box's line-height variable", () => {
     render(<AppearanceManager />, { wrapper: ThemeProvider });
-    expect(screen.getByText('这是中文文本的预览样式。你好世界！').style.lineHeight).toBe('1.9');
+    expect(screen.getByText('这是中文文本的预览样式。你好世界！').style.lineHeight).toBe(
+      'var(--chinese-text-line-height)'
+    );
   });
 
   test('character-only line height is locked while it follows full translation', () => {
@@ -348,14 +358,44 @@ describe('AppearanceManager — reading faces (Serif / Sans / Custom)', () => {
     expect(sans('Full Translation Box')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test("the preview shows the face's own weight", () => {
+  // The face's own weight and tracking reach the variables (AppearanceReducer.test.ts); the
+  // preview reads those variables, so it shows what the box does.
+  test("the preview reads its box's variables, not the saved Custom values", () => {
     mockHookReturn = withFaces('sans');
     render(<AppearanceManager />, { wrapper: ThemeProvider });
     const preview = screen.getByText(
       'This is a preview of the full translation style. Hello world!'
     );
     // The inline style itself: happy-dom's toHaveStyle reads none of it back.
-    expect(preview.style.fontWeight).toBe('430');
-    expect(preview.style.letterSpacing).toBe('-0.02em');
+    expect(preview.style.fontWeight).toBe('var(--full-translation-weight)');
+    expect(preview.style.letterSpacing).toBe('var(--full-translation-spacing)');
+    expect(preview.style.fontFamily).toBe('var(--full-translation-font)');
+  });
+});
+
+describe('AppearanceManager — rejected text and Chinese paragraph spacing', () => {
+  test('a field holding rejected text shows it, marked invalid; its siblings are not', () => {
+    mockHookReturn = buildMockReturn(baseAppearance, { 'fullTranslation.fontSize': '1.1remx' });
+    const { container } = render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const size = container.querySelector('#fullTranslation-fontSize') as HTMLInputElement;
+    expect(size.value).toBe('1.1remx');
+    expect(size).toHaveAttribute('aria-invalid', 'true');
+    const lineHeight = container.querySelector('#fullTranslation-lineHeight') as HTMLInputElement;
+    expect(lineHeight).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('the Chinese Text Box offers paragraph spacing, edited as its own field', () => {
+    render(<AppearanceManager />, { wrapper: ThemeProvider });
+    const field = within(screen.getByRole('region', { name: 'Chinese Text Box' })).getByRole(
+      'textbox',
+      { name: 'Paragraph Spacing:' }
+    );
+    expect(field).toHaveValue('1rem');
+    fireEvent.change(field, { target: { value: '2rem' } });
+    const event = handleInputChange.mock.calls[0][0] as React.ChangeEvent<HTMLInputElement>;
+    expect(event.target.dataset).toMatchObject({
+      section: 'chineseText',
+      property: 'paragraphSpacing',
+    });
   });
 });
