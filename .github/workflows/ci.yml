@@ -78,6 +78,9 @@ jobs:
       - name: Type check
         run: bun run type-check
 
+      - name: Type check tests and JavaScript (ratchet)
+        run: bun run type-check:ratchet
+
       - name: Lint
         run: bun run lint
 

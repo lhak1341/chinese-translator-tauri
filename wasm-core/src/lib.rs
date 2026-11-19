@@ -13,7 +13,7 @@
 //
 // ❌ REMOVED SYSTEMS:
 // - Full translation pipeline (Phase 6-7) - Removed due to complexity/reliability issues
-// - See WASM_REMOVAL_MIGRATION_GUIDE.md for historical context
+// - See git show be492346:docs/archive/migrations/WASM_REMOVAL_MIGRATION_GUIDE.md
 //
 // Architecture: Focused WASM features with JavaScript fallbacks
 // See: WASM_RUST_SYSTEMS_MAP.md for complete system documentation

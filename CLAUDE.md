@@ -12,7 +12,8 @@ cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check bo
 cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag. `bunx vitest --run <path>` for single-file iteration bypasses the freshness gate (it lives in the npm script, not vitest) — fast, but re-run the full command before trusting any result that depends on Rust
-bun run type-check  # 0 errors expected; excludes **/*.test.ts(x) — a test file's own type errors surface only at test-run time, not here
+bun run type-check  # 0 errors expected; excludes test files and checks no JavaScript (checkJs: false)
+bun run type-check:ratchet  # tests and JavaScript, engine included (tsconfig.test.json); any new error fails, counts in .type-ratchet-baseline.json only fall
 ```
 
 The full test run, `bun run lint` (the ratchet, over 300 s) and `git commit` (pre-commit hook: prettier, eslint, a full `tsc --noEmit`, over 300 s) each load every core: run them one at a time with `run_in_background`, never side by side. In parallel, untouched engine tests fail on load (`Failed to start forks worker`, 30 s hook timeouts; 2026-11-14) and pass when rerun alone. After a commit, check `git log` rather than trusting the exit code.
@@ -23,7 +24,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 
 ## Architecture
 
-**5-Phase Pipeline (order is immutable):** Pattern → Proper Noun → Number → Phrase → Character. Each phase's `translationSource` string is the discriminator (`getSourcePriority()` returns 999 for any unrecognized string — silently corrupts output; literal `addUnit()` sources are guarded by `TranslationEngine.addUnitCallSites.test.js`, runtime-computed ones are not). **Consumed token contract:** `*_consumed` → `translated` must be `null`; non-`*_consumed` → `translated` must NOT be `null`. Validated by `validateConsumedTokenContract()`.
+**5-Phase Pipeline (order is immutable):** Pattern → Proper Noun → Number → Phrase → Character. Each phase's `translationSource` string is the discriminator (`getSourcePriority()` returns 999 for any unrecognized string — silently corrupts output). `addUnit`/`placeSpan`/`placeGroupedSpan` take a `TranslationLeaderSource`, so a wrong literal fails `type-check` (TS) or `type-check:ratchet` (JS); a source read off an untyped JS object is `any`, and only the runtime log in `TokenClaim.ts` sees it. **Consumed token contract:** `*_consumed` → `translated` must be `null`; non-`*_consumed` → `translated` must NOT be `null`. Validated by `validateConsumedTokenContract()`.
 
 **Dual-Path Architecture:** Character-only and Full-Translation are completely separate rendering/highlighting pipelines with separate entry points (`src/components/char-only/` vs `src/components/full-translation/`). Debug the right one — see `GLOSSARY.md` for which module belongs to which.
 

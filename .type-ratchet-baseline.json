@@ -1,0 +1,735 @@
+{
+  "src/__tests__/EngineAccess.guard.test.js": {
+    "errors": {
+      "TS18048: 'file' is possibly 'undefined'.": 1
+    }
+  },
+  "src/__tests__/tauriAPI.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/components/EngineContext.jsx": {
+    "errors": {
+      "TS2322: Type '{ enginePhase: string; engineRef: RefObject<null>; engineAccess: EngineAccess; engineVersion: number; initError: null; reinitializeEngine: (rawDictionaries: any, options?: {}) => Promise<...>; destroyEngine: () => void; }' is not assignable to type 'undefined'.": 1
+    }
+  },
+  "src/components/Translator.jsx": {
+    "errors": {
+      "TS2322: Type '(options?: { retranslateInput?: boolean | undefined; } | undefined) => Promise<void>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.": 1,
+      "TS2322: Type '(text: any) => Promise<{ status: string; text: string; } | { status: string; reason: string; }>' is not assignable to type '(text: string) => Promise<TranslateTextOutcome>'.": 2,
+      "TS2322: Type 'RefObject<null>' is not assignable to type 'RefObject<HTMLDivElement>'.": 3,
+      "TS2322: Type 'null' is not assignable to type 'SemanticArrays'.": 2,
+      "TS2322: Type 'number | number[]' is not assignable to type 'number | null'.": 1,
+      "TS2322: Type '{ fontFamily: string; fontSize: string; letterSpacing: string; fontWeight: string; wordSpacing: string; lineHeight: string; flex: number; overflowY: string; whiteSpace: string; padding: string; ... 9 more ...; minHeight: number; }' is not assignable to type 'CSSProperties'.": 1,
+      "TS2322: Type '{ fontFamily: string; fontSize: string; letterSpacing: string; fontWeight: string; wordSpacing: string; lineHeight: string; flex: string; minHeight: number; overflowY: string; whiteSpace: string; ... 9 more ...; boxSizing: string; }' is not assignable to type 'CSSProperties'.": 1,
+      "TS2322: Type '{ fontFamily: string; fontSize: string; letterSpacing: string; lineHeight: string; flex: number; overflowY: string; whiteSpace: string; padding: string; backgroundColor: string; color: string; ... 7 more ...; minHeight: number; }' is not assignable to type 'CSSProperties'.": 1,
+      "TS2339: Property 'scrollLeft' does not exist on type 'never'.": 1,
+      "TS2339: Property 'scrollTop' does not exist on type 'never'.": 1,
+      "TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.": 1,
+      "TS2353: Object literal may only specify known properties, and 'debug' does not exist in type 'TranslationOptions'.": 1
+    }
+  },
+  "src/components/__tests__/BookBindingContext.test.tsx": {
+    "untypedMocks": 4
+  },
+  "src/components/__tests__/BookBindingStore.test.ts": {
+    "errors": {
+      "TS2353: Object literal may only specify known properties, and 'error' does not exist in type '{ success: boolean; }'.": 1
+    }
+  },
+  "src/components/__tests__/ClickableTranslationSemantic.test.tsx": {
+    "errors": {
+      "TS2322: Type '{ translatedText: string; semanticArrays: any; direction: string; onSegmentClick: Mock<Procedure>; }' is not assignable to type 'IntrinsicAttributes & ClickableTranslationSemanticProps'.": 1,
+      "TS2322: Type '{ translatedText: string; semanticArrays: undefined; direction: string; onSegmentClick: Mock<Procedure>; }' is not assignable to type 'IntrinsicAttributes & ClickableTranslationSemanticProps'.": 1,
+      "TS2322: Type '{ translatedText: string; semanticArrays: { original: never[]; translated: never[]; metadata: never[]; }; direction: string; onSegmentClick: Mock<Procedure>; }' is not assignable to type 'IntrinsicAttributes & ClickableTranslationSemanticProps'.": 1,
+      "TS2322: Type '{ translatedText: string; semanticArrays: { original: string[]; translated: string[]; metadata: SemanticArrayMetadata[]; }; direction: string; onSegmentClick: Mock<Procedure>; }' is not assignable to type 'IntrinsicAttributes & ClickableTranslationSemanticProps'.": 4
+    }
+  },
+  "src/components/__tests__/EngineContext.access.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/__tests__/EngineContext.boundary.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/__tests__/SegmentedParagraphs.memoization.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/__tests__/TabbedInterface.cmd6.test.tsx": {
+    "errors": {
+      "TS2322: Type 'string' is not assignable to type 'never'.": 3,
+      "TS2322: Type 'string' is not assignable to type 'null | undefined'.": 2
+    },
+    "untypedMocks": 11
+  },
+  "src/components/__tests__/TabbedInterface.renders.test.tsx": {
+    "untypedMocks": 9
+  },
+  "src/components/appearance/__tests__/AppearanceManager.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/appearance/__tests__/AppearanceManager.theme.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/configuration/__tests__/ConfigurationManager.test.tsx": {
+    "untypedMocks": 3
+  },
+  "src/components/configuration/__tests__/useDictionaryConfigManagement.binding.test.tsx": {
+    "errors": {
+      "TS2353: Object literal may only specify known properties, and 'error' does not exist in type '{ success: boolean; }'.": 1
+    },
+    "untypedMocks": 3
+  },
+  "src/components/dictionary/__tests__/CommitFeedback.test.ts": {
+    "errors": {
+      "TS2345: Argument of type '{ readonly status: \"refused\"; readonly changedKeys: readonly [\"a\", \"b\"]; }' is not assignable to parameter of type 'CommitFailure'.": 1,
+      "TS2345: Argument of type '{ readonly status: \"refused\"; readonly changedKeys: readonly [\"a\", \"b\"]; }' is not assignable to parameter of type 'CommitResult'.": 2
+    }
+  },
+  "src/components/dictionary/__tests__/DictionaryContext.test.tsx": {
+    "untypedMocks": 4
+  },
+  "src/components/dictionary/__tests__/DictionaryContext.undo.test.tsx": {
+    "untypedMocks": 4
+  },
+  "src/components/dictionary/__tests__/DictionaryContext.unread.test.tsx": {
+    "untypedMocks": 2
+  },
+  "src/components/dictionary/__tests__/DictionaryEntry.test.tsx": {
+    "untypedMocks": 4
+  },
+  "src/components/dictionary/__tests__/DictionaryManager.composition.test.tsx": {
+    "untypedMocks": 5
+  },
+  "src/components/dictionary/__tests__/DictionaryStore.test.ts": {
+    "errors": {
+      "TS2339: Property 'translation' does not exist on type 'string | DictionaryEntryValue'.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/components/dictionary/__tests__/DictionaryTypes.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/components/dictionary/__tests__/EditCommitter.test.ts": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(dictionaryId: string, entries: DictionaryData) => Promise<{ success: boolean; }>'.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/components/dictionary/__tests__/EnhancedVirtualizedDictionaryTable.test.tsx": {
+    "untypedMocks": 4
+  },
+  "src/components/dictionary/__tests__/MoveDialog.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/dictionary/__tests__/VirtualRowComponent.test.tsx": {
+    "errors": {
+      "TS2322: Type 'string' is not assignable to type 'DictionaryEntryValue'.": 7,
+      "TS2352: Conversion of type 'string' to type 'DictionaryEntryValue' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/components/reader/__tests__/CandidateFinderPanel.test.tsx": {
+    "errors": {
+      "TS2322: Type '{ candidates: { text: string; count: number; lineCount: number; alsoIn: never[]; }[]; status: \"done\"; view: QuickAddView; }' is not assignable to type 'CandidateFinderSnapshot'.": 4,
+      "TS2345: Argument of type '{ candidates: { text: string; count: number; lineCount: number; alsoIn: never[]; }[]; status: \"done\"; view: QuickAddView; }' is not assignable to parameter of type 'CandidateFinderSnapshot'.": 2,
+      "TS2345: Argument of type '{ candidates: { text: string; count: number; lineCount: number; alsoIn: string[]; }[]; status: \"done\"; view: QuickAddView; }' is not assignable to parameter of type 'CandidateFinderSnapshot'.": 1
+    }
+  },
+  "src/components/reader/__tests__/ChapterPanel.test.tsx": {
+    "errors": {
+      "TS2741: Property 'open' is missing in type '{ chapters: Chapters; autoFocusSearch: true; onJump: Mock<Procedure>; onClose: Mock<Procedure>; }' but required in type 'ChapterPanelProps'.": 1
+    }
+  },
+  "src/components/reader/__tests__/ReaderBinding.test.tsx": {
+    "untypedMocks": 2
+  },
+  "src/components/reader/__tests__/ReaderEngineErrorBanner.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/reader/__tests__/ReaderTab.openBook.test.tsx": {
+    "untypedMocks": 8
+  },
+  "src/components/rules/__tests__/NewRuleModal.test.tsx": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '() => void'.": 24
+    }
+  },
+  "src/components/rules/__tests__/RuleMatchesModal.test.tsx": {
+    "untypedMocks": 1
+  },
+  "src/components/rules/__tests__/RuleRow.test.tsx": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(id: string) => Promise<void>'.": 2,
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(rule: TransformRule) => Promise<void>'.": 1,
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(rule: TransformRule) => void'.": 1
+    }
+  },
+  "src/components/rules/__tests__/RulesManager.test.tsx": {
+    "untypedMocks": 2
+  },
+  "src/components/translator/__tests__/TranslatorDisplayPanels.test.tsx": {
+    "errors": {
+      "TS18048: 'props' is possibly 'undefined'.": 7,
+      "TS2352: Conversion of type '{ inputText: string; translatedText: string; characterOnlyText: string; semanticArrays: SemanticArrays; characterOnlySemanticArrays: SemanticArrays; ... 10 more ...; characterOnlyTextRef: { ...; }; }' to type 'TranslatorDisplayPanelsProps' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1,
+      "TS2493: Tuple type '[]' of length '0' has no element at index '0'.": 7,
+      "TS2532: Object is possibly 'undefined'.": 3
+    },
+    "untypedMocks": 5
+  },
+  "src/hooks/__tests__/useAppFile.test.ts": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '() => Promise<unknown>'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useAutoTranslateTrigger.test.ts": {
+    "errors": {
+      "TS2352: Conversion of type '{ success: (message: string, options?: ToastOptions) => void; error: (message: string, options?: ToastOptions) => void; warning: (message: string, options?: ToastOptions) => void; default: (message: string, options?: ToastOptions) => void; }' to type '{ success: Mock<Procedure | Constructable>; error: Mock<Procedure | Constructable>; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useBindingOffer.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useCachePoisoningGuard.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useCandidateFinder.add.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useCandidateFinder.dismiss.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useCandidateFinder.rank.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useChapterOutline.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useChapters.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useCharacterOnlySegments.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useClipboardTranslation.test.ts": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '() => void'.": 1,
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(t: string) => void'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useContextMenu.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useDictionaryCRUD.test.ts": {
+    "errors": {
+      "TS2345: Argument of type 'Mock<Procedure | Constructable>' is not assignable to parameter of type 'RecordEdit'.": 1,
+      "TS2345: Argument of type '{ read: () => Record<string, DictionaryData>; write: (u: Dictionaries) => { [x: string]: DictionaryData; }; save: Mock<Procedure | Constructable>; }' is not assignable to parameter of type 'EditCommitterDeps'.": 1,
+      "TS2345: Argument of type '{ read: () => Record<string, DictionaryData>; write: (updates: Record<string, DictionaryData>) => void; save: Mock<Procedure | Constructable>; }' is not assignable to parameter of type 'EditCommitterDeps'.": 1
+    },
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useDictionaryEntryForm.test.ts": {
+    "untypedMocks": 3
+  },
+  "src/hooks/__tests__/useDictionaryModals.test.js": {
+    "errors": {
+      "TS18047: 'form.props' is possibly 'null'.": 35,
+      "TS18047: 'result.current' is possibly 'null'.": 30,
+      "TS2322: Type 'DictionaryModals' is not assignable to type 'null'.": 1,
+      "TS2322: Type 'string' is not assignable to type 'never'.": 21,
+      "TS2322: Type 'string' is not assignable to type 'null | undefined'.": 6,
+      "TS2339: Property 'mockRejectedValue' does not exist on type '() => Promise<AppConfig>'.": 2,
+      "TS2339: Property 'mockResolvedValue' does not exist on type '() => Promise<AppConfig>'.": 11
+    },
+    "untypedMocks": 6
+  },
+  "src/hooks/__tests__/useEntrySelection.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useForceReload.test.js": {
+    "errors": {
+      "TS2532: Object is possibly 'undefined'.": 2
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useHighlightInteraction.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useHotkeyHandler.test.ts": {
+    "errors": {
+      "TS2345: Argument of type '{ ownTab: \"app\"; }' is not assignable to parameter of type 'HotkeyHandlerOptions'.": 1,
+      "TS2769: No overload matches this call.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useInlineFieldEdit.test.ts": {
+    "errors": {
+      "TS2345: Argument of type 'Mock<Procedure | Constructable>' is not assignable to parameter of type '(newValue: string) => Promise<void>'.": 16
+    }
+  },
+  "src/hooks/__tests__/useLibrary.test.ts": {
+    "untypedMocks": 4
+  },
+  "src/hooks/__tests__/useMoveTargetDictionaries.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useOutlineTranslations.test.ts": {
+    "errors": {
+      "TS2322: Type 'Mock<(text: string) => Promise<string>>' is not assignable to type 'EngineCall<string>'.": 5,
+      "TS2322: Type 'Mock<Procedure>' is not assignable to type 'EngineCall<string>'.": 2
+    }
+  },
+  "src/hooks/__tests__/useReaderCommands.quickAdd.test.ts": {
+    "untypedMocks": 6
+  },
+  "src/hooks/__tests__/useReaderCommands.test.ts": {
+    "errors": {
+      "TS2339: Property 'mockClear' does not exist on type 'never'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/hooks/__tests__/useReaderPanel.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useReaderPanels.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useReadingAnchor.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useReloadExecutionContexts.test.ts": {
+    "errors": {
+      "TS2345: Argument of type '{ destroyEngine: Mock<Procedure>; cancelAllTranslations: Mock<() => { count: number; cleanupComplete: Promise<void>; }>; setIsTranslating: Mock<Procedure>; ... 7 more ...; restoreScrollPositions: Mock<...>; }' is not assignable to parameter of type 'UseForceReloadContextParams'.": 4
+    },
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useReloadRetranslate.test.js": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useScrollPositionManager.test.js": {
+    "errors": {
+      "TS18048: 'positions' is possibly 'undefined'.": 7,
+      "TS2322: Type 'null' is not assignable to type '{ scrollTop: number; scrollLeft: number; scrollHeight: number; clientHeight: number; scrollWidth: number; clientWidth: number; }'.": 2
+    }
+  },
+  "src/hooks/__tests__/useSegmentClickHandler.test.ts": {
+    "errors": {
+      "TS2322: Type '\"translation-to-original\"' is not assignable to type '\"original-to-translation\"'.": 1
+    }
+  },
+  "src/hooks/__tests__/useStreamingTranslation.test.js": {
+    "errors": {
+      "TS2353: Object literal may only specify known properties, and 'progress' does not exist in type 'Partial<Omit<StreamingTranslationState, \"progress\">>'.": 1
+    }
+  },
+  "src/hooks/__tests__/useTransformRules.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/hooks/__tests__/useTranslationResults.test.ts": {
+    "errors": {
+      "TS2345: Argument of type '{ type: string; start: number; end: number; }[]' is not assignable to parameter of type 'null | undefined'.": 3
+    }
+  },
+  "src/hooks/__tests__/useTranslatorEngine.test.js": {
+    "errors": {
+      "TS2339: Property 'mock' does not exist on type '() => void'.": 1,
+      "TS2345: Argument of type '{ dictionaries: { properNouns: {}; }; isLoading: false; loadError: null; }' is not assignable to parameter of type 'DictionaryContextValue'.": 1,
+      "TS2345: Argument of type '{ getVisibleTab: () => string; }' is not assignable to parameter of type '{ getVisibleTab: () => TabId; }'.": 18,
+      "TS2345: Argument of type '{ initialize: Mock<(...args: any[]) => Promise<void>>; destroy: Mock<any>; isReady: () => boolean; }' is not assignable to parameter of type 'TranslationEngine'.": 22,
+      "TS2722: Cannot invoke an object which is possibly 'undefined'.": 3,
+      "TS2741: Property 'defaultQuickAddDictionary' is missing in type '{}' but required in type 'UIConfig'.": 3,
+      "TS2741: Property 'lastSelectedDictionary' is missing in type '{}' but required in type 'SessionConfig'.": 3
+    },
+    "untypedMocks": 4
+  },
+  "src/hooks/useForceReload.js": {
+    "errors": {
+      "TS18046: '_retranslateError' is of type 'unknown'.": 2,
+      "TS18046: 'error' is of type 'unknown'.": 2
+    }
+  },
+  "src/hooks/useScrollPositionManager.js": {
+    "errors": {
+      "TS1223: 'returns' tag already specified.": 4,
+      "TS2345: Argument of type '{ original: { scrollTop: any; scrollLeft: any; }; translation: { scrollTop: any; scrollLeft: any; }; characterOnly: { scrollTop: any; scrollLeft: any; }; }' is not assignable to parameter of type 'SetStateAction<null>'.": 1
+    }
+  },
+  "src/hooks/useTranslationResults.js": {
+    "errors": {
+      "TS2345: Argument of type 'any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.": 1
+    }
+  },
+  "src/hooks/useTranslatorEngine.js": {
+    "errors": {
+      "TS18047: 'engineRef.current' is possibly 'null'.": 1,
+      "TS2322: Type 'TranslationEngine' is not assignable to type 'null'.": 1,
+      "TS2322: Type 'null' is not assignable to type '{ rawDictionaries: any; options: {}; waiters: ((value: any) => void)[]; }'.": 1,
+      "TS2322: Type '{ rawDictionaries: any; options: { forceConfigReload: boolean; }; waiters: any[]; }' is not assignable to type 'null'.": 1,
+      "TS2339: Property 'destroy' does not exist on type 'never'.": 2,
+      "TS2339: Property 'options' does not exist on type 'never'.": 1,
+      "TS2339: Property 'waiters' does not exist on type 'never'.": 1,
+      "TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<null>'.": 2
+    }
+  },
+  "src/main.jsx": {
+    "errors": {
+      "TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'Container'.": 1
+    }
+  },
+  "src/test/setup.ts": {
+    "untypedMocks": 5
+  },
+  "src/utils/NumberProcessor.js": {
+    "errors": {
+      "TS2304: Cannot find name 'Token'.": 3
+    }
+  },
+  "src/utils/TranslationEngine.js": {
+    "errors": {
+      "TS1005: ']' expected.": 1,
+      "TS1223: 'returns' tag already specified.": 17,
+      "TS18046: 'error' is of type 'unknown'.": 8,
+      "TS18048: 'options' is possibly 'undefined'.": 5,
+      "TS2304: Cannot find name 'Token'.": 2,
+      "TS2322: Type 'ChunkPostProcessor' is not assignable to type 'BatchChunkPostProcessor'.": 1,
+      "TS2322: Type 'Map<string, string> | null | undefined' is not assignable to type 'ReadonlyMap<string, string> | null'.": 1,
+      "TS2322: Type 'string[] | undefined' is not assignable to type 'string[]'.": 1,
+      "TS2339: Property 'chunkCharOffset' does not exist on type '{ includeMetadata?: boolean | undefined; buildSegments?: boolean | undefined; }'.": 1,
+      "TS2339: Property 'chunkOffset' does not exist on type '{ includeMetadata?: boolean | undefined; buildSegments?: boolean | undefined; }'.": 1,
+      "TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'Record<string, DictionaryData>'.": 1,
+      "TS2345: Argument of type 'string[] | undefined' is not assignable to parameter of type 'readonly string[]'.": 1,
+      "TS2353: Object literal may only specify known properties, and 'debug' does not exist in type '{ dictionaryManager?: any; }'.": 1,
+      "TS2355: A function whose declared type is neither 'undefined', 'void', nor 'any' must return a value.": 1,
+      "TS2395: Individual declarations in merged declaration 'TranslationEngine' must be all exported or all local.": 2,
+      "TS2488: Type 'string[] | undefined' must have a '[Symbol.iterator]()' method that returns an iterator.": 1,
+      "TS2559: Type '{ abortSignal?: AbortSignal | undefined; activeProperNouns?: string[] | undefined; }' has no properties in common with type '{ includeMetadata?: boolean | undefined; buildSegments?: boolean | undefined; }'.": 1,
+      "TS2741: Property 'batchNumber' is missing in type '{ processingTime: number; avgTimePerChunk: number; }' but required in type '{ batchNumber: number; processingTime: number; avgTimePerChunk: number; }'.": 1,
+      "TS8024: JSDoc '@param' tag has name 'dictionaries', but there is no parameter with that name.": 1,
+      "TS8032: Qualified name 'tokens.original' is not allowed without a leading '@param {object} tokens'.": 3,
+      "TS8032: Qualified name 'tokens.translated' is not allowed without a leading '@param {object} tokens'.": 3,
+      "TS8032: Qualified name 'tokens.translationSource' is not allowed without a leading '@param {object} tokens'.": 3
+    }
+  },
+  "src/utils/__tests__/AppearanceReducer.test.ts": {
+    "errors": {
+      "TS2739: Type '{ fontFamily: string; fontSize: string; letterSpacing: string; lineHeight: string; paragraphSpacing: string; }' is missing the following properties from type 'ReadingFontSettings': face, fontWeight, wordSpacing": 1
+    }
+  },
+  "src/utils/__tests__/ChunkPostProcessor.test.js": {
+    "errors": {
+      "TS2345: Argument of type '{ content: string; punctuation: string; startIndex?: number | undefined; lineBreaks: string; startedBy: string; translated: null; translatedContent: null; translatedPunctuation: string; openingPunctuation: string; }[]' is not assignable to parameter of type 'TextChunk[]'.": 41,
+      "TS2353: Object literal may only specify known properties, and 'translated' does not exist in type '{ content?: string | undefined; punctuation?: string | undefined; startIndex?: number | undefined; lineBreaks?: string | undefined; startedBy?: string | undefined; }'.": 49,
+      "TS2353: Object literal may only specify known properties, and 'translatedPunctuation' does not exist in type '{ content?: string | undefined; punctuation?: string | undefined; startIndex?: number | undefined; lineBreaks?: string | undefined; startedBy?: string | undefined; }'.": 5
+    }
+  },
+  "src/utils/__tests__/ClickableHighlighting.fixes.test.js": {
+    "errors": {
+      "TS2341: Property 'original' is private and only accessible within class 'SemanticArrayBuilder'.": 1,
+      "TS2345: Argument of type 'string | number' is not assignable to parameter of type 'string'.": 1
+    }
+  },
+  "src/utils/__tests__/DictionaryBackend.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/DictionaryIdRules.parity.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/DictionaryManager.apiContract.test.js": {
+    "errors": {
+      "TS2554: Expected 0 arguments, but got 1.": 3,
+      "TS2554: Expected 1 arguments, but got 2.": 2
+    }
+  },
+  "src/utils/__tests__/DictionaryManager.charactersKeys.test.js": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/DictionaryManager.exactLookup.test.js": {
+    "errors": {
+      "TS2554: Expected 0 arguments, but got 1.": 3
+    }
+  },
+  "src/utils/__tests__/DictionaryManager.findMatchesAtToken.test.js": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/DictionaryManager.globalStats.test.js": {
+    "errors": {
+      "TS2554: Expected 0 arguments, but got 1.": 1
+    }
+  },
+  "src/utils/__tests__/DictionaryMemoryCleanup.regression.test.js": {
+    "errors": {
+      "TS18047: 'node' is possibly 'null'.": 2,
+      "TS2341: Property 'root' is private and only accessible within class 'DictionaryTrie'.": 6
+    }
+  },
+  "src/utils/__tests__/DictionaryPairs.test.ts": {
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/DictionaryScalability.test.js": {
+    "errors": {
+      "TS2554: Expected 0 arguments, but got 1.": 1
+    }
+  },
+  "src/utils/__tests__/DictionaryTrie.test.ts": {
+    "errors": {
+      "TS2578: Unused '@ts-expect-error' directive.": 1
+    }
+  },
+  "src/utils/__tests__/NumberProcessor.parity.test.js": {
+    "errors": {
+      "TS2339: Property 'ignore' does not exist on type '{ name: string; text: string; converted: { start: number; length: number; translated: string; }[]; }'.": 3
+    }
+  },
+  "src/utils/__tests__/NumberVariable.test.js": {
+    "errors": {
+      "TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.": 5,
+      "TS2345: Argument of type '{}' is not assignable to parameter of type '{ [x: string]: { translation: string; source: string; type: string | null; ordinal?: string | undefined; }; }'.": 4
+    }
+  },
+  "src/utils/__tests__/PatternStore.test.js": {
+    "errors": {
+      "TS2339: Property 'mock' does not exist on type '(message: string, options?: ToastOptions | undefined) => void'.": 6,
+      "TS2339: Property 'mockRejectedValue' does not exist on type '(patternsDict: any) => Promise<boolean>'.": 1,
+      "TS2339: Property 'mockResolvedValue' does not exist on type '(patternsDict: any) => Promise<boolean>'.": 4,
+      "TS2339: Property 'mockReturnValue' does not exist on type '() => boolean'.": 2,
+      "TS2345: Argument of type 'any' is not assignable to parameter of type 'never'.": 1
+    },
+    "untypedMocks": 4
+  },
+  "src/utils/__tests__/PatternVariableCache.test.js": {
+    "errors": {
+      "TS2345: Argument of type '{ activeProperNouns: string[]; dictionaryManager: { findAllMatches: (_text: any, pos: any) => any; translate: () => { dictionary: string; metadata: any; } | null; getDictionary: (name: any) => any; }; }' is not assignable to parameter of type '{ activeProperNouns: string[]; dictionaryManager: any; patterns: any[]; }'.": 2,
+      "TS2345: Argument of type '{ activeProperNouns: string[]; dictionaryManager: { translate: () => { dictionary: string; translation: string; metadata: any; }; getDictionary: (name: any) => any; findAllMatches: () => never[]; }; }' is not assignable to parameter of type '{ activeProperNouns: string[]; dictionaryManager: any; patterns: any[]; }'.": 2,
+      "TS2345: Argument of type '{ dictionaryManager: { getDictionary: (name: any) => any; translate: () => null; findAllMatches: () => never[]; }; }' is not assignable to parameter of type '{ activeProperNouns: string[]; dictionaryManager: any; patterns: any[]; }'.": 16,
+      "TS2345: Argument of type '{ patterns: any; dictionaryManager: { getDictionary: (name: any) => any; translate: () => null; findAllMatches: () => never[]; }; }' is not assignable to parameter of type '{ activeProperNouns: string[]; dictionaryManager: any; patterns: any[]; }'.": 1
+    }
+  },
+  "src/utils/__tests__/PositionMetadataSegmenter.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/ProgressiveBatchText.test.ts": {
+    "errors": {
+      "TS2322: Type 'ChunkPostProcessor' is not assignable to type 'BatchChunkPostProcessor'.": 1
+    }
+  },
+  "src/utils/__tests__/ProperNounCapitalizationMap.test.js": {
+    "errors": {
+      "TS2345: Argument of type '{ properNouns: { a: { translation: number; }; b: null; c: {}; }; }' is not assignable to parameter of type 'Record<string, DictionaryData>'.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/QuickAddTarget.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/QuoteProcessor.test.ts": {
+    "errors": {
+      "TS2345: Argument of type '\"”\" | \"’\" | \"»\" | \">\"' is not assignable to parameter of type '\"“\" | \"‘\" | \"\\\"\" | \"«\" | \"<\"'.": 1
+    }
+  },
+  "src/utils/__tests__/SemanticArrayBuilder.regression.test.js": {
+    "errors": {
+      "TS2345: Argument of type 'undefined' is not assignable to parameter of type 'string'.": 3
+    }
+  },
+  "src/utils/__tests__/TokenClaim.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/TokenState.characterization.test.js": {
+    "errors": {
+      "TS2322: Type '\"PAT\"' is not assignable to type 'null'.": 1,
+      "TS2322: Type '\"hierarchical_pattern\"' is not assignable to type 'null'.": 1,
+      "TS2322: Type '\"hierarchical_pattern_consumed\"' is not assignable to type 'null'.": 1
+    }
+  },
+  "src/utils/__tests__/TranslationEngine.corruption.test.js": {
+    "errors": {
+      "TS2339: Property 'mock' does not exist on type '(message: string, options?: ToastOptions | undefined) => void'.": 2
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/TranslationEngine.patternFailure.test.js": {
+    "errors": {
+      "TS2353: Object literal may only specify known properties, and 'name' does not exist in type 'DictionaryManager'.": 1,
+      "TS2353: Object literal may only specify known properties, and 'segments' does not exist in type '{ dictionaryManager?: any; }'.": 1
+    },
+    "untypedMocks": 3
+  },
+  "src/utils/__tests__/TranslationEngine.patternProfiling.test.js": {
+    "errors": {
+      "TS18047: 'engine.patternStore.processor' is possibly 'null'.": 5,
+      "TS2554: Expected 0 arguments, but got 1.": 1,
+      "TS2739: Type '{ enableInternalProfiling: Mock<Procedure>; disableInternalProfiling: Mock<Procedure>; resetInternalProfiling: Mock<Procedure>; getInternalProfilingReport: Mock<...>; printInternalProfilingReport: Mock<...>; }' is missing the following properties from type 'TwoPhasePatternProcessor': patterns, internalProfiling, processTokens": 5
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/TranslationEngine.phase1.test.js": {
+    "errors": {
+      "TS2339: Property 'groupLeader' does not exist on type '{ type: string; value: string; translated: null; translationSource: null; start: number; end: number; }'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/TranslationEngine.pipeline.test.js": {
+    "errors": {
+      "TS18047: 't.translationSource' is possibly 'null'.": 1,
+      "TS2339: Property 'endsWith' does not exist on type 'number'.": 1,
+      "TS2339: Property 'includes' does not exist on type 'never'.": 3,
+      "TS2538: Type 'null' cannot be used as an index type.": 1
+    }
+  },
+  "src/utils/__tests__/TranslationEngine.regression.test.js": {
+    "errors": {
+      "TS2554: Expected 0 arguments, but got 1.": 3
+    }
+  },
+  "src/utils/__tests__/TranslationEngine.sourceStrings.test.js": {
+    "errors": {
+      "TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number | bigint'.": 2
+    }
+  },
+  "src/utils/__tests__/TranslationEngine.teardown.test.js": {
+    "errors": {
+      "TS2322: Type 'null' is not assignable to type 'DictionaryManager'.": 1,
+      "TS2740: Type '{ dispose: Mock<Procedure>; isReady: () => boolean; }' is missing the following properties from type 'DictionaryManager': dictionaries, metadata, loadTime, ready, and 11 more.": 3
+    }
+  },
+  "src/utils/__tests__/TranslationSourcePriority.contract.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/TranslationSourcePriority.sourceScan.test.js": {
+    "errors": {
+      "TS2345: Argument of type 'string | RegExp' is not assignable to parameter of type 'RegExp'.": 1
+    }
+  },
+  "src/utils/__tests__/TwoPhasePatternProcessor.internalProfiling.test.js": {
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/TwoPhasePatternProcessor.test.js": {
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/WasmCascadeDiscipline.test.js": {
+    "errors": {
+      "TS2339: Property 'endsWith' does not exist on type 'string | string[]'.": 1,
+      "TS2345: Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 2,
+      "TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.": 1,
+      "TS2532: Object is possibly 'undefined'.": 1
+    }
+  },
+  "src/utils/__tests__/WasmPatternProcessor.errorHandling.test.js": {
+    "errors": {
+      "TS2322: Type 'Mock<() => Promise<{ ok: boolean; arrayBuffer: () => Promise<ArrayBuffer>; }>>' is not assignable to type '{ (input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>; (input: string | URL | Request, init?: RequestInit | undefined): Promise<...>; }'.": 1,
+      "TS2339: Property 'error' does not exist on type 'Mock<Procedure>'.": 1,
+      "TS2339: Property 'warning' does not exist on type 'Mock<Procedure>'.": 2,
+      "TS2345: Argument of type 'null' is not assignable to parameter of type 'any[]'.": 1,
+      "TS2345: Argument of type 'undefined' is not assignable to parameter of type 'any[]'.": 1
+    },
+    "untypedMocks": 11
+  },
+  "src/utils/__tests__/WasmProcessorLifecycle.test.js": {
+    "errors": {
+      "TS2345: Argument of type '{ initialize: Mock<Procedure>; }' is not assignable to parameter of type '{ processTokens: Mock<Procedure>; initialize: Mock<Procedure>; }'.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/__tests__/WasmSharedModule.test.js": {
+    "errors": {
+      "TS2722: Cannot invoke an object which is possibly 'undefined'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/appFile.test.ts": {
+    "errors": {
+      "TS2322: Type '(() => Promise<unknown>) | (MockInstance<Procedure | Constructable> & (new (...args: any[]) => any) & {})' is not assignable to type '() => Promise<unknown>'.": 1,
+      "TS2322: Type '(MockInstance<Procedure | Constructable> & (new (...args: any[]) => any) & {}) | ((value: Items) => Promise<unknown>)' is not assignable to type '(value: Items) => Promise<unknown>'.": 1
+    },
+    "untypedMocks": 2
+  },
+  "src/utils/__tests__/appearanceConfig.test.ts": {
+    "errors": {
+      "TS2339: Property 'wordSpacing' does not exist on type 'ChineseFontSettings'.": 1,
+      "TS2741: Property 'lineHeight' is missing in type '{ fontFamily: string; fontSize: string; letterSpacing: string; paragraphSpacing: string; }' but required in type 'ChineseFontSettings'.": 1
+    }
+  },
+  "src/utils/__tests__/wasmInstanceCheck.test.js": {
+    "untypedMocks": 1
+  },
+  "src/utils/dictionary/DictionaryManager.js": {
+    "errors": {
+      "TS18048: 'codePoint' is possibly 'undefined'.": 1,
+      "TS2307: Cannot find module '../types/DictionaryManagerTypes' or its corresponding type declarations.": 1,
+      "TS2322: Type 'null' is not assignable to type 'Map<any, any>'.": 2,
+      "TS2322: Type 'null' is not assignable to type 'any[]'.": 1
+    }
+  },
+  "src/utils/dictionary/DictionaryTrie.js": {
+    "errors": {
+      "TS18048: 'codePoint' is possibly 'undefined'.": 1,
+      "TS2322: Type 'null' is not assignable to type 'Map<any, any>'.": 1,
+      "TS2322: Type 'null' is not assignable to type 'TrieNode'.": 1,
+      "TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.": 1
+    }
+  },
+  "src/utils/pattern/PatternFailureTracker.js": {
+    "errors": {
+      "TS2531: Object is possibly 'null'.": 1
+    }
+  },
+  "src/utils/performance/TranslationProfiler.js": {
+    "errors": {
+      "TS2532: Object is possibly 'undefined'.": 17,
+      "TS2769: No overload matches this call.": 2,
+      "TS2790: The operand of a 'delete' operator must be optional.": 1
+    }
+  },
+  "src/utils/performance/__tests__/TranslationProfiler.test.js": {
+    "errors": {
+      "TS2339: Property 'mock' does not exist on type '(...args: unknown[]) => void'.": 1
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/reader/__tests__/BookRecord.test.ts": {
+    "errors": {
+      "TS2783: 'title' is specified more than once, so this usage will be overwritten.": 1
+    }
+  },
+  "src/utils/reader/__tests__/BookRecordsBackend.test.ts": {
+    "errors": {
+      "TS2304: Cannot find name 'BookRecords'.": 1,
+      "TS2322: Type 'Mock<() => Promise<unknown>>' is not assignable to type '(records: BookRecords) => Promise<SaveResult>'.": 1,
+      "TS2322: Type 'Mock<() => Promise<{ success: boolean; data: Record<string, unknown>; }>>' is not assignable to type '() => Promise<BookRecordsResult>'.": 1
+    }
+  },
+  "src/utils/reader/__tests__/CandidateFinderStore.test.ts": {
+    "errors": {
+      "TS2345: Argument of type 'never[]' is not assignable to parameter of type 'CandidateRunResult'.": 1,
+      "TS2345: Argument of type '{ fingerprint: string; getDictionaries: () => Promise<{ ok: false; message: string; }>; }' is not assignable to parameter of type 'CandidateFinderInputs'.": 1
+    }
+  },
+  "src/utils/reader/__tests__/ChapterOutlineStore.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/reader/__tests__/RowRemeasure.test.ts": {
+    "errors": {
+      "TS2341: Property 'getMeasurements' is private and only accessible within class 'Virtualizer<TScrollElement, TItemElement>'.": 3
+    }
+  },
+  "src/utils/reader/__tests__/WindowFiller.test.ts": {
+    "errors": {
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(text: string) => Promise<ChunkTranslationResult>'.": 1,
+      "TS2322: Type 'Mock<Procedure | Constructable>' is not assignable to type '(text: string) => Promise<GlossResult>'.": 1,
+      "TS2554: Expected 4 arguments, but got 5.": 2
+    },
+    "untypedMocks": 1
+  },
+  "src/utils/reader/__tests__/quickAddViewForBinding.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/reader/__tests__/scanShelf.test.ts": {
+    "untypedMocks": 1
+  },
+  "src/utils/wasm/WasmPatternProcessor.js": {
+    "errors": {
+      "TS18046: 'error' is of type 'unknown'.": 1
+    }
+  }
+}

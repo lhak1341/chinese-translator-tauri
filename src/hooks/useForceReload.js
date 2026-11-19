@@ -6,8 +6,7 @@ import { logger } from '../utils/logger';
  * @typedef {import('./useReloadExecutionContexts.js').ForceReloadContext} ForceReloadContext
  *
  * CRITICAL-3: ctx.cancelTranslations() must fully resolve before ctx.destroyEngine() runs.
- * See useReloadExecutionContexts.ts for the full field-by-field contract and the dev-only
- * input-shape guard that enforces it's actually built with this shape.
+ * See useReloadExecutionContexts.ts for the full field-by-field contract.
  */
 
 /**

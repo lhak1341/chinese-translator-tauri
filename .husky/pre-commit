@@ -1,7 +1,13 @@
+# Markdown outside the docs allowlist fails the commit (docs/README.md "Archive").
+node scripts/check-docs-allowlist.mjs || exit 1
+
 npx lint-staged
 
 # Lower .lint-baseline.json when a commit removes warnings, so CI (which fails on a drop)
 # sees the new count. Skipped when no JS/TS file is staged.
 if git diff --cached --name-only | grep -qE '\.(js|jsx|ts|tsx)$'; then
   bun run lint:ratchet-down && git add .lint-baseline.json
+  # Tests and JavaScript type-checked (tsconfig.test.json); a new error fails, a drop lowers
+  # .type-ratchet-baseline.json. A source change that breaks a caller's types fails here too.
+  node scripts/type-ratchet.mjs --ratchet-down && git add .type-ratchet-baseline.json || exit 1
 fi

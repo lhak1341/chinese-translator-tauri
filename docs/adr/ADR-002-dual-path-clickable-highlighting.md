@@ -44,7 +44,7 @@ The translation app provides bidirectional clickable highlighting - users can cl
 - Create single `UnifiedSegmentComputer` class
 - Both modes call unified API with mode-specific parameters
 
-**Attempted Implementation** (see `docs/archive/refactoring-2026/`):
+**Attempted Implementation** (see `be492346:docs/archive/refactoring-2026/`):
 
 ```javascript
 // Unified approach tried:
@@ -175,7 +175,7 @@ We maintain two independent implementations for the following reasons:
 
 1. **Proven Reliability**: 100% highlighting coverage vs 63% with consolidated approach
 2. **Performance**: Prebuilt segments (Full) vs on-demand computation (Character-only) each optimal for their use case
-3. **Failure Evidence**: Multiple consolidation attempts documented in `docs/archive/refactoring-2026/`
+3. **Failure Evidence**: Multiple consolidation attempts documented in `be492346:docs/archive/refactoring-2026/`
 4. **Acceptable Tradeoff**: ~200 lines duplication is manageable with clear documentation
 
 **Implementation Guidelines** (CLAUDE.md:256-322):
@@ -265,7 +265,7 @@ We maintain two independent implementations for the following reasons:
 - Code (Path 1): `ClickableTranslationSemantic.tsx`, `SegmentPrecomputer.ts`
 - Code (Path 2): `ClickableTranslationOptimized.tsx`, `TranslationEngine.js:5184-5350`
 - Documentation: CLAUDE.md lines 256-322 ("Dual-Path Architecture")
-- Failed Consolidation: `docs/archive/refactoring-2026/` (63% coverage loss)
+- Failed Consolidation: `be492346:docs/archive/refactoring-2026/` (63% coverage loss)
 - Real Bug Example: "màu" split bug (Jan 2025) - fixed by sorting by length
 
 ## Related ADRs

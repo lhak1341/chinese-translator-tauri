@@ -64,8 +64,11 @@ describe('claimSpan (light shape)', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('has no translation'));
   });
 
+  // The type rejects both sources; the runtime log is for JS callers whose source is untyped.
   it('logs a source that ranks 999, and one that is a consumed source', () => {
+    // @ts-expect-error -- not a leader source
     claimSpan(tokens(['a']), 0, 0, 'patterns', 'X');
+    // @ts-expect-error -- a consumed source
     claimSpan(tokens(['a']), 0, 0, 'hierarchical_pattern_consumed', 'X');
     expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not a ranked leader source'));
@@ -179,6 +182,7 @@ describe('claimGroupedSpan (grouped shape)', () => {
   });
 
   it('logs the same leader violations as claimSpan', () => {
+    // @ts-expect-error -- not a leader source ('phrases' is)
     claimGroupedSpan(tokens(['a', 'b']), 0, 2, 'phrase', 'x', 'ab');
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not a ranked leader source'));
   });

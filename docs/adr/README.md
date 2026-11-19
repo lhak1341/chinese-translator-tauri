@@ -213,8 +213,7 @@ Write an ADR when making decisions about:
 
 - ADR Process: [Michael Nygard's ADR Template](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 - Project Documentation: [CLAUDE.md](../../CLAUDE.md)
-- Technical Debt Analysis: [Code Review Report](../../CLAUDE.md)
-- Failed Attempts Archive: [docs/archive/](../archive/)
+- Failed Attempts Archive: `be492346:docs/archive/` (see [docs/README.md](../README.md#archive))
 
 ## History
 

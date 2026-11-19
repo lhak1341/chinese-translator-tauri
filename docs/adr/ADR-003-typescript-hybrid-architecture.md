@@ -34,7 +34,7 @@ The codebase is written in a mix of JavaScript and TypeScript. We need to decide
 - Requires tight coupling for 5-phase token coordination
 - Performance-critical code needs timing guarantees
 - State management across phases must be synchronous
-- Previous extraction attempts failed (see `docs/archive/refactoring-2026/`)
+- Previous extraction attempts failed (see `be492346:docs/archive/refactoring-2026/`)
 
 **Migration Cost**:
 
@@ -329,7 +329,7 @@ test('translate() must stay synchronous', () => {
 - Type Definitions: `src/types/*.d.ts` (12 files as of 2026-07-30, was 19)
 - Core Engine: `src/utils/TranslationEngine.js` (intentionally JS)
 - Migration Guide: CLAUDE.md "TypeScript Migration Strategy" section
-- Failed Attempts: `docs/archive/refactoring-2026/EXTRACTION_ANALYSIS.md`
+- Failed Attempts: `be492346:docs/archive/refactoring-2026/EXTRACTION_ANALYSIS.md`
 - Test Coverage: `WasmBoundaryValidation.test.ts` (prod), `WasmTypes.test.ts` (test-only twin, reversed param order — see boundary enforcement section above), `WasmBoundaryEdgeCases.test.js`
 
 ## Related ADRs

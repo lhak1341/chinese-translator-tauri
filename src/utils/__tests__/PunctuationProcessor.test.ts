@@ -3,7 +3,7 @@
  *
  * Every translation passes through punctuation processing on its way to the UI.
  * A prior session produced a full debug document from a spacing bug
- * (PUNCTUATION_SPACING_DEBUG_2026-02-02.md). These tests guard those cases.
+ * (git show be492346:docs/code-review/PUNCTUATION_SPACING_DEBUG_2026-02-02.md). These tests guard those cases.
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';

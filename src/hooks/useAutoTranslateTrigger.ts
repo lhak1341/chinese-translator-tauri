@@ -7,7 +7,6 @@ import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import type { SemanticArrays } from '../utils/highlighting';
 import type { TranslateTextOutcome } from '../types/UITypes';
-import { createShapeGuard } from './useReloadExecutionContexts.js';
 
 export interface TranslationExecutionContext {
   consumeReloadTransition: () => boolean;
@@ -19,28 +18,6 @@ export interface TranslationExecutionContext {
   resetClipboardFlag: () => void;
   translationTextRef: RefObject<HTMLElement | null>;
 }
-
-const TRANSLATION_EXECUTION_EXPECTED_KEYS = [
-  'consumeReloadTransition',
-  'clearHighlighting',
-  'setIsTranslating',
-  'setResultArrays',
-  'setStreamingText',
-  'isClipboardTranslationRef',
-  'resetClipboardFlag',
-  'translationTextRef',
-] as const satisfies readonly (keyof TranslationExecutionContext)[];
-
-// Dev-only: proves `ctx` (assembled untyped in Translator.jsx) actually matches
-// TranslationExecutionContext at the one point that consumes it. See createShapeGuard's
-// doc comment in useReloadExecutionContexts.ts — was its own useTranslationExecutionContext
-// assembly hook before architecture review 2026-08-12 candidate #1 deleted it (interface was
-// identical to its implementation: assert shape, return params unchanged — nothing behind
-// the seam). This hook already owns the typed interface being checked; no wrapper needed.
-const assertTranslationExecutionCtxShape = createShapeGuard<TranslationExecutionContext>(
-  'useAutoTranslateTrigger',
-  TRANSLATION_EXECUTION_EXPECTED_KEYS
-);
 
 interface UseAutoTranslateTriggerOptions {
   // Trigger signals — effect deps
@@ -70,8 +47,6 @@ export function useAutoTranslateTrigger({
   translateCharacterOnly,
   ctx,
 }: UseAutoTranslateTriggerOptions): void {
-  assertTranslationExecutionCtxShape(ctx);
-
   const {
     consumeReloadTransition,
     clearHighlighting,

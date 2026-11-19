@@ -1,0 +1,19 @@
+{
+  // Type-checks test files against the code they test. Run through scripts/test-type-ratchet.mjs,
+  // which counts errors per test file against .test-type-baseline.json (the count may only fall).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Test .js files are checked too: a fixture or mock that drifted from production is a
+    // type error there just as in .ts. Errors in non-test JS files are not counted.
+    "checkJs": true,
+    // An untyped callback parameter or an unused import is not drift; the shapes the test
+    // passes to production are.
+    "noImplicitAny": false,
+    "noUnusedLocals": false,
+    // Tests run in Node, not the app's WebView, so `.at()` and `isWellFormed()` exist there.
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node", "react", "react-dom", "vitest/globals", "@testing-library/jest-dom/vitest"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.js", "src/**/*.jsx"],
+  "exclude": ["node_modules", "dist", "build", "wasm-core/target", "scripts", "src/wasm"]
+}

@@ -6,6 +6,7 @@
 import { logger } from '../logger';
 import { semanticArrayValidator } from './SemanticArrayValidator';
 import type { SemanticArrayMetadata } from '../../types/SemanticTypes';
+import type { TranslationLeaderSource } from '../../types/TranslationEngineTypes';
 
 // Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
 function validatePosition(
@@ -125,7 +126,7 @@ export class SemanticArrayBuilder {
   addUnit(
     originalText: string,
     translatedText: string,
-    source: string,
+    source: TranslationLeaderSource,
     tokenIndex: number = -1
   ): boolean {
     // CRITICAL FIX: Block operations on corrupted builder to prevent cascading failures

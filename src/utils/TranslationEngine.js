@@ -116,7 +116,7 @@
  * - TokenHelpers.js (6 pure functions) - No state modification
  * - ProperNounCapitalizationMap.ts - Pure map builder, no engine state
  *
- * See: docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
+ * See: git show be492346:docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
  * =============================================================================
  */
 

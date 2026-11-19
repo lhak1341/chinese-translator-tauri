@@ -30,6 +30,7 @@
  * (its characters vanish from the output) and a source `getSourcePriority` does not rank (it
  * sorts below the character fallback). Violations are logged, never thrown.
  */
+import type { TranslationLeaderSource } from '../types/TranslationEngineTypes';
 import { logger } from './logger';
 import { consumedSource, getSourcePriority, isConsumedSource } from './TranslationSourcePriority';
 
@@ -54,7 +55,7 @@ export function isClaimed(
 }
 
 function checkLeader(
-  source: string,
+  source: TranslationLeaderSource,
   translated: unknown,
   startIndex: number,
   activeProperNouns: string[]
@@ -81,7 +82,7 @@ export function claimSpan(
   tokens: ClaimableToken[],
   startIndex: number,
   endIndex: number,
-  source: string,
+  source: TranslationLeaderSource,
   translated: string,
   activeProperNouns: string[] = []
 ): void {
@@ -108,7 +109,7 @@ export function claimGroupedSpan(
   tokens: ClaimableToken[],
   startIndex: number,
   tokenSpan: number,
-  source: string,
+  source: TranslationLeaderSource,
   translated: string,
   groupedText: string,
   activeProperNouns: string[] = []
@@ -161,7 +162,7 @@ export interface UnitRecorder {
   addUnit(
     originalText: string,
     translatedText: string,
-    source: string,
+    source: TranslationLeaderSource,
     tokenIndex?: number
   ): boolean;
 }
@@ -180,7 +181,7 @@ function recordUnit(
   sink: UnitSink,
   originalText: string,
   translated: string,
-  source: string,
+  source: TranslationLeaderSource,
   startIndex: number
 ): void {
   if (sink.builder === undefined) {
@@ -201,7 +202,7 @@ export function placeSpan(
   tokens: ClaimableToken[],
   startIndex: number,
   endIndex: number,
-  source: string,
+  source: TranslationLeaderSource,
   translated: string,
   originalText: string,
   sink: UnitSink,
@@ -216,7 +217,7 @@ export function placeGroupedSpan(
   tokens: ClaimableToken[],
   startIndex: number,
   tokenSpan: number,
-  source: string,
+  source: TranslationLeaderSource,
   translated: string,
   groupedText: string,
   sink: UnitSink,

@@ -30,17 +30,17 @@ type TranslationPhase4Source = 'phrases';
 type TranslationPhase5Source = 'characters';
 
 /**
- * Phase 2: dynamic proper-noun dictionary name, e.g. 'properNouns-MyNovel'.
- * The template literal enforces the required prefix at the type level.
+ * Phase 2: a proper-noun dictionary name, the default 'properNouns' or a novel's
+ * 'properNouns-MyNovel'. Only an active one ranks (`getSourcePriority`).
  */
-type ProperNounSource = `properNouns-${string}`;
+type ProperNounSource = 'properNouns' | `properNouns-${string}`;
 
 /**
  * All valid leader (non-consumed) translation source strings.
  *
- * INVARIANT: getSourcePriority() returns 999 for any string not matching
- * this type — silently deprioritizing below character-level fallback with
- * no error. Always use this type at translationSource assignment sites.
+ * getSourcePriority() returns 999 for any string not matching this type, below the
+ * character fallback. `addUnit`, `placeSpan` and `placeGroupedSpan` take it, so tsc
+ * rejects a wrong literal; a source read off an untyped JS object is still unchecked.
  */
 export type TranslationLeaderSource =
   | TranslationPhase1Source
@@ -57,7 +57,7 @@ type TranslationConsumedSource =
   | `${TranslationPhase1Source}_consumed`
   | `${TranslationPhase3Source}_consumed`
   | `${TranslationPhase4Source}_consumed`
-  | `properNouns-${string}_consumed`;
+  | `${ProperNounSource}_consumed`;
 
 /**
  * All valid translationSource values for pipeline tokens.

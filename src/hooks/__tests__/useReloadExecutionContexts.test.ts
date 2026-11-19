@@ -1,16 +1,8 @@
 /**
- * Tests for useForceReloadContext — extracted from Translator.jsx's inline
- * forceReloadCtx object literal (architecture review 2026-07-29, candidate
- * #3). Covers the relocated cancelTranslations closure
- * and the dev-only input-shape guard.
- *
- * useTranslationExecutionContext used to live here too (assembly-only,
- * identical interface to implementation — no logic behind the seam) until
- * architecture review 2026-08-12 candidate #1 deleted it; its guard moved
- * into useAutoTranslateTrigger.ts (the one real consumer of the type it
- * checks), and its tests moved to useAutoTranslateTrigger.test.ts.
+ * Tests for useForceReloadContext: the cancelTranslations closure it builds and the
+ * ForceReloadContext it returns.
  */
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useForceReloadContext } from '../useReloadExecutionContexts';
 
@@ -106,34 +98,6 @@ describe('useForceReloadContext', () => {
       });
 
       expect(order).toEqual(['cleanup-resolved', 'setIsTranslating']);
-    });
-  });
-
-  describe('dev-only input-shape guard', () => {
-    const originalEnv = process.env.NODE_ENV;
-
-    beforeEach(() => {
-      process.env.NODE_ENV = 'development';
-    });
-
-    afterEach(() => {
-      process.env.NODE_ENV = originalEnv;
-    });
-
-    test('throws when a required setter is missing', () => {
-      const params = baseForceReloadParams({ setIsTranslating: null });
-      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/setIsTranslating/);
-    });
-
-    test('throws when a required function param is missing', () => {
-      const params = baseForceReloadParams({ retranslate: undefined });
-      expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/retranslate/);
-    });
-
-    test('does not throw in production even with a wrong-shaped param', () => {
-      process.env.NODE_ENV = 'production';
-      const params = baseForceReloadParams({ setIsTranslating: null });
-      expect(() => renderHook(() => useForceReloadContext(params))).not.toThrow();
     });
   });
 });

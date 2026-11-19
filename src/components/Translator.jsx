@@ -73,8 +73,8 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   - useHighlightInteraction (owns the lit unit) requires useTranslationResults to
 //     run first, and the three panel refs declared above it
 //   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightInteraction
-//   - executionCtx (plain object literal — see useAutoTranslateTrigger.ts's own dev-only
-//     shape guard) fans in from 5 earlier hooks:
+//   - executionCtx (plain object literal, typed by useAutoTranslateTrigger's
+//     TranslationExecutionContext) fans in from 5 earlier hooks:
 //     useDictionaryReloadGuard, useHighlightInteraction, useTranslationResults,
 //     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
 //   - useReloadRetranslate requires useEngine()'s engineRef

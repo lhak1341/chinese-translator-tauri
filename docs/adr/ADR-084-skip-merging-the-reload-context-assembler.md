@@ -28,3 +28,7 @@ A review that sees the 13-in, 10-out hook and proposes folding it should find th
 ## Addendum — 2026-10-24: `isTranslatingRef` param removed
 
 Round 36 deleted `isTranslatingRef` (no reader). `useForceReloadContext` now takes 12 params; `cancelTranslations` still cancels, waits for cleanup, then resets `isTranslating` and progress. The merge stays declined.
+
+## Addendum — 2026-11-19: the shape guard is deleted
+
+`type-check:ratchet` (`tsconfig.test.json`, `checkJs: true`) now type-checks `Translator.jsx`, so the "only typed contract at a JS call site" reasoning no longer holds: a field dropped from, misspelled in, or given the wrong kind at either context object fails the ratchet there (probed at both call sites). `createShapeGuard` and its two uses are deleted; `Translator.jsx` itself stays JavaScript. The merge stays declined on the other three grounds.

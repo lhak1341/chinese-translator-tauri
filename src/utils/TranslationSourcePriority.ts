@@ -65,6 +65,16 @@ export function isConsumedSource(
     : source === consumedSource(leaderSource);
 }
 
+/**
+ * Narrows a source to a leader's: present and not a consumed follower's. Says nothing about
+ * rank; an inactive proper-noun dictionary name passes here and ranks 999 in `getSourcePriority`.
+ */
+export function isLeaderSource(
+  source: TranslationSource | null | undefined
+): source is TranslationLeaderSource {
+  return !!source && !source.endsWith(CONSUMED_SUFFIX);
+}
+
 /** True for any Phase 1 pattern leader source. */
 export function isPatternSource(source: string | null | undefined): boolean {
   return !!source && PATTERN_SOURCES.has(source);

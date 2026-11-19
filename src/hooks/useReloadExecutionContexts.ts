@@ -2,43 +2,6 @@ import { useCallback } from 'react';
 import { logger } from '../utils/logger.js';
 import type { EngineInitOutcome } from '../components/EngineContext';
 
-/**
- * Dev-only input-shape guard. Neither `Translator.jsx`'s call site nor
- * `useAutoTranslateTrigger.ts`'s caller is type-checked at the JS boundary
- * (ADR-003 — Translator.jsx is intentionally JS, never TypeScript), so
- * nothing else verifies the object built there actually matches the
- * declared param type. Kind (ref vs function) is inferred from the `*Ref`
- * naming convention — every real param shape here obeys it with zero
- * exceptions. `expectedKeys` is still an explicit list (typed
- * `satisfies readonly (keyof Params)[]` at each call site for typo/drift
- * protection) because checking only `Object.keys(params)` would miss a
- * field dropped entirely from the call site — the actual failure mode this
- * guard exists to catch. No-ops entirely outside development.
- *
- * Used here by `useForceReloadContext`; also imported directly by
- * `useAutoTranslateTrigger.ts` for the same purpose (that hook has no
- * assembly step of its own to hang a wrapper off of — see architecture
- * review 2026-08-12, candidate #1).
- */
-export function createShapeGuard<Params extends object>(
-  hookName: string,
-  expectedKeys: readonly (keyof Params)[]
-) {
-  return function assertParamsShape(params: Params): void {
-    if (process.env.NODE_ENV !== 'development') return;
-    for (const key of expectedKeys) {
-      const value = (params as Record<string, unknown>)[key as string];
-      if (String(key).endsWith('Ref')) {
-        if (!value || typeof value !== 'object' || !('current' in value)) {
-          throw new Error(`${hookName}: "${String(key)}" must be a ref object ({ current }).`);
-        }
-      } else if (typeof value !== 'function') {
-        throw new Error(`${hookName}: "${String(key)}" must be a function, got ${typeof value}.`);
-      }
-    }
-  };
-}
-
 export interface ForceReloadContext {
   cancelTranslations: () => Promise<void>;
   destroyEngine: () => void;
@@ -69,25 +32,6 @@ export interface UseForceReloadContextParams {
   restoreScrollPositions: (saved: unknown) => Promise<void>;
 }
 
-const FORCE_RELOAD_EXPECTED_KEYS = [
-  'destroyEngine',
-  'cancelAllTranslations',
-  'setIsTranslating',
-  'setStatusMessage',
-  'setTranslationError',
-  'setDictionaryReloading',
-  'clearHighlighting',
-  'reinitializeEngine',
-  'retranslate',
-  'saveScrollPositions',
-  'restoreScrollPositions',
-] as const satisfies readonly (keyof UseForceReloadContextParams)[];
-
-const assertForceReloadParamsShape = createShapeGuard<UseForceReloadContextParams>(
-  'useForceReloadContext',
-  FORCE_RELOAD_EXPECTED_KEYS
-);
-
 /**
  * Assembles the typed ForceReloadContext consumed by useForceReload. Builds
  * cancelTranslations internally — the one field that was previously a
@@ -99,8 +43,6 @@ const assertForceReloadParamsShape = createShapeGuard<UseForceReloadContextParam
  * Entry point: architecture review 2026-07-29, candidate #3.
  */
 export function useForceReloadContext(params: UseForceReloadContextParams): ForceReloadContext {
-  assertForceReloadParamsShape(params);
-
   const {
     destroyEngine,
     cancelAllTranslations,

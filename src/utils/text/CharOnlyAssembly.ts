@@ -2,6 +2,8 @@ import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
 import { needsSpaceCharOnly } from './CharOnlySpacing';
 import { finishCharOnlyText } from './FormattingPasses';
 import type { PunctuationLookup } from './FormattingPasses';
+import type { TranslationSource } from '../../types/TranslationEngineTypes';
+import { isLeaderSource } from '../TranslationSourcePriority';
 
 /** A token after the stamping pass: `translated` is null when nothing claimed it. */
 export interface StampedToken {
@@ -9,7 +11,7 @@ export interface StampedToken {
   value: string;
   end: number;
   translated?: string | null;
-  translationSource?: string | null;
+  translationSource?: TranslationSource | null;
 }
 
 export interface CharOnlyAssemblyResult {
@@ -43,7 +45,7 @@ export function assembleCharOnlyResult(
       builder.addUnit(
         token.value,
         token.translated,
-        token.translationSource || 'characters',
+        isLeaderSource(token.translationSource) ? token.translationSource : 'characters',
         i // tokenIndex, so the position back-fill can find the unit
       );
     }

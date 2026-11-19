@@ -6,7 +6,7 @@
  * - HIGH-2: WASM cleanup clears dictionaries
  * - HIGH-1: EnhancedDictionaryManager cleanup chain
  *
- * See: docs/code-review/DICTIONARY_MEMORY_FIXES_2026-02-03.md
+ * See: git show be492346:docs/code-review/DICTIONARY_MEMORY_FIXES_2026-02-03.md
  */
 
 import { describe, it, expect, vi } from 'vitest';

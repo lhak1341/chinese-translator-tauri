@@ -69,4 +69,4 @@ Only `validateWasmDictionaryMatch()` survives in `src/utils/wasm/WasmBoundaryVal
 - [Development Guide](./development.md) - Development guidelines, logging, testing
 - [Performance Guide](./performance.md) - Performance monitoring and optimization
 - [Troubleshooting Guide](./troubleshooting.md) - Common issues and solutions
-- `docs/archive/pattern-optimization/` - WASM optimization history
+- `be492346:docs/archive/pattern-optimization/` - WASM optimization history

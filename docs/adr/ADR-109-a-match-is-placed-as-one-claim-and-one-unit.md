@@ -29,5 +29,5 @@ The write-only token fields `compositePattern`, `compositeComponents` and `patte
 
 - A new phase places a match with one call. Do not call `addUnit` beside a claim.
 - `addUnit` is still called directly where no claim exists: the Phase 5 pass-through branch (`TranslationEngine.js`) and `CharOnlyAssembly.ts`, which builds units from already-stamped tokens into a private builder.
-- `TranslationEngine.addUnitCallSites.test.js` scans the literal `source` of `addUnit`, `placeSpan` and `placeGroupedSpan` calls in the engine and `NumberProcessor.js`, and the argument count of `addUnit` in the engine, `TokenClaim.ts` and `CharOnlyAssembly.ts`.
+- `addUnit`, `placeSpan` and `placeGroupedSpan` type `source` as `TranslationLeaderSource`. A wrong literal or a surplus `addUnit` argument fails `type-check` in TypeScript and `type-check:ratchet` in the engine and `NumberProcessor.js`; this replaced an AST-scanning test, `TranslationEngine.addUnitCallSites.test.js`.
 - Phase 3 no longer treats a missing `semanticArrayBuilder` as "do not record"; callers pass `null` to skip.

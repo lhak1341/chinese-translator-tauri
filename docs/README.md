@@ -21,12 +21,18 @@ Start at [`CLAUDE.md`](../CLAUDE.md) for critical constraints, then follow which
 
 - [CSP_SECURITY.md](CSP_SECURITY.md) — why the app needs `wasm-unsafe-eval`, and the mitigations around it
 - [HOTKEYS.md](HOTKEYS.md) — keyboard shortcuts
-- [`plans/`](plans/) — in-flight design work
 - [`../tests/README.md`](../tests/README.md) — testing infrastructure
 - [`../wasm-core/WARNINGS.md`](../wasm-core/WARNINGS.md) — WASM development warnings
 
 ## Archive
 
-[`archive/`](archive/) keeps only the historical documents that something still cites as evidence — the failed extraction attempts behind ADR-002/003/004, the pattern-matching optimization history, the Rust migration record, and the WASM removal guide. Superseded reports were deleted rather than kept; git history has them if a question ever needs one.
+Retired documents live in git, not in the tree. The last commit that holds them is `be492346`: the failed extraction attempts behind ADR-002/003/004 (`docs/archive/refactoring-2026/`), the pattern-matching optimization history, the Rust migration record, the WASM removal guide, the 2026-01/02 code reviews (`docs/code-review/`) and the 2026-02 design plans (`docs/plans/`). A doc cites one as `be492346:<path>`:
 
-Note that archived documents describe the state of the code when they were written. Treat them as a record of what was tried and what happened, not as a description of how the system works today — the guides above are the current word.
+```bash
+git ls-tree -r --name-only be492346 -- docs/archive docs/code-review docs/plans
+git show be492346:docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
+```
+
+They describe the code as it was when they were written; the guides above describe it as it is.
+
+`scripts/check-docs-allowlist.mjs` (run by `bun run lint` and the pre-commit hook) fails on any markdown file outside its allowlist. A new doc belongs in an existing guide, a scoped `CLAUDE.md`, an ADR, or a commit message; add a path to the allowlist only when none of those fits.

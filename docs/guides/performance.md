@@ -146,7 +146,7 @@ console.log(
 
 ### Rust-side matcher profiling is not wired up
 
-`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, and `performanceDashboard` (`getStats` only, ADR-069). To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
+`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, and `performanceDashboard` (`getStats` only, ADR-069). To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `be492346:docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
 
 ### Prevention Strategy
 
@@ -155,7 +155,7 @@ console.log(
 - Only optimize if >1.5x speedup possible (complexity has cost)
 - Keep simple implementation if "fast enough" (<100ms, no UI blocking)
 
-**Archive**: See `docs/archive/pattern-optimization/` for real-world profiling examples (hash map cloning: 40-60% speedup, string allocation: 30-40% speedup, verified via measurement).
+**Archive**: See `be492346:docs/archive/pattern-optimization/` for real-world profiling examples (hash map cloning: 40-60% speedup, string allocation: 30-40% speedup, verified via measurement).
 
 ---
 
@@ -202,7 +202,7 @@ Historical impact, for calibration on whether a regression here matters: long se
 - Isolated pattern matching only (not full pipeline): 10-50x speedup, complete parity, production-ready
 - Key difference: Focused acceleration vs full translation pipeline prevented serialization issues
 
-**Archive**: See `docs/archive/migrations/WASM_REMOVAL_MIGRATION_GUIDE.md` for complete WASM engine removal details.
+**Archive**: See `be492346:docs/archive/migrations/WASM_REMOVAL_MIGRATION_GUIDE.md` for complete WASM engine removal details.
 
 ---
 
