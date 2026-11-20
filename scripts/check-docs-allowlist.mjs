@@ -31,10 +31,7 @@ const ALLOWED_FILES = new Set([
   'docs/adr/README.md',
   'docs/agents/issue-tracker.md',
   'docs/prototypes/README.md',
-  'memory/MEMORY.md',
-  'tests/README.md',
   'vendor/lhak-style/fonts/README.md',
-  'wasm-core/WARNINGS.md',
 ]);
 
 const indexed = execFileSync('git', ['ls-files', '--cached', '-z', '--', '*.md'], {

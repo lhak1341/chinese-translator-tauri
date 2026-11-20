@@ -1,5 +1,8 @@
 # Markdown outside the docs allowlist fails the commit (docs/README.md "Archive").
 node scripts/check-docs-allowlist.mjs || exit 1
+# A live doc naming code that does not exist fails the commit, including a code change that
+# deletes or renames what a doc names (scripts/check-doc-claims.ts).
+bun scripts/check-doc-claims.ts || exit 1
 
 npx lint-staged
 

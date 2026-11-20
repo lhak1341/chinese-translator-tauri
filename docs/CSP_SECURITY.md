@@ -103,7 +103,7 @@ wasmModule = await import('../wasm/translation_wasm_core.js');
 
 ### 2. Binary hashing and module-structure checks: removed (2026-10-06, ADR-080)
 
-A SHA-256 check of the WASM binary against `src/wasm/integrity-manifest.json`, and a module-export check (`verifyWasmModule`), used to sit here as "CODE REVIEW FIX (CRITICAL-1)". Both are deleted. The binary and the manifest shipped in the same bundle, so the hash caught corruption but not tampering: an attacker who can rewrite the bundled `.wasm` can rewrite the manifest beside it. The control for a tampered bundle is Tauri code signing (and macOS notarization), which covers the embedded frontend assets. A corrupt `.wasm` already fails `WebAssembly.instantiate`, and a binary whose exports do not match the JS glue fails the instance check (#4 below). The check also added a failure of its own: a stale or missing manifest in a production build disabled pattern processing and conflict resolution. Do not re-add a hash step without a way to hold the expected hash outside the bundle. See ADR-080.
+A SHA-256 check of the WASM binary against a bundled manifest, and a module-export check, used to sit here as "CODE REVIEW FIX (CRITICAL-1)". Both are deleted. The binary and the manifest shipped in the same bundle, so the hash caught corruption but not tampering: an attacker who can rewrite the bundled `.wasm` can rewrite the manifest beside it. The control for a tampered bundle is Tauri code signing (and macOS notarization), which covers the embedded frontend assets. A corrupt `.wasm` already fails `WebAssembly.instantiate`, and a binary whose exports do not match the JS glue fails the instance check (#4 below). The check also added a failure of its own: a stale or missing manifest in a production build disabled pattern processing and conflict resolution. Do not re-add a hash step without a way to hold the expected hash outside the bundle. See ADR-080.
 
 ---
 
@@ -164,20 +164,9 @@ catch (error) {
 
 ### 6. ✅ Retry Logic with Exponential Backoff
 
-**What**: Transient WASM loading failures trigger automatic retries before falling back.
+**What**: Transient WASM init failures are retried before Phase 1 is given up for the session.
 
-**Implementation**: `src/utils/WasmRetryManager.js`
-
-```javascript
-// src/utils/WasmNumberProcessor.js:51-88
-await wasmRetryManager.retryWithBackoff(
-  async () => {
-    // WASM initialization logic
-  },
-  'NumberProcessor-init',
-  { onlyRetryTransient: true }
-);
-```
+**Implementation**: `src/utils/wasm/WasmProcessorLifecycle.js`. `initialize(instantiateFn)` retries up to `MAX_RETRIES` (3) times with exponential backoff, for transient errors only.
 
 **Why This Matters**:
 

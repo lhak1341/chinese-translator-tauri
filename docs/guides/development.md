@@ -62,7 +62,7 @@ Two real examples of the pattern, current as of this writing: `window.translatio
 
 See [CSP_SECURITY.md](../CSP_SECURITY.md) for the full CSP directive rationale (`'wasm-unsafe-eval'`) and its mitigations — this section covers only what that doc doesn't.
 
-**Vite WASM plugin order matters**: `wasm()` and `topLevelAwait()` must come before the React plugin in `vite.config.ts`'s `plugins` array — WASM modules need to be processed before React transformation runs.
+**Vite WASM plugin order matters**: `wasm()` must come before the React plugin in `vite.config.ts`'s `plugins` array — WASM modules need to be processed before React transformation runs.
 
 **WASM asset filenames must not be content-hashed** — wasm-pack's generated glue code imports the `.wasm` file by its literal name; Vite's default content-hashing breaks that import. `rollupOptions.output.assetFileNames` needs an explicit `.wasm` exception (`assets/[name][extname]`, no hash).
 
@@ -88,7 +88,7 @@ Code that looks unused is a starting point, not a deletion list. Blind spots:
 
 4. **Test imports count.** An export used only in `__tests__/` files still has a caller. Check test files before removing.
 
-4b. **A test-only caller isn't automatically "delete it."** If the test unit-tests real, substantial edge-case logic that only works via direct import, keep the export — a real test surface justifies an interface with zero cross-module callers. Reserve unexport/delete for trivial constants or logic the surviving public function already covers indirectly. (2026-08-08: kept `VocabularyWarmup.js`'s `extractHighFrequencyVocabulary`/`generateCharacterCombinations` exported for this reason; unexported `CharacterOnlyBridge`/`PerformanceMonitor`'s trivial constants safely since their tests lost nothing hardcoding literals instead.)
+4b. **A test-only caller isn't automatically "delete it."** If the test unit-tests real, substantial edge-case logic that only works via direct import, keep the export — a real test surface justifies an interface with zero cross-module callers. Reserve unexport/delete for trivial constants or logic the surviving public function already covers indirectly.
 
 5. **Partial-dead ≠ file-dead.** A file with some dead exports is NOT a dead file. Verify every export has zero callers before deleting the file.
 

@@ -48,8 +48,6 @@ window.performanceDashboard.getHealthReport();
 
 **Everything, on a reload**: a full invalidation is an engine rebuild (`reinitialize`, from Cmd+R or a binding change), which bumps `engineVersion` — the signal every holder of translated output (the Reader's chunk cache, its outline titles) listens to.
 
-`invalidateAllCaches()`, the older "clear all 6 cache systems" API documented here until 2026-09-26, had no caller in the app (only reachable by hand from devtools) and was deleted — see `deleted-symbols.md`.
-
 ---
 
 ## When to Profile Performance
@@ -133,7 +131,7 @@ console.log(
 // - Is speedup <1.2x? (not worth added complexity)
 ```
 
-**Benchmarking WASM against its JS twin.** Run the script as `MODE=test bun run x.mjs` (JavaScriptCore, the app's WKWebView engine; it imports repo `.ts` directly, Node cannot) and call `initSync({ module: readFileSync('src/wasm/translation_wasm_core_bg.wasm') })` from `src/wasm/translation_wasm_core.js`, then `new` the Rust class; cross-check on V8 only where Node can import it. Time the wrapper's whole path (JSON in/out, `JSON.parse`, result mapping), not the bare export. Use real call counts (the processor's own stats, e.g. `stringOptimization.precomputedLookups`: 3.4M per 500 characters on the JS fallback matcher) and real novels from `~/Downloads/_FICTION`, not synthetic text, so the boundary-crossing cost is weighed at its real frequency. To diff final engine output between two implementations, copy the setup of `TranslationEngine.phase1.test.js` (real binary via its two mocks) into a temporary `src/**/*.test.js`, load the production dictionaries read-only (`dangerouslyDisableSandbox`), patch the wrapper method per mode, and run a same-mode control: `segments` ids and order differ between two identical runs (parallel chunk completion), so compare `translatedText`. ADR-073, ADR-078 and ADR-079 are the worked examples.
+**Benchmarking WASM against its JS twin.** Run the script as `MODE=test bun run x.mjs` (JavaScriptCore, the app's WKWebView engine; it imports repo `.ts` directly, Node cannot) and call `initSync({ module: readFileSync('src/wasm/translation_wasm_core_bg.wasm') })` from `src/wasm/translation_wasm_core.js`, then `new` the Rust class; cross-check on V8 only where Node can import it. Time the wrapper's whole path (JSON in/out, `JSON.parse`, result mapping), not the bare export. Use real call counts (the processor's own stats) and real novels from `~/Downloads/_FICTION`, not synthetic text, so the boundary-crossing cost is weighed at its real frequency. To diff final engine output between two implementations, copy the setup of `TranslationEngine.phase1.test.js` (real binary via its two mocks) into a temporary `src/**/*.test.js`, load the production dictionaries read-only (`dangerouslyDisableSandbox`), patch the wrapper method per mode, and run a same-mode control: `segments` ids and order differ between two identical runs (parallel chunk completion), so compare `translatedText`. ADR-073, ADR-078 and ADR-079 are the worked examples.
 
 **Sizing an engine call's real inputs.** Put a throwaway test under `src/utils/__tests__/` that loads the real WASM (the two `vi.mock`s at the top of `TranslationEngine.phase1.test.js`), initializes the engine with the production dictionaries, replaces the method with a recorder that then calls the original, and runs `translateWithSegments` over library windows; write the result to a file and delete the test. Do not `vi.mock('../logger')` with a partial object: `logger.debugIfSlow` is called in the translate path. Round 16 found `resolveGlobalConflicts` sees 3 candidates per call at the median (17 at most, 6,728 calls), which no synthetic array would have predicted (ADR-083).
 
@@ -143,10 +141,6 @@ console.log(
 - **Dictionary lookups**: Measure trie traversal, check O(k) vs O(n) complexity
 - **Token array operations**: Profile slice/map/filter chains
 - **DOM manipulation**: Measure render blocking, use virtualization thresholds
-
-### Rust-side matcher profiling is not wired up
-
-`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, and `performanceDashboard` (`getStats` only, ADR-069). To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `be492346:docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
 
 ### Prevention Strategy
 
@@ -192,7 +186,7 @@ Historical impact, for calibration on whether a regression here matters: long se
 
 ### WASM full 5-phase engine attempt (Phase 6-7, 2024)
 
-- Complete 5-phase WASM engine (`WasmTranslationAccelerator.js`, 1,951 lines)
+- Complete 5-phase WASM engine (1,951 lines)
 - Dictionary lookups returned zero matches (serialization issues across all phases)
 - Example: "那三个乞丐" → "Na tam cá khất cái" (character-by-character) instead of "Na ba cá ăn mày" (correct phrases)
 - Resolution: Removed, kept focused WASM acceleration (number processing, pattern matching; the Rust lookup index went later, ADR-108)

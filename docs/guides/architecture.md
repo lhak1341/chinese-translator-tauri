@@ -17,7 +17,7 @@ Know which path runs before adding a debug log.
 
 **Log where every content type arrives.** `postProcess()` runs only for content a phase translated. A number already in Arabic digits (`23/30`), Latin text and punctuation skip it, so a log there never fires for them. `finishFullText()` and `finishCharOnlyText()` (`FormattingPasses.ts`) run on all translated text, one per mode, so put it there (a `(23/30)` spacing bug was chased through `postProcess()` for exactly this reason).
 
-**A `/` stays inside a fraction.** The chunker config excludes it from chunk separators (`excludedCharacters` in `TranslationEngine.js`; regression test `TranslationEngine.regression.test.js`, `cleanup('(23/30)')`).
+**A `/` between two digits stays inside its chunk.** `isDigitSlash` in `TextChunker.js` keeps it out of the chunk separators (regression test `TranslationEngine.regression.test.js`, `cleanup('(23/30)')`).
 
 ---
 
@@ -60,7 +60,7 @@ if (processed.translationSource?.includes('consumed')) {
 
 Every token processor, WASM or JavaScript, must keep the token array's length (no insert or delete), modify tokens in place, and use explicit `null` for optional fields. `postProcess()` relies on it: a consumed token (`translated: null` plus a `translationSource`) is skipped, and one with `translated` set is processed instead.
 
-Only `validateWasmDictionaryMatch()` survives in `src/utils/wasm/WasmBoundaryValidation.ts` (ADR-037); its test is `WasmBoundaryValidation.test.ts`.
+`src/utils/wasm/WasmBoundaryValidation.ts` exports one check, `isPatternMatchInBounds()`; its test is `WasmBoundaryValidation.test.ts`.
 
 ---
 

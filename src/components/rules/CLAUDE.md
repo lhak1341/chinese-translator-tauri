@@ -13,7 +13,7 @@ identical key/number/enum contract instead of redefining it) or `TransformRuleEn
 (derived-default/domain policy: `compareRulePrecedence`, `applyRule`,
 `deriveCapitalizeExceptNForKeyEdit`) — never hand-roll the same check/derivation inline in
 just one component. `extractHanChars` (the clipboard-prefill helper) lives there too since
-2026-09-30, on the same `HAN_CHAR` as `parseValidatedKey`; `RuleFieldValidation.ts` is gone.
+2026-09-30, on the same `HAN_CHAR` as `parseValidatedKey`.
 `draftAsRule(draft)` is the one trimmed view of a new-rule draft, read by both the conflict
 check (`RulesManager`) and the preview (`NewRuleModal`). A module owning the whole draft was
 considered and skipped (ADR-056): `draft`/`setDraft` stay the modal's interface.
@@ -69,9 +69,7 @@ future field change (add/rename/retype) is TS-only, zero Rust changes needed.
 ## Compact Toggle-in-a-Table-Cell Pattern
 
 A `<select>` crops in a narrow table cell, so a 2-state field renders as a pair of small
-chip buttons instead. `MatchKindToggle` and `MoveModeToggle` were two near-byte-identical
-files hand-rolling this shape independently — unified 2026-09-09 (architecture review
-candidate #1 grilling) into `BinaryToggleChips<T>` (`src/components/dictionary/
+chip buttons instead. The shape is `BinaryToggleChips<T>` (`src/components/dictionary/
 TableBuildingBlocks.tsx`), built on the same `BadgeChip` primitive `SemanticTypeToggleCell`/
 `TypeToggleCell` use. A third narrow-cell 2-state field should call `BinaryToggleChips` with
 its own `options` array — do NOT create a new `XyzToggle.tsx` file that re-derives the chip

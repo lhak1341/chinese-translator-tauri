@@ -13,6 +13,7 @@ cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag. `bunx vitest --run <path>` for single-file iteration bypasses the freshness gate (it lives in the npm script, not vitest) — fast, but re-run the full command before trusting any result that depends on Rust
 bun run type-check  # 0 errors expected; excludes test files and checks no JavaScript (checkJs: false)
+bun run lint:docs  # markdown allowlist, and every backticked name and path in a live doc must exist (ADRs and deleted-symbols.md exempt)
 bun run type-check:ratchet  # tests and JavaScript, engine included (tsconfig.test.json); any new error fails, counts in .type-ratchet-baseline.json only fall
 ```
 
@@ -32,7 +33,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 
 ## Critical Constraints
 
-**DO NOT extract** from `TranslationEngine.js`: `translateSinglePass()` (shared token state across all 5 phases), `findAllMatchesWithSemanticCache()` (timing-sensitive cache invalidation), `postProcess()` (position precision requires exact assembly order). **Ruled out for mechanization 2026-08-31**: a hook blocking edits to these would enforce the letter, block a legitimate future refactor, and teach none of the three reasons above — which are the actual content. Stays prose deliberately.
+**DO NOT extract** from `TranslationEngine.js`: `translateSinglePass()` (shared token state across all 5 phases), `postProcess()` (position precision requires exact assembly order). **Ruled out for mechanization 2026-08-31**: a hook blocking edits to these would enforce the letter, block a legitimate future refactor, and teach neither reason above — which are the actual content. Stays prose deliberately.
 
 **DO NOT modify dictionaries** without permission. Production: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`. When permission is given for a bulk edit: back up the target files to the scratchpad dir first; confirm real formatting (indent width, literal-UTF-8 vs `\u` escapes via `grep -c '\\u'`, trailing-newline via `tail -c`) before `JSON.parse`→mutate→`JSON.stringify(obj,null,2)`, so the rewrite is a surgical diff. Orphaned `*.trie.json` files (the persisted trie cache was deleted, ADR-075) are safe to delete by hand. When bulk-matching entries by key-string suffix/prefix, also verify the matched entries' **field shape** (`allowedVariableTypes`/`semanticType`) matches the expected category before mutating — a string match alone can catch unrelated entries.
 
@@ -47,7 +48,7 @@ Tauri-wide conventions (standard scripts, lint ratchet, deploy, WebView limits, 
 This file stays short on purpose — everything task-scoped moved to where it's discoverable when you actually need it:
 
 - **Tooling/environment gotchas** (repo-wide search and ad-hoc scripts importing `src/` — read before either; Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
-- **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing, and before deleting a method with no production callers (dev-console commands and contract tests look dead on grep, e.g. `getWasmStatus`) → [`docs/guides/deleted-symbols.md`](docs/guides/deleted-symbols.md).
+- **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing, and before deleting a method with no production callers (dev-console commands and contract tests look dead on grep, e.g. `getMemoryUsage`) → [`docs/guides/deleted-symbols.md`](docs/guides/deleted-symbols.md).
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing, and before presenting a candidate run the prior-decision greps in troubleshooting.md: rounds 23, 28 and 30 shipped candidates an ADR addendum or scoped `CLAUDE.md` had already declined) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.
 - **`Translator.jsx`/hooks/component contracts** (engine lifecycle, hotkeys, highlighting state) → `src/components/CLAUDE.md` (and nested `src/components/*/CLAUDE.md` for dictionary/rules).
