@@ -86,8 +86,8 @@ The CSP directive `'wasm-unsafe-eval'` permits:
 **How**:
 
 ```javascript
-// src/utils/WasmNumberProcessor.js:56
-wasmModule = await import('../wasm/translation_wasm_core.js');
+// src/utils/wasm/WasmSharedModule.js
+const wasmModule = await import('../../wasm/translation_wasm_core.js');
 ```
 
 **Why This Matters**:
@@ -114,12 +114,9 @@ A SHA-256 check of the WASM binary against a bundled manifest, and a module-expo
 **Implementation**: `src/utils/wasm/wasmInstanceCheck.js`, called by `WasmProcessorLifecycle`
 
 ```javascript
-// the lifecycle runs this after instantiateFn() returns
-const instanceVerification = verifyWasmInstance(
-  instance,
-  ['initialize', 'processTokens', 'getStatistics', 'free'],
-  'PatternProcessor'
-);
+// src/utils/wasm/WasmProcessorLifecycle.js, after instantiateFn() returns;
+// WasmPatternProcessor.js passes expectedMethods: ['initialize', 'processTokens', 'free']
+const instanceVerification = verifyWasmInstance(instance, this._expectedMethods, this.name);
 if (!instanceVerification.valid) {
   throw new Error(`WASM instance verification failed: ${instanceVerification.errors.join(', ')}`);
 }
@@ -140,11 +137,12 @@ if (!instanceVerification.valid) {
 **Implementation**:
 
 ```javascript
-// src/utils/WasmNumberProcessor.js:94-98
-catch (error) {
-  logger.warn('⚠️ Failed to initialize WASM NumberProcessor after retries:', error);
-  logger.warn('Falling back to character-by-character translation for numbers');
-  initializationFailed = true;
+// src/utils/wasm/WasmProcessorLifecycle.js
+} catch (error) {
+  logger.error(`❌ Failed to initialize ${this.name} after retries:`, error);
+  this._hasFailed = true;
+  this._retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
+  this._initializationPromise = null;
   return false;
 }
 ```

@@ -20,7 +20,7 @@
     "type-check:ratchet": "node scripts/type-ratchet.mjs",
     "type-check:ratchet:baseline": "node scripts/type-ratchet.mjs --update",
     "lint:full": "eslint .",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
     "check": "bun run type-check",
     "preview": "vite preview",
     "tauri": "tauri",
@@ -88,8 +88,8 @@
     "*.{js,jsx,ts,tsx}": [
       "eslint --fix"
     ],
-    "src/**/*.{ts,tsx}": [
-      "bash -c 'tsc --noEmit'"
+    "{src,scripts}/**/*.{ts,tsx}": [
+      "bash -c 'bun run type-check'"
     ]
   }
 }

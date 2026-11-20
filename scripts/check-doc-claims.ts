@@ -13,9 +13,21 @@
  *               matches a tracked file or directory by suffix (an extensionless import
  *               specifier tries the source extensions), or is on disk (generated, gitignored).
  *
+ *   fenced      inside a code fence, only a path rooted at a tracked top-level directory
+ *               (`// src/utils/wasm/WasmSharedModule.js`, `grep x src-tauri/src/lib.rs:12`).
+ *
  * Not claims: lowercase single words (`ok`, `none`; write a function as `destroy()`), literals,
  * flags, anything with a space, ratios (`23/30`), `Foo.A/B` alternatives, URLs, globs, and
- * fenced code blocks. `be492346:<path>` cites a retired file (docs/README.md "Archive").
+ * identifiers in fenced code blocks. `be492346:<path>` cites a retired file (docs/README.md
+ * "Archive"); a fenced line naming `be492346` is skipped whole.
+ *
+ * Ruled out (measured 2026-11-20; reopen if the misses turn into drift):
+ *   fenced identifiers   56 of 148 unresolved, 52 of them English words or example locals.
+ *   `Type::member`       17 tokens, 0 drift; both misses legitimate (`Pool::get_slow` lives in
+ *                        regex-automata, `MatchType::Other` names a deleted test in past tense).
+ *   GLOSSARY.md headings a heading is a domain term, not a symbol (`DictionaryCRUD` is the
+ *                        hook `useDictionaryCRUD`, `DictionaryColumnSchema` "is not a module");
+ *                        each entry's backticked entry point is already checked.
  *
  * Out of scope: ADRs and deleted-symbols.md, which name deleted code on purpose. Live docs do
  * not: rewrite the sentence in the present tense, or delete it (git holds the history).
@@ -26,7 +38,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { stripComments } from '../src/test/sourceScan';
 
-const root = path.resolve(import.meta.dir, '..');
+const root = path.resolve(import.meta.dirname, '..');
 
 /** Real names that live outside this repo's code. Adding one is a deliberate edit. */
 const EXTERNAL = new Set([
@@ -180,6 +192,12 @@ const IDENT = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*(\(\))?$/;
 const SOURCE_EXT = ['.ts', '.tsx', '.js', '.jsx', '.d.ts', '.mjs', '.rs'];
 const HAS_EXT = /\.[A-Za-z]{1,5}$/;
 const FILE_NAME = /^[\w.@-]+\.(md|ts|tsx|js|jsx|mjs|cjs|rs|json|toml|css|ya?ml|sh|html)$/;
+// A path in a fenced block, rooted at a tracked top-level directory (`src/…`, `wasm-core/…`).
+const topDirs = [...new Set(tracked.filter((f) => f.includes('/')).map((f) => f.split('/')[0]))];
+const FENCED_PATH = new RegExp(
+  `(?<![\\w/.~-])(?:${topDirs.map((d) => d.replace(/[.]/g, '\\.')).join('|')})/[\\w./@-]+`,
+  'g'
+);
 
 /** Whether a bare identifier token is code-shaped (Q11), not an English or config word. */
 function isCodeShaped(token: string): boolean {
@@ -213,8 +231,21 @@ for (const doc of docs) {
   const lines = readFileSync(path.join(root, doc), 'utf8').split('\n');
   let fenced = false;
   lines.forEach((line, i) => {
-    if (/^\s*```/.test(line)) fenced = !fenced;
-    if (fenced) return;
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (fenced) {
+      // In a fence only repo-rooted paths are claims; identifiers there are mostly English in
+      // comments and illustrative locals (56 of 148 unresolved on 2026-11-20, 4 of them drift).
+      if (line.includes('be492346')) return;
+      for (const [raw] of line.matchAll(FENCED_PATH)) {
+        const file = raw.replace(/:\d+(-\d+)?$/, '').replace(/[.,;:)]+$/, '');
+        claims++;
+        if (!pathExists(file, doc)) failures.push({ doc, line: i + 1, token: file, kind: 'path' });
+      }
+      return;
+    }
     for (const [, raw] of line.matchAll(/`([^`\n]+)`/g)) {
       const token = raw.trim();
       if (!token || /\s/.test(token) || token.startsWith('be492346:')) continue;

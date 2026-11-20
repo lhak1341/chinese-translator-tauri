@@ -152,6 +152,16 @@ export default tseslint.config(
       'no-undef': 'error',
     },
   },
+  {
+    // TypeScript build scripts. Without a config object whose `files` matches them, `eslint .`
+    // skips scripts/*.ts silently (it lints only .js/.mjs/.cjs by default). The parser is what
+    // lets the shared rules above reach them; `tsc -p tsconfig.scripts.json` type-checks them.
+    files: ['scripts/**/*.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      globals: globals.node,
+    },
+  },
   // Prettier config (disables conflicting ESLint rules)
   prettierConfig
 );

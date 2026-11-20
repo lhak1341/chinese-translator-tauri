@@ -1,0 +1,11 @@
+{
+  // Type-checks the TypeScript build scripts under scripts/, which tsconfig.json excludes
+  // (they run in Node/Bun, not the WebView). Part of `bun run type-check`: 0 errors expected.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.ts"],
+  "exclude": ["node_modules"]
+}
