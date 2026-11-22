@@ -278,6 +278,16 @@ describe('buildPatternVariableCache — Stage 3 full-text scan', () => {
     expect(result['南希丽诺']).toMatchObject({ translation: 'Nancy Reno' });
   });
 
+  test('a key with a symbol in it is cached without the symbol too (the tokenizer types it punctuation)', () => {
+    const match = { word: '甲★乙', translation: 'Star', dictionary: 'properNouns' };
+    const result = buildPatternVariableCache(tokens, {
+      activeProperNouns: ['properNouns'],
+      dictionaryManager: withMatches([match]),
+      patterns: [],
+    });
+    expect(result['甲乙']).toMatchObject({ translation: 'Star' });
+  });
+
   test('an entry already cached under the matcher spelling keeps it', () => {
     const exact = { word: '南希丽诺', translation: 'Exact', dictionary: 'properNouns' };
     const punctuated = { word: '南希-丽诺', translation: 'Nancy Reno', dictionary: 'properNouns' };

@@ -37,6 +37,19 @@ vi.mock('../../components/dictionary/DictionaryContext', () => ({
 vi.mock('../../components/BookBindingContext', () => ({
   useBookBinding: () => ({ loadQuickAddView: providers.loadView }),
 }));
+// One access for the session, as `useTranslatorEngine` builds it; `run` records the owner.
+const engine = vi.hoisted(() => ({
+  access: {
+    run: async (_owner, call) =>
+      call({ translateWithSegments: async (text) => ({ translatedText: `full:${text}` }) }),
+  },
+}));
+vi.mock(import('../../components/EngineContext'), () => ({
+  useEngine: () =>
+    /** @type {ReturnType<typeof import('../../components/EngineContext').useEngine>} */ (
+      /** @type {unknown} */ ({ engineAccess: engine.access })
+    ),
+}));
 
 vi.mock('../../utils/appConfig', () => ({
   loadAppConfig: vi.fn(),
@@ -64,13 +77,19 @@ beforeEach(() => {
   form.mounts = 0;
 });
 
-/** Renders the hook's dialog, as a surface does. `result.current` is the hook's return. */
-function renderModals(dictionaries, loadView, shortlistMemory, translatePreview) {
+/**
+ * Renders the hook's dialog, as a surface does. `result.current` is the hook's return.
+ * @param {any} dictionaries
+ * @param {any} loadView
+ * @param {any} [shortlistMemory]
+ * @param {import('../../utils/EngineAccess').EngineOwner} [owner]
+ */
+function renderModals(dictionaries, loadView, shortlistMemory, owner = 'translator') {
   const result = { current: null };
   providers.loadView = loadView;
   function Surface({ dictionaries: dicts }) {
     providers.dictionaries = dicts;
-    const modals = useDictionaryModals({ shortlistMemory, translatePreview });
+    const modals = useDictionaryModals({ shortlistMemory, owner });
     result.current = modals;
     form.props = null; // set again by the stub only if the dialog renders it
     return modals.dialog;
@@ -129,15 +148,35 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     expect(form.props.selectedDictionary).toBe('characters');
   });
 
-  test("hands the form the surface's Full Translation preview", async () => {
-    const translatePreview = vi.fn();
-    const { result } = renderModals({}, loadQuickAddConfig, undefined, translatePreview);
+  test("the form's Full Translation preview asks the engine as the given owner", async () => {
+    const run = vi.spyOn(engine.access, 'run');
+    const { result } = renderModals({}, loadQuickAddConfig, undefined, 'reader');
     const modals = /** @type {import('../useDictionaryModals').DictionaryModals} */ (
       /** @type {unknown} */ (result.current)
     );
     await act(() => modals.handlers.quickAddPhrase('一'));
+    const props = /** @type {{ translatePreview: (text: string) => Promise<string> }} */ (
+      /** @type {unknown} */ (form.props)
+    );
+    await expect(props.translatePreview('一')).resolves.toBe('full:一');
+    expect(run).toHaveBeenCalledWith('reader', expect.any(Function));
+    run.mockRestore();
+  });
+
+  // A new function per render would re-ask the engine on every render of the surface
+  test('re-rendering hands the form the same preview function', async () => {
+    const { result, rerender } = renderModals({}, loadQuickAddConfig);
+    const modals = /** @type {import('../useDictionaryModals').DictionaryModals} */ (
+      /** @type {unknown} */ (result.current)
+    );
+    await act(() => modals.handlers.quickAddPhrase('一'));
+    const first = /** @type {{ translatePreview?: unknown }} */ (
+      /** @type {unknown} */ (form.props)
+    ).translatePreview;
+    rerender({ phrases: {} });
     const props = /** @type {{ translatePreview?: unknown } | null} */ (form.props);
-    expect(props?.translatePreview).toBe(translatePreview);
+    expect(props?.translatePreview).toBeTypeOf('function');
+    expect(props?.translatePreview).toBe(first);
   });
 
   test('renders no dialog until an Add opens', () => {

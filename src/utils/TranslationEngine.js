@@ -126,7 +126,7 @@ import {
   filterDictionariesForEngine,
   isActiveProperNounSource,
 } from './dictionary/FictionDictionaryFilter';
-import { getTokenSpanForText, isSemanticTokenType } from './TokenHelpers.js';
+import { isSemanticTokenType } from './TokenHelpers.js';
 import { PatternStore } from './pattern/PatternStore.js';
 import { TextChunker, findKeyOccurrences } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
@@ -860,32 +860,30 @@ export class TranslationEngine {
 
         // Add matches for remaining phrases
         for (const match of phraseMatches) {
-          const tokenSpan = getTokenSpanForText(tokens, i, match.word);
+          const tokenSpan = match.tokenLength;
 
-          if (tokenSpan >= 1) {
-            // Check if any token in the span is already processed
-            let hasProcessedTokens = false;
-            for (let j = 0; j < tokenSpan; j++) {
-              const checkIndex = i + j;
-              if (checkIndex < tokens.length) {
-                const checkToken = tokens[checkIndex];
-                if (isClaimed(checkToken)) {
-                  hasProcessedTokens = true;
-                  break;
-                }
+          // Check if any token in the span is already processed
+          let hasProcessedTokens = false;
+          for (let j = 0; j < tokenSpan; j++) {
+            const checkIndex = i + j;
+            if (checkIndex < tokens.length) {
+              const checkToken = tokens[checkIndex];
+              if (isClaimed(checkToken)) {
+                hasProcessedTokens = true;
+                break;
               }
             }
+          }
 
-            if (!hasProcessedTokens) {
-              allPotentialMatches.push({
-                startIndex: i,
-                endIndex: i + tokenSpan - 1,
-                match: match,
-                tokenSpan: tokenSpan,
-                type: 'phrase',
-                length: match.word.length,
-              });
-            }
+          if (!hasProcessedTokens) {
+            allPotentialMatches.push({
+              startIndex: i,
+              endIndex: i + tokenSpan - 1,
+              match: match,
+              tokenSpan: tokenSpan,
+              type: 'phrase',
+              length: match.word.length,
+            });
           }
         }
       }
@@ -975,7 +973,7 @@ export class TranslationEngine {
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
 
-          const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
+          const tokenSpan = bestMatch.tokenLength;
 
           // Lookahead: if a LONGER match exists starting within our span, defer to it.
           // Prevents greedy left-to-right from picking a short match (e.g. "日元", 2 chars)
@@ -998,11 +996,7 @@ export class TranslationEngine {
           this.applyMatchToTokens(tokens, i, bestMatch, options);
 
           // Skip ahead past the matched tokens
-          // BUG FIX: Ensure we never go backwards or stay in same place
-          if (tokenSpan > 0) {
-            i += tokenSpan - 1;
-          }
-          // If tokenSpan is 0, just continue to next token (i will increment naturally)
+          i += tokenSpan - 1;
         }
       }
     } catch (error) {
@@ -1265,7 +1259,8 @@ export class TranslationEngine {
    * Apply a dictionary match to the appropriate tokens with semantic grouping
    * @param {Token[]} tokens - Array of tokens
    * @param {number} startIndex - Starting token index
-   * @param {Object} match - Dictionary match object
+   * @param {import('./dictionary/TokenMatch').TokenMatch} match - From `findMatchesAtToken` or
+   *   `characterMatchFor`; claims `match.tokenLength` tokens, counted by the lookup that read them
    * @param {Object} options - Translation options (may include chunkOffset). `recordMatches: false`
    *   stamps the tokens without touching the engine's shared semantic builder
    *   (the character-only pass, which builds its own arrays).
@@ -1285,37 +1280,36 @@ export class TranslationEngine {
       return;
     }
 
-    const tokenSpan = getTokenSpanForText(tokens, startIndex, match.word);
-
-    // Debug logging for segment tracking
+    const tokenSpan = match.tokenLength;
 
     // Mark the first token with the translation and create semantic group
-    if (tokenSpan > 0) {
-      // The leader keeps the dictionary's exact translation (a proper noun keeps its capitalization)
-      // and the span's followers are consumed by it; see TokenClaim.ts.
-      //
-      // One semantic unit per match, recorded for the leader only (intentional design): the unit
-      // spans the whole match (e.g. "我的朋友" → "bạn của tôi"), and the consumed tokens have
-      // translated=null, so postProcess() emits one output segment for it. The unit's source is the
-      // claim's `match.dictionary`: a proper noun dictionary name resolves at priority 2, 'phrases'
-      // at 4, 'characters' at 5. `recordMatches: false` (the character-only pass, which builds its
-      // own arrays) places without recording.
-      placeGroupedSpan(
-        tokens,
-        startIndex,
-        tokenSpan,
-        match.dictionary,
-        match.translation,
-        match.word,
-        {
-          builder: options.recordMatches !== false ? this.semanticArrayBuilder : null,
-          chunkOffset: options.chunkOffset,
-        },
-        this.activeProperNouns ?? []
-      );
-      if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
-        tokens[startIndex].isProperNoun = true;
-      }
+    // The leader keeps the dictionary's exact translation (a proper noun keeps its capitalization)
+    // and the span's followers are consumed by it; see TokenClaim.ts.
+    //
+    // One semantic unit per match, recorded for the leader only (intentional design): the unit
+    // spans the whole match (e.g. "我的朋友" → "bạn của tôi"), and the consumed tokens have
+    // translated=null, so postProcess() emits one output segment for it. The unit's source is the
+    // claim's `match.dictionary`: a proper noun dictionary name resolves at priority 2, 'phrases'
+    // at 4, 'characters' at 5. `recordMatches: false` (the character-only pass, which builds its
+    // own arrays) places without recording. The dictionary name is a runtime string the types
+    // cannot rank; an unranked one is logged by TokenClaim.ts, as before the match was typed.
+    placeGroupedSpan(
+      tokens,
+      startIndex,
+      tokenSpan,
+      /** @type {import('../types/TranslationEngineTypes').TranslationLeaderSource} */ (
+        match.dictionary
+      ),
+      match.translation,
+      match.word,
+      {
+        builder: options.recordMatches !== false ? this.semanticArrayBuilder : null,
+        chunkOffset: options.chunkOffset,
+      },
+      this.activeProperNouns ?? []
+    );
+    if (isActiveProperNounSource(match.dictionary, this.activeProperNouns)) {
+      tokens[startIndex].isProperNoun = true;
     }
   }
 

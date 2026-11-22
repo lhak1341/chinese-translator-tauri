@@ -13,7 +13,9 @@ import {
 } from '../utils/dictionary/QuickAddTarget';
 import toast from '../utils/toast';
 import type { QuickAddAction } from '../utils/ui/HotkeyDispatchTable';
-import type { TranslatePreview } from './useFullTranslationPreview';
+import { useEngine } from '../components/EngineContext';
+import type { EngineOwner } from '../utils/EngineAccess';
+import { translatePreviewOn } from './useFullTranslationPreview';
 
 /** What the open Add was opened on. Private: the dialog is the hook's only output of it. */
 interface QuickAddModalState {
@@ -54,9 +56,9 @@ export interface DictionaryModalsOptions {
   /** The last shortlist pick per kind. Defaults to the session-wide memory; tests inject
    * their own. */
   shortlistMemory?: Map<QuickAddKind, string>;
-  /** Full Translation on the running engine, as the opening surface's `EngineAccess` owner,
-   * for the form's "Full" line. Must be referentially stable. */
-  translatePreview?: TranslatePreview;
+  /** The surface that opens the Add: the form's "Full" line asks the engine as this
+   * `EngineAccess` owner. */
+  owner: EngineOwner;
 }
 
 /**
@@ -84,9 +86,16 @@ export interface DictionaryModalsOptions {
  */
 export function useDictionaryModals({
   shortlistMemory = sharedShortlistMemory,
-  translatePreview,
-}: DictionaryModalsOptions = {}): DictionaryModals {
+  owner,
+}: DictionaryModalsOptions): DictionaryModals {
   const { dictionaries, unreadDictionaryIds } = useDictionary();
+  const { engineAccess } = useEngine();
+  // One function per surface: `engineAccess` never changes, and a new function would re-ask the
+  // engine on every render (`useFullTranslationPreview` re-runs when it changes).
+  const translatePreview = useMemo(
+    () => translatePreviewOn(engineAccess, owner),
+    [engineAccess, owner]
+  );
   const { loadQuickAddView: loadView } = useBookBinding();
   const [modalState, setModalState] = useState<QuickAddModalState>(CLOSED);
   // The open modal's shortlist, read by the change handler to decide what to remember.

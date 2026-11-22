@@ -7,9 +7,9 @@
 import {
   getSemanticTokens,
   isSemanticTokenType,
-  getTokenSpanForText,
   reconstructChineseText,
-  reconstructTextFromIndex,
+  readLookupText,
+  tokenLengthOf,
 } from '../TokenHelpers.js';
 import { TokenType } from '../text/TextTokenizer.js';
 
@@ -180,94 +180,6 @@ describe('isSemanticTokenType', () => {
   });
 });
 
-describe('getTokenSpanForText', () => {
-  test('should calculate span for matching text', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '在', 0),
-      createToken(TokenType.CHINESE_CHAR, '那', 1),
-      createToken(TokenType.CHINESE_CHAR, '些', 2),
-      createToken(TokenType.CHINESE_CHAR, '魔', 3),
-    ];
-
-    const span = getTokenSpanForText(tokens, 0, '在那些');
-    expect(span).toBe(3);
-  });
-
-  test('should stop when text no longer matches', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '在', 0),
-      createToken(TokenType.CHINESE_CHAR, '那', 1),
-      createToken(TokenType.CHINESE_CHAR, '里', 2),
-    ];
-
-    const span = getTokenSpanForText(tokens, 0, '在那些');
-    expect(span).toBe(2); // Stops at '那' because next token is '里' not '些'
-  });
-
-  test('should handle originalValue for grouped tokens', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_WORD, '魔帅', 0, { originalValue: '魔帅' }),
-      createToken(TokenType.CHINESE_CHAR, '眼', 2),
-    ];
-
-    const span = getTokenSpanForText(tokens, 0, '魔帅眼');
-    expect(span).toBe(2);
-  });
-
-  test('should return 0 for non-matching text', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '在', 0),
-      createToken(TokenType.CHINESE_CHAR, '那', 1),
-    ];
-
-    const span = getTokenSpanForText(tokens, 0, '魔帅');
-    expect(span).toBe(0);
-  });
-
-  test('should handle startIndex in middle of array', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '在', 0),
-      createToken(TokenType.CHINESE_CHAR, '那', 1),
-      createToken(TokenType.CHINESE_CHAR, '些', 2),
-      createToken(TokenType.CHINESE_CHAR, '魔', 3),
-    ];
-
-    const span = getTokenSpanForText(tokens, 2, '些魔');
-    expect(span).toBe(2);
-  });
-
-  test('should handle empty remaining text', () => {
-    const tokens = [createToken(TokenType.CHINESE_CHAR, '在', 0)];
-
-    const span = getTokenSpanForText(tokens, 0, '');
-    expect(span).toBe(0);
-  });
-
-  test('should skip non-Chinese tokens (punctuation, whitespace)', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '在', 0),
-      createToken(TokenType.PUNCTUATION, '，', 1),
-      createToken(TokenType.CHINESE_CHAR, '那', 2),
-    ];
-
-    // The skipped token is inside the span: a caller claiming `span` tokens from the start
-    // must reach the last matched one ("墨 子" claimed 2 of 3 tokens and left 子 untranslated).
-    const span = getTokenSpanForText(tokens, 0, '在那');
-    expect(span).toBe(3);
-  });
-
-  test('should not count non-Chinese tokens after the last matched token', () => {
-    const tokens = [
-      createToken(TokenType.CHINESE_CHAR, '墨', 0),
-      createToken(TokenType.WHITESPACE, ' ', 1),
-      createToken(TokenType.CHINESE_CHAR, '子', 2),
-      createToken(TokenType.WHITESPACE, ' ', 3),
-    ];
-
-    expect(getTokenSpanForText(tokens, 0, '墨子')).toBe(3);
-  });
-});
-
 describe('reconstructChineseText', () => {
   test('should reconstruct text from Chinese tokens only', () => {
     const tokens = [
@@ -325,7 +237,7 @@ describe('reconstructChineseText', () => {
   });
 });
 
-describe('reconstructTextFromIndex', () => {
+describe('readLookupText', () => {
   test('should reconstruct text from start index until punctuation', () => {
     const tokens = [
       createToken(TokenType.CHINESE_CHAR, '在', 0),
@@ -335,7 +247,7 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.CHINESE_CHAR, '魔', 4),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 0);
+    const text = readLookupText(tokens, 0).text;
     expect(text).toBe('在那些');
   });
 
@@ -347,7 +259,7 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.PUNCTUATION, '。', 3),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 1);
+    const text = readLookupText(tokens, 1).text;
     expect(text).toBe('那些');
   });
 
@@ -360,7 +272,7 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.PUNCTUATION, '。', 4),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 0);
+    const text = readLookupText(tokens, 0).text;
     expect(text).toBe('在那');
   });
 
@@ -371,7 +283,7 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.CHINESE_CHAR, '些', 2),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 0);
+    const text = readLookupText(tokens, 0).text;
     expect(text).toBe('在那些');
   });
 
@@ -386,7 +298,7 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.CHINESE_CHAR, '里', 9),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 0);
+    const text = readLookupText(tokens, 0).text;
     expect(text).toBe('在那123abc里');
   });
 
@@ -396,14 +308,80 @@ describe('reconstructTextFromIndex', () => {
       createToken(TokenType.CHINESE_CHAR, '那', 1),
     ];
 
-    const text = reconstructTextFromIndex(tokens, 0);
+    const text = readLookupText(tokens, 0).text;
     expect(text).toBe('');
   });
 
   test('should handle start index beyond array length', () => {
     const tokens = [createToken(TokenType.CHINESE_CHAR, '在', 0)];
 
-    const text = reconstructTextFromIndex(tokens, 5);
+    const text = readLookupText(tokens, 5).text;
     expect(text).toBe('');
+  });
+
+  test("reads a grouped leader's own text, not the grouped text its followers repeat", () => {
+    const tokens = [
+      createToken(TokenType.CHINESE_CHAR, '降', 0),
+      createToken(TokenType.CHINESE_CHAR, '魔杖', 1, { originalValue: '魔' }),
+      createToken(TokenType.CHINESE_CHAR, '杖', 2, { originalValue: '杖' }),
+    ];
+
+    expect(readLookupText(tokens, 0).text).toBe('降魔杖');
+  });
+
+  test('records where each token it read ends, skipping whitespace', () => {
+    const tokens = [
+      createToken(TokenType.CHINESE_CHAR, '墨', 0),
+      createToken(TokenType.WHITESPACE, ' ', 1),
+      createToken(TokenType.CHINESE_CHAR, '子', 2),
+      createToken(TokenType.LATIN_WORD, 'XY', 3),
+    ];
+
+    expect(readLookupText(tokens, 0).tokenEnds).toEqual([
+      { tokenIndex: 0, end: 1 },
+      { tokenIndex: 2, end: 2 },
+      { tokenIndex: 3, end: 4 },
+    ]);
+  });
+
+  test('reads through punctuation while the text is shorter than throughPunctuation', () => {
+    const tokens = [
+      createToken(TokenType.CHINESE_CHAR, '乔', 0),
+      createToken(TokenType.CHINESE_CHAR, '斯', 1),
+      createToken(TokenType.PUNCTUATION, '-', 2),
+      createToken(TokenType.CHINESE_CHAR, '韦', 3),
+      createToken(TokenType.PUNCTUATION, '。', 4),
+      createToken(TokenType.CHINESE_CHAR, '登', 5),
+    ];
+
+    expect(readLookupText(tokens, 0, 4).text).toBe('乔斯-韦');
+  });
+});
+
+describe('tokenLengthOf', () => {
+  const tokens = [
+    createToken(TokenType.CHINESE_CHAR, '墨', 0),
+    createToken(TokenType.WHITESPACE, ' ', 1),
+    createToken(TokenType.CHINESE_CHAR, '子', 2),
+    createToken(TokenType.WHITESPACE, ' ', 3),
+    createToken(TokenType.LATIN_WORD, 'XY', 4),
+  ];
+  const lookup = readLookupText(tokens, 0);
+
+  test('counts from the start through the last token the match covers, spaces between included', () => {
+    expect(tokenLengthOf(lookup, 0, 1)).toBe(1);
+    expect(tokenLengthOf(lookup, 0, 2)).toBe(3);
+    expect(tokenLengthOf(lookup, 0, 4)).toBe(5);
+  });
+
+  test('is 0 for a match ending partway through a token, or past the text', () => {
+    expect(tokenLengthOf(lookup, 0, 3)).toBe(0);
+    expect(tokenLengthOf(lookup, 0, 5)).toBe(0);
+  });
+
+  test('counts from a start in the middle of the array', () => {
+    const tail = readLookupText(tokens, 2);
+    expect(tokenLengthOf(tail, 2, 1)).toBe(1);
+    expect(tokenLengthOf(tail, 2, 3)).toBe(3);
   });
 });

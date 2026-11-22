@@ -45,3 +45,17 @@ Architecture review round 37, candidate #4. Phase 4 (`processRemainingPhrases`) 
 Measured with the corpus-ab procedure over 156 windows from 26 books: 173,724 Phase 4 lookups, **0** whose match list (word and translation) differed between `findAllMatches` on the rebuilt text and `findMatchesAtToken`. Phase 4 now calls `findMatchesAtToken(tokens, i, ['phrases'])`, so no phase keeps a text frame of its own, and the offset helper was deleted. The one behaviour that can differ is a phrase matching across a digit or Latin token, which no production phrase key can do: all 16,315 are pure Han.
 
 Also deleted: `getTextPositionForTokenIndex`, and Phase 2's `processedRanges` overlap check, which cannot fire (1,889 checks, 0 conflicts; after a match the scan jumps past the claimed span and skips claimed tokens).
+
+## Addendum 2026-11-22: a match carries the tokens it covers
+
+Architecture review round 44, candidate #1. `findMatchesAtToken` returned only each match's `word`, so its three users (Phase 2, Phase 4 and `applyMatchToTokens`) counted the span again with `getTokenSpanForText`, a second walk over the tokens with its own rules: it read `originalValue || value` where the lookup read `value`, and took a punctuation token when the remaining word started with it where the lookup read through punctuation up to the longest punctuated key. ADR-112 had to change both walks together.
+
+Measured over 1,650 windows (30 from each of 55 books, real dictionaries and WASM): the two walks never disagreed in Phase 2 (18,194 spans) or `applyMatchToTokens`; in Phase 4 they disagreed on 19 of 816,014 spans, and the lookup's running length passed a match's end partway through a token 139 times. Every one of those spans held a Phase 2 grouped leader, whose `value` is the grouped text its followers then repeat (`降` + `魔杖` + `杖` read as `降魔杖杖`), and every one was rejected for holding a claimed token, so the output was not affected.
+
+Decided (grilling 2026-11-22):
+
+- The lookup walk (`readLookupText`) reads each token's own source text, `originalValue ?? value`, and records where each token ends; each match carries `tokenLength` from it (`TokenMatch`, which `characterMatchFor`'s one-token match also satisfies). The callers count nothing; `getTokenSpanForText` and `reconstructTextFromIndex` are deleted.
+- A match that would end partway through a token is not returned (0 such cases outside grouped leaders on the corpus).
+- The walk still reads through claimed tokens and callers keep their `isClaimed` checks: stopping at one would drop 9 real Phase 2 proper nouns that overwrite a Phase 1 pattern claim (阿史那 over 那家族), which is a separate decision.
+
+Same corpus, one frozen copy of the dictionaries, old code against new: the final text, the semantic units, the word segments and the character-only output were identical in all 1,650 windows.

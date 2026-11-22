@@ -55,6 +55,14 @@ vi.mock('../../components/BookBindingContext', async () => {
   return { useBookBinding: () => ({ loadQuickAddView }) };
 });
 
+// The Add form's Full line reads the engine; these tests never ask it.
+vi.mock(import('../../components/EngineContext'), () => ({
+  useEngine: () =>
+    ({ engineAccess: { run: async () => null } }) as unknown as ReturnType<
+      typeof import('../../components/EngineContext').useEngine
+    >,
+}));
+
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('../../utils/toast', () => ({ default: toast }));
 

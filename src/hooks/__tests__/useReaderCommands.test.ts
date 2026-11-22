@@ -14,7 +14,13 @@ const modals = {
   dialog: null,
 };
 
-vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));
+const modalsOptions = vi.hoisted(() => [] as unknown[]);
+vi.mock('../useDictionaryModals', () => ({
+  useDictionaryModals: (options: unknown) => {
+    modalsOptions.push(options);
+    return modals;
+  },
+}));
 vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),
 }));
@@ -66,6 +72,12 @@ afterEach(() => {
 });
 
 describe('useReaderCommands', () => {
+  it("opens its Adds as the Reader, so the form's Full line asks the engine as the Reader", () => {
+    modalsOptions.length = 0;
+    setup();
+    expect(modalsOptions.at(-1)).toEqual({ owner: 'reader' });
+  });
+
   it('fires the same function from a palette row and from the key its hint names', () => {
     // "One action, one call site", as a test: the palette row, the hotkey and (for the
     // chapter keys) the strip button all reach `actions[id]`, never a copy of it.

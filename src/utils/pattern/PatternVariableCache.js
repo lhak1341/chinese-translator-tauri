@@ -7,6 +7,7 @@
  */
 
 import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
+import { isPunctuationChar } from '../text/TextTokenizer.js';
 
 /** Longest phrase, in tokens, that stage 1 will look for. */
 const MAX_PHRASE_TOKENS = 6;
@@ -28,6 +29,18 @@ function withNumberVariables(tokens, cache, patterns) {
 }
 
 /**
+ * `word` as the WASM matcher reads a variable: without the characters the tokenizer types
+ * punctuation or whitespace, the tokens that are not semantic.
+ * @param {string} word
+ * @returns {string}
+ */
+function semanticSpelling(word) {
+  return [...word]
+    .filter((char) => !isPunctuationChar(char) && !/\p{White_Space}/u.test(char))
+    .join('');
+}
+
+/**
  * The entry's semantic type: `metadata.semanticType` if present, else 'concept' for a phrase
  * source; null for untyped (both matchers read that as 'unknown'). Every entry is kept whatever
  * its type: which variable it may fill is decided at match time
@@ -39,9 +52,6 @@ function withNumberVariables(tokens, cache, patterns) {
  * @param {object} [metadata]
  * @returns {string|null}
  */
-/** What the WASM matcher leaves out of a variable's text: the tokens that are not semantic. */
-const NON_SEMANTIC_CHARS = /[\p{P}\s]/gu;
-
 function resolveType(source, metadata) {
   const type = metadata?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
   return type === 'proper_noun' ? null : type;
@@ -143,7 +153,7 @@ export function buildPatternVariableCache(tokens, options) {
       // A key with punctuation in it (`南希-丽诺`, ADR-112) is also stored as the matcher reads
       // it: WASM builds a variable's text from the semantic tokens alone, skipping punctuation
       // and whitespace (`南希丽诺`). An entry already under that spelling keeps it.
-      const asMatched = match.word.replace(NON_SEMANTIC_CHARS, '');
+      const asMatched = semanticSpelling(match.word);
       if (asMatched !== match.word && asMatched && !(asMatched in cache)) cache[asMatched] = entry;
     }
   }

@@ -11,14 +11,15 @@
  * skip guard and `applyMatchToTokens`.
  */
 
+import type { TokenMatch } from './TokenMatch';
+
 /** The one method of the Dictionary Manager this reads (`DictionaryManager.lookupCharacter`). */
 export interface CharacterLookup {
   lookupCharacter(word: string): string | null;
 }
 
-export interface CharacterMatch {
-  word: string;
-  translation: string;
+/** A `TokenMatch` from the characters dictionary: always one token. */
+export interface CharacterMatch extends TokenMatch {
   dictionary: 'characters';
   tokenLength: 1;
 }

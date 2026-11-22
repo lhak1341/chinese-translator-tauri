@@ -182,7 +182,7 @@ describe('token state per phase', () => {
     engine.applyMatchToTokens(
       tokens,
       0,
-      { word: '张三', translation: 'Trương Tam', dictionary: 'properNouns' },
+      { word: '张三', translation: 'Trương Tam', dictionary: 'properNouns', tokenLength: 2 },
       {}
     );
     expect(tokens.map(state)).toStrictEqual([

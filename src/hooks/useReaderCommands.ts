@@ -8,7 +8,6 @@ import type { PaletteCommand, ShelfNavigation } from '../utils/reader/PaletteCom
 import type { ReaderActions } from '../utils/reader/ReaderActions';
 import { useDictionaryModals } from './useDictionaryModals';
 import type { HotkeyHandlerOptions } from './useHotkeyHandler';
-import type { TranslatePreview } from './useFullTranslationPreview';
 
 const EMPTY_SOURCE: QuickAddSource = { kind: 'source', text: '' };
 
@@ -21,9 +20,6 @@ export interface UseReaderCommandsOptions {
   openOutline: () => void;
   pageBy: (direction: 1 | -1) => void;
   openBindingDialog: () => void;
-  /** Full Translation on the running engine as the Reader, for the Add form's "Full" line.
-   * Must be referentially stable. */
-  translatePreview?: TranslatePreview;
 }
 
 export interface ReaderCommands {
@@ -49,7 +45,6 @@ export function useReaderCommands({
   openOutline,
   pageBy,
   openBindingDialog,
-  translatePreview,
 }: UseReaderCommandsOptions): ReaderCommands {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   /** What the palette's Add rows start from, resolved as the palette opens — the same
@@ -66,7 +61,7 @@ export function useReaderCommands({
   // Translator uses, over the same quick-add view — the binding provider's, which with a book
   // open is config as its binding implies it (`quickAddViewForBinding` says why).
   const { handlers: quickAddHandlers, dialog: quickAddDialog } = useDictionaryModals({
-    translatePreview,
+    owner: 'reader',
   });
 
   const openPalette = useCallback((): void => {

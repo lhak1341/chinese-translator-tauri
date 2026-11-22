@@ -134,6 +134,82 @@ describe('findMatchesAtToken', () => {
     ]);
   });
 
+  describe('tokenLength: the tokens a match covers, read off the walk that built the text', () => {
+    async function managerWith(entries) {
+      const manager = new DictionaryManager();
+      await manager.loadDictionaries({ properNouns: entries });
+      return manager;
+    }
+    const spans = (matches) => matches.map(({ word, tokenLength }) => ({ word, tokenLength }));
+    const token = (type, value, extra = {}) => ({ type, value, ...extra });
+
+    it('counts the whole run of tokens a match covers', async () => {
+      const manager = await managerWith({ 在那些: 'ở những', 那些: 'những' });
+      const tokens = tokensFor('在那些魔');
+      expect(spans(manager.findMatchesAtToken(tokens, 0, ['properNouns']))).toEqual([
+        { word: '在那些', tokenLength: 3 },
+      ]);
+      expect(spans(manager.findMatchesAtToken(tokens, 1, ['properNouns']))).toEqual([
+        { word: '那些', tokenLength: 2 },
+      ]);
+    });
+
+    it('includes a space inside the match, not one after it (墨 子 claimed 2 of 3 once)', async () => {
+      const manager = await loadManager();
+      expect(spans(manager.findMatchesAtToken(tokensFor('墨 子 '), 0, ['properNouns']))).toEqual([
+        { word: '墨子', tokenLength: 3 },
+      ]);
+    });
+
+    it("reads a grouped leader's own character, so a later phase does not see its text twice", async () => {
+      // After Phase 2 places 魔杖, the leader's value is the grouped text and the follower keeps
+      // its own; reading value gave 降魔杖杖 and a span one token short
+      const manager = await managerWith({ 降魔杖: 'Hàng Ma Trượng', 降魔杖杖: 'wrong' });
+      const tokens = [
+        token('chinese_char', '降'),
+        token('chinese_char', '魔杖', { originalValue: '魔' }),
+        token('chinese_char', '杖', { originalValue: '杖' }),
+      ];
+      expect(spans(manager.findMatchesAtToken(tokens, 0, ['properNouns']))).toEqual([
+        { word: '降魔杖', tokenLength: 3 },
+      ]);
+    });
+
+    it('covers the mark of a key with punctuation in it', async () => {
+      const manager = await managerWith({ '乔斯-韦登': 'Joss Whedon' });
+      const tokens = [...'乔斯-韦登'].map((value) =>
+        token(value === '-' ? 'punctuation' : 'chinese_char', value)
+      );
+      expect(spans(manager.findMatchesAtToken(tokens, 0, ['properNouns']))).toEqual([
+        { word: '乔斯-韦登', tokenLength: 5 },
+      ]);
+    });
+
+    it('reads through a symbol the tokenizer types punctuation, with no other punctuated key loaded', async () => {
+      // `+` is not \p{P}; under that test 甲+乙 matched only when a longer punctuated key was loaded
+      const manager = await managerWith({ '甲+乙': 'Plus' });
+      const tokens = [...'甲+乙'].map((value) =>
+        token(value === '+' ? 'punctuation' : 'chinese_char', value)
+      );
+      expect(spans(manager.findMatchesAtToken(tokens, 0, ['properNouns']))).toEqual([
+        { word: '甲+乙', tokenLength: 3 },
+      ]);
+    });
+
+    it('leaves out a match that would end partway through a token', async () => {
+      const manager = await managerWith({ 战警X: 'half', 战警XY: 'whole', 战警: 'cảnh sát' });
+      const tokens = [
+        token('chinese_char', '战'),
+        token('chinese_char', '警'),
+        token('latin_word', 'XY'),
+      ];
+      expect(spans(manager.findMatchesAtToken(tokens, 0, ['properNouns']))).toEqual([
+        { word: '战警XY', tokenLength: 3 },
+        { word: '战警', tokenLength: 2 },
+      ]);
+    });
+  });
+
   it('returns nothing, and logs, for a position past the last token', async () => {
     const manager = await loadManager();
     const findAllMatches = vi.spyOn(manager, 'findAllMatches');

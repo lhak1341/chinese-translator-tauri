@@ -19,16 +19,18 @@
  *   DictionaryLoadOptions,
  *   DictionaryManagerStats
  * } from '../types/DictionaryManagerTypes'
+ * @import { TokenMatch } from './TokenMatch'
  */
 
 import { logger } from '../logger.js';
 import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 import { buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
 import { priorityOf } from './DictionaryIdClassifier.js';
-import { reconstructTextFromIndex } from '../TokenHelpers';
+import { readLookupText, tokenLengthOf } from '../TokenHelpers';
+import { isPunctuationChar } from '../text/TextTokenizer.js';
 
-/** A Unicode punctuation character: what `TextChunker` splits a text at. */
-const PUNCTUATION_CHAR = /\p{P}/u;
+/** True when `key` holds a character the tokenizer types `punctuation`, so the lookup must read through it. */
+const hasPunctuation = (key) => [...key].some(isPunctuationChar);
 
 export class DictionaryManager {
   constructor() {
@@ -81,9 +83,10 @@ export class DictionaryManager {
         entryCount,
         priority,
         // Keys with a punctuation mark inside (`乔斯-韦登`): the chunker keeps their occurrences
-        // in one chunk and the lookup reads through punctuation for them. Same `\p{P}` test as
-        // the chunker's separators. A handful at most (2 in 63 production dictionaries).
-        punctuatedKeys: Object.keys(dictionary).filter((key) => PUNCTUATION_CHAR.test(key)),
+        // in one chunk and the lookup reads through punctuation for them. Punctuation as the
+        // tokenizer types it, the tokens the lookup reads; a symbol key (`甲+乙`) counts too, and
+        // its chunk is not split there anyway. 104 keys, one dictionary (2026-11-22).
+        punctuatedKeys: Object.keys(dictionary).filter(hasPunctuation),
       });
     }
 
@@ -208,10 +211,13 @@ export class DictionaryManager {
    * (`墨 子`). The exception is a key with punctuation in it (`乔斯-韦登`): the text reads
    * through punctuation as far as the longest such key in `dictionaryOrder`. Longest first, lower priority number on a tie. The one way a phase asks for the
    * matches at a token (ADR-108; formerly MatchSource, whose Rust index adapter never ran).
+   * Each match carries `tokenLength`, read off the same walk (`readLookupText`), so no caller
+   * recounts it; a match that would end partway through a token is left out (ADR-108 addendum
+   * 2026-11-22).
    * @param {Array<Object>} tokens - Tokenized text
    * @param {number} pos - Token index
    * @param {DictionarySearchOrder} dictionaryOrder - Dictionaries to search
-   * @returns {DictionaryMatchResult[]}
+   * @returns {TokenMatch[]}
    */
   findMatchesAtToken(tokens, pos, dictionaryOrder) {
     if (pos >= tokens.length) {
@@ -222,11 +228,13 @@ export class DictionaryManager {
       0,
       ...this.punctuatedKeys(dictionaryOrder).map((key) => key.length)
     );
-    return this.findAllMatches(
-      reconstructTextFromIndex(tokens, pos, longestPunctuatedKey),
-      0,
-      dictionaryOrder
-    );
+    const lookup = readLookupText(tokens, pos, longestPunctuatedKey);
+    const matches = [];
+    for (const match of this.findAllMatches(lookup.text, 0, dictionaryOrder)) {
+      const tokenLength = tokenLengthOf(lookup, pos, match.word.length);
+      if (tokenLength > 0) matches.push({ ...match, tokenLength });
+    }
+    return matches;
   }
 
   /**

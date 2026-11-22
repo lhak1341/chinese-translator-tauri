@@ -9,7 +9,7 @@
  * the key all restore what they overwrote.
  *
  * Pure: plans read the dictionaries they are given and never write. Committing (sort, save,
- * history, engine invalidation) is `commitEdit` in `DictionaryContext`.
+ * history, engine invalidation) is `commitEdit` in `src/components/dictionary/EditCommitter.ts`.
  */
 
 import type {

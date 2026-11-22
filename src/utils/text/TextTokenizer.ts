@@ -21,6 +21,19 @@ export function containsHan(text: string): boolean {
   return HAN_TEST.test(text);
 }
 
+/** One code point the tokenizer types `punctuation`: the `tokenRegex` fall-through group. */
+const PUNCTUATION_TOKEN_CHAR = new RegExp(`^[^${HAN_CLASS}A-Za-z0-9\\p{White_Space}]$`, 'u');
+
+/**
+ * True when the tokenizer would type `char` (one code point) `punctuation`: anything not Han, ASCII
+ * letter, ASCII digit or whitespace. Wider than `\p{P}`: symbols (`+`, `★`), non-ASCII letters and
+ * Han outside `HAN_CLASS` count. Keys with such a character are read through by the lookup
+ * (ADR-112), so they are told apart by this test, not by `\p{P}` (ADR-112 addendum 2026-11-22).
+ */
+export function isPunctuationChar(char: string): boolean {
+  return PUNCTUATION_TOKEN_CHAR.test(char);
+}
+
 /**
  * Token type enum for classification
  */

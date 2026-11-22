@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { TextTokenizer, Token, TokenType } from '../text/TextTokenizer';
+import { TextTokenizer, Token, TokenType, isPunctuationChar } from '../text/TextTokenizer';
 
 describe('TextTokenizer', () => {
   describe('tokenize()', () => {
@@ -161,6 +161,39 @@ describe('TextTokenizer', () => {
 
       expect(analysis.complexity).toBe('latin_heavy');
       expect(analysis.strategy).toBe('minimal_processing');
+    });
+  });
+
+  // ADR-112 addendum 2026-11-22: the punctuated-key test must agree with the tokens the lookup reads
+  describe('isPunctuationChar', () => {
+    const tokenizer = new TextTokenizer();
+    test.each([
+      '…',
+      '》',
+      '-',
+      '：',
+      '+',
+      '★',
+      '~',
+      '＋',
+      '々',
+      'é',
+      '２',
+      '𠀀',
+      '中',
+      'A',
+      '1',
+      ' ',
+      '\u3000',
+    ])('%s: true exactly when tokenize types it punctuation', (char) => {
+      const [token] = tokenizer.tokenize(`中${char}中`).slice(1, 2);
+      expect(isPunctuationChar(char)).toBe(token.type === TokenType.PUNCTUATION);
+    });
+
+    test('counts symbols, which \\p{P} does not', () => {
+      expect(isPunctuationChar('+')).toBe(true);
+      expect(isPunctuationChar('★')).toBe(true);
+      expect(isPunctuationChar('中')).toBe(false);
     });
   });
 });

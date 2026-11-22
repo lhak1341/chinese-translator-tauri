@@ -118,50 +118,6 @@ export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
 }
 
 /**
- * Calculate token span for matching text
- *
- * Determines how many tokens (starting from startIndex) are needed to
- * match the given text. Stops when text is fully matched or tokens exhausted.
- * Non-semantic tokens between matched ones (the space in "墨 子") are inside the span, so
- * the caller claims them too; counting only the matched tokens left the last one unclaimed.
- * A punctuation token is matched like a semantic one when the text holds it at that point:
- * a key with punctuation in it (`乔斯-韦登`, read by `reconstructTextFromIndex`'s
- * `throughPunctuation`) spans its mark.
- *
- * @param tokens - Array of tokens
- * @param startIndex - Starting token index
- * @param text - Text to match
- * @returns Number of tokens from startIndex through the last matched token
- *
- * @example
- * const span = getTokenSpanForText(tokens, 5, "在那些");
- * // Returns: 3 (if tokens 5-7 match "在那些")
- */
-export function getTokenSpanForText(tokens: TextToken[], startIndex: number, text: string): number {
-  let remainingText = text;
-  let span = 0;
-
-  for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
-    const token = tokens[i];
-
-    const isKeyPunctuation =
-      token.type === TokenType.PUNCTUATION && remainingText.startsWith(token.value);
-    if (isSemanticTokenType(token.type) || isKeyPunctuation) {
-      // Use original value if available (for grouped tokens), otherwise use current value
-      const valueToCheck = token.originalValue || token.value;
-      if (remainingText.startsWith(valueToCheck)) {
-        remainingText = remainingText.slice(valueToCheck.length);
-        span = i - startIndex + 1;
-      } else {
-        break;
-      }
-    }
-  }
-
-  return span;
-}
-
-/**
  * Reconstruct Chinese text from tokens
  *
  * Extracts and concatenates only Chinese words and characters,
@@ -181,51 +137,61 @@ export function reconstructChineseText(tokens: TextToken[]): string {
     .join('');
 }
 
+/** The text a dictionary lookup at a token reads, and where each token it read ends in it. */
+export interface LookupText {
+  text: string;
+  /** For each token the walk appended, in order: its index and the text's length after it. */
+  tokenEnds: { tokenIndex: number; end: number }[];
+}
+
 /**
- * Reconstruct text from specific index until punctuation
+ * The text a dictionary lookup at `startIndex` reads (`DictionaryManager.findMatchesAtToken`), and
+ * where each token ends in it, so a match's token count comes from this same walk.
  *
- * Builds text starting from startIndex out of the semantic tokens (`isSemanticTokenType`:
- * Chinese, Latin words, numbers), skipping whitespace and stopping at the first punctuation
- * boundary. Digits and Latin letters stay in the text, so a key holding them (`绝对战警2`)
- * can match and a key without them (`王五`) never matches across them (`王5五`).
+ * Builds the text out of the semantic tokens (`isSemanticTokenType`: Chinese, Latin words,
+ * numbers), skipping whitespace and stopping at the first punctuation token. Digits and Latin
+ * letters stay in the text, so a key holding them (`绝对战警2`) can match and a key without them
+ * (`王五`) never matches across them (`王5五`).
  *
- * Used for context-aware dictionary matching that respects
- * punctuation boundaries.
+ * Each token adds its own source text, `originalValue ?? value`: a grouped leader's `value` is the
+ * whole grouped text, which its followers would then repeat (`降` + `魔杖` + `杖` read as
+ * `降魔杖杖`).
  *
  * `throughPunctuation` is the length of the longest searched key that holds punctuation
  * (`乔斯-韦登`, `X战警：背水一战`; 0 when none does): a punctuation token met before the text is
  * that long goes into the text and the walk goes on, so such a key can match. A key without
  * punctuation still cannot match across one: its trie path has no punctuation character.
  *
- * @param tokens - Array of tokens
- * @param startIndex - Starting index
- * @param throughPunctuation - Read through punctuation while the text is shorter than this
- * @returns Reconstructed text segment
- *
  * @example
- * const segment = reconstructTextFromIndex(tokens, 3);
- * // Returns: "魔帅眼中" (stops before next punctuation)
+ * readLookupText(tokens, 3).text; // "魔帅眼中" (stops before the next punctuation)
  */
-export function reconstructTextFromIndex(
+export function readLookupText(
   tokens: TextToken[],
   startIndex: number,
   throughPunctuation = 0
-): string {
-  let result = '';
+): LookupText {
+  let text = '';
+  const tokenEnds: LookupText['tokenEnds'] = [];
   for (let i = startIndex; i < tokens.length; i++) {
     const token = tokens[i];
-
+    const isPunctuation = token.type === TokenType.PUNCTUATION;
     // Stop at punctuation boundaries to prevent cross-punctuation matching, unless a key with
     // punctuation in it could still be read from here
-    if (token.type === TokenType.PUNCTUATION) {
-      if (result.length >= throughPunctuation) break;
-      result += token.value;
-      continue;
-    }
-
-    if (isSemanticTokenType(token.type)) {
-      result += token.value;
+    if (isPunctuation && text.length >= throughPunctuation) break;
+    if (isPunctuation || isSemanticTokenType(token.type)) {
+      text += token.originalValue ?? token.value;
+      tokenEnds.push({ tokenIndex: i, end: text.length });
     }
   }
-  return result;
+  return { text, tokenEnds };
+}
+
+/**
+ * How many tokens, from `startIndex` through the last one, a match of `length` characters at the
+ * start of `lookup.text` covers (whitespace between them included, so `墨 子` is 3), or 0 when it
+ * ends partway through a token.
+ */
+export function tokenLengthOf(lookup: LookupText, startIndex: number, length: number): number {
+  const last = lookup.tokenEnds.find(({ end }) => end >= length);
+  return last && last.end === length ? last.tokenIndex - startIndex + 1 : 0;
 }
