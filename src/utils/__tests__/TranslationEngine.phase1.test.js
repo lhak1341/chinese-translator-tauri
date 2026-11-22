@@ -43,13 +43,28 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
           籍: 'tịch',
           墨: 'mặc',
           子: 'tử',
+          等: 'đẳng',
+          人: 'nhân',
         },
         phrases: {
           这些书籍: 'PHRASE_BOOKS',
           书籍: { translation: 'sách vở', allowAsPatternVariable: true },
         },
-        patterns: { 这些X: 'những X này', '第#章': 'chương thứ #', '第#名': 'hạng #o' },
-        properNouns: { 这些朋友: 'PROPER_FRIENDS', 朋友: 'bạn bè', 墨子: 'Mặc Tử' },
+        patterns: {
+          这些X: 'những X này',
+          '第#章': 'chương thứ #',
+          '第#名': 'hạng #o',
+          X等人: {
+            translation: 'bọn người X',
+            allowedVariableTypes: { X: ['character'] },
+          },
+        },
+        properNouns: {
+          这些朋友: 'PROPER_FRIENDS',
+          朋友: 'bạn bè',
+          墨子: 'Mặc Tử',
+          '南希-丽诺': { translation: 'Nancy Reno', semanticType: 'character' },
+        },
         conversion: {},
       },
       { activeProperNouns: ['properNouns'] }
@@ -58,6 +73,22 @@ describe('TranslationEngine — phase 1 patterns win over later phases (ADR-004)
 
   test('the real WASM pattern processor initialized (liveness)', () => {
     expect(isWasmPatternProcessorReady()).toBe(true);
+  });
+
+  // 南希-丽诺 → "Nancy Reno" filled no X: the variable cache held the name as written, while
+  // the matcher reads a variable from the semantic tokens alone (南希丽诺, the hyphen skipped).
+  test('a proper noun with punctuation in its key fills a pattern variable', async () => {
+    const result = await engine.translateWithSegments('南希-丽诺等人');
+    expect(result.translatedText).toBe('Bọn người Nancy Reno');
+    const unit = result.prebuiltSegments.find(
+      (s) => result.translatedText.slice(s.start, s.end) === 'Bọn người Nancy Reno'
+    );
+    expect(unit).toBeDefined();
+  });
+
+  test('a different mark between the halves is not the name', async () => {
+    const result = await engine.translateWithSegments('南希·丽诺等人');
+    expect(result.translatedText).not.toContain('Nancy Reno');
   });
 
   test('a pattern beats a proper noun over the same span', async () => {

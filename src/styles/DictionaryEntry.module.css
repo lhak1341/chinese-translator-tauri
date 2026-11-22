@@ -371,6 +371,13 @@
   margin-left: auto;
 }
 
+/* In the reference grid the toggle sits in its own column, across every line, centred. */
+.metaRow .reuseToggle {
+  grid-column: 4;
+  grid-row: 1 / span var(--meta-lines, 1);
+  align-self: center;
+}
+
 .reuseToggle b {
   color: var(--pill-color);
   font-weight: 700;
@@ -506,11 +513,17 @@
   font-weight: 500;
 }
 
+/* The reference lines (Gloss, Full) as one grid: label | text | Use | reuse toggle. Each item
+   names its column, so a line never flows into the toggle's column when the toggle is absent,
+   and every line starts a new row. The toggle spans every line: `--meta-lines`, the number of
+   lines shown, is set on the row by DictionaryEntry.tsx. */
 .metaRow {
   grid-column: 1 / -1;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  column-gap: 8px;
+  row-gap: 4px;
   align-items: center;
-  gap: 8px;
   padding-top: 8px;
   border-top: 1px dotted var(--border-color);
   font-size: 0.82rem;
@@ -519,17 +532,21 @@
 }
 
 .glossLabel {
+  grid-column: 1;
   white-space: nowrap;
   opacity: 0.8;
 }
 
 .glossText {
+  grid-column: 2;
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--text-color);
 }
 
 .glossUseButton {
+  grid-column: 3;
+  justify-self: end;
   flex-shrink: 0;
   border: 0;
   background: none;

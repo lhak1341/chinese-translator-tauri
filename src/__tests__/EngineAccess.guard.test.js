@@ -5,8 +5,9 @@
  * `translateWithSegments` resets engine-wide segment state on entry, so two callers at once
  * corrupt each other (GLOSSARY.md "EngineAccess"). `Translator.jsx` is JavaScript, so a type
  * brand cannot police it the way `EngineCall` polices the Reader's hooks; a scan can. The
- * callers below are the whole list: the Reader's three mappers and the Translator's two sites,
- * each inside an `engineAccess.run(...)` callback that receives the engine as a parameter.
+ * callers below are the whole list: the Reader's three mappers, the Translator's two sites and
+ * the Add form's Full Translation preview (`translatePreviewOn`, run as the opening surface's
+ * owner), each inside an access `run(...)` callback that receives the engine as a parameter.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -24,6 +25,7 @@ const BYPASS = /engineRef\.current\??\.(translateWithSegments|translateWithChara
 const ALLOWED = {
   'utils/reader/ReaderEngine.ts': /access\.run\(\s*'reader'/,
   'components/Translator.jsx': /engineAccess\.run\(\s*'translator'/,
+  'hooks/useFullTranslationPreview.ts': /access\s*\.run\(\s*owner,/,
 };
 
 describe('EngineAccess — every translate call goes through it', () => {

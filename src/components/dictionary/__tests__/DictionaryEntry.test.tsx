@@ -53,6 +53,7 @@ function makeFormState(overrides: Record<string, any> = {}) {
     existingEntry: null,
     showExistingEntryNotification: false,
     roughGlossReference: '',
+    fullTranslationPreview: null,
     isSaving: false,
     sourceInputRef: { current: null },
     translationInputRef: { current: null },
@@ -296,6 +297,53 @@ describe('DictionaryEntry — pattern/phrase metadata checkboxes', () => {
     formStateRef.current = makeFormState({ activeDictionary: 'patterns' });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="patterns" />);
     expect(screen.getByLabelText('Usable as X/Y')).toBeInTheDocument();
+  });
+});
+
+describe('DictionaryEntry — Full Translation line', () => {
+  test('shows the Full Translation under the gloss', () => {
+    formStateRef.current = makeFormState({
+      roughGlossReference: 'Kiều tư vi đăng',
+      fullTranslationPreview: 'Joss Whedon',
+    });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+    expect(screen.getByText('Full')).toBeInTheDocument();
+    expect(screen.getByText('Joss Whedon')).toBeInTheDocument();
+  });
+
+  test('Use and Option-F replace Translation with the Full Translation', () => {
+    formStateRef.current = makeFormState({
+      roughGlossReference: 'Kiều tư vi đăng',
+      fullTranslationPreview: 'Joss Whedon',
+      translation: 'Kiều Tư Vi Đăng',
+    });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+
+    fireEvent.click(screen.getByTitle('Replace Translation with this Full Translation'));
+    expect(formStateRef.current.setTranslation).toHaveBeenCalledWith('Joss Whedon');
+
+    formStateRef.current.setTranslation.mockClear();
+    fireEvent.keyDown(screen.getByLabelText('Source Text'), {
+      code: 'KeyF',
+      key: 'ƒ',
+      altKey: true,
+    });
+    expect(formStateRef.current.setTranslation).toHaveBeenCalledWith('Joss Whedon');
+  });
+
+  test('its Use is disabled when Translation already matches it', () => {
+    formStateRef.current = makeFormState({
+      fullTranslationPreview: 'Joss Whedon',
+      translation: 'Joss Whedon',
+    });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+    expect(screen.getByTitle('Replace Translation with this Full Translation')).toBeDisabled();
+  });
+
+  test('shows no Full line without a preview', () => {
+    formStateRef.current = makeFormState({ roughGlossReference: 'Kiều tư vi đăng' });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+    expect(screen.queryByText('Full')).not.toBeInTheDocument();
   });
 });
 

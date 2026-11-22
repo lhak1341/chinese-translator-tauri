@@ -22,6 +22,7 @@ import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
+import { translatePreviewOn } from '../hooks/useFullTranslationPreview';
 import { useSelectionMapper } from '../hooks/useSelectionMapper';
 import { mapTranslatorSelection } from '../utils/highlighting/SelectionMapping';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
@@ -96,10 +97,6 @@ const Translator = ({ isActive }) => {
   const { throttledStreamingState, updateStreaming, latestPartialText } =
     useStreamingTranslation(100); // 100ms throttle, the only one (ADR-105)
 
-  // Quick Add modal hook. The view comes from the binding provider, so while a Reader book is
-  // open the Translator's Adds file its fiction entries under that book's dictionary too.
-  const { handlers: quickAddHandlers, dialog: quickAddDialog } = useDictionaryModals();
-
   const [inputText, setInputText] = useState('');
   const {
     translatedText,
@@ -139,6 +136,17 @@ const Translator = ({ isActive }) => {
     reinitializeEngine,
     destroyEngine,
   } = useEngine();
+
+  // Quick Add modal hook. The view comes from the binding provider, so while a Reader book is
+  // open the Translator's Adds file its fiction entries under that book's dictionary too. The
+  // form's "Full" line asks the engine as the Translator.
+  const translatePreview = useMemo(
+    () => translatePreviewOn(engineAccess, 'translator'),
+    [engineAccess]
+  );
+  const { handlers: quickAddHandlers, dialog: quickAddDialog } = useDictionaryModals({
+    translatePreview,
+  });
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
 
   // Cmd-1..7 over a Full Translation selection add the Chinese it came from.

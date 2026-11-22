@@ -65,12 +65,12 @@ beforeEach(() => {
 });
 
 /** Renders the hook's dialog, as a surface does. `result.current` is the hook's return. */
-function renderModals(dictionaries, loadView, shortlistMemory) {
+function renderModals(dictionaries, loadView, shortlistMemory, translatePreview) {
   const result = { current: null };
   providers.loadView = loadView;
   function Surface({ dictionaries: dicts }) {
     providers.dictionaries = dicts;
-    const modals = useDictionaryModals({ shortlistMemory });
+    const modals = useDictionaryModals({ shortlistMemory, translatePreview });
     result.current = modals;
     form.props = null; // set again by the stub only if the dialog renders it
     return modals.dialog;
@@ -127,6 +127,17 @@ describe('useDictionaryModals — fixed-dictionary openers', () => {
     expect(form.mounts).toBe(2);
     expect(form.props.initialSource).toBe('二');
     expect(form.props.selectedDictionary).toBe('characters');
+  });
+
+  test("hands the form the surface's Full Translation preview", async () => {
+    const translatePreview = vi.fn();
+    const { result } = renderModals({}, loadQuickAddConfig, undefined, translatePreview);
+    const modals = /** @type {import('../useDictionaryModals').DictionaryModals} */ (
+      /** @type {unknown} */ (result.current)
+    );
+    await act(() => modals.handlers.quickAddPhrase('一'));
+    const props = /** @type {{ translatePreview?: unknown } | null} */ (form.props);
+    expect(props?.translatePreview).toBe(translatePreview);
   });
 
   test('renders no dialog until an Add opens', () => {

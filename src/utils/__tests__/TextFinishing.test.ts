@@ -5,16 +5,16 @@
  *
  * Mode differences are pinned on purpose (decided 2026-10-05):
  *   - Full Translation strips line-edge whitespace; character-only keeps a line's indentation.
- *   - Both space a letter from an adjacent digit and normalise to NFC.
+ *   - Both space a letter from an adjacent digit (in cleanupFormatting) and normalise to NFC.
  */
 import { describe, expect, it } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
 import {
   cleanFullText,
+  cleanupFormatting,
   finishCharOnlyText,
   finishFullText,
   normalizeLineWhitespace,
-  spaceLettersAndDigits,
 } from '../text/FormattingPasses';
 
 const noPunctuation = () => null;
@@ -43,20 +43,25 @@ describe('a mark before a closing quote', () => {
   });
 });
 
-describe('spaceLettersAndDigits', () => {
+// Letter/digit spacing lives in cleanupFormatting (Full Translation runs it per chunk there, where
+// proper-noun spans are protected); character-only reaches it through finishCharOnlyText.
+describe('letter/digit spacing', () => {
+  const clean = (text: string) =>
+    cleanupFormatting(text, { capitalizeStart: false }, noPunctuation);
+
   it.each([
     ['Thứ422giới', 'Thứ 422 giới'],
     ['abc123', 'abc 123'],
     ['ABC thuyết 123def', 'ABC thuyết 123 def'],
   ])('spaces a letter from a digit: %s', (input, expected) => {
-    expect(spaceLettersAndDigits(input)).toBe(expected);
+    expect(clean(input)).toBe(expected);
   });
 
   // Punctuation is never a match target, so no mark can pull a space in next to a number.
   it.each(['2,700!', '“2,700!”', '2,700?', '2,700:', '2,700;', '(23/30)', '1992~1996', '99.9%'])(
     'leaves number-flanking punctuation alone: %s',
     (input) => {
-      expect(spaceLettersAndDigits(input)).toBe(input);
+      expect(clean(input)).toBe(input);
     }
   );
 });
@@ -87,8 +92,9 @@ describe('cleanFullText', () => {
 });
 
 describe('finishFullText', () => {
-  it('spaces, collapses and normalises to NFC', () => {
-    expect(finishFullText('Thứ422  giới')).toBe('Thứ 422 giới');
+  it('collapses and normalises to NFC, but leaves letter/digit spacing to the chunks', () => {
+    expect(finishFullText('Thứ 422  giới')).toBe('Thứ 422 giới');
+    expect(finishFullText('5th Avenue')).toBe('5th Avenue');
     expect(finishFullText('màu')).toBe('màu');
   });
 

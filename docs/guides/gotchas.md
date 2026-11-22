@@ -155,6 +155,8 @@ Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.
 
 **Generated, gitignored inputs go stale — type-check reads `src/wasm/*.d.ts`, which only a WASM rebuild refreshes.** After changing a `#[wasm_bindgen]` signature (a constructor argument, a return type), `bun run type-check` still sees the old binding and reports `TS2554 Expected 1 arguments, but got 0` for a call that is already right; `bun run test` rebuilds stale WASM first, so run it before trusting type-check.
 
+**`type-check:ratchet` keys each error by its full message text, so a change can reword an old error into a "new" one.** Adding a member to a class changed `…DictionaryManager': dictionaries, metadata, loadTime, ready, and 11 more` to `and 12 more` in a test that stubs it (2026-11-22). When the file, code and count are unchanged, rename that key in `.type-ratchet-baseline.json` and keep the count. Don't regenerate the whole baseline, which would hide a real increase.
+
 **`bun run lint` enforces a warning ceiling, it does not list warnings.** Every rule in `eslint.config.js` except `react-hooks/rules-of-hooks` is severity `warn`, so a bare `eslint .` always exits 0. `bun run lint` runs `scripts/lint-ratchet.mjs`, which fails when the warning count rises above `.lint-baseline.json` _and_ when it drops below (lower it with `bun run lint:baseline`). To see the findings themselves, run `bun run lint:full` or `bunx eslint <file>`. Warnings under the ceiling are pre-existing and unswept (concentrated in `TranslationEngine.js`, `DictionaryManager.js`) — after editing a file, check whether _your_ diff touched the flagged line before treating a warning as a regression you introduced. **To find the one warning your change added** (the ratchet says "+1" and names nothing), run `bunx eslint -f json` from inside a `python3` script: once on `git show HEAD:<file>` through `--stdin --stdin-filename <file>` and once on the working file, then `Counter`-diff the (`ruleId`, source-line text) pairs. A warning with no edited line usually means a JSDoc block now sits on a different function, so type-aware rules apply to it.
 
 ### Fake timers and async ordering
@@ -304,7 +306,7 @@ Patterns required when adding it to a new file:
 - `window.customProp = x` needs `// @ts-ignore` above
 - `@param {Object} options` with sub-property docs → inline type `@param {{ x: string }} [options]`
 - `constructor(options = {})` where the type has required props → `// @ts-ignore` above the constructor
-- Module-level `let x = null` → `/** @type {Function|null} */` above
+- A value initialised to `null` (module-level `let x = null`, a `vi.hoisted(() => ({ props: null }))` field) is typed `null` for good, so `x?.y` reads `never` (TS2339): annotate it at the declaration (`/** @type {Function|null} */`), or cast at the read (`/** @type {{ y?: T } | null} */ (form.props)`)
 - `const arr = []` → `const arr = /** @type {Array<{...}>} */ ([])`
 - Tightening a shared utility's `@param` can break callers — grep them after narrowing
 

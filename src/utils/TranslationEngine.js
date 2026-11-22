@@ -128,7 +128,7 @@ import {
 } from './dictionary/FictionDictionaryFilter';
 import { getTokenSpanForText, isSemanticTokenType } from './TokenHelpers.js';
 import { PatternStore } from './pattern/PatternStore.js';
-import { TextChunker } from './text/TextChunker.js';
+import { TextChunker, findKeyOccurrences } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { fixNumberPlusLiang } from './NumberLiangFix';
@@ -1580,8 +1580,12 @@ export class TranslationEngine {
       chunkPostProcessor: this.chunkPostProcessor,
     });
 
-    // Step 1: Split text into chunks by punctuation boundaries
-    const chunks = this.textChunker.chunkText(text);
+    // Step 1: Split text into chunks by punctuation boundaries, except inside an occurrence of
+    // a proper noun with punctuation in it (`乔斯-韦登`), which Phase 2 must see in one chunk
+    const chunks = this.textChunker.chunkText(
+      text,
+      findKeyOccurrences(text, this.dictionaryManager.punctuatedKeys(this.activeProperNouns))
+    );
     const translatableChunks = this.textChunker.getTranslatableChunks(chunks);
 
     if (translatableChunks.length === 0) {

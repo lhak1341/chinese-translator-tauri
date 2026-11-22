@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TranslationEngine, createTranslationEngine } from '../TranslationEngine.js';
-import { cleanFullText, cleanupFormatting } from '../text/FormattingPasses';
+import { cleanupFormatting } from '../text/FormattingPasses';
 
 describe('TranslationEngine Regression Tests', () => {
   describe('processChunksInParallel chunkOffset wiring (architecture review 2026-08-18, candidate #2)', () => {
@@ -103,6 +103,8 @@ describe('TranslationEngine Regression Tests', () => {
       // Six chunks run as two batches (the first holds PROGRESSIVE_BATCH_SIZE = 5), so the second
       // batch's offsets only come out right if the count carries across the batch boundary.
       engine.translateDirectly = vi.fn(async (content) => `T-${content}`);
+      // initialize() sets this; the chunker asks it which keys to keep in one chunk
+      engine.activeProperNouns = [];
       const processChunks = vi.spyOn(engine, 'processChunksInParallel');
 
       await engine.translateWithProgressiveBatches(
@@ -157,9 +159,9 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('Bug Fix: cleanFullText spuriously spacing punctuation off a digit', () => {
-    // cleanFullText is a pure FormattingPasses function — no engine to construct.
-    const cleanup = (text) => cleanFullText(text);
+  describe('Bug Fix: letter/digit spacing spuriously spacing punctuation off a digit', () => {
+    // The rule runs in cleanupFormatting, a pure FormattingPasses function — no engine needed.
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
 
     it('does not insert a space between a converted number and following punctuation', () => {
       // 两千七！ → "2,700!" via NumberProcessor; previously became "2,700 !"
@@ -233,6 +235,12 @@ describe('TranslationEngine Regression Tests', () => {
       );
     });
 
+    it('spaces no letter from a digit inside the span, but does at its edges', () => {
+      const text = 'đường3Ave5th4nhà';
+      expect(cleanup(text, span(text, 'Ave5th'))).toBe('đường 3 Ave5th 4 nhà');
+      expect(cleanup(text, [])).toBe('đường 3 Ave 5 th 4 nhà');
+    });
+
     it('keeps two spaces inside the span', () => {
       const text = 'Gặp A  B  đó';
       expect(cleanup(text, span(text, 'A  B'))).toBe('Gặp A  B đó');
@@ -276,7 +284,7 @@ describe('a proper noun keeps its dictionary text in Full Translation', () => {
     characters: { 好: 'hảo', 他: 'tha', 说: 'thuyết' },
     phrases: {},
     patterns: {},
-    properNouns: { 憨豆: 'Mr.Bean', 导演剪辑版: 'director’s cut' },
+    properNouns: { 憨豆: 'Mr.Bean', 导演剪辑版: 'director’s cut', 第五大道: '5th Avenue' },
     conversion: {},
     punctuation: {},
   };
@@ -297,5 +305,52 @@ describe('a proper noun keeps its dictionary text in Full Translation', () => {
   it('still capitalizes a name at the start of a sentence', async () => {
     const { translatedText } = await translate('导演剪辑版好');
     expect(translatedText).toBe('Director’s cut hảo');
+  });
+
+  // 第五大道 → "5th Avenue" came out "5 th Avenue": the letter/digit spacing ran over the joined
+  // text, where the name's span is unknown, and the segment matcher then found no "5th Avenue".
+  it('keeps a digit touching a letter inside the name, in every chunk', async () => {
+    const { translatedText, prebuiltSegments } = await translate('他说第五大道好。第五大道好');
+    expect(translatedText).toBe('Tha thuyết 5th Avenue hảo。 5th Avenue hảo');
+    const names = prebuiltSegments.filter(
+      (s) => translatedText.slice(s.start, s.end) === '5th Avenue'
+    );
+    expect(names).toHaveLength(2);
+  });
+});
+
+// A proper-noun key with punctuation inside (乔斯-韦登, X战警：背水一战) was never applied: the
+// chunker split the text at the mark and the lookup stopped there.
+describe('a proper noun with punctuation in its key', () => {
+  const dictionaries = {
+    characters: { 好: 'hảo', 他: 'tha', 说: 'thuyết', 乔: 'kiều', 斯: 'tư', 韦: 'vi', 登: 'đăng' },
+    phrases: {},
+    patterns: {},
+    properNouns: { '乔斯-韦登': 'Joss Whedon', 'X战警：背水一战': 'X-Men: Apocalypse' },
+    conversion: {},
+    punctuation: { '：': ':', '。': '.' },
+  };
+
+  async function translate(text) {
+    const engine = createTranslationEngine();
+    await engine.initialize(dictionaries, { activeProperNouns: ['properNouns'] });
+    return engine.translateWithSegments(text, {});
+  }
+
+  it.each([
+    ['他说乔斯-韦登好', 'Tha thuyết Joss Whedon hảo', 'Joss Whedon'],
+    ['他说X战警：背水一战好。', 'Tha thuyết X-Men: Apocalypse hảo.', 'X-Men: Apocalypse'],
+    ['乔斯-韦登好。乔斯-韦登', 'Joss Whedon hảo. Joss Whedon', 'Joss Whedon'],
+  ])('%s → %s, with a highlight segment on the name', async (source, expected, name) => {
+    const { translatedText, prebuiltSegments } = await translate(source);
+    expect(translatedText).toBe(expected);
+    const count = translatedText.split(name).length - 1;
+    const segments = prebuiltSegments.filter((s) => translatedText.slice(s.start, s.end) === name);
+    expect(segments).toHaveLength(count);
+  });
+
+  it('still splits at the mark when the key is not there', async () => {
+    const { translatedText } = await translate('乔斯-他说');
+    expect(translatedText).toBe('Kiều tư- tha thuyết');
   });
 });

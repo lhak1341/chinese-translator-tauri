@@ -10,6 +10,7 @@ import { WordTransformToolbar } from './WordTransformToolbar';
 import { VariableHighlightInput } from './VariableHighlightInput';
 import { PATTERN_VARIABLE_COLORS } from '../../utils/text';
 import { useDictionaryEntryForm } from '../../hooks/useDictionaryEntryForm';
+import type { TranslatePreview } from '../../hooks/useFullTranslationPreview';
 import type { QuickAddShortlist, QuickAddView } from '../../utils/dictionary/QuickAddTarget';
 import { markHiddenEdges, revealInRow } from '../../utils/ui/RevealInRow';
 
@@ -34,6 +35,9 @@ interface DictionaryEntryProps {
   onDictionaryChange?: (dictionaryId: string) => void;
   /** Initial source text (pre-populated from clipboard via keyboard shortcut) */
   initialSource?: string;
+  /** Full Translation on the running engine: shows the seeded source's as a "Full" line
+   * under the gloss. The quick-add surfaces pass it; the Dictionary tab does not. */
+  translatePreview?: TranslatePreview;
 }
 
 const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
@@ -44,6 +48,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   initialSource,
   quickAddView,
   shortlist,
+  translatePreview,
 }) => {
   const { updateEntry, addEntry, dictionaries, dictionaryTypes, unreadDictionaryIds } =
     useDictionary();
@@ -55,6 +60,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     initialSource,
     onDictionaryChange,
     quickAddView,
+    translatePreview,
   });
 
   const showShortlist = !!shortlist && shortlist.ids.length > 1;
@@ -63,6 +69,11 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   const isPattern = isPatternsDict(form.activeDictionary);
   const sourceVars = isPattern ? (['X', 'Y'] as const).filter((v) => form.source.includes(v)) : [];
   const message = footerMessage(form);
+  // Reference lines under the translation (Gloss, Full): the reuse toggle spans them all.
+  const metaLines = Math.max(
+    1,
+    Number(!!form.roughGlossReference) + Number(!!form.fullTranslationPreview)
+  );
   // Cmd/Ctrl-Enter clicks Save from anywhere in the form — a click, so the button's own
   // disabled state (invalid or saving) gates it exactly as it gates the mouse.
   const submitButtonRef = useRef<HTMLButtonElement>(null);
@@ -110,6 +121,10 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     if (form.roughGlossReference) form.setTranslation(form.roughGlossReference);
   };
 
+  const applyFullTranslation = (): void => {
+    if (form.fullTranslationPreview) form.setTranslation(form.fullTranslationPreview);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Escape' && !form.isSaving) onClose();
     else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -119,6 +134,10 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       // Option-G types a character on macOS; take the key before it reaches the input.
       e.preventDefault();
       if (!form.isSaving) applyGloss();
+    } else if (e.code === 'KeyF' && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      // Option-F, the same way, for the Full Translation line.
+      e.preventDefault();
+      if (!form.isSaving) applyFullTranslation();
     } else handleShortlistKey(e);
   };
 
@@ -252,11 +271,18 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 onChange={form.setTranslation}
                 disabled={form.isSaving}
               />
-              {/* The gloss, and the reuse toggle at the right end. The toggle is the first Tab
-                  stop after the translation (the buttons between are out of the Tab order), so
-                  "type the translation, Tab, Space" ticks it. */}
-              {(form.roughGlossReference || canBeVariable) && (
-                <div className={styles.metaRow}>
+              {/* The reference lines — the gloss and, from a quick-add surface, what Full
+                  Translation gives the source on the running engine (the dictionaries as of
+                  the last rebuild) — as one grid: label, text and Use each in their own
+                  column, so the texts and the Use buttons line up. The reuse toggle takes a
+                  fourth column across every line. It is the first Tab stop after the
+                  translation (the Use buttons are out of the Tab order), so "type the
+                  translation, Tab, Space" ticks it. */}
+              {(form.roughGlossReference || form.fullTranslationPreview || canBeVariable) && (
+                <div
+                  className={styles.metaRow}
+                  style={{ '--meta-lines': metaLines } as React.CSSProperties}
+                >
                   {form.roughGlossReference && (
                     <>
                       <span className={styles.glossLabel}>Gloss</span>
@@ -270,6 +296,27 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                         title="Replace Translation with this plain character-only gloss"
                       >
                         Use <kbd>⌥G</kbd>
+                      </button>
+                    </>
+                  )}
+                  {form.fullTranslationPreview && (
+                    <>
+                      <span
+                        className={styles.glossLabel}
+                        title="Full Translation of the source with the dictionaries as last loaded (Cmd/Ctrl-R reloads)"
+                      >
+                        Full
+                      </span>
+                      <span className={styles.glossText}>{form.fullTranslationPreview}</span>
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={applyFullTranslation}
+                        disabled={form.isSaving || form.translation === form.fullTranslationPreview}
+                        className={styles.glossUseButton}
+                        title="Replace Translation with this Full Translation"
+                      >
+                        Use <kbd>⌥F</kbd>
                       </button>
                     </>
                   )}

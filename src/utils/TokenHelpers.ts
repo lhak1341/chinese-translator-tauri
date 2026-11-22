@@ -124,6 +124,9 @@ export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
  * match the given text. Stops when text is fully matched or tokens exhausted.
  * Non-semantic tokens between matched ones (the space in "墨 子") are inside the span, so
  * the caller claims them too; counting only the matched tokens left the last one unclaimed.
+ * A punctuation token is matched like a semantic one when the text holds it at that point:
+ * a key with punctuation in it (`乔斯-韦登`, read by `reconstructTextFromIndex`'s
+ * `throughPunctuation`) spans its mark.
  *
  * @param tokens - Array of tokens
  * @param startIndex - Starting token index
@@ -141,7 +144,9 @@ export function getTokenSpanForText(tokens: TextToken[], startIndex: number, tex
   for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
     const token = tokens[i];
 
-    if (isSemanticTokenType(token.type)) {
+    const isKeyPunctuation =
+      token.type === TokenType.PUNCTUATION && remainingText.startsWith(token.value);
+    if (isSemanticTokenType(token.type) || isKeyPunctuation) {
       // Use original value if available (for grouped tokens), otherwise use current value
       const valueToCheck = token.originalValue || token.value;
       if (remainingText.startsWith(valueToCheck)) {
@@ -187,27 +192,40 @@ export function reconstructChineseText(tokens: TextToken[]): string {
  * Used for context-aware dictionary matching that respects
  * punctuation boundaries.
  *
+ * `throughPunctuation` is the length of the longest searched key that holds punctuation
+ * (`乔斯-韦登`, `X战警：背水一战`; 0 when none does): a punctuation token met before the text is
+ * that long goes into the text and the walk goes on, so such a key can match. A key without
+ * punctuation still cannot match across one: its trie path has no punctuation character.
+ *
  * @param tokens - Array of tokens
  * @param startIndex - Starting index
+ * @param throughPunctuation - Read through punctuation while the text is shorter than this
  * @returns Reconstructed text segment
  *
  * @example
  * const segment = reconstructTextFromIndex(tokens, 3);
  * // Returns: "魔帅眼中" (stops before next punctuation)
  */
-export function reconstructTextFromIndex(tokens: TextToken[], startIndex: number): string {
-  const result: string[] = [];
+export function reconstructTextFromIndex(
+  tokens: TextToken[],
+  startIndex: number,
+  throughPunctuation = 0
+): string {
+  let result = '';
   for (let i = startIndex; i < tokens.length; i++) {
     const token = tokens[i];
 
-    // Stop at punctuation boundaries to prevent cross-punctuation matching
+    // Stop at punctuation boundaries to prevent cross-punctuation matching, unless a key with
+    // punctuation in it could still be read from here
     if (token.type === TokenType.PUNCTUATION) {
-      break;
+      if (result.length >= throughPunctuation) break;
+      result += token.value;
+      continue;
     }
 
     if (isSemanticTokenType(token.type)) {
-      result.push(token.value);
+      result += token.value;
     }
   }
-  return result.join('');
+  return result;
 }

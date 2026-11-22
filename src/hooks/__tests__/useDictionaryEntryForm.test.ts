@@ -150,6 +150,31 @@ describe('auto-populate from initialSource', () => {
     expect(result.current.translation).toBe('hello');
   });
 
+  it('asks the Full Translation of the trimmed seeded source, and of nothing when editing', async () => {
+    const translatePreview = vi.fn(async (text: string) => `full:${text}`);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(
+        undefined,
+        'phrases',
+        makeDeps({ initialSource: ' 你好 ', translatePreview })
+      )
+    );
+    await waitFor(() => expect(result.current.fullTranslationPreview).toBe('full:你好'));
+    expect(translatePreview).toHaveBeenCalledTimes(1);
+
+    const editing = vi.fn(async () => 'x');
+    const { result: edit } = renderHook(() =>
+      useDictionaryEntryForm(
+        { source: '你好', translation: 'hello' },
+        'phrases',
+        makeDeps({ initialSource: '新词', translatePreview: editing })
+      )
+    );
+    await act(async () => {});
+    expect(editing).not.toHaveBeenCalled();
+    expect(edit.current.fullTranslationPreview).toBeNull();
+  });
+
   it('a typed translation survives a dictionaries identity change (failed-save rollback)', async () => {
     const dictionaries = { characters: CHARACTERS_DICT };
     const { result, rerender } = renderHook(

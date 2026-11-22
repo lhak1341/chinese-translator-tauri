@@ -16,6 +16,7 @@ import { buildEntryMetadata, entryFields } from '../utils/dictionary';
 import { checkEntry, firstEntryError } from '../utils/dictionary/PersistTimeValidator';
 import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
+import { useFullTranslationPreview, type TranslatePreview } from './useFullTranslationPreview';
 import { defaultSemanticType, initialEntryGuess } from '../utils/dictionary/TransformRuleEngine';
 
 export interface DictionaryEntryFormDeps {
@@ -43,6 +44,9 @@ export interface DictionaryEntryFormDeps {
    * a config that failed to load — means the form offers a dictionary dropdown, filled with
    * `quickAddChoices` over this same view; absent means no dropdown. */
   quickAddView?: QuickAddView | null;
+  /** Full Translation on the running engine, for the line under the gloss. Given by the
+   * quick-add surfaces (Translator, Reader); absent means no such line. */
+  translatePreview?: TranslatePreview;
 }
 
 export interface DictionaryEntryFormState {
@@ -61,6 +65,9 @@ export interface DictionaryEntryFormState {
   showExistingEntryNotification: boolean;
   /** Plain, unmodified per-character gloss — a reference to compare a Transform Rule's guess against. */
   roughGlossReference: string;
+  /** The seeded source's Full Translation on the running engine, or null (not asked, not back
+   * yet, or failed). Asked once per seeded source, like the gloss. */
+  fullTranslationPreview: string | null;
   isSaving: boolean;
   sourceInputRef: RefObject<HTMLInputElement | null>;
   translationInputRef: RefObject<HTMLInputElement | null>;
@@ -102,6 +109,7 @@ export function useDictionaryEntryForm(
     initialSource,
     onDictionaryChange,
     quickAddView,
+    translatePreview,
   } = deps;
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
@@ -171,6 +179,7 @@ export function useDictionaryEntryForm(
   // reads the clipboard: the Add routes resolve the source (`resolveQuickAddSource`), and a
   // form opened any other way (the Dictionary tab's Add button, an edit) seeds nothing.
   const seedSource = !entry?.source && initialSource?.trim() ? initialSource.trim() : null;
+  const fullTranslationPreview = useFullTranslationPreview(translatePreview, seedSource);
 
   // Seeding writes the form's first guess. It is a transition, not a reaction to state: once
   // per mount when the Transform Rules have loaded, and again only from the dropdown switch.
@@ -378,6 +387,7 @@ export function useDictionaryEntryForm(
     existingEntry,
     showExistingEntryNotification,
     roughGlossReference,
+    fullTranslationPreview,
     isSaving,
     sourceInputRef,
     translationInputRef,

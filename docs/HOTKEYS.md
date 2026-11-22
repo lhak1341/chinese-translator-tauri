@@ -89,7 +89,8 @@ last one you picked, while it is still active; this is remembered until the app 
 
 In any Add form (1–7), Cmd/Ctrl+Enter saves from any field — the same as clicking Save, so
 it does nothing while Save is disabled. In the dictionary Add form, Option+G replaces the
-translation with the word-by-word gloss shown under it.
+translation with the word-by-word gloss shown under it, and Option+F with the Full Translation
+line below that (shown when the Add opened from the Translator or the Reader).
 
 With focus on a semantic-type badge (Tab to it), a digit toggles the badge at that position —
 the digits show on the badges while focus is there. Semantic type: 0 None, 1 CHA, 2 CRE,

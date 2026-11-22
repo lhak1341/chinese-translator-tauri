@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List, ScanSearch } from 'lucide-react';
 import type { BookRecord, EncodingReport, OpenBook } from '../../types/ReaderTypes';
 import HotkeyHandler from '../HotkeyHandler';
@@ -6,6 +6,7 @@ import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { useEngine } from '../EngineContext';
+import { translatePreviewOn } from '../../hooks/useFullTranslationPreview';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapters } from '../../hooks/useChapters';
 import { useCandidateFinder } from '../../hooks/useCandidateFinder';
@@ -101,7 +102,12 @@ const BookReader: React.FC<BookReaderProps> = ({
     (line: number): void => requestSlideOver({ kind: 'lit', line }),
     [requestSlideOver]
   );
-  const { enginePhase, engineVersion } = useEngine();
+  const { enginePhase, engineVersion, engineAccess } = useEngine();
+  // The Add form's "Full" line asks the engine as the Reader.
+  const translatePreview = useMemo(
+    () => translatePreviewOn(engineAccess, 'reader'),
+    [engineAccess]
+  );
   const { highlight, toggleHighlight } = useReaderHighlight(engineVersion);
   // The palette's "Bind dictionaries" opens the dialog; everything else about the binding
   // is `ReaderBinding.tsx`'s.
@@ -210,6 +216,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     openOutline: openOutlineForSearch,
     pageBy,
     openBindingDialog: openDialog,
+    translatePreview,
   });
 
   const syncFollowers = panels.translation.onScroll;

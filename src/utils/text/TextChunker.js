@@ -45,6 +45,24 @@ function isDigitSlash(chars, i) {
   return chars[i] === '/' && /[0-9]/.test(chars[i - 1] ?? '') && /[0-9]/.test(chars[i + 1] ?? '');
 }
 
+/**
+ * The UTF-16 [start, end) spans where any of `keys` occurs in `text`, for `chunkText`'s
+ * `keepTogether`. Overlapping occurrences are all returned; the chunker reads them as a union.
+ * @param {string} text
+ * @param {ReadonlyArray<string>} keys
+ * @returns {{start: number, end: number}[]}
+ */
+export function findKeyOccurrences(text, keys) {
+  const spans = [];
+  for (const key of keys) {
+    if (!key) continue;
+    for (let at = text.indexOf(key); at !== -1; at = text.indexOf(key, at + 1)) {
+      spans.push({ start: at, end: at + key.length });
+    }
+  }
+  return spans;
+}
+
 /** Every Unicode punctuation category (Pc Pd Pe Pf Pi Po Ps) separates chunks; chunker-parity.json pins Pd and Pc. */
 const PUNCTUATION = /^\p{P}$/u;
 
@@ -69,10 +87,16 @@ export class TextChunker {
    *   - startIndex of a chunk with empty content (punctuation or line break only) is
    *     unspecified; nothing reads it (see GLOSSARY.md, TextChunker).
    *
+   * KEEP-TOGETHER SPANS:
+   *   - A punctuation char inside one of `keepTogether`'s UTF-16 [start, end) spans is content,
+   *     not a separator: the engine passes the occurrences of dictionary keys with punctuation
+   *     in them (`乔斯-韦登`), which a chunk boundary would cut in two.
+   *
    * @param {string} text - Input text to chunk
+   * @param {ReadonlyArray<{start: number, end: number}>} [keepTogether] - Spans not to split
    * @returns {TextChunk[]} Array of text chunks with startedBy context
    */
-  chunkText(text) {
+  chunkText(text, keepTogether = []) {
     if (!text || text.trim() === '') {
       return [];
     }
@@ -134,7 +158,11 @@ export class TextChunker {
       if (char === '\r' || char === '\n') {
         // Handle line breaks
         currentLineBreaks += char;
-      } else if (!isDigitSlash(chars, i) && this.isPunctuationSeparator(char)) {
+      } else if (
+        !isDigitSlash(chars, i) &&
+        !keepTogether.some(({ start, end }) => charStart >= start && charStart < end) &&
+        this.isPunctuationSeparator(char)
+      ) {
         // Handle punctuation using Unicode detection
         // If we have line breaks accumulated, this punctuation should start a new chunk
         if (currentLineBreaks) {

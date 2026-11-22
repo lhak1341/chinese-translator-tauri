@@ -233,6 +233,14 @@ export function cleanupFormatting(
     );
   }
 
+  // Space a letter from an adjacent digit (`Thứ422giới` → `Thứ 422 giới`).
+  // Matches `\p{L}` letters, never "anything but these punctuation marks": punctuation of any
+  // kind (`,.-+%()/~`, `!?:;"`) stays glued to a number, so a converted `2,700!` is never spaced
+  // to `2,700 !` (2026-02-02 and 2026-08-29: both earlier exclusion-list versions missed marks).
+  // Each match is one char and the space is appended to it, so replaceUnprotected spaces a name's
+  // edge ("Avenue5" → "Avenue 5") but not a junction inside it ("5th Avenue" stays whole).
+  masked = replaceUnprotected(masked, /\p{L}(?=\d)|\d(?=\p{L})/gu, (m) => m[0] + ' ');
+
   // Remove excessive spaces but preserve line breaks
   masked = replaceUnprotected(masked, /[ \t]+/g, () => ' '); // Only collapse spaces and tabs, not newlines
 
@@ -398,18 +406,6 @@ export function applyCharOnlySupplements(input: string): string {
 // mode; each function states which rules that mode runs. Pure: text in, text out.
 
 /**
- * Adds a space between a letter and an adjacent digit (`Thứ422giới` → `Thứ 422 giới`).
- *
- * Matches `\p{L}` only, never "anything but these punctuation marks": punctuation of any kind
- * (formatting like `,.-+%()/~`, sentence-ending like `!?:;"`) must stay glued to a number, so a
- * converted `2,700!` is never spaced to `2,700 !`. (2026-02-02 and 2026-08-29: both earlier
- * exclusion-list versions missed marks.)
- */
-export function spaceLettersAndDigits(text: string): string {
-  return text.replace(/(\p{L})(\d)/gu, '$1 $2').replace(/(\d)(\p{L})/gu, '$1 $2');
-}
-
-/**
  * Collapses runs of spaces/tabs to one space and strips spaces at line edges, keeping line breaks.
  * `[^\S\r\n]` and `[ \t]`, never bare `\s`: `\s` matches `\n` and would delete paragraph breaks.
  */
@@ -418,12 +414,13 @@ export function normalizeLineWhitespace(text: string): string {
 }
 
 /**
- * Full Translation's cleanup: letter/digit spacing plus whitespace normalisation, no NFC. The
- * progressive path cleans each batch with this, before the whole text is finished.
+ * Full Translation's cleanup: whitespace normalisation, no NFC. The progressive path cleans each
+ * batch with this, before the whole text is finished. Letter/digit spacing is not here: it runs
+ * per chunk in `cleanupFormatting`, where a proper noun's span is known ("5th Avenue" stays whole).
  */
 export function cleanFullText(text: string): string {
   if (!text) return text;
-  return normalizeLineWhitespace(spaceLettersAndDigits(text));
+  return normalizeLineWhitespace(text);
 }
 
 /**
@@ -435,8 +432,8 @@ export function finishFullText(text: string): string {
 }
 
 /**
- * Character-only's final text: `cleanupFormatting` (punctuation dictionary, spacing, capitals), the
- * char-only supplements, letter/digit spacing and NFC.
+ * Character-only's final text: `cleanupFormatting` (punctuation dictionary, spacing including
+ * letter/digit, capitals), the char-only supplements and NFC.
  *
  * It does NOT run `normalizeLineWhitespace`: character-only keeps a line's leading indentation
  * (a `　` paragraph indent survives), which Full Translation strips. Its whole-text `trim()`
@@ -448,5 +445,5 @@ export function finishCharOnlyText(text: string, translatePunct: PunctuationLook
   const formatted = applyCharOnlySupplements(
     cleanupFormatting(text, { capitalizeStart: true }, translatePunct)
   );
-  return spaceLettersAndDigits(formatted).normalize('NFC');
+  return formatted.normalize('NFC');
 }

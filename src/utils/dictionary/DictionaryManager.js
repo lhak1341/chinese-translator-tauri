@@ -27,6 +27,9 @@ import { buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
 import { priorityOf } from './DictionaryIdClassifier.js';
 import { reconstructTextFromIndex } from '../TokenHelpers';
 
+/** A Unicode punctuation character: what `TextChunker` splits a text at. */
+const PUNCTUATION_CHAR = /\p{P}/u;
+
 export class DictionaryManager {
   constructor() {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
@@ -77,6 +80,10 @@ export class DictionaryManager {
         name: dictionaryName,
         entryCount,
         priority,
+        // Keys with a punctuation mark inside (`乔斯-韦登`): the chunker keeps their occurrences
+        // in one chunk and the lookup reads through punctuation for them. Same `\p{P}` test as
+        // the chunker's separators. A handful at most (2 in 63 production dictionaries).
+        punctuatedKeys: Object.keys(dictionary).filter((key) => PUNCTUATION_CHAR.test(key)),
       });
     }
 
@@ -187,9 +194,19 @@ export class DictionaryManager {
   }
 
   /**
+   * The keys with punctuation in them, across `dictionaryOrder` (see `loadDictionaries`).
+   * @param {DictionarySearchOrder} dictionaryOrder - Dictionaries to search
+   * @returns {string[]}
+   */
+  punctuatedKeys(dictionaryOrder) {
+    return dictionaryOrder.flatMap((name) => this.metadata.get(name)?.punctuatedKeys ?? []);
+  }
+
+  /**
    * The matches that start at token `pos`: `findAllMatches` over the text from that token up to
    * the next punctuation, so a match never spans a punctuation mark but does span a space
-   * (`墨 子`). Longest first, lower priority number on a tie. The one way a phase asks for the
+   * (`墨 子`). The exception is a key with punctuation in it (`乔斯-韦登`): the text reads
+   * through punctuation as far as the longest such key in `dictionaryOrder`. Longest first, lower priority number on a tie. The one way a phase asks for the
    * matches at a token (ADR-108; formerly MatchSource, whose Rust index adapter never ran).
    * @param {Array<Object>} tokens - Tokenized text
    * @param {number} pos - Token index
@@ -201,7 +218,15 @@ export class DictionaryManager {
       logger.error(`⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`);
       return [];
     }
-    return this.findAllMatches(reconstructTextFromIndex(tokens, pos), 0, dictionaryOrder);
+    const longestPunctuatedKey = Math.max(
+      0,
+      ...this.punctuatedKeys(dictionaryOrder).map((key) => key.length)
+    );
+    return this.findAllMatches(
+      reconstructTextFromIndex(tokens, pos, longestPunctuatedKey),
+      0,
+      dictionaryOrder
+    );
   }
 
   /**

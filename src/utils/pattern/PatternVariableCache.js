@@ -39,6 +39,9 @@ function withNumberVariables(tokens, cache, patterns) {
  * @param {object} [metadata]
  * @returns {string|null}
  */
+/** What the WASM matcher leaves out of a variable's text: the tokens that are not semantic. */
+const NON_SEMANTIC_CHARS = /[\p{P}\s]/gu;
+
 function resolveType(source, metadata) {
   const type = metadata?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
   return type === 'proper_noun' ? null : type;
@@ -131,11 +134,17 @@ export function buildPatternVariableCache(tokens, options) {
         if (phrasesResult?.metadata?.allowAsPatternVariable !== true) continue;
       }
       const entryType = resolveType(match.dictionary + '_pattern_variable', match.metadata);
-      cache[match.word] = {
+      const entry = {
         translation: match.translation,
         source: match.dictionary + '_pattern_variable',
         type: entryType,
       };
+      cache[match.word] = entry;
+      // A key with punctuation in it (`南希-丽诺`, ADR-112) is also stored as the matcher reads
+      // it: WASM builds a variable's text from the semantic tokens alone, skipping punctuation
+      // and whitespace (`南希丽诺`). An entry already under that spelling keeps it.
+      const asMatched = match.word.replace(NON_SEMANTIC_CHARS, '');
+      if (asMatched !== match.word && asMatched && !(asMatched in cache)) cache[asMatched] = entry;
     }
   }
 

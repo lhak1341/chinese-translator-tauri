@@ -590,7 +590,7 @@
   "src/utils/__tests__/TranslationEngine.teardown.test.js": {
     "errors": {
       "TS2322: Type 'null' is not assignable to type 'DictionaryManager'.": 1,
-      "TS2740: Type '{ dispose: Mock<Procedure>; isReady: () => boolean; }' is missing the following properties from type 'DictionaryManager': dictionaries, metadata, loadTime, ready, and 11 more.": 3
+      "TS2740: Type '{ dispose: Mock<Procedure>; isReady: () => boolean; }' is missing the following properties from type 'DictionaryManager': dictionaries, metadata, loadTime, ready, and 12 more.": 3
     }
   },
   "src/utils/__tests__/TranslationSourcePriority.contract.test.ts": {

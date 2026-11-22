@@ -265,6 +265,29 @@ describe('buildPatternVariableCache — Stage 3 full-text scan', () => {
     expect(run(true)['诸葛亮']).toBeDefined();
     expect(run(false)['诸葛亮']).toBeUndefined();
   });
+  // ADR-112: the WASM matcher reads a variable from the semantic tokens alone, so a key with
+  // punctuation in it is also cached under that spelling.
+  test('a key with punctuation is also cached as the matcher reads it', () => {
+    const match = { word: '南希-丽诺', translation: 'Nancy Reno', dictionary: 'properNouns' };
+    const result = buildPatternVariableCache(tokens, {
+      activeProperNouns: ['properNouns'],
+      dictionaryManager: withMatches([match]),
+      patterns: [],
+    });
+    expect(result['南希-丽诺']).toMatchObject({ translation: 'Nancy Reno' });
+    expect(result['南希丽诺']).toMatchObject({ translation: 'Nancy Reno' });
+  });
+
+  test('an entry already cached under the matcher spelling keeps it', () => {
+    const exact = { word: '南希丽诺', translation: 'Exact', dictionary: 'properNouns' };
+    const punctuated = { word: '南希-丽诺', translation: 'Nancy Reno', dictionary: 'properNouns' };
+    const result = buildPatternVariableCache(tokens, {
+      activeProperNouns: ['properNouns'],
+      dictionaryManager: withMatches([exact, punctuated]),
+      patterns: [],
+    });
+    expect(result['南希丽诺']).toMatchObject({ translation: 'Exact' });
+  });
 });
 
 describe('buildPatternVariableCache — numbers for # patterns', () => {
