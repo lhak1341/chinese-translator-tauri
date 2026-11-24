@@ -499,8 +499,8 @@ export class TranslationEngine {
       this.processCharacterOnlyTokens(tokens, options);
 
       // Text, units and positions come from the stamped tokens (CharOnlyAssembly)
-      const { translatedText, semanticArrays } = assembleCharOnlyResult(tokens, (char) =>
-        this.lookupPunctuation(char)
+      const { translatedText, semanticArrays } = assembleCharOnlyResult(tokens, (text) =>
+        this.dictionaryManager.translatePunctuationText(text)
       );
 
       logger.debug(
@@ -563,7 +563,7 @@ export class TranslationEngine {
         }
       } else {
         // Every other token type (punctuation, whitespace, latin_word, number, unknown) is kept
-        // as-is. Punctuation is translated later, by cleanupFormatting's lookupPunctuation:
+        // as-is. Punctuation is translated later, by cleanupFormatting's punctuation scan:
         // applyMatchToTokens ignores a non-Chinese start token, so matching it here stamped nothing.
         token.translated = token.value;
         token.translationSource = `preserved-${token.type}`;
@@ -1248,8 +1248,8 @@ export class TranslationEngine {
     const protectedRanges = assembledPositions
       .filter((_, i) => segments[i].isProperNoun)
       .map(({ start, end }) => ({ start, end }));
-    const cleaned = cleanupFormatting(result, { capitalizeStart: false, protectedRanges }, (char) =>
-      this.lookupPunctuation(char)
+    const cleaned = cleanupFormatting(result, { capitalizeStart: false, protectedRanges }, (text) =>
+      this.dictionaryManager.translatePunctuationText(text)
     );
 
     return cleaned;
@@ -1314,15 +1314,6 @@ export class TranslationEngine {
   }
 
   // calculateTranslatedPositions method removed - position tracking now handled inline during text construction
-
-  /**
-   * The punctuation dictionary's translation of one character, for `cleanupFormatting`.
-   * @param {string} char
-   * @returns {string|undefined}
-   */
-  lookupPunctuation(char) {
-    return this.dictionaryManager.translate(char, ['punctuation'])?.translation;
-  }
 
   /**
    * Enable translation profiling to measure phase-by-phase performance

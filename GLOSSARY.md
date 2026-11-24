@@ -30,7 +30,7 @@ Interface (all pure, text in and text out):
 
 - `finishFullText(text)`: `cleanFullText` then NFC. The Full Translation final text.
 - `cleanFullText(text)`: `normalizeLineWhitespace`, no NFC. The progressive path cleans each batch with this before the whole text is finished.
-- `finishCharOnlyText(text, translatePunct)`: `cleanupFormatting` (`capitalizeStart: true`), `applyCharOnlySupplements`, NFC.
+- `finishCharOnlyText(text, translatePunctuation)`: `cleanupFormatting` (`capitalizeStart: true`, which applies the whole punctuation dictionary first through `translatePunctuation`, the `DictionaryManager.translatePunctuationText` scan), `applyCharOnlySupplements`, NFC.
 - `normalizeLineWhitespace`: the whitespace rule, exported for its tests. Letter/digit spacing (`abc123` → `abc 123`) is a `cleanupFormatting` rule, so Full Translation runs it per chunk with proper-noun spans protected (`5th Avenue` stays whole).
 
 **The modes differ on purpose.** Character-only does not run `normalizeLineWhitespace`: a line's leading indentation (a `U+3000` paragraph indent) survives, as `translateWithCharactersOnly` has always said it preserves whitespace, and Full Translation strips it. Character-only's whole-text `trim()` inside `cleanupFormatting` still drops a trailing newline, which Full Translation keeps. Character-only gained the letter/digit spacing (`abc123` → `abc 123`; digits next to Chinese were already spaced at token level by `needsSpaceCharOnly`) and the NFC, so an NFD dictionary value no longer breaks segment boundaries there either.
@@ -655,9 +655,9 @@ Entry point: `src/utils/text/FullTextAssembly.ts`. Not barrel-exported. Sole cal
 
 The Character-only result, built from tokens the engine has already stamped. Owns, in this order: the output text (`translated ?? value` per token, with `needsSpaceCharOnly` deciding the space after each), one semantic unit per `chinese_char` whose `translated` differs from its `value`, `finishCharOnlyText` over the whole text, the position back-fill, which also takes each unit's casing from the range it placed. The back-fill searches each unit's text, case-insensitively, in the _finished_ text, moving a cursor forward so repeated words get distinct, increasing positions; it must run after finishing (finishing rewrites the text). A unit the search cannot find stays unmapped (`translatedStart = -1`) and does not move the cursor.
 
-Interface: `assembleCharOnlyResult(tokens, lookupPunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state.
+Interface: `assembleCharOnlyResult(tokens, translatePunctuation) → { translatedText, semanticArrays }`. Pure; it builds its own private `SemanticArrayBuilder`, so it touches no engine state.
 
-Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`) and `prebuiltSegments: []`. The pass looks up `characters` with `characterMatchFor`, a synchronous point lookup over `DictionaryManager.lookupCharacter`, shared with Phase 5 (ADR-087); it does not call `findMatchesAtToken`. Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation through `lookupPunctuation` later (ADR-089).
+Not owned: the stamping pass (`TranslationEngine.processCharacterOnlyTokens`, which uses `this.applyMatchToTokens`) and `prebuiltSegments: []`. The pass looks up `characters` with `characterMatchFor`, a synchronous point lookup over `DictionaryManager.lookupCharacter`, shared with Phase 5 (ADR-087); it does not call `findMatchesAtToken`. Punctuation tokens are not matched at all: `applyMatchToTokens` ignores a non-Chinese start token, and `cleanupFormatting` translates punctuation later, through the same punctuation dictionary scan Full Translation uses (ADR-089).
 
 Entry point: `src/utils/text/CharOnlyAssembly.ts`. Not barrel-exported. Sole caller: `TranslationEngine.js`'s `translateWithCharactersOnly`.
 

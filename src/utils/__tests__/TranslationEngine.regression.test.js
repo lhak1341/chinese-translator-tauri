@@ -161,7 +161,7 @@ describe('TranslationEngine Regression Tests', () => {
 
   describe('Bug Fix: letter/digit spacing spuriously spacing punctuation off a digit', () => {
     // The rule runs in cleanupFormatting, a pure FormattingPasses function — no engine needed.
-    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, (text) => text);
 
     it('does not insert a space between a converted number and following punctuation', () => {
       // 两千七！ → "2,700!" via NumberProcessor; previously became "2,700 !"
@@ -182,7 +182,7 @@ describe('TranslationEngine Regression Tests', () => {
   });
 
   describe('Bug Fix: cleanupFormatting spuriously spacing a decimal point off its digit', () => {
-    const cleanup = (text, options) => cleanupFormatting(text, options, () => null);
+    const cleanup = (text, options) => cleanupFormatting(text, options, (text) => text);
     // The Full Translation per-chunk options (translateDirectly's postProcess).
     const opts = { capitalizeStart: false };
 
@@ -204,7 +204,7 @@ describe('TranslationEngine Regression Tests', () => {
     // 反恐特警组 → "S.W.A.T." (a proper-noun translation) came out "S. W. A. T.": the
     // space-after-punctuation rule took each inner dot for a sentence end. The three inserted
     // chars also shifted every click-to-highlight position after it.
-    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, (text) => text);
 
     it('keeps the dots between single capital letters unspaced', () => {
       expect(cleanup('Đội S.W.A.T. đã tới')).toBe('Đội S.W.A.T. đã tới');
@@ -221,7 +221,7 @@ describe('TranslationEngine Regression Tests', () => {
 
   describe('cleanupFormatting keeps a protected span (a proper noun) as the dictionary has it', () => {
     const cleanup = (text, ranges) =>
-      cleanupFormatting(text, { capitalizeStart: false, protectedRanges: ranges }, () => null);
+      cleanupFormatting(text, { capitalizeStart: false, protectedRanges: ranges }, (text) => text);
     const span = (text, part) => [
       { start: text.indexOf(part), end: text.indexOf(part) + part.length },
     ];
@@ -246,6 +246,18 @@ describe('TranslationEngine Regression Tests', () => {
       expect(cleanup(text, span(text, 'A  B'))).toBe('Gặp A  B đó');
     });
 
+    it('translates no punctuation inside the span, but does outside it', () => {
+      const dash = (text) => text.replace(/-/g, '–');
+      const text = 'Gặp Jos-Wed và 8-9';
+      expect(
+        cleanupFormatting(
+          text,
+          { capitalizeStart: false, protectedRanges: span(text, 'Jos-Wed') },
+          dash
+        )
+      ).toBe('Gặp Jos-Wed và 8–9');
+    });
+
     it('still capitalizes the span after a colon, but a colon inside the span capitalizes nothing', () => {
       const text = 'nói: director’s cut:hay';
       expect(cleanup(text, span(text, 'director’s cut:hay'))).toBe('nói: Director’s cut:hay');
@@ -256,7 +268,7 @@ describe('TranslationEngine Regression Tests', () => {
     // 索瑞达尔 → "Thori’dal" (U+2019 as an apostrophe) came out "Thori’ dal": the
     // space-after-closing-quote rule took every ’ for a closing quote. The inserted char also
     // shifted every click-to-highlight position after it.
-    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, () => null);
+    const cleanup = (text) => cleanupFormatting(text, { capitalizeStart: false }, (text) => text);
 
     it('keeps a letter-flanked ’ inside its word', () => {
       expect(cleanup('Chủ thành Thori’dal tiếp thụ')).toBe('Chủ thành Thori’dal tiếp thụ');
@@ -269,8 +281,10 @@ describe('TranslationEngine Regression Tests', () => {
     });
 
     it('capitalizes the first letter only when the caller owns the start of the text', () => {
-      expect(cleanupFormatting('xin chào', { capitalizeStart: true }, () => null)).toBe('Xin chào');
-      expect(cleanupFormatting('xin chào', { capitalizeStart: false }, () => null)).toBe(
+      expect(cleanupFormatting('xin chào', { capitalizeStart: true }, (text) => text)).toBe(
+        'Xin chào'
+      );
+      expect(cleanupFormatting('xin chào', { capitalizeStart: false }, (text) => text)).toBe(
         'xin chào'
       );
     });

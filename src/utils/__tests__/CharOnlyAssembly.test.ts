@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { assembleCharOnlyResult, type StampedToken } from '../text/CharOnlyAssembly';
 
-const noPunct = () => undefined;
-const punct = (char: string) => ({ '，': ',', '。': '.' })[char as '，' | '。'];
+const noPunct = (text: string) => text;
+const punct = (text: string) => text.replace(/，/g, ',').replace(/。/g, '.');
 
 /** Stamped tokens for a string of one-character tokens: `map` is what the stamping pass produced. */
 function stamp(text: string, map: Record<string, string>): StampedToken[] {
@@ -56,7 +56,7 @@ describe('assembleCharOnlyResult', () => {
     expect(semanticArrays.translated[0]).toBe('Thuyết');
   });
 
-  it('applies the punctuation lookup to the output', () => {
+  it('applies the punctuation dictionary to the output', () => {
     const { translatedText } = assembleCharOnlyResult(
       stamp('说，别', { 说: 'thuyết', 别: 'biệt' }),
       punct

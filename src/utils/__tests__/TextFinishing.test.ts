@@ -17,7 +17,7 @@ import {
   normalizeLineWhitespace,
 } from '../text/FormattingPasses';
 
-const noPunctuation = () => null;
+const noPunctuation = (text: string) => text;
 const charOnly = (text: string) => finishCharOnlyText(text, noPunctuation);
 
 describe('a mark before a closing quote', () => {
@@ -221,6 +221,53 @@ describe('engine parity: Full Translation vs character-only', () => {
       'Thuyết biệt\n　　Đan nói'
     );
     expect((await e.translateWithSegments(input, {})).translatedText).toBe('Thuyết biệt\nĐan nói');
+  });
+
+  // Both modes read the whole punctuation dictionary through one scan
+  // (DictionaryManager.translatePunctuationText): a key outside the 26 marks character-only once
+  // hard-coded, a multi-character key, and a value that is another key's (translated once).
+  describe('the punctuation dictionary, the same in both modes', () => {
+    const withPunctuation = {
+      ...dictionaries,
+      punctuation: { ...dictionaries.punctuation, '％': '%', '……': '…', '「': '“', '“': '"' },
+    };
+
+    async function punctuationEngine() {
+      const e = createTranslationEngine();
+      await e.initialize(withPunctuation, { activeProperNouns: ['properNouns'] });
+      return e;
+    }
+
+    it.each(
+      (['charOnly', 'full'] as const).flatMap((mode) =>
+        [
+          ['说14％别', '14%', '％'],
+          ['说……别', '…', '……'],
+          ['说「别', '“', '"'],
+        ].map(([input, kept, gone]) => [mode, input, kept, gone])
+      )
+    )('%s: %s gives %s', async (mode, input, kept, gone) => {
+      const e = await punctuationEngine();
+      const { translatedText } =
+        mode === 'full'
+          ? await e.translateWithSegments(input, {})
+          : await e.translateWithCharactersOnly(input, {});
+      expect(translatedText).toContain(kept);
+      expect(translatedText).not.toContain(gone);
+    });
+
+    // ～ stays inside a Full Translation chunk's text (55 library books, 2026-11-24), so the
+    // per-chunk cleanup is what translates it there.
+    it('full: a ～ inside a chunk is translated', async () => {
+      const e = createTranslationEngine();
+      await e.initialize(
+        { ...dictionaries, punctuation: { ...dictionaries.punctuation, '～': '~' } },
+        { activeProperNouns: ['properNouns'] }
+      );
+      const { translatedText } = await e.translateWithSegments('说～～别', {});
+      expect(translatedText).toContain('~~');
+      expect(translatedText).not.toContain('～');
+    });
   });
 
   it('character-only output is NFC even when a dictionary value is NFD', async () => {

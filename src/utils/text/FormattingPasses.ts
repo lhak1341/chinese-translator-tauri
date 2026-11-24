@@ -3,7 +3,7 @@
  * capitalization (chunk-based and regex-based), and proper-noun casing.
  *
  * Pure functions. The two things they used to read off the engine arrive as arguments: the
- * punctuation lookup (`translatePunct`) and the proper-noun casing map (`properNounCaps`, built by
+ * punctuation dictionary scan (`translatePunctuation`) and the proper-noun casing map (`properNounCaps`, built by
  * `buildProperNounCapitalizationMap`). Callers keep the call ORDER, which is load-bearing: see
  * src/utils/CLAUDE.md section 4 (positions recorded before cleanup must survive it).
  */
@@ -36,8 +36,11 @@ function initialismDotOffsets(text: string): Set<number> {
 }
 const SPACE_AFTER_COMMA = new RegExp(`,(?!\\s|$|[“${CLOSING_QUOTES}\\d])`, 'g');
 
-/** Looks up the translation of one punctuation character; null when the dictionary has none. */
-export type PunctuationLookup = (char: string) => string | null | undefined;
+/**
+ * The punctuation dictionary applied to a text, one pass, longest key first
+ * (`DictionaryManager.translatePunctuationText`).
+ */
+type PunctuationTranslator = (text: string) => string;
 
 export interface CleanupOptions {
   /**
@@ -112,6 +115,31 @@ function replaceUnprotected(
   return { text: out, locked: outLocked };
 }
 
+/**
+ * `translate` over every unprotected stretch of the text; a protected span (a proper noun) keeps
+ * its characters, so a key inside a name ("乔斯-韦登") is never translated. A translated stretch
+ * may change length, so its chars come out unlocked; a protected span keeps its flags.
+ */
+function translateUnprotected(
+  { text, locked }: MaskedText,
+  translate: PunctuationTranslator
+): MaskedText {
+  if (!locked) return { text: translate(text), locked: null };
+  let out = '';
+  const outLocked: boolean[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = start;
+    while (end < text.length && locked[end] === locked[start]) end++;
+    const run = text.slice(start, end);
+    const next = locked[start] ? run : translate(run);
+    out += next;
+    for (let i = 0; i < next.length; i++) outLocked.push(locked[start]);
+    start = end;
+  }
+  return { text: out, locked: outLocked };
+}
+
 /** The chunk fields the formatting passes read; the shape is `TextChunk` (src/types/TextChunk.d.ts). */
 export type FormattingChunk = Pick<
   TextChunk,
@@ -121,52 +149,17 @@ export type FormattingChunk = Pick<
 export function cleanupFormatting(
   text: string,
   options: CleanupOptions,
-  translatePunct: PunctuationLookup
+  translatePunctuation: PunctuationTranslator
 ): string {
   // Every rule below runs through replaceUnprotected, so a proper noun keeps the dictionary's
   // exact characters ("S.W.A.T.", "O’Brien"). Each inserted char would also shift every
   // click-to-highlight position after it: they are recorded before this pass runs.
   let masked = maskText(text, options.protectedRanges);
 
-  // Apply punctuation translations FIRST using the actual punctuation dictionary
-  // Get punctuation mappings by checking common punctuation marks from the dictionary
-  const punctuationChars = [
-    '。',
-    '，',
-    '、',
-    '？',
-    '！',
-    '：',
-    '；',
-    '…',
-    '．',
-    '（',
-    '）',
-    '《',
-    '》',
-    '「',
-    '」',
-    '﹁',
-    '﹂',
-    '『',
-    '』',
-    '【',
-    '】',
-    '〖',
-    '〗',
-    '～',
-    '˙',
-    '——',
-  ];
-
-  for (const char of punctuationChars) {
-    const translation = translatePunct(char);
-    if (translation) {
-      // Escape special regex characters in the source punctuation
-      const escapedChar = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      masked = replaceUnprotected(masked, new RegExp(escapedChar, 'g'), () => translation);
-    }
-  }
+  // The punctuation dictionary first, the whole of it, in one pass (the same scan Full
+  // Translation's chunk punctuation goes through), so a key works in both modes. A chunk's text
+  // can hold a mark too: Full Translation's ～ is translated here (measured 2026-11-24).
+  masked = translateUnprotected(masked, translatePunctuation);
 
   // Tilde/wave is a range operator — never gets surrounding spaces regardless of path.
   // (Source of spaces is unclear from static analysis; this normalizes both paths.)
@@ -441,9 +434,12 @@ export function finishFullText(text: string): string {
  *
  * Callers record click-to-highlight positions AFTER this runs — it changes length.
  */
-export function finishCharOnlyText(text: string, translatePunct: PunctuationLookup): string {
+export function finishCharOnlyText(
+  text: string,
+  translatePunctuation: PunctuationTranslator
+): string {
   const formatted = applyCharOnlySupplements(
-    cleanupFormatting(text, { capitalizeStart: true }, translatePunct)
+    cleanupFormatting(text, { capitalizeStart: true }, translatePunctuation)
   );
   return formatted.normalize('NFC');
 }

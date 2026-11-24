@@ -1,7 +1,6 @@
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
 import { needsSpaceCharOnly } from './CharOnlySpacing';
 import { finishCharOnlyText } from './FormattingPasses';
-import type { PunctuationLookup } from './FormattingPasses';
 import type { TranslationSource } from '../../types/TranslationEngineTypes';
 import { isLeaderSource } from '../TranslationSourcePriority';
 
@@ -28,7 +27,8 @@ export interface CharOnlyAssemblyResult {
  */
 export function assembleCharOnlyResult(
   tokens: StampedToken[],
-  lookupPunctuation: PunctuationLookup
+  /** The punctuation dictionary applied to a text (`DictionaryManager.translatePunctuationText`). */
+  translatePunctuation: (text: string) => string
 ): CharOnlyAssemblyResult {
   const builder = new SemanticArrayBuilder();
   let translatedText = '';
@@ -63,7 +63,7 @@ export function assembleCharOnlyResult(
 
   // Punctuation dictionary translation, comma-digit preservation (1,200 stays intact), colon-quote
   // spacing, space after punctuation, first-letter and colon/newline capitals.
-  translatedText = finishCharOnlyText(translatedText, lookupPunctuation);
+  translatedText = finishCharOnlyText(translatedText, translatePunctuation);
 
   const arrays = builder.getArrays();
   const lowerText = translatedText.toLowerCase();
