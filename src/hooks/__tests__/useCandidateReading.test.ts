@@ -56,6 +56,57 @@ describe('useCandidateReading', () => {
     expect(translateGloss).not.toHaveBeenCalled();
   });
 
+  test('a tab round trip keeps the cache', async () => {
+    const { translateGloss, view } = setup();
+    await view.result.current.gloss('滕青山');
+    const props = {
+      fingerprint: 'fp',
+      translateGloss,
+      dictionaryVersion: 1,
+      scrollToLine: vi.fn(),
+      onLit: vi.fn(),
+    };
+    view.rerender({ ...props, canTranslate: false });
+    view.rerender({ ...props, canTranslate: true });
+    expect(await view.result.current.gloss('滕青山')).toBe('g:滕青山');
+    expect(translateGloss).toHaveBeenCalledTimes(1);
+  });
+
+  test('with the engine not ready a cached gloss is answered and a new one refused', async () => {
+    const { translateGloss, view } = setup();
+    await view.result.current.gloss('滕青山');
+    view.rerender({
+      fingerprint: 'fp',
+      translateGloss,
+      canTranslate: false,
+      dictionaryVersion: 1,
+      scrollToLine: vi.fn(),
+      onLit: vi.fn(),
+    });
+    expect(await view.result.current.gloss('滕青山')).toBe('g:滕青山');
+    await expect(view.result.current.gloss('韩立')).rejects.toThrow();
+    expect(translateGloss).toHaveBeenCalledTimes(1);
+  });
+
+  test('a gloss refused while the engine was down is asked again once it is up', async () => {
+    const { translateGloss, jump, lit, view } = setup({ canTranslate: false });
+    const refusing = view.result.current;
+    await expect(refusing.gloss('滕青山')).rejects.toThrow();
+    // Every other prop keeps its identity: only the engine coming up may change the object.
+    view.rerender({
+      fingerprint: 'fp',
+      translateGloss,
+      canTranslate: true,
+      dictionaryVersion: 1,
+      scrollToLine: jump,
+      onLit: lit,
+    });
+    // A new object is what makes a mounted row ask again.
+    expect(view.result.current).not.toBe(refusing);
+    expect(await view.result.current.gloss('滕青山')).toBe('g:滕青山');
+    expect(translateGloss).toHaveBeenCalledTimes(1);
+  });
+
   test('jumping scrolls to the line and lights it', () => {
     const { jump, lit, view } = setup();
     view.result.current.jump(41);

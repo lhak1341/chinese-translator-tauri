@@ -1,9 +1,12 @@
 import type { BookRecords } from '../types/ReaderTypes';
-import { bookRecordsFile, getBookRecordsSnapshot } from '../utils/reader/BookRecordsBackend';
+import type { AppFileState } from '../utils/appFile';
+import { bookRecordsFile } from '../utils/reader/BookRecordsBackend';
 import { useAppFile } from './useAppFile';
 
+const NO_RECORDS: BookRecords = Object.freeze({}) as BookRecords;
+
 /** Every record, or an empty map while none are loaded — stable between changes. */
-const allRecords = (): BookRecords => getBookRecordsSnapshot();
+const allRecords = (state: AppFileState<BookRecords>): BookRecords => state.value ?? NO_RECORDS;
 
 /**
  * Every book record, re-rendering on each change to the record cache; starts a load if

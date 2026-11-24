@@ -1,17 +1,9 @@
 /**
- * Pure organization of a proper-noun dictionary-id list for the Configuration screen:
- * stable sort order, then a 3-way category split (Base / Generic / Fiction).
+ * Pure organization of a proper-noun dictionary-id list for the Configuration screen: a 3-way
+ * category split (Base / Generic / Fiction), each in display order (`inDisplayOrder`).
  */
 
-import { tierOf } from './DictionaryIdClassifier';
-
-export function sortDictionaries(dictionaries: string[]): string[] {
-  return dictionaries.sort((a, b) => {
-    if (a === 'properNouns') return -1;
-    if (b === 'properNouns') return 1;
-    return a.localeCompare(b);
-  });
-}
+import { inDisplayOrder, tierOf } from './DictionaryIdClassifier';
 
 export interface CategorizedDictionaries {
   base: string[];
@@ -32,8 +24,8 @@ export function categorizeDictionaries(dictionaries: string[]): CategorizedDicti
   });
 
   return {
-    base: base.sort((a, b) => a.localeCompare(b)),
-    generic: generic.sort((a, b) => a.localeCompare(b)),
-    fiction: fiction.sort((a, b) => a.localeCompare(b)),
+    base: inDisplayOrder(base),
+    generic: inDisplayOrder(generic),
+    fiction: inDisplayOrder(fiction),
   };
 }

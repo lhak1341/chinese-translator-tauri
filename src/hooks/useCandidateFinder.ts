@@ -15,7 +15,6 @@ import {
   bookRecordsFile,
   dismissCandidate,
   dismissCandidates,
-  getBookRecordsSnapshot,
   restoreCandidate,
 } from '../utils/reader/BookRecordsBackend';
 import type { BookRecords } from '../types/ReaderTypes';
@@ -89,7 +88,8 @@ export function useCandidateFinder(fingerprint: string): CandidateFinder {
   const names = useAppFile(
     bookRecordsFile,
     useCallback(
-      () => getBookRecordsSnapshot()[fingerprint]?.dismissedCandidates ?? NONE_DISMISSED,
+      (state: AppFileState<BookRecords>) =>
+        state.value?.[fingerprint]?.dismissedCandidates ?? NONE_DISMISSED,
       [fingerprint]
     )
   );

@@ -3,11 +3,12 @@ import { formatErrorMessage } from '../../utils/errorHelpers';
 import { transformAppConfig } from '../../utils/appConfig';
 import { toProperNounsDictionaryId, dictionaryNameProblem } from '../../utils/dictionary';
 import { createMissingPatternHalves } from '../../utils/dictionary/DictionaryPairs';
-import { bareNameOf, isProperNounsDict } from '../../utils/dictionary/DictionaryIdClassifier';
 import {
-  sortDictionaries,
-  categorizeDictionaries,
-} from '../../utils/dictionary/DictionaryListOrganizer';
+  bareNameOf,
+  inDisplayOrder,
+  isProperNounsDict,
+} from '../../utils/dictionary/DictionaryIdClassifier';
+import { categorizeDictionaries } from '../../utils/dictionary/DictionaryListOrganizer';
 import { useAppConfig } from '../../hooks/useAppConfig';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useBookBinding } from '../BookBindingContext';
@@ -50,7 +51,7 @@ export function useDictionaryConfigManagement() {
    * dialog gets its row here without this hook keeping a list of its own (ADR-062).
    */
   const allDictionaries = useMemo(
-    () => sortDictionaries(Object.keys(dictionaryTypes).filter(isProperNounsDict)),
+    () => inDisplayOrder(Object.keys(dictionaryTypes).filter(isProperNounsDict)),
     [dictionaryTypes]
   );
 

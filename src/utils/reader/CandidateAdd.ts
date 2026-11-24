@@ -1,4 +1,4 @@
-import { isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
+import { inDisplayOrder, isProperNounsDict } from '../dictionary/DictionaryIdClassifier';
 import {
   defaultSemanticType,
   initialEntryGuess,
@@ -22,8 +22,7 @@ import type { QuickAddView } from '../dictionary/QuickAddTarget';
 type Dictionaries = Readonly<Record<string, object | undefined>>;
 
 /** The row's "Add to" dropdown: the book's active proper-noun dictionaries, opening on the
- * one Cmd-5 would add to. Ordered for scanning, not by disk listing: that one first, then the rest
- * alphabetically (root `properNouns` sorts ahead of its `properNouns-…` siblings by itself). */
+ * one Cmd-5 would add to. In display order (`inDisplayOrder`) with that one first. */
 export function candidateAddChoices(
   view: QuickAddView | null,
   dictionaries: Dictionaries
@@ -32,10 +31,7 @@ export function candidateAddChoices(
   // A proper-noun target is always `open`; `none` is Cmd-6's.
   const opened = target.kind === 'open' ? target.dictionaryId : 'properNouns';
   const properNouns = Object.keys(dictionaries).filter(isProperNounsDict);
-  const rank = (id: string): number => (id === opened ? 0 : 1);
-  const choices = quickAddChoices(view, properNouns, opened).sort(
-    (a, b) => rank(a) - rank(b) || a.localeCompare(b)
-  );
+  const choices = inDisplayOrder(quickAddChoices(view, properNouns, opened), opened);
   return { opened, choices };
 }
 

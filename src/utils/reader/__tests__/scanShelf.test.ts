@@ -4,8 +4,16 @@
  * grilling), which could only reach them by rendering the whole Reader tab.
  */
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { scanShelf, type ScanShelfDeps, type UnavailableBook } from '../ReconcileLibrary';
+import {
+  pruneBookIndex,
+  scanShelf,
+  type ScanShelfDeps,
+  type UnavailableBook,
+} from '../ReconcileLibrary';
+import { invalidateBookRecords, loadBookRecords } from '../BookRecordsBackend';
 import type { LibraryBook } from '../../../types/ReaderTypes';
+import { makeBookRecord } from './bookRecordFixture';
+import { installFakeAppFile } from '../../../test/fakeAppFile';
 
 vi.mock('../../logger', () => ({ logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -94,5 +102,28 @@ describe('scanShelf', () => {
   test('a failed prune does not change the outcome', async () => {
     deps.pruneBookIndex.mockRejectedValue(new Error('disk'));
     expect((await scanShelf('/saved', deps)).kind).toBe('loaded');
+  });
+});
+
+describe('pruneBookIndex (the default prune)', () => {
+  beforeEach(() => {
+    invalidateBookRecords();
+    global.window.electronAPI = {} as unknown as typeof window.electronAPI;
+    installFakeAppFile(
+      { load: 'loadBookRecords', save: 'saveBookRecords' },
+      { 'fp-a': makeBookRecord(), 'fp-b': makeBookRecord() }
+    );
+    window.electronAPI.pruneBookIndex = vi.fn(async () => 0);
+  });
+
+  test('records not loaded yet prune nothing: no list would call every sidecar an orphan', async () => {
+    await pruneBookIndex();
+    expect(window.electronAPI.pruneBookIndex).not.toHaveBeenCalled();
+  });
+
+  test('once the records are loaded it sends their fingerprints', async () => {
+    await loadBookRecords();
+    await pruneBookIndex();
+    expect(window.electronAPI.pruneBookIndex).toHaveBeenCalledWith(['fp-a', 'fp-b']);
   });
 });

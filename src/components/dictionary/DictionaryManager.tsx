@@ -24,6 +24,7 @@ import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
 import { findConflictingEntries, getMoveFamily, type DuplicateRow } from '../../utils/dictionary';
+import { inDisplayOrder } from '../../utils/dictionary/DictionaryIdClassifier';
 import { quickAddChoices, type QuickAddView } from '../../utils/dictionary/QuickAddTarget';
 import toast from '../../utils/toast';
 import { useBookBinding } from '../BookBindingContext';
@@ -243,10 +244,14 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     return Object.fromEntries(visible.map((id) => [id, dictionaryTypes[id]]));
   }, [dictionaryTypes, showAllDictionaries, activeView, selectedDictionary]);
 
-  // Sort dictionary entries for dropdown: A-Z by ID
-  const sortedDictionaryEntries = React.useMemo(() => {
-    return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => idA.localeCompare(idB));
-  }, [filteredDictionaryTypes]);
+  // The dictionary display order, on both the filtered and the "Show all" list.
+  const sortedDictionaryEntries = React.useMemo(
+    () =>
+      inDisplayOrder(Object.keys(filteredDictionaryTypes)).map(
+        (id) => [id, filteredDictionaryTypes[id]] as const
+      ),
+    [filteredDictionaryTypes]
+  );
 
   const dictionaryItems = React.useMemo(
     () =>

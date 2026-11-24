@@ -141,7 +141,7 @@ General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context me
 
 ## Dictionary id order is the disk's, not sorted
 
-`Object.keys(dictionaries)` follows `list_dictionaries_with_prefix` (`fs::read_dir`, no sort in Rust or `DictionaryStore`; the load order is inferred, not probed), so any list built from it is in arbitrary order — sort it (`sortDictionaries`, or a rank plus `localeCompare`). The Reader's Candidate "Add to" dropdown does (`candidateAddChoices`); `quickAddChoices` still "keeps `dictionaryIds`' order", so the Add form's dropdown is unsorted.
+`Object.keys(dictionaries)` follows `list_dictionaries_with_prefix` (`fs::read_dir`, no sort in Rust or `DictionaryStore`; the load order is inferred, not probed), so any list built from it is in arbitrary order (probed 2026-11-24: the production folder lists `properNouns` 18th and `phrases` 23rd). A picker lists ids through `inDisplayOrder` (`DictionaryIdClassifier.ts`, GLOSSARY.md "Dictionary display order"), never a `localeCompare` of its own; `quickAddChoices` already returns that order.
 
 ## WASM Wrapper Methods
 

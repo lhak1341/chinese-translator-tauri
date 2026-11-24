@@ -77,6 +77,33 @@ export function priorityOf(id: string): number {
   return ROOT_PRIORITIES[id] ?? 10;
 }
 
+/** The fixed-name dictionaries, in the order a picker lists them ahead of every other id. */
+const ROOT_DISPLAY_ORDER: readonly string[] = [
+  'properNouns',
+  'phrases',
+  'patterns',
+  'characters',
+  'conversion',
+  'punctuation',
+];
+
+/**
+ * The **dictionary display order** (GLOSSARY.md), the one order a picker lists dictionary ids
+ * in: `first` when given, then the fixed-name dictionaries (`properNouns`, `phrases`,
+ * `patterns`, `characters`, `conversion`, `punctuation`), then every other id A–Z. Returns
+ * a new array; `ids` is left as it was. A list built from `Object.keys(dictionaries)` is in
+ * disk order, so every picker goes through this. `QuickAddTarget`'s `byTier` is not a display
+ * order: it decides which dictionary an Add targets.
+ */
+export function inDisplayOrder(ids: readonly string[], first?: string): string[] {
+  const rank = (id: string): number => {
+    if (id === first) return -1;
+    const root = ROOT_DISPLAY_ORDER.indexOf(id);
+    return root === -1 ? ROOT_DISPLAY_ORDER.length : root;
+  };
+  return [...ids].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
 /** The id prefix every fiction proper-nouns dictionary carries. Exported for callers that
  * need to *build* or *strip* one; to *test* for one, use `isFictionProperNounsId`. */
 export const FICTION_PROPER_NOUNS_PREFIX = 'properNouns-f_';

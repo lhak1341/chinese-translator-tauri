@@ -12,7 +12,7 @@ import { createCandidateAdder, type CandidateAdder } from '../../../utils/reader
 import { rankCandidates } from '../../../utils/reader/CandidateRanking';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 import type { CandidateDismissals } from '../../../hooks/useCandidateFinder';
-import type { CandidateReading } from '../CandidateFinderPanel';
+import type { CandidateReading } from '../../../hooks/useCandidateReading';
 import type { CandidateContext } from '../../../types/ReaderTypes';
 import type { QuickAddView } from '../../../utils/dictionary/QuickAddTarget';
 

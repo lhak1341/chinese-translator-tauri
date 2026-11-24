@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
-import { compareDictionaryOrder } from '../utils/dictionaryHelpers';
 import { getDictionaryDropdownLabel } from '../utils/dictionary/DictionaryLabels';
 import { canMoveBetween } from '../utils/dictionary';
+import { inDisplayOrder } from '../utils/dictionary/DictionaryIdClassifier';
 
 export interface MoveTargetDictionary {
   id: string;
@@ -19,10 +19,9 @@ export function useMoveTargetDictionaries(currentDictionaryId: string): {
 
   const availableDictionaries = useMemo(
     () =>
-      Object.keys(dictionaryTypes)
-        .filter((id) => canMoveBetween(currentDictionaryId, id))
-        .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
-        .sort(compareDictionaryOrder),
+      inDisplayOrder(
+        Object.keys(dictionaryTypes).filter((id) => canMoveBetween(currentDictionaryId, id))
+      ).map((id) => ({ id, label: getDictionaryDropdownLabel(id) })),
     [dictionaryTypes, currentDictionaryId]
   );
 

@@ -14,6 +14,7 @@ import {
   showsSemanticType,
   dictionaryNameProblem,
   priorityOf,
+  inDisplayOrder,
   MAX_DICTIONARY_NAME_LENGTH,
 } from '../dictionary/DictionaryIdClassifier';
 
@@ -182,5 +183,52 @@ describe('dictionaryNameProblem', () => {
 
   test('the limit counts the name after whitespace is stripped, as the id does', () => {
     expect(dictionaryNameProblem(`${'a'.repeat(88)}   `)).toBeNull();
+  });
+});
+
+describe('inDisplayOrder', () => {
+  // Disk order is arbitrary (`fs::read_dir`): shuffled, as the store lists them.
+  const SHUFFLED = [
+    'patterns-f_Novel',
+    'properNouns-f_Novel',
+    'punctuation',
+    'properNouns-_Theme',
+    'phrases',
+    'properNouns-Mine',
+    'characters',
+    'patterns-_Theme',
+    'properNouns',
+    'conversion',
+    'patterns',
+  ];
+
+  test('the fixed-name dictionaries first, in their fixed order, then every other id A–Z', () => {
+    expect(inDisplayOrder(SHUFFLED)).toEqual([
+      'properNouns',
+      'phrases',
+      'patterns',
+      'characters',
+      'conversion',
+      'punctuation',
+      'patterns-_Theme',
+      'patterns-f_Novel',
+      'properNouns-_Theme',
+      'properNouns-f_Novel',
+      'properNouns-Mine',
+    ]);
+  });
+
+  test('`first` goes ahead of everything, the fixed names included', () => {
+    expect(inDisplayOrder(SHUFFLED, 'properNouns-f_Novel').slice(0, 3)).toEqual([
+      'properNouns-f_Novel',
+      'properNouns',
+      'phrases',
+    ]);
+  });
+
+  test('returns a new array and leaves the input as it was', () => {
+    const input = [...SHUFFLED];
+    expect(inDisplayOrder(input)).not.toBe(input);
+    expect(input).toEqual(SHUFFLED);
   });
 });

@@ -170,9 +170,9 @@ describe('quickAddChoices', () => {
 
   test('offers every non-proper-noun kind, and proper nouns only while the view has them active', () => {
     expect(quickAddChoices(view(['properNouns-Mine']), ALL, 'phrases')).toEqual([
-      'characters',
       'phrases',
       'patterns',
+      'characters',
       'properNouns-Mine',
     ]);
   });
@@ -205,10 +205,18 @@ describe('quickAddChoices', () => {
     expect(quickAddChoices(view([]), ALL, 'patterns-f_Novel')).toContain('patterns-f_Novel');
   });
 
-  test('keeps the order it was given', () => {
+  test('lists its choices in display order, whatever order the ids came in', () => {
+    // The Add form's dropdown reads this straight; the ids come in disk order.
     const active = view(['properNouns-_Theme', 'properNouns-f_Novel']);
-    const choices = quickAddChoices(active, ALL, 'phrases');
-    expect(choices).toEqual(ALL.filter((id) => choices.includes(id)));
+    expect(quickAddChoices(active, [...ALL].reverse(), 'phrases')).toEqual([
+      'phrases',
+      'patterns',
+      'characters',
+      'patterns-_Theme',
+      'patterns-f_Novel',
+      'properNouns-_Theme',
+      'properNouns-f_Novel',
+    ]);
   });
 });
 

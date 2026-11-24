@@ -10,7 +10,7 @@ import React, {
 import type { BookBinding } from '../types/ReaderTypes';
 import { createDictionary, renameDictionary } from '../utils/dictionary/DictionaryPairs';
 import { listProperNounsDictionaryIds } from '../utils/dictionary/DictionaryBackend';
-import { isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
+import { inDisplayOrder, isFictionProperNounsId } from '../utils/dictionary/DictionaryIdClassifier';
 import { dictionaryInUse } from '../utils/reader/BindingActivation';
 import type { QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import {
@@ -155,10 +155,7 @@ export function BookBindingProvider({
   // The Dictionary Store already lists every dictionary that exists and re-lists it on each
   // create and rename, so this is a view of that list, not a second copy (ADR-062).
   const fictionDictionaries = useMemo(
-    () =>
-      Object.keys(dictionaryTypes)
-        .filter(isFictionProperNounsId)
-        .sort((a, b) => a.localeCompare(b)),
+    () => inDisplayOrder(Object.keys(dictionaryTypes).filter(isFictionProperNounsId)),
     [dictionaryTypes]
   );
 

@@ -1,5 +1,6 @@
 import {
   hasPairedPatterns,
+  inDisplayOrder,
   isPairedPatternsId,
   isProperNounsDict,
   tierOf,
@@ -93,7 +94,8 @@ export function quickAddTarget(
  * is a choice while the view has it active, a paired patterns dictionary while its
  * proper-nouns half is, and every other kind always. `opened` — the dictionary the form
  * opened on — is always a choice, so a fallback target (root `properNouns` over an empty
- * view) is never missing from its own dropdown. Keeps `dictionaryIds`' order.
+ * view) is never missing from its own dropdown. Returned in display order (`inDisplayOrder`),
+ * whatever order `dictionaryIds` came in.
  */
 export function quickAddChoices(
   view: QuickAddView | null,
@@ -101,11 +103,13 @@ export function quickAddChoices(
   opened: string
 ): string[] {
   const active = view?.activeProperNouns ?? [];
-  return dictionaryIds.filter((id) => {
-    if (id === opened) return true;
-    if (isPairedPatternsId(id)) return active.includes(toProperNounsId(id));
-    return !isProperNounsDict(id) || active.includes(id);
-  });
+  return inDisplayOrder(
+    dictionaryIds.filter((id) => {
+      if (id === opened) return true;
+      if (isPairedPatternsId(id)) return active.includes(toProperNounsId(id));
+      return !isProperNounsDict(id) || active.includes(id);
+    })
+  );
 }
 
 /** The dictionaries a Cmd-3 or Cmd-4 Add can switch between without the dropdown. */

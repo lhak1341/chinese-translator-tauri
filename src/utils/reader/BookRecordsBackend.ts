@@ -43,26 +43,11 @@ const booksFile = createAppFile<BookRecords>({
   saveError: 'Failed to save book records',
 });
 
-/**
- * The record cache is observable: every change to it — the first load, a save, an
- * invalidate — notifies subscribers, so a view reading progress off it (the shelf) is
- * current without re-reading, whichever write landed last and in whatever order.
- */
-const EMPTY_RECORDS: BookRecords = Object.freeze({}) as BookRecords;
-
-export function subscribeBookRecords(listener: () => void): () => void {
-  return booksFile.subscribe(listener);
-}
-
-/** The cached records, or an empty map before the first load. Stable between changes —
- * the cache is replaced, never mutated — as `useSyncExternalStore` requires. */
-export function getBookRecordsSnapshot(): BookRecords {
-  return booksFile.snapshot() ?? EMPTY_RECORDS;
-}
-
-/** `books.json` as a view reads it, through `useAppFile` (`useBookRecords`, the Candidate
- * finder's dismissals). Select only what is on screen: a position write lands about once a
- * second while reading. */
+/** `books.json` as everything outside this module reads it: a view through `useAppFile`
+ * (`useBookRecords`, the Candidate finder's dismissals), the index prune through `state()`.
+ * Its state's `value` is `null` until the first load and is replaced, never mutated, on every
+ * change (a load, a save, an invalidate), each of which notifies. Select only what is on
+ * screen: a position write lands about once a second while reading. */
 export const bookRecordsFile: AppFileReadable<BookRecords> = booksFile.readable;
 
 export interface LoadBookRecordsResult {
@@ -106,16 +91,17 @@ export async function readSettledRecords(): Promise<BookRecords> {
 }
 
 /**
- * The one read-modify-write behind every per-field setter below. A record must already
- * exist — `open_book` and library-scan reconciliation both create one before the reader
- * can produce anything to write, so a missing record means a caller bug, not a
- * recoverable state; it's logged and skipped rather than fabricating a record with no
- * observations to speak of.
+ * The one read-modify-write of a single existing record, behind every per-field setter and
+ * every dismiss or restore below. `update` gets the record and returns the next one, or
+ * `null` for no change (nothing is saved). A record must already exist — `open_book` and
+ * library-scan reconciliation both create one before the reader can produce anything to
+ * write, so a missing record means a caller bug, not a recoverable state; it's logged and
+ * skipped rather than fabricating a record with no observations to speak of.
  */
 function updateBookRecord(
   caller: string,
   fingerprint: string,
-  patch: Partial<Pick<BookRecord, ReaderAnswerField | 'chapterOutline'>>
+  update: (existing: BookRecord) => BookRecord | null
 ): Promise<void> {
   return transformRecords((records) => {
     const existing = records[fingerprint];
@@ -123,16 +109,26 @@ function updateBookRecord(
       logger.warn(`${caller}: no record for ${fingerprint}, skipping`);
       return { records, result: undefined };
     }
-    const updated: BookRecord = { ...existing, ...patch };
+    const updated = update(existing);
+    if (updated === null) return { records, result: undefined };
     return { records: { ...records, [fingerprint]: updated }, result: undefined };
   });
+}
+
+/** One per-field write: the record with `patch` over it. */
+function patchBookRecord(
+  caller: string,
+  fingerprint: string,
+  patch: Partial<Pick<BookRecord, ReaderAnswerField | 'chapterOutline'>>
+): Promise<void> {
+  return updateBookRecord(caller, fingerprint, (existing) => ({ ...existing, ...patch }));
 }
 
 /**
  * Persist a reading position for one book, preserving everything else on its record.
  */
 export function setReadingPosition(fingerprint: string, position: ReadingPosition): Promise<void> {
-  return updateBookRecord('setReadingPosition', fingerprint, { position });
+  return patchBookRecord('setReadingPosition', fingerprint, { position });
 }
 
 /**
@@ -145,7 +141,7 @@ export function setChapterOutline(
   fingerprint: string,
   outline: ChapterOutlineSummary
 ): Promise<void> {
-  return updateBookRecord('setChapterOutline', fingerprint, { chapterOutline: outline });
+  return patchBookRecord('setChapterOutline', fingerprint, { chapterOutline: outline });
 }
 
 /**
@@ -157,7 +153,7 @@ export function setManualChapterPattern(
   fingerprint: string,
   pattern: ChapterPatternId | null
 ): Promise<void> {
-  return updateBookRecord('setManualChapterPattern', fingerprint, {
+  return patchBookRecord('setManualChapterPattern', fingerprint, {
     manualChapterPattern: pattern,
   });
 }
@@ -172,7 +168,7 @@ export function setManualChapterPattern(
  * `null`, which is the *unanswered* state and would re-offer the dialog on the next open.
  */
 export function setBookBinding(fingerprint: string, binding: BookBinding): Promise<void> {
-  return updateBookRecord('setBookBinding', fingerprint, { binding });
+  return patchBookRecord('setBookBinding', fingerprint, { binding });
 }
 
 /**
@@ -185,18 +181,9 @@ function changeDismissed(
   fingerprint: string,
   change: (dismissed: string[]) => string[] | null
 ): Promise<void> {
-  return transformRecords((records) => {
-    const existing = records[fingerprint];
-    if (!existing) {
-      logger.warn(`${caller}: no record for ${fingerprint}, skipping`);
-      return { records, result: undefined };
-    }
+  return updateBookRecord(caller, fingerprint, (existing) => {
     const next = change(existing.dismissedCandidates);
-    if (next === null) return { records, result: undefined };
-    return {
-      records: { ...records, [fingerprint]: { ...existing, dismissedCandidates: next } },
-      result: undefined,
-    };
+    return next === null ? null : { ...existing, dismissedCandidates: next };
   });
 }
 

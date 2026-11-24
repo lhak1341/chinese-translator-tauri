@@ -18,6 +18,7 @@ import {
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder, CandidateAddRow } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
+import type { CandidateReading } from '../../hooks/useCandidateReading';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
@@ -31,17 +32,6 @@ interface CandidateFinderPanelProps {
   onRun: () => void;
   onCancel: () => void;
   onClose: () => void;
-}
-
-/** What the panel reads from the open book: lines that hold a name, the character-only gloss of
- * a Chinese string, and the jump that lights a line in the three Reader panels. */
-export interface CandidateReading {
-  context: (text: string) => Promise<CandidateContext>;
-  gloss: (text: string) => Promise<string>;
-  /** The same gloss, split so the stretch that translates `needle` is marked. */
-  glossParts: (text: string, needle: string) => Promise<LinePart[]>;
-  /** `line` is the file's own 0-based number. */
-  jump: (line: number) => void;
 }
 
 /** Whether `ref`'s element has come into view, and stays true after: a gloss is computed for

@@ -7,7 +7,7 @@ import type {
 } from '../../types/ReaderTypes';
 import { logger } from '../logger';
 import { extractErrorMessage } from '../errorHelpers';
-import { getBookRecordsSnapshot, loadBookRecords, transformRecords } from './BookRecordsBackend';
+import { bookRecordsFile, loadBookRecords, transformRecords } from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
@@ -234,14 +234,20 @@ export interface ScanShelfDeps {
   pruneBookIndex: () => Promise<unknown>;
 }
 
+/**
+ * Deletes the Candidate finder's index sidecars that no book record owns. Records not loaded
+ * (or unreadable) read as none, and none prunes nothing: an empty list would call every
+ * sidecar an orphan.
+ */
+export async function pruneBookIndex(): Promise<unknown> {
+  const known = Object.keys(bookRecordsFile.state().value ?? {});
+  return known.length === 0 ? 0 : window.electronAPI.pruneBookIndex(known);
+}
+
 const defaultScanShelfDeps: ScanShelfDeps = {
   scanLibrary: (libraryPath) => window.electronAPI.scanLibrary(libraryPath),
   reconcile: (books, libraryPath) => reconcileLibraryScan(books, libraryPath),
-  pruneBookIndex: async () => {
-    // An unpopulated cache reads as no records, which would call every sidecar an orphan.
-    const known = Object.keys(getBookRecordsSnapshot());
-    return known.length === 0 ? 0 : window.electronAPI.pruneBookIndex(known);
-  },
+  pruneBookIndex,
 };
 
 /**
