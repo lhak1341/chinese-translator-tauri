@@ -1,5 +1,5 @@
 import { TYPE } from '@lhak/style';
-import { createAppFile } from './appFile';
+import { createAppFile, type AppFileReadable } from './appFile';
 import { isTextProperty, parseAppearanceValue } from './appearanceProperties';
 import type {
   AppearanceSettings,
@@ -141,7 +141,7 @@ export function fromRaw(raw: Record<string, unknown>): AppearanceSettings {
 
 /** `appearance.json` (GLOSSARY.md "App file"). A failed read still shows the defaults, but
  * they are never saved over the file. */
-const appearanceFile = createAppFile<AppearanceSettings>({
+const appearanceJson = createAppFile<AppearanceSettings>({
   fileName: 'appearance.json',
   what: 'Appearance (appearance.json)',
   load: () => window.electronAPI.loadAppearanceSettings(),
@@ -155,17 +155,20 @@ const appearanceFile = createAppFile<AppearanceSettings>({
   saveError: 'Failed to save appearance settings',
 });
 
+/** What the Appearance tab renders from (`useAppFile`); `saveAppearanceConfig` is the writer. */
+export const appearanceFile: AppFileReadable<AppearanceSettings> = appearanceJson.readable;
+
 export async function loadAppearanceConfig(): Promise<AppearanceSettings> {
-  return (await appearanceFile.read()).value;
+  return (await appearanceJson.read()).value;
 }
 
 /** Forget the cache and any failed read — tests only; the next load decides again. */
 export function invalidateAppearanceConfig(): void {
-  appearanceFile.invalidate();
+  appearanceJson.invalidate();
 }
 
 /** Replaces the saved settings. Saves run one at a time, so the last one started is the one
  * on disk — a blur save and a checkbox save can start together. */
 export function saveAppearanceConfig(settings: AppearanceSettings): Promise<void> {
-  return appearanceFile.transform(() => ({ value: settings, result: undefined }));
+  return appearanceJson.transform(() => ({ value: settings, result: undefined }));
 }

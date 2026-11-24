@@ -10,7 +10,13 @@ const dictionaries = vi.hoisted(() => ({
 }));
 
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries, unreadDictionaryIds: [], addEntry, addEntries }),
+  useDictionary: () => ({
+    dictionaries,
+    unreadDictionaryIds: [],
+    getDictionarySnapshot: () => ({ dictionaries, unreadDictionaryIds: [] }),
+    addEntry,
+    addEntries,
+  }),
 }));
 vi.mock('../../components/BookBindingContext', () => ({
   useBookBinding: () => ({ loadQuickAddView: vi.fn().mockResolvedValue(null) }),

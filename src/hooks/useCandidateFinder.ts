@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useAppFile } from './useAppFile';
 import type { AppFileState } from '../utils/appFile';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
@@ -11,15 +11,11 @@ import {
   type CandidateAdder,
 } from '../utils/reader/CandidateAdd';
 import { rankCandidates } from '../utils/reader/CandidateRanking';
-import { snapshotFinderDictionaries } from '../utils/reader/CandidateDictionaries';
-import { loadAppConfig } from '../utils/appConfig';
-import { backgroundBooks } from '../utils/reader/CandidateBackground';
 import {
   bookRecordsFile,
   dismissCandidate,
   dismissCandidates,
   getBookRecordsSnapshot,
-  loadBookRecords,
   restoreCandidate,
 } from '../utils/reader/BookRecordsBackend';
 import type { BookRecords } from '../types/ReaderTypes';
@@ -61,47 +57,22 @@ const selectReason = (state: AppFileState<BookRecords>) => state.reason;
  * One open book's Candidate finder run, adapted to React from `CandidateFinderStore`.
  *
  * One book per instance (`BookReader` is keyed by fingerprint, ADR-050): unmounting — a
- * book switch, Back, or the encoding prompt — cancels the run and drops the list. The
- * dictionaries are read from the Dictionary Store's memory when a run starts, never before,
- * so opening the panel costs nothing; the active proper-noun list is the open book's
- * (`loadQuickAddView`, the same view the Add form uses).
+ * book switch, Back, or the encoding prompt — cancels the run and drops the list. The store
+ * decides what a run reads (the open book's quick-add view, then the Dictionary Store's own
+ * snapshot, then the background); this hook only hands it the two sources React owns.
  */
 export function useCandidateFinder(fingerprint: string): CandidateFinder {
-  const { dictionaries, unreadDictionaryIds, addEntry, addEntries } = useDictionary();
+  const { dictionaries, getDictionarySnapshot, addEntry, addEntries } = useDictionary();
   const { rules } = useTransformRules();
   const { loadQuickAddView } = useBookBinding();
-  const dictionariesRef = useRef({ dictionaries, unreadDictionaryIds });
-  dictionariesRef.current = { dictionaries, unreadDictionaryIds };
 
+  // Both sources are stable (the Dictionary Store's and the binding store's own methods).
   const [store] = useState(
     () =>
       new CandidateFinderStore({
         fingerprint,
-        getBackground: async () => {
-          // A failed read of either leaves the finder with fewer background books (or the
-          // default library folder), so the gate skips or the sidecars rebuild; the run goes on.
-          const [config, records] = await Promise.all([
-            loadAppConfig().catch(() => null),
-            loadBookRecords().catch(() => null),
-          ]);
-          return {
-            libraryPath: config?.reader.libraryPath ?? null,
-            books: records ? backgroundBooks(records.records, fingerprint) : [],
-          };
-        },
-        getDictionaries: async () => {
-          const view = await loadQuickAddView();
-          if (!view) {
-            return { ok: false, message: "Can't run: the configuration couldn't be read." };
-          }
-          const { dictionaries, unreadDictionaryIds } = dictionariesRef.current;
-          const finder = snapshotFinderDictionaries(
-            dictionaries,
-            unreadDictionaryIds,
-            view.activeProperNouns
-          );
-          return finder.ok ? { ...finder, view } : finder;
-        },
+        loadQuickAddView,
+        readDictionaries: getDictionarySnapshot,
       })
   );
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);

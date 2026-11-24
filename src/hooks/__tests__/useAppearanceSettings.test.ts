@@ -62,6 +62,21 @@ function makeData(overrides = {}) {
   };
 }
 
+const UNREAD = "Couldn't read appearance.json; not saving over it";
+
+function type(
+  result: { current: ReturnType<typeof useAppearanceSettings> },
+  section: string,
+  property: string,
+  value: string
+) {
+  act(() =>
+    result.current.handleInputChange({
+      target: { dataset: { section, property }, value },
+    } as unknown as React.ChangeEvent<HTMLInputElement>)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Load behaviour
 // ---------------------------------------------------------------------------
@@ -87,21 +102,20 @@ describe('load on mount', () => {
     );
   });
 
-  it('falls back to DEFAULT_APPEARANCE when API returns success=false', async () => {
+  it('an unreadable file shows the defaults and says why before any edit', async () => {
     mockLoad.mockResolvedValue({ success: false });
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.appearance.chineseText.fontFamily).toBe(
-      DEFAULT_APPEARANCE.chineseText.fontFamily
-    );
-    expect(result.current.error).toBeNull();
+    expect(result.current.appearance).toEqual(DEFAULT_APPEARANCE);
+    expect(result.current.error).toBe(UNREAD);
+    expect(mockSave).not.toHaveBeenCalled();
   });
 
-  it('sets error on load failure', async () => {
+  it('a failed load call reads as the same unreadable file', async () => {
     mockLoad.mockRejectedValue(new Error('network error'));
     const { result } = renderHook(() => useAppearanceSettings());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.error).toBe('Failed to load appearance settings');
+    expect(result.current.error).toBe(UNREAD);
   });
 
   it('defaults characterOnlyFollowsFullTranslation to true when missing from data', async () => {
@@ -140,14 +154,19 @@ describe('applyStylesToDocument', () => {
     expect(setProperty).toHaveBeenCalledWith('--chinese-text-size', '2rem');
   });
 
-  it('applies CSS on initial DEFAULT_APPEARANCE before load resolves', () => {
+  it('writes no CSS variable before the load lands (App.jsx applies at startup)', async () => {
+    let resolveLoad: (v: unknown) => void = () => {};
+    mockLoad.mockReturnValue(new Promise((r) => (resolveLoad = r)));
     const setProperty = vi.spyOn(document.documentElement.style, 'setProperty');
-    renderHook(() => useAppearanceSettings());
-    // Effect fires synchronously after first render with DEFAULT_APPEARANCE
-    expect(setProperty).toHaveBeenCalledWith(
-      '--chinese-text-font',
-      DEFAULT_APPEARANCE.chineseText.fontFamily
-    );
+    const { result } = renderHook(() => useAppearanceSettings());
+    const loadingAtFirstRender = result.current.isLoading;
+    const writesBeforeLoad = setProperty.mock.calls.length;
+    // Resolve before asserting: a load left in flight is shared by the next test's reads.
+    await act(async () => resolveLoad({ success: true, data: makeData() }));
+
+    expect(loadingAtFirstRender).toBe(true);
+    expect(writesBeforeLoad).toBe(0);
+    expect(setProperty).toHaveBeenCalledWith('--chinese-text-font', 'Arial');
   });
 });
 
@@ -221,18 +240,6 @@ describe('handleFontChange', () => {
 // Typed text the field's Appearance property rejects
 // ---------------------------------------------------------------------------
 describe('rejected typed text', () => {
-  const type = (
-    result: { current: ReturnType<typeof useAppearanceSettings> },
-    section: string,
-    property: string,
-    value: string
-  ) =>
-    act(() =>
-      result.current.handleInputChange({
-        target: { dataset: { section, property }, value },
-      } as unknown as React.ChangeEvent<HTMLInputElement>)
-    );
-
   it('is held as field text and reaches neither the settings nor the CSS variable', async () => {
     mockLoad.mockResolvedValue({ success: true, data: makeData() });
     const { result } = renderHook(() => useAppearanceSettings());
@@ -319,7 +326,62 @@ describe('handleAutoSave', () => {
 
     await act(() => result.current.handleAutoSave());
 
+    expect(result.current.error).toBe('disk full');
+    // The edit stays on screen (and in the CSS variables) after a failed save.
+    expect(result.current.appearance.chineseText.fontFamily).toBe('Edited');
+  });
+
+  it('a save the IPC reports failed without a message says the generic text', async () => {
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockSave.mockResolvedValue({ success: false });
+    type(result, 'chineseText', 'fontFamily', 'Edited');
+
+    await act(() => result.current.handleAutoSave());
+
     expect(result.current.error).toBe('Failed to save appearance settings');
+  });
+
+  it('a landed save drops the draft: the tab follows the saved file', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    type(result, 'chineseText', 'fontFamily', 'Edited');
+
+    await act(() => result.current.handleAutoSave());
+
+    // A kept draft would hide the file: reload it with other content and the tab must follow.
+    mockLoad.mockResolvedValue({
+      success: true,
+      data: makeData({ chineseText: { fontFamily: 'Reloaded' } }),
+    });
+    act(() => invalidateAppearanceConfig());
+    await waitFor(() => expect(result.current.appearance.chineseText.fontFamily).toBe('Reloaded'));
+  });
+
+  it('typing during an in-flight save keeps the newer value on screen and on disk', async () => {
+    mockLoad.mockResolvedValue({ success: true, data: makeData() });
+    const { result } = renderHook(() => useAppearanceSettings());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    let finishFirst: (v: unknown) => void = () => {};
+    mockSave.mockReturnValueOnce(new Promise((r) => (finishFirst = r)));
+
+    type(result, 'chineseText', 'fontFamily', 'First');
+    let firstSave: Promise<void> = Promise.resolve();
+    act(() => {
+      firstSave = result.current.handleAutoSave();
+    });
+    type(result, 'chineseText', 'fontFamily', 'Second');
+    await act(async () => {
+      finishFirst({ success: true });
+      await firstSave;
+    });
+
+    expect(result.current.appearance.chineseText.fontFamily).toBe('Second');
+    await act(() => result.current.handleAutoSave());
+    expect(mockSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ chineseText: expect.objectContaining({ fontFamily: 'Second' }) })
+    );
   });
 
   it('clears previous error on successful save', async () => {

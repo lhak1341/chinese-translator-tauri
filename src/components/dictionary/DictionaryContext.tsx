@@ -152,6 +152,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   );
 
   const getDictionaries = useCallback(() => store.getSnapshot().dictionaries, [store]);
+  const getDictionarySnapshot = useCallback(() => {
+    const snapshot = store.getSnapshot();
+    return {
+      dictionaries: snapshot.dictionaries,
+      unreadDictionaryIds: snapshot.unreadDictionaryIds,
+    };
+  }, [store]);
 
   const reloadAllDictionaries = useCallback(async () => {
     const { dictionaries: fresh, outcome } = await store.loadAll();
@@ -188,6 +195,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       loadDictionary,
       applyRename,
       getDictionaries,
+      getDictionarySnapshot,
       reloadAllDictionaries,
       importDictionaries,
       selectedDictionary,
@@ -214,6 +222,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       loadDictionary,
       applyRename,
       getDictionaries,
+      getDictionarySnapshot,
       reloadAllDictionaries,
       importDictionaries,
       selectedDictionary,

@@ -6,7 +6,10 @@ import type {
   CandidateProgress,
   CandidateStage,
 } from '../../types/ReaderTypes';
-import type { FinderDictionaries } from './CandidateDictionaries';
+import { loadAppConfig } from '../appConfig';
+import { loadBookRecords } from './BookRecordsBackend';
+import { backgroundBooks } from './CandidateBackground';
+import { snapshotFinderDictionaries, type FinderDictionaries } from './CandidateDictionaries';
 import type { QuickAddView } from '../dictionary/QuickAddTarget';
 
 /**
@@ -21,26 +24,35 @@ import type { QuickAddView } from '../dictionary/QuickAddTarget';
  *
  * A run's result lands only if it is still the current run: a cancelled run's promise can
  * resolve after the reader has started another, or after the store is gone.
+ *
+ * What a run reads is decided here too: the book's quick-add view, then the Dictionary
+ * Store's snapshot with no await between (so the two agree), then the spread gate's
+ * background from config and the book records, read through their App Files.
  */
 
-/** The other indexed books of a run and the library folder to rebuild their sidecars from. */
-export interface FinderBackground {
-  libraryPath: string | null;
-  books: BackgroundBook[];
+/** The Dictionary Store's own snapshot, read at the moment of the call (never a render's). */
+export interface FinderDictionaryRead {
+  dictionaries: Readonly<Record<string, object | undefined>>;
+  unreadDictionaryIds: readonly string[];
 }
 
 export interface CandidateFinderInputs {
   fingerprint: string;
-  /** The spread gate's books, read when a run starts like the dictionaries. */
-  getBackground: () => Promise<FinderBackground>;
-  /** The dictionaries a run reads, snapshotted at the moment it starts, with the book's
-   * quick-add view they were read for. A refusal (an unread active dictionary) ends the run
-   * with its message. */
-  getDictionaries: () => Promise<FinderRunDictionaries>;
+  /** The open book's quick-add view (`BookBindingContext`), which says which proper-noun
+   * dictionaries are active; `null` when the configuration couldn't be read. */
+  loadQuickAddView: () => Promise<QuickAddView | null>;
+  /** The Dictionary Store's snapshot now (`useDictionary().getDictionarySnapshot`). */
+  readDictionaries: () => FinderDictionaryRead;
+}
+
+/** The other indexed books of a run and the library folder to rebuild their sidecars from. */
+interface FinderBackground {
+  libraryPath: string | null;
+  books: BackgroundBook[];
 }
 
 /** A run's dictionaries and the quick-add view that chose the active ones. */
-export type FinderRunDictionaries =
+type FinderRunDictionaries =
   | (Extract<FinderDictionaries, { ok: true }> & { view: QuickAddView })
   | Extract<FinderDictionaries, { ok: false }>;
 
@@ -108,13 +120,13 @@ export class CandidateFinderStore {
     }
 
     try {
-      const dictionaries = await this.inputs.getDictionaries();
+      const dictionaries = await this.readRunDictionaries();
       if (this.currentRunId !== runId) return;
       if (!dictionaries.ok) {
         this.set({ status: 'error', message: dictionaries.message });
         return;
       }
-      const background = await this.inputs.getBackground();
+      const background = await this.readBackground();
       if (this.currentRunId !== runId) return;
       this.invoked = true;
       const result = await window.electronAPI.findCandidates(
@@ -176,6 +188,33 @@ export class CandidateFinderStore {
   open = (): void => {
     this.disposed = false;
   };
+
+  /** The view first; the dictionaries right after it, with no await between, so a run reads
+   * the store as it is once the view is known (ADR-111 addendum 2026-10-26: once, at start). */
+  private async readRunDictionaries(): Promise<FinderRunDictionaries> {
+    const view = await this.inputs.loadQuickAddView();
+    if (!view) return { ok: false, message: "Can't run: the configuration couldn't be read." };
+    const { dictionaries, unreadDictionaryIds } = this.inputs.readDictionaries();
+    const finder = snapshotFinderDictionaries(
+      dictionaries,
+      unreadDictionaryIds,
+      view.activeProperNouns
+    );
+    return finder.ok ? { ...finder, view } : finder;
+  }
+
+  /** A failed read of either leaves the run with fewer background books (or the default
+   * library folder), so the gate skips or the sidecars rebuild; the run goes on. */
+  private async readBackground(): Promise<FinderBackground> {
+    const [config, records] = await Promise.all([
+      loadAppConfig().catch(() => null),
+      loadBookRecords().catch(() => null),
+    ]);
+    return {
+      libraryPath: config?.reader.libraryPath ?? null,
+      books: records ? backgroundBooks(records.records, this.inputs.fingerprint) : [],
+    };
+  }
 
   private async listenForProgress(runId: string): Promise<() => void> {
     try {

@@ -701,8 +701,7 @@
   },
   "src/utils/reader/__tests__/CandidateFinderStore.test.ts": {
     "errors": {
-      "TS2345: Argument of type 'never[]' is not assignable to parameter of type 'CandidateRunResult'.": 1,
-      "TS2345: Argument of type '{ fingerprint: string; getDictionaries: () => Promise<{ ok: false; message: string; }>; }' is not assignable to parameter of type 'CandidateFinderInputs'.": 1
+      "TS2345: Argument of type 'never[]' is not assignable to parameter of type 'CandidateRunResult'.": 1
     }
   },
   "src/utils/reader/__tests__/ChapterOutlineStore.test.ts": {

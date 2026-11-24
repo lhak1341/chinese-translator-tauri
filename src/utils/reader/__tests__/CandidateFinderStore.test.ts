@@ -1,11 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import {
-  CandidateFinderStore,
-  type FinderBackground,
-  type FinderRunDictionaries,
-} from '../CandidateFinderStore';
+import { CandidateFinderStore, type CandidateFinderInputs } from '../CandidateFinderStore';
 import type { QuickAddView } from '../../dictionary/QuickAddTarget';
-import type { Candidate, CandidateProgress, CandidateRunResult } from '../../../types/ReaderTypes';
+import type {
+  BookRecords,
+  Candidate,
+  CandidateProgress,
+  CandidateRunResult,
+} from '../../../types/ReaderTypes';
+import { installFakeConfigDisk } from '../../../test/fakeConfigDisk';
+import { installFakeAppFile } from '../../../test/fakeAppFile';
+import { invalidateBookRecords } from '../BookRecordsBackend';
+import { makeBookRecord } from './bookRecordFixture';
 
 const findCandidates = vi.fn();
 const cancelCandidateRun = vi.fn();
@@ -13,19 +18,9 @@ const onCandidateProgress = vi.fn();
 const unlisten = vi.fn();
 let emitProgress: (progress: CandidateProgress) => void = () => {};
 
-global.window.electronAPI = {
-  findCandidates: (...args: unknown[]) => findCandidates(...args),
-  cancelCandidateRun: (runId: string) => cancelCandidateRun(runId),
-  onCandidateProgress: (handler: (progress: CandidateProgress) => void) =>
-    onCandidateProgress(handler),
-} as unknown as typeof window.electronAPI;
-
 const NAMES: Candidate[] = [{ text: '滕青山', count: 32, lineCount: 31, alsoIn: [] }];
 const RESULT: CandidateRunResult = { candidates: NAMES, weakFiltering: true };
-const BACKGROUND: FinderBackground = {
-  libraryPath: '/library',
-  books: [{ fingerprint: 'other', fileName: 'other.txt', encodingLabel: 'GBK' }],
-};
+const OTHER_BOOK = { fingerprint: 'other', fileName: 'other.txt', encodingLabel: 'GBK' };
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -43,25 +38,47 @@ const VIEW: QuickAddView = {
 };
 const DONE = { status: 'done' as const, view: VIEW };
 
-const DICTIONARIES: FinderRunDictionaries = {
-  ok: true,
-  view: VIEW,
-  phrases: ['phrase'],
-  activeKeys: ['active'],
-  inactive: [{ id: 'properNouns-f_Other', keys: ['other'] }],
-  isPatternCovered: () => false,
-};
+/** The Dictionary Store as the run reads it: raw dictionaries, not a finder snapshot. */
+let storeDictionaries: Record<string, object>;
+let unreadDictionaryIds: string[];
 
-function makeStore() {
+function makeStore(overrides: Partial<CandidateFinderInputs> = {}) {
   return new CandidateFinderStore({
     fingerprint: 'fp',
-    getDictionaries: async () => DICTIONARIES,
-    getBackground: async () => BACKGROUND,
+    loadQuickAddView: async () => VIEW,
+    readDictionaries: () => ({ dictionaries: storeDictionaries, unreadDictionaryIds }),
+    ...overrides,
   });
 }
 
+let config: ReturnType<typeof installFakeConfigDisk>;
+let records: ReturnType<typeof installFakeAppFile<BookRecords>>;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  storeDictionaries = {
+    phrases: { phrase: {} },
+    'properNouns-f_Novel': { active: {} },
+    'properNouns-f_Other': { other: {} },
+  };
+  unreadDictionaryIds = [];
+  global.window.electronAPI = {
+    findCandidates: (...args: unknown[]) => findCandidates(...args),
+    cancelCandidateRun: (runId: string) => cancelCandidateRun(runId),
+    onCandidateProgress: (handler: (progress: CandidateProgress) => void) =>
+      onCandidateProgress(handler),
+  } as unknown as typeof window.electronAPI;
+  config = installFakeConfigDisk({ libraryPath: '/library' });
+  invalidateBookRecords();
+  records = installFakeAppFile<BookRecords>(
+    { load: 'loadBookRecords', save: 'saveBookRecords' },
+    {
+      fp: makeBookRecord({ fingerprint: 'fp', lastKnownPath: 'this.txt', available: true }),
+      other: makeBookRecord({ fingerprint: 'other', lastKnownPath: 'other.txt', available: true }),
+    }
+  );
   cancelCandidateRun.mockResolvedValue(undefined);
   onCandidateProgress.mockImplementation(async (handler) => {
     emitProgress = handler;
@@ -86,7 +103,7 @@ describe('CandidateFinderStore', () => {
       ['active'],
       [{ id: 'properNouns-f_Other', keys: ['other'] }],
       '/library',
-      BACKGROUND.books
+      [OTHER_BOOK]
     );
     expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
     expect(unlisten).toHaveBeenCalled();
@@ -183,21 +200,22 @@ describe('CandidateFinderStore', () => {
     expect(store.getSnapshot()).toEqual({ ...DONE, candidates: NAMES, weakFiltering: true });
   });
 
-  it('a refused snapshot ends the run with its message and starts nothing', async () => {
-    const store = new CandidateFinderStore({
-      fingerprint: 'fp',
-      getDictionaries: async () => ({ ok: false, message: "Can't run: Novel couldn't be read." }),
-    });
+  it('an unread active dictionary refuses the run, names it and starts nothing', async () => {
+    delete storeDictionaries['properNouns-f_Novel'];
+    unreadDictionaryIds = ['properNouns-f_Novel'];
+    const store = makeStore();
     await store.run();
 
     expect(store.getSnapshot()).toEqual({
       status: 'error',
-      message: "Can't run: Novel couldn't be read.",
+      message: "Can't run: f_Novel couldn't be read. Repair the file and Reload, then run again.",
     });
     expect(findCandidates).not.toHaveBeenCalled();
     expect(cancelCandidateRun).not.toHaveBeenCalled();
 
     // The refusal does not wedge the store: a later run goes through.
+    storeDictionaries['properNouns-f_Novel'] = { active: {} };
+    unreadDictionaryIds = [];
     findCandidates.mockResolvedValue(RESULT);
     const recovering = makeStore();
     await recovering.run();
@@ -211,12 +229,10 @@ describe('CandidateFinderStore', () => {
   it('drops the survivors its dictionaries say a pattern covers when the run lands', async () => {
     const covered: Candidate = { text: '三星卡片', count: 40, lineCount: 40, alsoIn: [] };
     findCandidates.mockResolvedValue({ candidates: [covered, ...NAMES], weakFiltering: false });
-    const isPatternCovered = vi.fn((text: string) => text === '三星卡片');
-    const store = new CandidateFinderStore({
-      fingerprint: 'fp',
-      getDictionaries: async () => ({ ...DICTIONARIES, isPatternCovered }),
-      getBackground: async () => BACKGROUND,
-    });
+    // `#星X` with X = 卡片, a key of the active proper-noun dictionary.
+    storeDictionaries.patterns = { '#星X': {} };
+    storeDictionaries['properNouns-f_Novel'] = { active: {}, 卡片: {} };
+    const store = makeStore();
     await store.run();
 
     expect(store.getSnapshot()).toEqual({
@@ -224,7 +240,6 @@ describe('CandidateFinderStore', () => {
       candidates: NAMES,
       weakFiltering: false,
     });
-    expect(isPatternCovered).toHaveBeenCalledTimes(2);
   });
 
   it('a null result (cancelled in Rust) is idle, not an empty list', async () => {
@@ -301,11 +316,7 @@ describe('CandidateFinderStore', () => {
       activeProperNouns: ['properNouns-f_Other'],
     };
     let view = VIEW;
-    const store = new CandidateFinderStore({
-      fingerprint: 'fp',
-      getDictionaries: async () => ({ ...DICTIONARIES, view }),
-      getBackground: async () => BACKGROUND,
-    });
+    const store = makeStore({ loadQuickAddView: async () => view });
     findCandidates.mockResolvedValue(RESULT);
     await store.run();
     expect(store.getSnapshot()).toMatchObject({ status: 'done', view: VIEW });
@@ -325,5 +336,52 @@ describe('CandidateFinderStore', () => {
     findCandidates.mockResolvedValue(RESULT);
     await store.run();
     expect(store.getSnapshot()).toMatchObject({ status: 'done', view: rebound });
+  });
+  describe('what a run reads', () => {
+    it('a configuration that could not be read refuses the run and starts nothing', async () => {
+      const store = makeStore({ loadQuickAddView: async () => null });
+      await store.run();
+      expect(store.getSnapshot()).toEqual({
+        status: 'error',
+        message: "Can't run: the configuration couldn't be read.",
+      });
+      expect(findCandidates).not.toHaveBeenCalled();
+    });
+
+    it('reads the Dictionary Store once the view is known, not before', async () => {
+      const view = deferred<QuickAddView | null>();
+      findCandidates.mockResolvedValue(RESULT);
+      const store = makeStore({ loadQuickAddView: () => view.promise });
+      const running = store.run();
+      await flush();
+      // An Add lands while the view loads: the run must send it.
+      storeDictionaries = { ...storeDictionaries, 'properNouns-f_Novel': { active: {}, 新名: {} } };
+      view.resolve(VIEW);
+      await running;
+      expect(findCandidates.mock.calls[0][3]).toEqual(['active', '新名']);
+    });
+
+    it('an unreadable config runs with no library folder', async () => {
+      config.loadConfiguration.mockRejectedValue(new Error('EACCES'));
+      findCandidates.mockResolvedValue(RESULT);
+      await makeStore().run();
+      expect(findCandidates.mock.calls[0][5]).toBeNull();
+      expect(findCandidates.mock.calls[0][6]).toEqual([OTHER_BOOK]);
+    });
+
+    it('unreadable book records run with no background books', async () => {
+      records.load.mockResolvedValue({ success: false, data: {} });
+      findCandidates.mockResolvedValue(RESULT);
+      await makeStore().run();
+      expect(findCandidates.mock.calls[0][5]).toBe('/library');
+      expect(findCandidates.mock.calls[0][6]).toEqual([]);
+    });
+
+    it('the open book is not its own background', async () => {
+      findCandidates.mockResolvedValue(RESULT);
+      await makeStore().run();
+      const books = findCandidates.mock.calls[0][6] as { fingerprint: string }[];
+      expect(books.map((book) => book.fingerprint)).toEqual(['other']);
+    });
   });
 });

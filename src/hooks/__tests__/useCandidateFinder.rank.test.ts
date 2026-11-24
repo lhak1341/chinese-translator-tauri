@@ -12,6 +12,7 @@ vi.mock('../../components/dictionary/DictionaryContext', () => ({
   useDictionary: () => ({
     dictionaries: store.dictionaries,
     unreadDictionaryIds: [],
+    getDictionarySnapshot: () => ({ dictionaries: store.dictionaries, unreadDictionaryIds: [] }),
     addEntry,
     addEntries,
   }),

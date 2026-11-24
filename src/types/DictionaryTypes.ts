@@ -167,6 +167,12 @@ export interface DictionaryContextInterface {
   /** What memory holds right now, read from the store rather than the last render — for a
    * caller that rebuilds the engine right after a store operation, before React re-renders. */
   getDictionaries: () => { [key: string]: DictionaryData };
+  /** `getDictionaries` plus the unread ids, from one store snapshot — for a caller that reads
+   * both after an await (the Candidate finder's run start). */
+  getDictionarySnapshot: () => {
+    dictionaries: { [key: string]: DictionaryData };
+    unreadDictionaryIds: string[];
+  };
   /** Re-read every dictionary for force reload; resolves to what memory then holds and how
    * the load went (a `critical` outcome means no dictionary loaded). */
   reloadAllDictionaries: () => Promise<{

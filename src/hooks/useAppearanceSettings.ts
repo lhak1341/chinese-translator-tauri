@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { AppearanceSettings, ReadingFace } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
+import { extractErrorMessage } from '../utils/errorHelpers';
 import {
   DEFAULT_APPEARANCE,
-  loadAppearanceConfig,
+  appearanceFile,
   saveAppearanceConfig,
 } from '../utils/appearanceConfig';
 import {
@@ -16,42 +17,64 @@ import {
   type FontProperty,
 } from '../utils/ui/AppearanceReducer';
 import { isTextProperty, parseAppearanceValue } from '../utils/appearanceProperties';
+import { useAppFile } from './useAppFile';
 
 export type { AppearanceSection, FontProperty } from '../utils/ui/AppearanceReducer';
 export { DEFAULT_APPEARANCE } from '../utils/appearanceConfig';
 
+/** What the tab shows right now: the draft, else the saved file, else the defaults. Read from
+ * the App File itself, not the last render, so a handler firing before React re-renders sees
+ * the change made just before it. */
+function shownNow(draft: AppearanceSettings | null): AppearanceSettings {
+  return draft ?? appearanceFile.state().value ?? DEFAULT_APPEARANCE;
+}
+
+/**
+ * The Appearance tab's settings. The saved value comes from `appearance.json` through
+ * `useAppFile` (load state and unreadable reason included); this hook holds only what is not
+ * saved yet: the `draft` an edit made (typing applies to the CSS variables at once and saves
+ * on blur) and `rejectedText`. Every save goes through `commit`.
+ */
 export function useAppearanceSettings() {
-  const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { status, value: saved, reason } = useAppFile(appearanceFile);
+  const [draft, setDraftState] = useState<AppearanceSettings | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Text typed into a field that its Appearance property does not accept, by
   // `section.property`. The field shows it, marked invalid; the settings (and so the CSS
   // variables and the file) keep the last value it accepted. A blur or reset drops it.
   const [rejectedText, setRejectedText] = useState<Record<string, string>>({});
 
-  // Ref mirror so async handlers always read current appearance without closing over stale state.
-  const appearanceRef = useRef(appearance);
-  appearanceRef.current = appearance;
-
-  useEffect(() => {
-    async function load() {
-      try {
-        setIsLoading(true);
-        setAppearance(await loadAppearanceConfig());
-        setError(null);
-      } catch (err) {
-        logger.error('Failed to load appearance settings:', err);
-        setError('Failed to load appearance settings');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
+  // Mirrors `draft` in the same breath as state: a handler running before the next render
+  // must see the edit made just before it, and a landed save must see a newer edit.
+  const draftRef = useRef<AppearanceSettings | null>(null);
+  const setDraft = useCallback((next: AppearanceSettings | null) => {
+    draftRef.current = next;
+    setDraftState(next);
   }, []);
 
+  const appearance = draft ?? saved ?? DEFAULT_APPEARANCE;
+
+  // Nothing to show before the load lands; App.jsx's startup apply covers that window.
   useEffect(() => {
-    applyAppearanceToCssVars(appearance);
-  }, [appearance]);
+    if (status !== 'unloaded') applyAppearanceToCssVars(appearance);
+  }, [status, appearance]);
+
+  /** Show `next` and save it. A failed save keeps it on screen with the error; a landed one
+   * drops the draft unless a newer edit replaced it meanwhile. */
+  const commit = useCallback(
+    async (next: AppearanceSettings): Promise<void> => {
+      setDraft(next);
+      try {
+        await saveAppearanceConfig(next);
+        setSaveError(null);
+        if (draftRef.current === next) setDraft(null);
+      } catch (err) {
+        logger.error('Failed to save appearance settings:', err);
+        setSaveError(extractErrorMessage(err));
+      }
+    },
+    [setDraft]
+  );
 
   const handleFontChange = useCallback(
     (section: AppearanceSection, property: FontProperty, value: string): void => {
@@ -66,79 +89,44 @@ export function useAppearanceSettings() {
         return;
       }
       setRejectedText((prev) => withoutKey(prev, key));
-      setAppearance((prev) => applyFontChange(prev, section, property, accepted));
+      setDraft(applyFontChange(shownNow(draftRef.current), section, property, accepted));
     },
-    []
+    [setDraft]
   );
 
-  // A blur puts every field back to the value it holds; an unchanged file is not rewritten.
+  // A blur puts every field back to the value it holds; with no draft there is nothing to save.
   const handleAutoSave = useCallback(async (): Promise<void> => {
     setRejectedText({});
-    try {
-      await saveAppearanceConfig(appearanceRef.current);
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to auto-save appearance settings:', err);
-      setError('Failed to save appearance settings');
-    }
-  }, []);
+    const pending = draftRef.current;
+    if (pending) await commit(pending);
+  }, [commit]);
 
-  const handleFollowFullTranslationChange = useCallback(async (checked: boolean): Promise<void> => {
-    const next = applyFollowFullTranslation(appearanceRef.current, checked);
-    setAppearance(next);
-    try {
-      await saveAppearanceConfig(next);
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to save after the follow switch changed:', err);
-      setError('Failed to save appearance settings');
-    }
-  }, []);
+  const handleFollowFullTranslationChange = useCallback(
+    (checked: boolean): Promise<void> =>
+      commit(applyFollowFullTranslation(shownNow(draftRef.current), checked)),
+    [commit]
+  );
 
   /** A UI size choice saves at once, like the follow switch: there is no field to blur. */
-  const handleUiScaleChange = useCallback(async (scale: number): Promise<void> => {
-    const next = applyUiScale(appearanceRef.current, scale);
-    setAppearance(next);
-    try {
-      await saveAppearanceConfig(next);
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to save after the UI size changed:', err);
-      setError('Failed to save appearance settings');
-    }
-  }, []);
+  const handleUiScaleChange = useCallback(
+    (scale: number): Promise<void> => commit(applyUiScale(shownNow(draftRef.current), scale)),
+    [commit]
+  );
 
   /** A face choice saves at once, like the UI size: there is no field to blur. While
    * character-only follows, a full-translation face reaches it too (applyFontChange). */
   const handleFaceChange = useCallback(
-    async (section: AppearanceSection, face: ReadingFace): Promise<void> => {
-      const next = applyFontChange(appearanceRef.current, section, 'face', face);
-      setAppearance(next);
-      try {
-        await saveAppearanceConfig(next);
-        setError(null);
-      } catch (err) {
-        logger.error('Failed to save after the face changed:', err);
-        setError('Failed to save appearance settings');
-      }
-    },
-    []
+    (section: AppearanceSection, face: ReadingFace): Promise<void> =>
+      commit(applyFontChange(shownNow(draftRef.current), section, 'face', face)),
+    [commit]
   );
 
   const resetToDefault = useCallback(
-    async (section: AppearanceSection, property: FontProperty): Promise<void> => {
-      const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
+    (section: AppearanceSection, property: FontProperty): Promise<void> => {
       setRejectedText((prev) => withoutKey(prev, `${section}.${property}`));
-      setAppearance(next);
-      try {
-        await saveAppearanceConfig(next);
-        setError(null);
-      } catch (err) {
-        logger.error('Failed to save after reset:', err);
-        setError('Failed to save appearance settings');
-      }
+      return commit(applyReset(shownNow(draftRef.current), DEFAULT_APPEARANCE, section, property));
     },
-    []
+    [commit]
   );
 
   // Delegated event handlers: parse data-section / data-property from DOM events.
@@ -155,7 +143,7 @@ export function useAppearanceSettings() {
     (e: React.MouseEvent<HTMLButtonElement>): void => {
       const section = e.currentTarget.dataset.section as AppearanceSection;
       const property = e.currentTarget.dataset.property as FontProperty;
-      resetToDefault(section, property);
+      void resetToDefault(section, property);
     },
     [resetToDefault]
   );
@@ -163,8 +151,9 @@ export function useAppearanceSettings() {
   return {
     appearance,
     rejectedText,
-    isLoading,
-    error,
+    isLoading: status === 'unloaded',
+    // A failed save says why; an unreadable file says so before any edit.
+    error: saveError ?? reason,
     handleInputChange,
     handleAutoSave,
     handleResetClick,

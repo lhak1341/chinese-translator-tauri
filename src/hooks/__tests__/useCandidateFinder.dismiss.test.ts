@@ -6,7 +6,12 @@ import { makeBookRecord } from '../../utils/reader/__tests__/bookRecordFixture';
 import type { BookRecords } from '../../types/ReaderTypes';
 
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries: {}, unreadDictionaryIds: [], addEntry: vi.fn() }),
+  useDictionary: () => ({
+    dictionaries: {},
+    unreadDictionaryIds: [],
+    getDictionarySnapshot: () => ({ dictionaries: {}, unreadDictionaryIds: [] }),
+    addEntry: vi.fn(),
+  }),
 }));
 vi.mock('../../components/BookBindingContext', () => ({
   useBookBinding: () => ({ loadQuickAddView: vi.fn().mockResolvedValue(null) }),
