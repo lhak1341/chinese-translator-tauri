@@ -1,24 +1,21 @@
-import {
-  clipAroundMatch,
-  splitAroundMatches,
-  type LinePart,
-} from '../../utils/reader/CandidateHighlight';
+import { splitAroundMatches, type LinePart } from '../../utils/reader/CandidateHighlight';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ToggleChip } from '@lhak/style/react';
 import { AlertCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
-import type { Candidate, CandidateContext, CandidateStage } from '../../types/ReaderTypes';
+import type { Candidate, CandidateStage } from '../../types/ReaderTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 import {
   candidateListView,
   type CandidateSort,
   type LengthFilter,
   type RankLimit,
+  type RankedCandidate,
   type RuleFilter,
 } from '../../utils/reader/CandidateRanking';
 import type { CandidateFinderSnapshot } from '../../utils/reader/CandidateFinderStore';
 import type { CandidateAdder, CandidateAddRow } from '../../utils/reader/CandidateAdd';
 import type { CandidateDismissals } from '../../hooks/useCandidateFinder';
-import type { CandidateReading } from '../../hooks/useCandidateReading';
+import type { CandidateReading, ClippedContext } from '../../hooks/useCandidateReading';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import { getDictionaryLabel } from '../../utils/dictionary/DictionaryLabels';
@@ -91,26 +88,33 @@ const Gloss: React.FC<{
   );
 };
 
-/** A candidate's context, fetched when its row first unfolds. */
+/** Where the panel cut a context line. Drawn apart from the line's text, dimmed and hidden from
+ * screen readers, so a cut never reads as the book's own `……` and never reaches the gloss. */
+const CutMark: React.FC = () => (
+  <span className={styles.candidateCut} aria-hidden="true">
+    …
+  </span>
+);
+
+/** A candidate's context, asked when its row unfolds (the reading module keeps it per name). */
 const CandidateContextLines: React.FC<{
   text: string;
   note: string;
   reading: CandidateReading;
 }> = ({ text, note, reading }) => {
-  const [result, setResult] = useState<CandidateContext | { error: string } | null>(null);
-  // A ref: `reading` changes with the engine, and each fetch is a scan of the whole book.
-  const contextRef = useRef(reading.context);
-  contextRef.current = reading.context;
+  const [result, setResult] = useState<ClippedContext | { error: string } | null>(null);
+  // `context` changes with the engine; asking again is a cache hit, and keeps what is shown.
+  const { context } = reading;
   useEffect(() => {
     let current = true;
-    contextRef.current(text).then(
+    context(text).then(
       (value) => current && setResult(value),
       (error: unknown) => current && setResult({ error: extractErrorMessage(error) })
     );
     return () => {
       current = false;
     };
-  }, [text]);
+  }, [text, context]);
 
   if (result === null) return <div className={styles.candidateContext}>Loading…</div>;
   if ('error' in result) {
@@ -125,8 +129,7 @@ const CandidateContextLines: React.FC<{
   return (
     <div className={styles.candidateContext}>
       <ul className={styles.outlineList}>
-        {result.lines.map(({ line, text: content }) => {
-          const shown = clipAroundMatch(content, text);
+        {result.lines.map(({ line, source, cutBefore, cutAfter }) => {
           return (
             <li key={line}>
               <button
@@ -135,7 +138,8 @@ const CandidateContextLines: React.FC<{
                 onClick={() => reading.jump(line)}
               >
                 <span lang="zh">
-                  {splitAroundMatches(shown, text).map((part, index) =>
+                  {cutBefore && <CutMark />}
+                  {splitAroundMatches(source, text).map((part, index) =>
                     part.match ? (
                       <mark key={index} className={styles.candidateMatch}>
                         {part.text}
@@ -144,8 +148,9 @@ const CandidateContextLines: React.FC<{
                       part.text
                     )
                   )}
+                  {cutAfter && <CutMark />}
                 </span>
-                <Gloss text={shown.replace(/…/g, '')} needle={text} reading={reading} enabled />
+                <Gloss text={source} needle={text} reading={reading} enabled />
               </button>
             </li>
           );
@@ -175,7 +180,8 @@ interface RowDraft {
 }
 
 interface CandidateRowProps {
-  candidate: Candidate;
+  /** The candidate and the type the ranking gave it. */
+  ranked: RankedCandidate;
   adder: CandidateAdder;
   dismissals: CandidateDismissals;
   reading: CandidateReading;
@@ -190,11 +196,13 @@ const NO_DRAFT: RowDraft = {};
 // Kept in the panel, with `retarget` and the batch rows: architecture review 2026-10-26
 // candidate #2 declined. The panel tests reach these rules through the real interface, and the
 // guesses for 1,000 rows cost about 11 ms per render (Bun, real rules).
-/** What a row would add: its draft over the target's guess and the rules' type. */
-function rowState(candidate: Candidate, adder: CandidateAdder, draft: RowDraft) {
-  const { text } = candidate;
+/** What a row would add: its draft over the target's guess and the ranking's type. The type is
+ * the ranked row's whatever the target, because every choice is a proper-nouns dictionary
+ * (`candidateAddChoices`), and the rules answer all of those alike. */
+function rowState(row: RankedCandidate, adder: CandidateAdder, draft: RowDraft) {
+  const { text } = row.candidate;
   const target = draft.target ?? adder.opened;
-  const seeded = adder.typeFor(text, target);
+  const seeded = { semanticType: row.semanticType, ruled: row.ruled };
   return {
     target,
     translation: draft.translation ?? adder.guess(text, target),
@@ -203,8 +211,8 @@ function rowState(candidate: Candidate, adder: CandidateAdder, draft: RowDraft) 
   };
 }
 
-/** A row's draft after its target changes: re-seeded for the new dictionary, the way the Add
- * form's dropdown re-seeds its guess. */
+/** A row's draft after its target changes: the guess re-seeded for the new dictionary, the way
+ * the Add form's dropdown re-seeds it, and the reader's type pick dropped. */
 const retarget = (adder: CandidateAdder, text: string, target: string): RowDraft => ({
   target,
   translation: adder.guess(text, target),
@@ -218,7 +226,7 @@ const retarget = (adder: CandidateAdder, text: string, target: string): RowDraft
  * × dismisses the name for this book; the row leaves when the record holds it.
  */
 const CandidateRow: React.FC<CandidateRowProps> = ({
-  candidate,
+  ranked,
   adder,
   dismissals,
   reading,
@@ -227,14 +235,15 @@ const CandidateRow: React.FC<CandidateRowProps> = ({
   selected,
   onSelect,
 }) => {
+  const { candidate } = ranked;
   const { text } = candidate;
   const rowRef = useRef<HTMLLIElement>(null);
   const seen = useSeen(rowRef);
   const [unfolded, setUnfolded] = useState(false);
   // The reader's edits live in the list's draft, so a batch reads them. Otherwise the row shows
-  // what the rules give for the target, so a rule edit retypes the row and switching the target
-  // re-seeds it, like the translation.
-  const { target, translation, seeded, shownType } = rowState(candidate, adder, draft);
+  // what the rules give, so a rule edit retypes the row, and switching the target drops the
+  // reader's type pick and re-seeds the translation.
+  const { target, translation, seeded, shownType } = rowState(ranked, adder, draft);
   const [pending, setPending] = useState(false);
   // A ref, not `pending`: two Enters before the re-render would both see `false`.
   const inFlight = useRef(false);
@@ -478,8 +487,9 @@ const CandidateList: React.FC<{
 
   const addSelected = (): Promise<void> =>
     runBatch(async () => {
-      const rows: CandidateAddRow[] = selected.map(({ candidate }) => {
-        const state = rowState(candidate, adder, drafts[candidate.text] ?? {});
+      const rows: CandidateAddRow[] = selected.map((row) => {
+        const { candidate } = row;
+        const state = rowState(row, adder, drafts[candidate.text] ?? {});
         if (!state.translation.trim()) {
           throw new Error(`Enter a translation for ${candidate.text} first`);
         }
@@ -558,17 +568,17 @@ const CandidateList: React.FC<{
               </span>
             </div>
             <ul className={`${styles.outlineList} ${styles.candidateList}`}>
-              {remaining.map(({ candidate }) => (
+              {remaining.map((row) => (
                 <CandidateRow
-                  key={candidate.text}
-                  candidate={candidate}
+                  key={row.candidate.text}
+                  ranked={row}
                   adder={adder}
                   dismissals={dismissals}
                   reading={reading}
-                  draft={drafts[candidate.text] ?? NO_DRAFT}
-                  onDraft={(patch) => patchDraft(candidate.text, patch)}
-                  selected={picked.has(candidate.text)}
-                  onSelect={(on) => select(candidate.text, on)}
+                  draft={drafts[row.candidate.text] ?? NO_DRAFT}
+                  onDraft={(patch) => patchDraft(row.candidate.text, patch)}
+                  selected={picked.has(row.candidate.text)}
+                  onSelect={(on) => select(row.candidate.text, on)}
                 />
               ))}
             </ul>

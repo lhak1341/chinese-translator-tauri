@@ -26,15 +26,29 @@ export function splitAroundMatches(line: string, needle: string): LinePart[] {
   return parts;
 }
 
-/** Longest context line the panel shows, in characters, ellipses included. */
+/** Longest stretch of a context line the panel shows, in characters, cut marks not counted. */
 export const MAX_CONTEXT_CHARS = 60;
 
-/** Cuts `line` to `max` characters (code points) around the first occurrence of `needle`, with
- * `…` where text was dropped, so the candidate stays in view whichever end it sits at. A line
- * with no `needle` keeps its head. A line already within `max` comes back unchanged. */
-export function clipAroundMatch(line: string, needle: string, max = MAX_CONTEXT_CHARS): string {
+/** A context line cut to the panel's width. `source` is the book's own text inside the window,
+ * untouched, so the gloss can translate it as is; the flags say whether text was dropped before
+ * or after it. The cut marks are the panel's to draw: a `…` the book itself wrote is part of
+ * `source`, and one added for a cut never is. */
+export interface ClippedLine {
+  source: string;
+  cutBefore: boolean;
+  cutAfter: boolean;
+}
+
+/** Cuts `line` to `max` characters (code points) around the first occurrence of `needle`, so
+ * the candidate stays in view whichever end it sits at. A line with no `needle` keeps its head.
+ * A line already within `max` comes back whole, with neither flag set. */
+export function clipAroundMatch(
+  line: string,
+  needle: string,
+  max = MAX_CONTEXT_CHARS
+): ClippedLine {
   const chars = Array.from(line);
-  if (chars.length <= max) return line;
+  if (chars.length <= max) return { source: line, cutBefore: false, cutAfter: false };
   const needleLength = Array.from(needle).length;
   const at = needle ? Array.from(line.slice(0, Math.max(line.indexOf(needle), 0))).length : 0;
   // Centre the needle in the window, then slide the window back inside the line.
@@ -42,9 +56,11 @@ export function clipAroundMatch(line: string, needle: string, max = MAX_CONTEXT_
   let start = Math.max(at - Math.floor(room / 2), 0);
   const end = Math.min(start + max, chars.length);
   start = Math.max(end - max, 0);
-  return (
-    (start > 0 ? '…' : '') + chars.slice(start, end).join('') + (end < chars.length ? '…' : '')
-  );
+  return {
+    source: chars.slice(start, end).join(''),
+    cutBefore: start > 0,
+    cutAfter: end < chars.length,
+  };
 }
 
 /** The candidate's span in a character-only gloss: the stretch of translated text whose units,

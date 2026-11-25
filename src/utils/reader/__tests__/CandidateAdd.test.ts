@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   candidateAddChoices,
+  candidateType,
   createCandidateAdder,
   isCandidateAdded,
   typeProvenance,
 } from '../CandidateAdd';
 import { initialEntryGuess } from '../../dictionary/TransformRuleEngine';
+import { isProperNounsDict } from '../../dictionary/DictionaryIdClassifier';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 
 const DICTIONARIES = {
@@ -49,6 +51,26 @@ describe('candidateAddChoices', () => {
       'properNouns-f_Alpha',
       'properNouns-f_Zeta',
     ]);
+  });
+
+  it('offers only proper-nouns dictionaries, so a row type holds for every choice', () => {
+    // A hand-edited config naming phrases as active and default still opens on properNouns.
+    const handEdited = {
+      defaultQuickAddDictionary: 'phrases',
+      activeProperNouns: ['phrases', 'properNouns-f_Novel'],
+    };
+    const views = [
+      VIEW,
+      null,
+      handEdited,
+      { defaultQuickAddDictionary: '', activeProperNouns: [] },
+    ];
+    for (const view of views) {
+      const { opened, choices } = candidateAddChoices(view, DICTIONARIES);
+      expect(choices).toContain(opened);
+      for (const id of choices) expect(isProperNounsDict(id), id).toBe(true);
+    }
+    expect(candidateAddChoices(handEdited, DICTIONARIES).opened).toBe('properNouns');
   });
 
   it('opens on the root dictionary when no config could be read', () => {
@@ -185,11 +207,14 @@ describe('createCandidateAdder', () => {
     const { adder } = makeAdder();
     for (const text of ['青云剑法', '滕青山']) {
       const formGuess = initialEntryGuess([SWORD_RULE], dictionaries, text, OPENED);
-      expect(adder.typeFor(text, OPENED).semanticType).toBe(formGuess.semanticType);
+      expect(candidateType([SWORD_RULE], text, OPENED).semanticType).toBe(formGuess.semanticType);
       expect(adder.typeNote(text, OPENED)).toMatch(new RegExp(`^${formGuess.semanticType},`));
       expect(adder.guess(text, OPENED)).toBe(formGuess.translation);
     }
-    expect(adder.typeFor('青云剑法', OPENED)).toEqual({ semanticType: 'object', ruled: true });
+    expect(candidateType([SWORD_RULE], '青云剑法', OPENED)).toEqual({
+      semanticType: 'object',
+      ruled: true,
+    });
   });
 
   it('reads the dropdown it was given, and the dictionaries for what is already added', () => {

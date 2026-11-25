@@ -22,14 +22,22 @@ import type { QuickAddView } from '../dictionary/QuickAddTarget';
 type Dictionaries = Readonly<Record<string, object | undefined>>;
 
 /** The row's "Add to" dropdown: the book's active proper-noun dictionaries, opening on the
- * one Cmd-5 would add to. In display order (`inDisplayOrder`) with that one first. */
+ * one Cmd-5 would add to. In display order (`inDisplayOrder`) with that one first.
+ *
+ * Every choice is a proper-nouns dictionary, the opened one included, and a row relies on it:
+ * a candidate's type (`candidateType`) reads the target only as proper nouns or not, so the
+ * ranking's answer for `opened` is the row's answer for every choice. Config is not trusted for
+ * this: a hand-edited `activeProperNouns` naming another kind still opens on `properNouns`. */
 export function candidateAddChoices(
   view: QuickAddView | null,
   dictionaries: Dictionaries
 ): { opened: string; choices: string[] } {
   const target = quickAddTarget('properNoun', view, dictionaries);
   // A proper-noun target is always `open`; `none` is Cmd-6's.
-  const opened = target.kind === 'open' ? target.dictionaryId : 'properNouns';
+  const opened =
+    target.kind === 'open' && isProperNounsDict(target.dictionaryId)
+      ? target.dictionaryId
+      : 'properNouns';
   const properNouns = Object.keys(dictionaries).filter(isProperNounsDict);
   const choices = inDisplayOrder(quickAddChoices(view, properNouns, opened), opened);
   return { opened, choices };
@@ -102,11 +110,6 @@ export interface CandidateAdder {
   addAll: (rows: CandidateAddRow[]) => Promise<void>;
   /** Where the type `add` writes for `text` in `dictionaryId` comes from. */
   typeNote: (text: string, dictionaryId: string) => string;
-  /** The type a row arrives with for `dictionaryId`, and whether a rule gave it. */
-  typeFor: (
-    text: string,
-    dictionaryId: string
-  ) => { semanticType: SemanticType | ''; ruled: boolean };
   /** A run's survivors with the Transform Rules' boost, order and cut applied, typed for the
    * opened dictionary. Changes identity only when the rules do, so the panel re-ranks then. */
   rank: (candidates: readonly Candidate[]) => RankedCandidate[];
@@ -139,8 +142,8 @@ function candidateEntry(row: CandidateAddRow): NewEntry {
 }
 
 /** The Candidate adder (GLOSSARY.md "Candidate row Add"). Plain, so the panel's tests build the
- * real one over fake writers. `typeFor`, `typeNote` and `guess` all read the same rules, so
- * the type a row shows, the note that explains it and the type Add writes agree. */
+ * real one over fake writers. `rank`'s type, `typeNote` and `guess` all read the same rules,
+ * so the type a row shows, the note that explains it and the type Add writes agree. */
 export function createCandidateAdder({
   addChoices: { opened, choices },
   dictionaries,
@@ -156,7 +159,6 @@ export function createCandidateAdder({
     guess: (text, dictionaryId) =>
       initialEntryGuess(rules, dictionaries, text, dictionaryId).translation,
     typeNote: (text, dictionaryId) => typeProvenance(rules, text, dictionaryId),
-    typeFor: (text, dictionaryId) => candidateType(rules, text, dictionaryId),
     rank,
     add: (text, dictionaryId, translation, semanticType) => {
       const entry = candidateEntry({ text, dictionaryId, translation, semanticType });

@@ -12,8 +12,7 @@ import { createCandidateAdder, type CandidateAdder } from '../../../utils/reader
 import { rankCandidates } from '../../../utils/reader/CandidateRanking';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 import type { CandidateDismissals } from '../../../hooks/useCandidateFinder';
-import type { CandidateReading } from '../../../hooks/useCandidateReading';
-import type { CandidateContext } from '../../../types/ReaderTypes';
+import type { CandidateReading, ClippedContext } from '../../../hooks/useCandidateReading';
 import type { QuickAddView } from '../../../utils/dictionary/QuickAddTarget';
 
 /** The quick-add view a run read; the panel never reads it, the adder does. */
@@ -33,7 +32,6 @@ function makeAdder(overrides: Partial<CandidateAdder> = {}): CandidateAdder {
     add: vi.fn().mockResolvedValue(undefined),
     addAll: vi.fn().mockResolvedValue(undefined),
     typeNote: (text) => `type of ${text}`,
-    typeFor: () => ({ semanticType: 'character', ruled: false }),
     rank: (candidates) =>
       candidates.map((candidate) => ({ candidate, semanticType: 'character', ruled: false })),
     ...overrides,
@@ -365,12 +363,14 @@ describe('CandidateFinderPanel', () => {
       ...DONE,
       candidates: texts.map((text) => ({ text, count: 9, lineCount: 7, alsoIn: [] })),
     });
-    const contextOf = (total: number): CandidateContext => ({
-      lines: [
-        { line: 4, text: '滕青山来了。' },
-        { line: 10, text: '乙滕青山' },
-        { line: 20, text: '滕青山走了' },
-      ],
+    const whole = (line: number, source: string) => ({
+      line,
+      source,
+      cutBefore: false,
+      cutAfter: false,
+    });
+    const contextOf = (total: number): ClippedContext => ({
+      lines: [whole(4, '滕青山来了。'), whole(10, '乙滕青山'), whole(20, '滕青山走了')],
       total,
     });
     const unfold = async (name: string) => {
@@ -406,6 +406,45 @@ describe('CandidateFinderPanel', () => {
       await unfold('滕青山');
       fireEvent.click(screen.getByRole('button', { name: 'Jump to line 11' }));
       expect(reading.jump).toHaveBeenCalledWith(10);
+    });
+
+    test("a cut line glosses the book's own text, ellipsis included, and draws the cuts apart", async () => {
+      const source = '他沉默了……滕青山';
+      const reading = makeReading({
+        context: vi.fn().mockResolvedValue({
+          lines: [{ line: 2, source, cutBefore: true, cutAfter: true }],
+          total: 1,
+        }),
+      });
+      renderPanel(done('滕青山'), makeAdder(), makeDismissals(), reading);
+      fireEvent.click(screen.getByRole('button', { name: 'Show context for 滕青山' }));
+      expect(await screen.findByText(`gloss:${source}`)).toBeTruthy();
+      expect(reading.glossParts).toHaveBeenCalledWith(source, '滕青山');
+      const jump = screen.getByRole('button', { name: 'Jump to line 3' });
+      const line = jump.querySelector('[lang="zh"]');
+      expect(line?.textContent).toBe(`…${source}…`);
+      const cuts = Array.from(line?.querySelectorAll('[aria-hidden="true"]') ?? []);
+      expect(cuts.map((cut) => cut.textContent)).toEqual(['…', '…']);
+    });
+
+    test('a new reading object keeps the lines on screen while it asks again', async () => {
+      const first = makeReading({ context: vi.fn().mockResolvedValue(contextOf(3)) });
+      const props = {
+        snapshot: done('滕青山'),
+        adder: makeAdder(),
+        dismissals: makeDismissals(),
+        onRun: vi.fn(),
+        onCancel: vi.fn(),
+        onClose: vi.fn(),
+      };
+      const view = render(<CandidateFinderPanel {...props} reading={first} />);
+      await unfold('滕青山');
+      // The engine changed: the module answers from its cache, here a lookup still pending.
+      const next = makeReading({ context: vi.fn(() => new Promise<ClippedContext>(() => {})) });
+      view.rerender(<CandidateFinderPanel {...props} reading={next} />);
+      expect(next.context).toHaveBeenCalledWith('滕青山');
+      expect(screen.queryByText('Loading…')).toBeNull();
+      expect(screen.getAllByRole('button', { name: /^Jump to line/ })).toHaveLength(3);
     });
 
     test('a failed context lookup says so and keeps the row', async () => {
@@ -587,17 +626,19 @@ describe('CandidateFinderPanel', () => {
       );
     });
 
-    test('switching the Add-to dictionary re-seeds the type like the translation', () => {
-      const typeFor = vi.fn((text: string, target: string) =>
-        target === 'properNouns'
-          ? { semanticType: 'location' as const, ruled: true }
-          : { semanticType: 'character' as const, ruled: false }
-      );
-      renderPanel(snapshot(), ruledAdder({ typeFor }));
+    test("switching the Add-to dictionary drops the reader's type pick and shows the rules' type again", () => {
+      renderPanel(snapshot(), ruledAdder());
+      fireEvent.click(screen.getByLabelText('Set Location for 滕青山'));
+      expect(activeType('滕青山')).toBe('location');
       fireEvent.change(screen.getByLabelText('Add 滕青山 to'), {
         target: { value: 'properNouns' },
       });
-      expect(activeType('滕青山')).toBe('location');
+      expect(activeType('滕青山')).toBe('character');
+      // A rule-typed row keeps the rule's type on every target.
+      fireEvent.change(screen.getByLabelText('Add 青云剑法 to'), {
+        target: { value: 'properNouns' },
+      });
+      expect(activeType('青云剑法')).toBe('object');
     });
   });
 

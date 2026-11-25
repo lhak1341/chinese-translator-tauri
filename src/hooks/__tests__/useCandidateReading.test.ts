@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useCandidateReading } from '../useCandidateReading';
 import type { EngineCall } from '../../utils/reader/ReaderEngine';
@@ -27,7 +27,69 @@ const setup = (overrides: Partial<Parameters<typeof useCandidateReading>[0]> = {
   return { translateGloss, jump, lit, view };
 };
 
+/** Plays the book scan: `candidate_context` answering with whole lines. */
+const fakeContextScan = (answer: () => Promise<unknown>) => {
+  const candidateContext = vi.fn(answer);
+  global.window.electronAPI = { candidateContext } as unknown as typeof window.electronAPI;
+  return candidateContext;
+};
+
 describe('useCandidateReading', () => {
+  afterEach(() => {
+    global.window.electronAPI = undefined as unknown as typeof window.electronAPI;
+  });
+
+  test("context lines come back clipped, the book's own ellipsis kept in the source", async () => {
+    const long = `${'甲'.repeat(40)}他沉默了……滕青山开口${'乙'.repeat(40)}`;
+    fakeContextScan(() =>
+      Promise.resolve({
+        lines: [
+          { line: 3, text: '滕青山来了' },
+          { line: 9, text: long },
+        ],
+        total: 5,
+      })
+    );
+    const { view } = setup();
+    const found = await view.result.current.context('滕青山');
+    expect(found.total).toBe(5);
+    expect(found.lines[0]).toEqual({
+      line: 3,
+      source: '滕青山来了',
+      cutBefore: false,
+      cutAfter: false,
+    });
+    expect(found.lines[1]).toMatchObject({ line: 9, cutBefore: true, cutAfter: true });
+    expect(found.lines[1].source).toContain('他沉默了……滕青山');
+    expect(long).toContain(found.lines[1].source);
+  });
+
+  test('a name is looked up in the book once, across a new engine and new dictionaries', async () => {
+    const scan = fakeContextScan(() => Promise.resolve({ lines: [], total: 0 }));
+    const { translateGloss, view } = setup();
+    await view.result.current.context('滕青山');
+    view.rerender({
+      fingerprint: 'fp',
+      translateGloss,
+      canTranslate: false,
+      dictionaryVersion: 2,
+      scrollToLine: vi.fn(),
+      onLit: vi.fn(),
+    });
+    await view.result.current.context('滕青山');
+    expect(scan).toHaveBeenCalledTimes(1);
+    expect(scan).toHaveBeenCalledWith('fp', '滕青山', 3);
+  });
+
+  test('a failed lookup is not kept: the next ask scans again', async () => {
+    const scan = fakeContextScan(() => Promise.reject(new Error('no book')));
+    const { view } = setup();
+    await expect(view.result.current.context('滕青山')).rejects.toThrow('no book');
+    scan.mockImplementation(() => Promise.resolve({ lines: [], total: 0 }));
+    await expect(view.result.current.context('滕青山')).resolves.toEqual({ lines: [], total: 0 });
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
   test('a gloss is the engine character-only text, asked once per string', async () => {
     const { translateGloss, view } = setup();
     expect(await view.result.current.gloss('滕青山')).toBe('g:滕青山');

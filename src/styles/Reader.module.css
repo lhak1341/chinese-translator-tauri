@@ -867,6 +867,12 @@
   font-weight: 700;
 }
 
+/* Where the panel cut a context line: dimmed, so it reads apart from an ellipsis in the book. */
+.candidateCut {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
 .candidateContextLine .candidateGloss {
   white-space: normal;
   font-size: 0.8rem;
