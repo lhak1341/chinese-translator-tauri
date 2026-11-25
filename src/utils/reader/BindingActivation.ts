@@ -174,15 +174,29 @@ function isBoundToFiction(bound: string | null): bound is string {
  * them) and a non-fiction default (`properNouns`, or a theme like
  * `properNouns-_Cultivation`) — a standing Configuration choice right for any book.
  *
- * `config` may be `null` (it failed to load): the view is then built from the binding
- * alone, which loses the non-fiction dictionaries — so callers read config for a bound book
- * too.
+ * `openBook` is the open book's dictionary in use (`null` when no book is open). With no book
+ * open config is the view as it is, so this is the one place that decides whether the
+ * binding applies: the provider's loader, the Configuration screen and the Dictionary tab's
+ * selector all read it.
+ *
+ * `config` may be `null` (it failed to load): with a book open the view is then built from
+ * the binding alone, which loses the non-fiction dictionaries — so callers read config for a
+ * bound book too. With no book open it stays `null`.
  */
 export function quickAddViewForBinding(
+  config: QuickAddView,
+  openBook: { bound: string | null } | null
+): QuickAddView;
+export function quickAddViewForBinding(
   config: QuickAddView | null,
-  bound: string | null
-): QuickAddView {
-  const fiction = isBoundToFiction(bound) ? bound : null;
+  openBook: { bound: string | null } | null
+): QuickAddView | null;
+export function quickAddViewForBinding(
+  config: QuickAddView | null,
+  openBook: { bound: string | null } | null
+): QuickAddView | null {
+  if (!openBook) return config;
+  const fiction = isBoundToFiction(openBook.bound) ? openBook.bound : null;
   return {
     defaultQuickAddDictionary: quickAddTargetForBinding(
       fiction,
@@ -219,12 +233,9 @@ export function configurationBindingView(
   config: QuickAddView,
   openBook: { bound: string | null } | null
 ): ConfigurationBindingView {
-  if (!openBook) {
-    return { ...config, isDefaultLocked: false, isRowLocked: () => false };
-  }
   return {
-    ...quickAddViewForBinding(config, openBook.bound),
-    isDefaultLocked: isBoundToFiction(openBook.bound),
-    isRowLocked: isFictionProperNounsId,
+    ...quickAddViewForBinding(config, openBook),
+    isDefaultLocked: openBook !== null && isBoundToFiction(openBook.bound),
+    isRowLocked: openBook ? isFictionProperNounsId : () => false,
   };
 }

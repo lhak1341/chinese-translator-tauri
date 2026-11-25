@@ -50,8 +50,7 @@ vi.mock('../../components/BookBindingContext', async () => {
   const { quickAddViewForBinding } = await vi.importActual<
     typeof import('../../utils/reader/BindingActivation')
   >('../../utils/reader/BindingActivation');
-  const loadQuickAddView = async () =>
-    quickAddViewForBinding(await loadQuickAddConfig(), openBook.bound);
+  const loadQuickAddView = async () => quickAddViewForBinding(await loadQuickAddConfig(), openBook);
   return { useBookBinding: () => ({ loadQuickAddView }) };
 });
 

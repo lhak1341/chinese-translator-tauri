@@ -31,6 +31,13 @@ const appConfig = vi.hoisted(() => ({
   saveAppConfig: vi.fn(),
 }));
 vi.mock('../../../utils/appConfig', () => appConfig);
+// The library folder setting, as `useLibrary` renders it: the default folder, in every case here.
+vi.mock(import('../../../hooks/useAppConfig'), async () => {
+  const { DEFAULT_APP_CONFIG } = await vi.importActual<typeof import('../../../utils/appConfig')>(
+    '../../../utils/appConfig'
+  );
+  return { useAppConfig: () => ({ config: DEFAULT_APP_CONFIG, isLoading: false }) };
+});
 
 const bookRecordsBackend = vi.hoisted(() => {
   // A real serial queue, not a pass-through: the reopen path's ordering against a write
@@ -637,7 +644,8 @@ describe('ReaderTab remembers the last book across launches', () => {
     render(<ReaderTab isActive={true} />);
 
     await screen.findByText('open:novel.txt');
-    await waitFor(() => expect(appConfig.loadAppConfig).toHaveBeenCalledTimes(2));
+    // The resume check's read (the library's folder setting comes from `useAppConfig`).
+    await waitFor(() => expect(appConfig.loadAppConfig).toHaveBeenCalledTimes(1));
     expect(screen.getByText('continue:none')).toBeInTheDocument();
     expect(tauriAPI.openBook).not.toHaveBeenCalled();
   });

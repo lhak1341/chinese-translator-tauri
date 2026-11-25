@@ -23,9 +23,11 @@ import HotkeyHandler from '../HotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
-import { findConflictingEntries, getMoveFamily, type DuplicateRow } from '../../utils/dictionary';
+import { findConflictingEntries, type DuplicateRow } from '../../utils/dictionary';
 import { inDisplayOrder } from '../../utils/dictionary/DictionaryIdClassifier';
-import { quickAddChoices, type QuickAddView } from '../../utils/dictionary/QuickAddTarget';
+import { quickAddChoices } from '../../utils/dictionary/QuickAddTarget';
+import { quickAddViewForBinding } from '../../utils/reader/BindingActivation';
+import { useAppConfig } from '../../hooks/useAppConfig';
 import toast from '../../utils/toast';
 import { useBookBinding } from '../BookBindingContext';
 import type { SelectionState } from '../../hooks/useEntrySelection';
@@ -36,7 +38,7 @@ import type { SelectionState } from '../../hooks/useEntrySelection';
 interface DictionaryManagerProps {
   /** Optional ref for search input (for keyboard shortcut focus) */
   searchRef?: React.RefObject<HTMLInputElement>;
-  /** Whether this tab is currently active (for reloading when tab becomes visible) */
+  /** Whether this tab is currently showing (passed to the table) */
   isActive?: boolean;
 }
 
@@ -75,22 +77,49 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Local state management for UI controls and feedback
   const [showAddEntry, setShowAddEntry] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
   const [isLoadingDictionary, setIsLoadingDictionary] = useState<boolean>(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(null);
 
   // Filter state for showing all dictionaries
   const [showAllDictionaries, setShowAllDictionaries] = useState<boolean>(false);
   // What is active, as every Add sees it: config as the open book's binding implies it
-  // (`loadQuickAddView`). `null` is a config that could not be read.
-  const { loadQuickAddView } = useBookBinding();
-  const [activeView, setActiveView] = useState<QuickAddView | null>(null);
+  // (`quickAddViewForBinding`, the rule `loadQuickAddView` applies too). Rendered from the
+  // config subscription and the binding, so a change made on another tab shows at once.
+  // `null` until config has first loaded: the selector then lists every dictionary.
+  const { isBookOpen, boundFictionDictionary } = useBookBinding();
+  const { config, isLoading: configLoading } = useAppConfig();
+  const activeProperNouns = config.engine.activeProperNouns;
+  const defaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
+  const activeView = React.useMemo(
+    () =>
+      configLoading
+        ? null
+        : quickAddViewForBinding(
+            { activeProperNouns, defaultQuickAddDictionary },
+            isBookOpen ? { bound: boundFictionDictionary } : null
+          ),
+    [
+      configLoading,
+      activeProperNouns,
+      defaultQuickAddDictionary,
+      isBookOpen,
+      boundFictionDictionary,
+    ]
+  );
 
   // Duplicate detection mode. The rows are derived from live dictionary state rather than
   // snapshotted, so an edit / move / delete made from the duplicate view shows up immediately
   // (a resolved conflict simply disappears) without reloading every dictionary from disk or
   // remounting the table — which is what used to lose the scroll position.
   const [showDuplicatesMode, setShowDuplicatesMode] = useState<boolean>(false);
+  // A dictionary chosen while duplicates are shown (Cmd-1..6; the selector is disabled) leaves
+  // the duplicate view for that dictionary, as the key does in the normal view. Decided during
+  // render, not in an effect, so the duplicate view never renders against the new dictionary.
+  const [dictionaryShown, setDictionaryShown] = useState(selectedDictionary);
+  if (dictionaryShown !== selectedDictionary) {
+    setDictionaryShown(selectedDictionary);
+    if (showDuplicatesMode) setShowDuplicatesMode(false);
+  }
   const duplicateRows = React.useMemo<DuplicateRow[]>(
     () => (showDuplicatesMode ? findConflictingEntries(_dictionaries) : []),
     [showDuplicatesMode, _dictionaries]
@@ -102,29 +131,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   }, [showDuplicatesMode, duplicateRows.length]);
 
-  // Which dictionaries are active — the list itself comes from the store. Reloaded each time
-  // the tab is shown: bindings, renames and activation all happen on other tabs.
-  useEffect(() => {
-    let cancelled = false;
-    const loadActiveView = async (): Promise<void> => {
-      try {
-        const view = await loadQuickAddView();
-        if (!cancelled) setActiveView(view);
-      } catch (error) {
-        logger.error('Failed to load active dictionaries:', error);
-        if (!cancelled) {
-          setActiveView(null);
-          setError('Failed to load dictionary settings. Please try again.');
-        }
-      }
-    };
-
-    loadActiveView();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshTimestamp, loadQuickAddView]);
-
   // If the selected dictionary no longer exists (renamed), switch to the first one that does.
   useEffect(() => {
     const ids = Object.keys(dictionaryTypes);
@@ -132,19 +138,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       setSelectedDictionary(ids[0]);
     }
   }, [dictionaryTypes, selectedDictionary, setSelectedDictionary]);
-
-  // Refresh effect when component mounts
-  useEffect(() => {
-    setRefreshTimestamp(Date.now());
-  }, []);
-
-  // Reload the active view when the tab becomes active (to pick up changes from other tabs)
-  useEffect(() => {
-    if (isActive) {
-      // The refreshTimestamp bump re-runs the effect above, which reloads the view
-      setRefreshTimestamp(Date.now());
-    }
-  }, [isActive]);
 
   // Handle undo operation with error handling
   const handleUndo = async (): Promise<void> => {
@@ -263,8 +256,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   );
 
   // String-only lookup tables (characters/conversion/punctuation) have no move targets.
-  const canMoveFromSelected = getMoveFamily(selectedDictionary) !== null;
-
   // A child, not a `useHotkeyHandler` call here: the hook reads the visible tab, and a
   // context read in this component would re-render the whole Dictionary tab on every
   // tab switch, defeating its `memo`.
@@ -373,7 +364,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           {selectionState && selectionState.selectedCount > 0 && (
             <>
-              {selectionState.onBulkMove && canMoveFromSelected && (
+              {selectionState.onBulkMove && (
                 <button
                   onClick={selectionState.onBulkMove}
                   className={`secondary ${styles.button}`}

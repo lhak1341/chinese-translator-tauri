@@ -20,12 +20,31 @@ import { render, screen, fireEvent, within, act, waitFor } from '@testing-librar
 import React from 'react';
 import DictionaryManager from '../DictionaryManager';
 import { VisibleTabProvider } from '../../VisibleTabContext';
+import { installFakeConfigDisk } from '../../../test/fakeConfigDisk';
+import { loadAppConfig, saveAppConfig } from '../../../utils/appConfig';
 
-// What is active comes from the binding provider's view, as it does for every Add.
-const loadQuickAddView = vi.hoisted(() => vi.fn());
-vi.mock('../../BookBindingContext', () => ({
-  useBookBinding: () => ({ loadQuickAddView }),
+let configDisk: ReturnType<typeof installFakeConfigDisk>;
+
+// What is active is config as the open book's binding implies it: config comes from a fake
+// config.json behind the real `appConfig`, the binding from this mock, which re-renders its
+// consumer on `notifyContextChange` like the provider would.
+const binding = vi.hoisted(() => ({
+  isBookOpen: false,
+  boundFictionDictionary: null as string | null,
 }));
+vi.mock('../../BookBindingContext', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (listener: () => void) => {
+    contextVersion.listeners.add(listener);
+    return () => contextVersion.listeners.delete(listener);
+  };
+  return {
+    useBookBinding: () => {
+      useSyncExternalStore(subscribe, () => contextVersion.value);
+      return { ...binding };
+    },
+  };
+});
 
 const {
   dictionariesRef,
@@ -186,9 +205,10 @@ beforeEach(() => {
     return 0;
   });
 
-  loadQuickAddView.mockResolvedValue({
+  binding.isBookOpen = false;
+  binding.boundFictionDictionary = null;
+  configDisk = installFakeConfigDisk({
     activeProperNouns: ['properNouns-Test', 'properNouns-Other'],
-    defaultQuickAddDictionary: null,
   });
 });
 
@@ -206,14 +226,14 @@ async function openSelector(): Promise<HTMLElement> {
 describe('DictionaryManager — which dictionaries the selector lists', () => {
   const option = (name: string) => screen.queryByRole('option', { name });
 
-  test('lists what the binding view has active, not what config alone says', async () => {
+  test('lists what the open book binds, not what config alone says', async () => {
     // A book is open whose binding adds its fiction dictionary; config never listed it.
-    loadQuickAddView.mockResolvedValue({
-      activeProperNouns: ['properNouns-Test', 'properNouns-f_Novel'],
-      defaultQuickAddDictionary: null,
-    });
+    binding.isBookOpen = true;
+    binding.boundFictionDictionary = 'properNouns-f_Novel';
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
-    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
+    await act(async () => {
+      await loadAppConfig();
+    });
     await openSelector();
 
     expect(await screen.findByRole('option', { name: 'Novel' })).toBeInTheDocument();
@@ -224,7 +244,6 @@ describe('DictionaryManager — which dictionaries the selector lists', () => {
     selectedDictionaryRef.current = 'properNouns-Inactive';
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
 
-    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
     const trigger = await screen.findByRole('combobox', { name: 'Dictionary' });
     await waitFor(() => expect(trigger).toHaveTextContent('Inactive'));
     await openSelector();
@@ -233,14 +252,60 @@ describe('DictionaryManager — which dictionaries the selector lists', () => {
     expect(option('Novel')).not.toBeInTheDocument();
   });
 
-  test('a view that could not be loaded lists every dictionary', async () => {
-    loadQuickAddView.mockResolvedValue(null);
+  test('lists every dictionary while config is still loading', async () => {
+    // Held, then released at the end: a load left in flight would be shared by the next test.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const realLoad = configDisk.loadConfiguration.getMockImplementation()!;
+    configDisk.loadConfiguration.mockImplementationOnce(async () => {
+      await held;
+      return realLoad();
+    });
     render(<DictionaryManager />, { wrapper: VisibleTabProvider });
 
-    await waitFor(() => expect(loadQuickAddView).toHaveBeenCalled());
     await openSelector();
     expect(await screen.findByRole('option', { name: 'Inactive' })).toBeInTheDocument();
     expect(option('Novel')).toBeInTheDocument();
+
+    await act(async () => {
+      release();
+      await loadAppConfig();
+    });
+    await waitFor(() => expect(option('Inactive')).not.toBeInTheDocument());
+  });
+
+  test('follows a config save and a bind made elsewhere while it stays mounted and shown', async () => {
+    const user = userEvent.setup();
+    render(<DictionaryManager isActive />, { wrapper: VisibleTabProvider });
+    await act(async () => {
+      await loadAppConfig();
+    });
+    await openSelector();
+    await waitFor(() => expect(option('Other')).toBeInTheDocument());
+    expect(option('Inactive')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    // The Configuration tab activates a dictionary: no remount, no isActive edge.
+    await act(async () => {
+      await saveAppConfig({
+        engine: {
+          activeProperNouns: ['properNouns-Test', 'properNouns-Other', 'properNouns-Inactive'],
+        },
+      });
+    });
+    await openSelector();
+    expect(await screen.findByRole('option', { name: 'Inactive' })).toBeInTheDocument();
+    expect(option('Novel')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    // The Reader binds the open book to its fiction dictionary.
+    act(() => {
+      binding.isBookOpen = true;
+      binding.boundFictionDictionary = 'properNouns-f_Novel';
+      notifyContextChange();
+    });
+    await openSelector();
+    expect(await screen.findByRole('option', { name: 'Novel' })).toBeInTheDocument();
   });
 });
 
@@ -456,6 +521,63 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     await screen.findByText('Bye');
     expect(screen.queryByText('Edit Entry')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Find Duplicates and bulk Move', () => {
+  const tickFirstDuplicateRow = async (): Promise<void> => {
+    fireEvent.click(await screen.findByRole('button', { name: /Find Duplicates/ }));
+    const rowBox = (await screen.findAllByRole('checkbox')).find((box) =>
+      (box.getAttribute('title') ?? '').startsWith('Select for')
+    )!;
+    await act(async () => {
+      fireEvent.click(rowBox);
+    });
+    expect(screen.getByRole('button', { name: 'Delete (1)' })).toBeInTheDocument();
+  };
+
+  test('choosing a dictionary while duplicates are shown leaves the duplicate view for it', async () => {
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+    await tickFirstDuplicateRow();
+
+    // What a Cmd-1..6 press does: TabbedInterface sets the selected dictionary.
+    selectedDictionaryRef.current = 'properNouns-Other';
+    await act(async () => {
+      notifyContextChange();
+    });
+
+    expect(screen.queryByRole('button', { name: /Exit Duplicate View/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Find Duplicates/ })).toBeInTheDocument();
+    expect(await screen.findByText('Bye')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
+  });
+
+  test('a selection in the duplicate view offers Delete but not Move', async () => {
+    render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+    await screen.findByText('Xin chào');
+    await tickFirstDuplicateRow();
+
+    expect(screen.queryByRole('button', { name: /Move \(/ })).not.toBeInTheDocument();
+  });
+
+  test('a selection in a lookup table offers Delete but not Move', async () => {
+    const types = dictionaryTypes as Record<string, { label: string }>;
+    types.characters = { label: 'Characters' };
+    dictionariesRef.current.characters = { 你: { translation: 'bạn' } };
+    selectedDictionaryRef.current = 'characters';
+    try {
+      render(<DictionaryManager />, { wrapper: VisibleTabProvider });
+      await screen.findByText('bạn');
+      await act(async () => {
+        fireEvent.click(getRowCheckbox('你'));
+      });
+
+      expect(screen.getByRole('button', { name: 'Delete (1)' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Move \(/ })).not.toBeInTheDocument();
+    } finally {
+      delete types.characters;
+    }
   });
 });
 

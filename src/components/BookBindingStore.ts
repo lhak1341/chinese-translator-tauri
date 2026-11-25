@@ -491,12 +491,13 @@ export function createBookBindingStore(deps: BookBindingDeps): BookBindingStore 
 
     loadQuickAddView: async () => {
       const config = await loadQuickAddConfig();
-      if (!snapshot.openBook) return config;
       // The dictionary in use, not the recorded answer: a bound dictionary that no longer
       // exists files nothing (see `dictionaryInUse`).
       return quickAddViewForBinding(
         config,
-        dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary)
+        snapshot.openBook
+          ? { bound: dictionaryInUse(snapshot.binding, snapshot.missingFictionDictionary) }
+          : null
       );
     },
   };

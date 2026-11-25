@@ -15,9 +15,10 @@ interface UseEntrySelectionDeps {
   /** Every row the view shows after its filters, which select-all selects. */
   entries: EntryRef[];
   dictionaries: Record<string, DictionaryData>;
-  /** Whether a selection can move as a whole. The duplicate view's spans several dictionaries
-   * and one move dialog has one source, so it passes false; single rows still move from the
-   * context menu. */
+  /** Whether a selection can move as a whole; `onBulkMove` is `undefined` when not, and the
+   * parent shows Move on that alone. False in the duplicate view (a selection spans several
+   * dictionaries and one move dialog has one source; single rows still move from the context
+   * menu) and for a lookup table, whose string values move nowhere (`getMoveFamily`). */
   canBulkMove: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
   bulkDeleteEntries: DictionaryContextInterface['bulkDeleteEntries'];

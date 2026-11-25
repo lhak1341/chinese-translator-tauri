@@ -176,6 +176,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-110](./ADR-110-delete-and-move-take-a-list.md)                                 | Delete and move take a list                                  | Decided                           | Single/bulk twins differed only in not-found handling; "Moved 0" toasted.                                                                            |
 | [ADR-111](./ADR-111-candidate-finder-design.md)                                     | Candidate finder design                                      | Decided                           | Repeat-string signal, Rust run, TS applies rules, no auto-write, no cache.                                                                           |
 | [ADR-112](./ADR-112-keys-with-punctuation-span-it.md)                               | A proper-noun key with punctuation spans it                  | Decided                           | Chunker keeps the key whole; lookup and claim read through the mark.                                                                                 |
+| [ADR-113](./ADR-113-skip-splitting-the-duplicate-view.md)                           | Skip splitting the duplicate view                            | Decided                           | One mode flag; a dictionary switch leaves the duplicate view.                                                                                        |
 
 ## ADR Format
 
@@ -241,4 +242,5 @@ Write an ADR when making decisions about:
 - **2026-10-21**: ADR-108
 - **2026-10-24**: ADR-109; ADR-110; ADR-111
 - **2026-11-22**: ADR-112
+- **2026-11-26**: ADR-113
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

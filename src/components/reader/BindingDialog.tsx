@@ -20,8 +20,8 @@ interface BindingDialogProps {
   bookTitle: string;
   fileName: string;
   fictionDictionaries: string[];
-  /** Derived from the file name by `BookReader`, which already needs it for the banner —
-   * one computation, one answer, rather than two sites deriving it from the same inputs. */
+  /** From `useBindingOffer` (`ReaderBinding.tsx`'s `BookBindingDialog`): the one derivation the
+   * header button and the banner read too, so the three cannot suggest different dictionaries. */
   suggestion: FictionSuggestion;
   currentBinding: BookBinding | null;
   /** The recorded dictionary that no longer exists, if the book's is the one. */

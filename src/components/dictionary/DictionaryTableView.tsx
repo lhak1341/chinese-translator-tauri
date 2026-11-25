@@ -6,7 +6,7 @@ import MoveDialog from './MoveDialog';
 import EntryContextMenu from './EntryContextMenu';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { entryCapabilities } from '../../utils/dictionary';
+import { entryCapabilities, getMoveFamily } from '../../utils/dictionary';
 import { tableColumns } from './TableColumns';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
@@ -111,7 +111,7 @@ const DictionaryTableView: React.FC<DictionaryTableViewProps> = ({
   } = useEntrySelection({
     entries: viewEntries,
     dictionaries,
-    canBulkMove: !showDuplicatesMode,
+    canBulkMove: !showDuplicatesMode && getMoveFamily(selectedDictionary) !== null,
     withScrollPreservation: scroll.withScrollPreservation,
     bulkDeleteEntries,
     onSelectionChange,

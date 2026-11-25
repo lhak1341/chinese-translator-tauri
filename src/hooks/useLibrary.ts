@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadAppConfig, saveAppConfig } from '../utils/appConfig';
+import { saveAppConfig } from '../utils/appConfig';
+import { useAppConfig } from './useAppConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import { scanShelf, type ShelfOutcome } from '../utils/reader/ReconcileLibrary';
@@ -13,8 +14,8 @@ export interface Library {
   configuredPath: string | null;
   isUsingDefaultPath: boolean;
   isScanning: boolean;
-  /** Choosing a folder failed before it could be scanned (the setting could not be saved).
-   * The shelf on screen stays; cleared when the next scan starts. */
+  /** Choosing a folder, or the default, failed before it could be scanned (the setting could
+   * not be saved). The setting and the shelf on screen stay; cleared when the next scan starts. */
   folderError: string | null;
   rescan: () => Promise<void>;
   changeFolder: () => Promise<void>;
@@ -23,11 +24,16 @@ export interface Library {
 
 /**
  * The Reader's library: the folder setting, and the shelf its last scan produced
- * (`scanShelf`). One load of the configured path, then one scan. The library folder changes
- * a few times a year, so there is no watcher and no polling — Rescan is the refresh path.
+ * (`scanShelf`). The setting is rendered from config (`useAppConfig`), never copied, so the
+ * shelf, a book open and the Candidate finder's background all read the one saved folder.
+ * A scan starts when the setting is first known and whenever it changes; the folder buttons
+ * only save it, so a save that fails starts nothing. The library folder changes a few times a
+ * year, so there is no watcher and no polling — Rescan is the refresh path.
  */
 export function useLibrary(): Library {
-  const [configuredPath, setConfiguredPath] = useState<string | null>(null);
+  const { config, isLoading: configLoading } = useAppConfig();
+  // An unreadable config.json runs on the defaults, so this is `null`: the default folder.
+  const configuredPath = config.reader.libraryPath;
   const [libraryPath, setLibraryPath] = useState('');
   const [outcome, setOutcome] = useState<ShelfOutcome | null>(null);
   const [isScanning, setIsScanning] = useState(true);
@@ -50,22 +56,9 @@ export function useLibrary(): Library {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      let path: string | null = null;
-      try {
-        path = (await loadAppConfig()).reader.libraryPath;
-      } catch (cause) {
-        logger.warn('Falling back to the default library folder:', cause);
-      }
-      if (cancelled) return;
-      setConfiguredPath(path);
-      await scan(path);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [scan]);
+    if (configLoading) return;
+    void scan(configuredPath);
+  }, [configLoading, configuredPath, scan]);
 
   const rescan = useCallback(() => scan(configuredPath), [scan, configuredPath]);
 
@@ -78,24 +71,22 @@ export function useLibrary(): Library {
         title: 'Choose the library folder',
       });
       if (typeof chosen !== 'string') return;
+      // The config subscription carries the new setting back, and the effect scans it.
       await saveAppConfig({ reader: { libraryPath: chosen } });
-      setConfiguredPath(chosen);
-      await scan(chosen);
     } catch (cause) {
       logger.error('Failed to change the library folder:', cause);
       setFolderError(extractErrorMessage(cause));
     }
-  }, [scan]);
+  }, []);
 
   const resetToDefaultFolder = useCallback(async (): Promise<void> => {
     try {
       await saveAppConfig({ reader: { libraryPath: null } });
     } catch (cause) {
       logger.error('Failed to reset the library folder:', cause);
+      setFolderError(extractErrorMessage(cause));
     }
-    setConfiguredPath(null);
-    await scan(null);
-  }, [scan]);
+  }, []);
 
   return {
     outcome,

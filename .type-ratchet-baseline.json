@@ -269,7 +269,7 @@
     }
   },
   "src/hooks/__tests__/useLibrary.test.ts": {
-    "untypedMocks": 4
+    "untypedMocks": 3
   },
   "src/hooks/__tests__/useMoveTargetDictionaries.test.ts": {
     "untypedMocks": 1

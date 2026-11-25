@@ -14,10 +14,11 @@ import { logger } from '../logger';
  * Which dictionary Cmd-5 (proper noun) and Cmd-6 (structural pattern) add to — one rule for
  * the Translator modal, the Dictionary tab, and the Reader. See GLOSSARY.md "Quick-add target".
  *
- * The rule reads a **quick-add view**, not config directly. Every surface gets it from the
+ * The rule reads a **quick-add view**, not config directly. Every Add gets it from the
  * binding provider's `loadQuickAddView` (BookBindingContext): config as the open book's
  * binding implies it (`quickAddViewForBinding` in utils/reader/BindingActivation.ts) while a
- * book is open, config as loaded (`loadQuickAddConfig`) otherwise. Pure: callers own the view
+ * book is open, config as loaded (`loadQuickAddConfig`) otherwise. The Dictionary tab's
+ * selector renders the same view from `useAppConfig` and the binding. Pure: callers own the view
  * and what to do with the answer (open a modal, switch a table).
  */
 

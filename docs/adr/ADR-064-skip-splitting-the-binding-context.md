@@ -25,3 +25,7 @@ Do not split the context, and add no selector hook. `useBookBinding()` stays one
 ## Consequence
 
 A future review that sees a consumer reading one field from a wide context should not re-propose a split from that alone. Revisit if a profile shows binding events causing re-renders while a book is being read (not at open), or if a second provider needs only the actions.
+
+## Addendum 2026-11-26
+
+`DictionaryManager` no longer reads `loadQuickAddView`: its selector renders the quick-add view from `useAppConfig()` and `isBookOpen`/`boundFictionDictionary` (architecture review 2026-11-25, candidate #4). That was done without a selector hook or a provider field, so this decision stands. A `quickAddView` field on the provider was declined in the same grilling: the provider would subscribe to config and re-render every binding consumer on each config write.

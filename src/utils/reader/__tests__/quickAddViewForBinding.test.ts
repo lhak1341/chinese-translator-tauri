@@ -18,7 +18,7 @@ function boundQuickAddTarget(
   dictionaries: { [key: string]: unknown },
   config: QuickAddConfig | null
 ) {
-  const target = quickAddTarget(kind, quickAddViewForBinding(config, bound), dictionaries);
+  const target = quickAddTarget(kind, quickAddViewForBinding(config, { bound }), dictionaries);
   return target.kind === 'open' ? target : { kind: 'none', message: quickAddMissMessage(target) };
 }
 
@@ -101,5 +101,15 @@ describe('quickAddViewForBinding, through quickAddTarget', () => {
       kind: 'open',
       dictionaryId: 'properNouns',
     });
+  });
+});
+
+describe('quickAddViewForBinding with no book open', () => {
+  it('is config as it is, the fiction slice and default included', () => {
+    expect(quickAddViewForBinding(staleConfig, null)).toBe(staleConfig);
+  });
+
+  it('stays null when config could not be loaded', () => {
+    expect(quickAddViewForBinding(null, null)).toBeNull();
   });
 });
