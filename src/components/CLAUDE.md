@@ -68,6 +68,8 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 ## React state updater rules
 
+**Store the question, derive the answer.** State holds only what the user did (the source asked about, a dismissal); anything computable from it and the live inputs is computed each render. A stored answer is a snapshot that a second writer or a later input change leaves stale: the Add form's validation flags (three writers, until 2026-10-13) and its existing-entry notice (eight, until 2026-11-26, now `findExistingEntry`).
+
 **Never `throw` inside a state updater** (`setState(prev => { throw … })`): React 18 Concurrent Mode may call updaters more than once, and throws bypass the `await` chain. Do existence checks on the closed-over variable before `setState`.
 
 **Never assign a `let` inside an updater for use outside it** — it may run twice. Compute from the closed-over snapshot first. For undo/redo-style history read a ref's `.current` directly instead of a closure variable (dictionary history keeps its list and cursor in a ref; the dictionaries themselves live in the Dictionary Store, outside React state).

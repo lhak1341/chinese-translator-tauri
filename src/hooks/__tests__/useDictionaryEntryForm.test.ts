@@ -395,7 +395,7 @@ describe('selectDictionary', () => {
     expect(onDictionaryChange).toHaveBeenCalledWith('properNouns-_Theme');
   });
 
-  it('re-asks the existing-entry notice for the new dictionary', async () => {
+  it('the existing-entry notice follows the switch, with no re-focus', async () => {
     const dictionaries = {
       characters: CHARACTERS_DICT,
       'properNouns-_Theme': { 你好: { translation: 'Hello' } },
@@ -617,6 +617,71 @@ describe('existing entry detection', () => {
     });
 
     expect(result.current.showExistingEntryNotification).toBe(true);
+  });
+
+  it('names the target when a dictionary listed before it on disk also holds the source', async () => {
+    const dictionaries = {
+      characters: CHARACTERS_DICT,
+      'properNouns-f_A': { 你好: { translation: 'Earlier' } },
+      'properNouns-Novel': { 你好: { translation: 'Target' } },
+    };
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ dictionaries }))
+    );
+    await act(async () => {});
+    act(() => {
+      result.current.handleSourceChange({
+        target: { value: '你好' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+    act(() => result.current.handleTranslationFocus());
+
+    expect(result.current.existingEntry?.isSelectedDictionary).toBe(true);
+    expect(result.current.existingEntry?.dictionaryName).toBe('Novel Proper Nouns');
+    expect(result.current.existingEntry?.translation).toBe('Target');
+  });
+
+  it('a dropdown switch to the holder re-derives the notice instead of clearing it', async () => {
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(
+        undefined,
+        'characters',
+        makeDeps({ dictionaries: dictsWithEntry, initialSource: '你好' })
+      )
+    );
+    await act(async () => {});
+    act(() => result.current.handleTranslationFocus());
+    expect(result.current.existingEntry?.isSelectedDictionary).toBe(false);
+
+    act(() => {
+      result.current.handleDictionaryChange({
+        target: { value: 'phrases' },
+      } as React.ChangeEvent<HTMLSelectElement>);
+    });
+    await act(async () => {});
+
+    expect(result.current.showExistingEntryNotification).toBe(true);
+    expect(result.current.existingEntry?.isSelectedDictionary).toBe(true);
+  });
+
+  it('follows the live dictionaries: an entry deleted elsewhere drops the notice', async () => {
+    const deps = makeDeps({ dictionaries: dictsWithEntry });
+    const { result, rerender } = renderHook(
+      ({ d }) => useDictionaryEntryForm(undefined, 'characters', d),
+      { initialProps: { d: deps } }
+    );
+    await act(async () => {});
+    act(() => {
+      result.current.handleSourceChange({
+        target: { value: '你好' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+    act(() => result.current.handleTranslationFocus());
+    expect(result.current.showExistingEntryNotification).toBe(true);
+
+    rerender({ d: { ...deps, dictionaries: { characters: CHARACTERS_DICT, phrases: {} } } });
+
+    expect(result.current.showExistingEntryNotification).toBe(false);
   });
 
   it('clears notification when source changes', async () => {

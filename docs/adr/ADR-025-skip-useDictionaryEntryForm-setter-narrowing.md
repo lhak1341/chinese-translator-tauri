@@ -28,3 +28,9 @@ Do not replace the raw setters with named action methods. The interface is appro
 ## When to Revisit
 
 If a new mutation path emerges where the order of field writes matters (e.g., changing `activeDictionary` must also clear `semanticType` and `allowedVariableTypes` atomically), and that ordering bug reaches production, named action methods become the right fix. The trigger is an actual bug caused by a caller writing fields in the wrong order.
+
+## Addendum 2026-11-26 (architecture review round 47, candidate #1)
+
+`checkForExistingEntry` is gone: the notice is derived from `findExistingEntry` (`src/utils/dictionary/ExistingEntry.ts`, GLOSSARY.md "Existing entry") over the source asked about on translation focus. Reason 1 above still holds: detection is source-keyed and still triggered by that focus. The raw setters stay.
+
+The "When to Revisit" trigger was checked and is not met. A dictionary switch still does not clear `allowedVariableTypes`, and `prepareEntry` (`DictionaryEdit.ts`) keeps them for any non-lookup kind, so X/Y limits ticked on a pattern could in principle be saved on a phrase or proper noun. Measured over the 127 production dictionaries: 0 phrase or proper-noun entries carry `allowedVariableTypes` (2,301 pattern entries do). Revisit when one does.

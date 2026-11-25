@@ -7,13 +7,13 @@ import { logger } from '../utils/logger';
 import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
 import type {
   DictionaryData,
-  DictionaryEntryValue,
   DictionaryEntryMetadata,
   EditingEntryData,
   ExistingEntryData,
 } from '../types/DictionaryTypes';
 import { buildEntryMetadata, entryFields } from '../utils/dictionary';
 import { checkEntry, firstEntryError } from '../utils/dictionary/PersistTimeValidator';
+import { findExistingEntry } from '../utils/dictionary/ExistingEntry';
 import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
 import { useFullTranslationPreview, type TranslatePreview } from './useFullTranslationPreview';
@@ -135,9 +135,9 @@ export function useDictionaryEntryForm(
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const translationInputRef = useRef<HTMLInputElement>(null);
   const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [existingEntry, setExistingEntry] = useState<ExistingEntryData | null>(null);
-  const [showExistingEntryNotification, setShowExistingEntryNotification] =
-    useState<boolean>(false);
+  // The source the existing-entry notice was asked about (on translation focus); `null` once
+  // dismissed or the source is edited. The match itself is derived below, never stored.
+  const [askedSource, setAskedSource] = useState<string | null>(null);
   const { rules: transformRules, isLoading: rulesLoading } = useTransformRules();
   const [roughGlossReference, setRoughGlossReference] = useState<string>('');
 
@@ -224,52 +224,21 @@ export function useDictionaryEntryForm(
     };
   }, []);
 
-  const checkForExistingEntry = useCallback(
-    (sourceText: string, selectedId: string = activeDictionary): void => {
-      try {
-        if (!sourceText?.trim() || !dictionaries || Object.keys(dictionaries).length === 0) {
-          setExistingEntry(null);
-          setShowExistingEntryNotification(false);
-          return;
-        }
-
-        const trimmedSource = sourceText.trim();
-
-        if (entry && entry.source === trimmedSource) {
-          setExistingEntry(null);
-          setShowExistingEntryNotification(false);
-          return;
-        }
-
-        for (const [dictionaryId, dictionary] of Object.entries(dictionaries)) {
-          if (dictionary && typeof dictionary === 'object' && dictionary[trimmedSource]) {
-            const { translation: translationText } = entryFields(
-              dictionary[trimmedSource] as DictionaryEntryValue
-            );
-
-            const dictionaryInfo = allDictionaryTypes?.[dictionaryId];
-            setExistingEntry({
-              dictionaryId,
-              dictionaryName: dictionaryInfo?.label || dictionaryId,
-              source: trimmedSource,
-              translation: translationText,
-              isSelectedDictionary: dictionaryId === selectedId,
-            });
-            setShowExistingEntryNotification(true);
-            return;
-          }
-        }
-
-        setExistingEntry(null);
-        setShowExistingEntryNotification(false);
-      } catch (err) {
-        logger.error('Error in checkForExistingEntry:', err);
-        setExistingEntry(null);
-        setShowExistingEntryNotification(false);
-      }
-    },
-    [dictionaries, allDictionaryTypes, activeDictionary, entry]
-  );
+  // The notice follows the live dictionaries and the target: a shortlist or dropdown switch,
+  // or an edit elsewhere, re-derives it (GLOSSARY.md "Existing entry").
+  const existingEntry = useMemo((): ExistingEntryData | null => {
+    if (askedSource === null || !dictionaries) return null;
+    const match = findExistingEntry(dictionaries, askedSource, activeDictionary, entry?.source);
+    if (!match) return null;
+    return {
+      dictionaryId: match.dictionaryId,
+      dictionaryName: allDictionaryTypes?.[match.dictionaryId]?.label || match.dictionaryId,
+      source: askedSource,
+      translation: match.translation,
+      isSelectedDictionary: match.inTarget,
+    };
+  }, [askedSource, dictionaries, activeDictionary, entry?.source, allDictionaryTypes]);
+  const showExistingEntryNotification = existingEntry !== null;
 
   const handleDictionaryChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     const newDictionary = e.target.value;
@@ -279,37 +248,33 @@ export function useDictionaryEntryForm(
     // with nothing to seed from clears instead.
     if (seedSource !== null) {
       seed(newDictionary);
+      // The re-seed puts the seeded source back; a notice asked about other text goes.
+      if (askedSource !== seedSource) setAskedSource(null);
     } else {
       setSource('');
       setTranslation('');
+      setAskedSource(null);
     }
-    setExistingEntry(null);
-    setShowExistingEntryNotification(false);
   };
 
   const selectDictionary = (dictionaryId: string): void => {
     if (dictionaryId === activeDictionary) return;
     setActiveDictionary(dictionaryId);
     onDictionaryChange?.(dictionaryId);
-    // The notice says whether the match is in *this* dictionary — re-ask for the new one.
-    if (showExistingEntryNotification) checkForExistingEntry(source, dictionaryId);
   };
 
   const handleSourceChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const newSource = e.target.value;
     setSource(newSource);
-    if (showExistingEntryNotification) {
-      setShowExistingEntryNotification(false);
-      setExistingEntry(null);
-    }
+    if (askedSource !== null) setAskedSource(null);
   };
 
   const handleTranslationFocus = (): void => {
-    if (source.trim()) checkForExistingEntry(source);
+    setAskedSource(source.trim() || null);
   };
 
   const handleDismissNotification = (): void => {
-    setShowExistingEntryNotification(false);
+    setAskedSource(null);
   };
 
   const handleUseExistingTranslation = (): void => {

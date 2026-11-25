@@ -484,6 +484,10 @@ Receives `{ updateEntry, addEntry, dictionaries }` injected from the caller's `u
 
 Entry point: `src/hooks/useDictionaryEntryForm.ts`. Called from `src/components/dictionary/DictionaryEntry.tsx`.
 
+### Existing entry
+
+The entry the Add form's notice names for a source: `findExistingEntry(dictionaries, source, target, editedSource?)` in `src/utils/dictionary/ExistingEntry.ts`. The target's own entry wins when it holds the source ("Already exists in this dictionary · Saving will update the existing entry"); otherwise the first holder in the dictionary display order ("Found in X · Use this translation"). Lookup tables count as holders; the entry being edited is not existing for itself. The form stores only the source it asked about (when the translation field gains focus; cleared by a source edit or Dismiss) and derives the match each render, so it follows a shortlist or dropdown switch and edits made elsewhere. Until 2026-11-26 the first dictionary in disk order won and the match was stored: with the source in the target and in a dictionary listed before it (1,066 of 56,777 production sources sit in more than one entry dictionary), the form showed "Found in X" and never warned that saving overwrites (architecture review round 47, candidate #1).
+
 ## DictionaryTrieBuilder
 
 The one trie-construction path: `DictionaryManager.loadDictionaries` builds every trie here (the persisted trie cache was deleted, ADR-075). No `this`, no I/O, no logging — `DictionaryManager` still owns disposal, Map storage, and logging invalid entries; this module owns only the entry-by-entry trie insert. A dictionary's priority is not decided here (see "Dictionary priority ladder").
