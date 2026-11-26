@@ -1,4 +1,4 @@
-/**
+/*!
  * Pattern Processor Module
  *
  * Semantic pattern matching system for Chinese-Vietnamese translation.

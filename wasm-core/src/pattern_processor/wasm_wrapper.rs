@@ -1,4 +1,4 @@
-/**
+/*!
  * WASM Wrapper for Pattern Processor
  *
  * Exposes TwoPhasePatternProcessor to JavaScript with proper serialization.
@@ -49,7 +49,8 @@ impl WasmPatternProcessor {
     /// processor.initialize(patterns);
     /// ```
     /// JS interop contract: `patterns_dict_json` is a JSON string (`JSON.stringify(patternsDict)`).
-    /// Pure Rust deserialization — zero JS interop while RcRefMut<WasmPatternProcessor> borrow is live.
+    /// Pure Rust deserialization: zero JS interop on the success path while the
+    /// RcRefMut<WasmPatternProcessor> borrow is live. The error returns build a `JsValue`.
     #[wasm_bindgen]
     pub fn initialize(&mut self, patterns_dict_json: &str) -> Result<bool, JsValue> {
         let patterns_map: HashMap<String, Value> = serde_json::from_str(patterns_dict_json)
@@ -78,8 +79,8 @@ impl WasmPatternProcessor {
     /// # JS interop contract
     /// Both arguments are JSON strings; return value is a JSON string.
     /// Caller: `wasmPatternProcessor.processTokens(JSON.stringify(tokens), JSON.stringify(cache))`
-    /// then `JSON.parse(result)`.  Zero serde_wasm_bindgen / JS-FFI calls while the
-    /// wasm-bindgen `RcRef<WasmPatternProcessor>` borrow is live — same fix as NumberProcessor.
+    /// then `JSON.parse(result)`.  Zero JS-FFI calls on the success path while the
+    /// wasm-bindgen `RcRef<WasmPatternProcessor>` borrow is live; the error returns build a `JsValue`.
     #[wasm_bindgen(js_name = processTokens)]
     pub fn process_tokens(
         &self,

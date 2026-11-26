@@ -524,27 +524,23 @@ mod tests {
     /// byte-compare equal to what `read_dir` hands back. CJK characters have no
     /// decomposition, so they compare equal in both forms.
     fn expected_pattern(file_name: &str) -> Option<PatternId> {
-        if file_name.contains('不') && file_name.contains('败') {
-            Some(PatternId::Section) // Bất bại chiến thần 不败战神
-        } else if file_name.contains('卡') && file_name.contains('徒') {
-            Some(PatternId::Section) // Tạp đồ 卡徒
-        } else if file_name.contains('修') && file_name.contains('世') && file_name.contains('界') {
+        // A book is named by characters its title must all contain; the first match wins.
+        const EXCEPTIONS: &[(&[char], Option<PatternId>)] = &[
+            (&['不', '败'], Some(PatternId::Section)), // Bất bại chiến thần 不败战神
+            (&['卡', '徒'], Some(PatternId::Section)), // Tạp đồ 卡徒
             // Not `修` + `真` alone: `Tu chân liêu thiên quần 修真聊天群` shares both and is
             // a "第...章" book.
-            Some(PatternId::Section) // Tu chân thế giới 修真世界
-        } else if file_name.contains('唐') && file_name.contains('砖') {
-            Some(PatternId::Section) // Đường chuyên 唐砖
-        } else if file_name.contains('隐') && file_name.contains('杀') {
-            Some(PatternId::Section) // Ẩn sát 隐杀
-        } else if file_name.contains('比') && file_name.contains('蒙') {
-            Some(PatternId::Section) // Bỉ mông truyền kỳ 比蒙传奇
-        } else if file_name.contains('兽') && file_name.contains('血') {
-            None // Hải tặc vương chi thú huyết phí đằng 海贼王之兽血沸腾
-        } else if file_name.contains('巨') && file_name.contains('蜥') {
-            None // Trọng lâm cự tích 重林巨蜥
-        } else {
-            Some(PatternId::Chapter)
-        }
+            (&['修', '世', '界'], Some(PatternId::Section)), // Tu chân thế giới 修真世界
+            (&['唐', '砖'], Some(PatternId::Section)), // Đường chuyên 唐砖
+            (&['隐', '杀'], Some(PatternId::Section)), // Ẩn sát 隐杀
+            (&['比', '蒙'], Some(PatternId::Section)), // Bỉ mông truyền kỳ 比蒙传奇
+            (&['兽', '血'], None), // Hải tặc vương chi thú huyết phí đằng 海贼王之兽血沸腾
+            (&['巨', '蜥'], None), // Trọng lâm cự tích 重林巨蜥
+        ];
+        EXCEPTIONS
+            .iter()
+            .find(|(chars, _)| chars.iter().all(|&c| file_name.contains(c)))
+            .map_or(Some(PatternId::Chapter), |&(_, pattern)| pattern)
     }
 
     #[test]

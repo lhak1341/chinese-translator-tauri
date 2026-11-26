@@ -1,4 +1,4 @@
-/**
+/*!
  * Performance benchmarks for pattern matching
  *
  * Measures baseline performance before optimizations and validates improvements.
@@ -62,7 +62,7 @@ fn bench_single_pattern_match(c: &mut Criterion) {
     c.bench_function("single_pattern_match", |b| {
         b.iter(|| {
             find_best_pattern_match(
-                black_box(&[pattern.clone()]),
+                black_box(std::slice::from_ref(&pattern)),
                 black_box(&tokens),
                 black_box(0),
                 black_box(&variable_cache),

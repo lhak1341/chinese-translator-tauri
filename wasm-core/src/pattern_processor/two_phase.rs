@@ -1,4 +1,4 @@
-/**
+/*!
  * Two-Phase Pattern Processing
  *
  * Implements hierarchical pattern matching:
@@ -334,9 +334,7 @@ impl TwoPhasePatternProcessor {
         let phase_b_results = self.process_phase_b(semantic_tokens, variable_cache, &phase_a_results);
 
         // Select optimal results (hierarchical composition detection + selection)
-        let final_results = self.select_optimal_results(phase_a_results, phase_b_results);
-
-        final_results
+        self.select_optimal_results(phase_a_results, phase_b_results)
     }
 
     /// Process Phase A: Variable patterns only
@@ -437,6 +435,7 @@ impl TwoPhasePatternProcessor {
     /// Example: input "这只刍吾的速度"
     ///   - "刍吾的速度" (5 chars, own) — no Phase B pattern wraps a "concept"-typed variable here → score 5
     ///   - "这只刍吾"   (4 chars, own) — Phase B "X的速度" wraps "character"-typed X, adds "的速度" (3 chars) → score 7
+    ///
     ///   "这只刍吾" wins; Phase B then produces the full 7-char composite.
     ///
     /// Tie-break: higher pattern priority wins.

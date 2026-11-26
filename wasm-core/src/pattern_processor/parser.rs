@@ -1,4 +1,4 @@
-/**
+/*!
  * Pattern parsing logic
  *
  * Parses pattern strings with variables (e.g., "这些XY") into semantic pattern structures.

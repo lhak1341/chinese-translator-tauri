@@ -174,7 +174,6 @@ describe('groupSegmentsIntoParagraphs — metadata isolation', () => {
     const meta = makeMeta({ source: 'character', tokenIndex: 1 });
     const result = groupSegmentsIntoParagraphs([seg('A\nB', { metadata: meta })]);
     const segA = result[0].find((s) => s.text === 'A')!;
-    const segB = result[0].find((s) => s.text === 'B' || s.text === '\n' || s.text === 'A');
     // Mutating the original metadata should not affect copies in segments
     meta.tokenIndex = 99;
     expect(segA.metadata?.tokenIndex).toBe(1);

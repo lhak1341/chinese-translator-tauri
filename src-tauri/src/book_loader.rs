@@ -416,6 +416,8 @@ pub fn load_book(bytes: &[u8], override_label: Option<&str>) -> Result<LoadOutco
 }
 
 #[cfg(test)]
+// Tests write their fixtures straight to a temp dir; a torn fixture fails the test, not a user.
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
     use std::path::PathBuf;

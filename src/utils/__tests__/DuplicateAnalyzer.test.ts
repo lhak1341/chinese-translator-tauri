@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { findConflictingEntries, type DuplicateRow } from '../dictionary/DuplicateAnalyzer';
+import { findConflictingEntries } from '../dictionary/DuplicateAnalyzer';
 import { getDictionaryLabel } from '../dictionary/DictionaryLabels';
 
 describe('DuplicateAnalyzer', () => {

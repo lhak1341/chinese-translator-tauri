@@ -64,9 +64,8 @@ export default tseslint.config(
     // scripts under scripts/ (console is their real output channel) or to logger.ts itself,
     // which is where the console calls it wraps have to live.
     files: ['src/**/*.{js,jsx,ts,tsx}'],
-    // Test files are excluded to match the type-aware block below: no config object supplies
-    // a TS parser for them, so pulling *.test.tsx into the lint set only yields parse errors.
-    // (Test files are currently unlinted entirely — separate gap, not this rule's business.)
+    // Test files are excluded: console is a fine way for a test to report, and the logger's
+    // environment switch means nothing under vitest.
     ignores: [
       'src/utils/logger.ts',
       '**/*.test.{ts,tsx,js,jsx}',
@@ -140,9 +139,10 @@ export default tseslint.config(
     },
   },
   {
-    // JavaScript files have no type-check (`checkJs: false`), so a name a refactor removed
-    // stays referenced until it throws at render — Translator.jsx's `handleQuickAddProperNoun`,
-    // 2026-09-30. Test files use Vitest's globals and are unlinted anyway (see above).
+    // `type-check` skips JavaScript (`checkJs: false`), so a name a refactor removed stays
+    // referenced until it throws at render — Translator.jsx's `handleQuickAddProperNoun`,
+    // 2026-09-30. The type ratchet reports it too, as a count above its baseline; this rule
+    // names it directly. Test files are left out: they use Vitest's globals.
     files: ['src/**/*.{js,jsx}'],
     ignores: ['**/*.test.{js,jsx}', '**/*.spec.{js,jsx}', '**/__tests__/**'],
     languageOptions: {
@@ -160,6 +160,20 @@ export default tseslint.config(
     languageOptions: {
       parser: tseslint.parser,
       globals: globals.node,
+    },
+  },
+  {
+    // TypeScript test files. Every block above ignores *.test.*, and ESLint has no parser for
+    // .ts/.tsx without one, so these were never linted; this block brings the shared rules
+    // (rules-of-hooks, unused-imports) to them. No type-aware rules: tsconfig.json excludes
+    // tests, so the project service cannot type them (tsconfig.test.json does, for the type
+    // ratchet). JavaScript test files need no block: ESLint lints .js by default.
+    files: ['src/**/*.{test,spec}.{ts,tsx}'],
+    languageOptions: {
+      parser: tseslint.parser,
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
     },
   },
   // Prettier config (disables conflicting ESLint rules)

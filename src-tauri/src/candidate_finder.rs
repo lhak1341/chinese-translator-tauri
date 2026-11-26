@@ -39,6 +39,12 @@ const MAX_LEN: usize = 8;
 const DOMINANCE: f64 = 0.7;
 const MIN_ACCESSOR_VARIETY: usize = 3;
 const MIN_NPMI: f64 = 0.3;
+
+/// Whether a weakest-split NPMI clears `MIN_NPMI`. A NaN does not, which is why the filter
+/// negates this rather than testing `< MIN_NPMI`.
+fn npmi_passes(npmi: f64) -> bool {
+    npmi >= MIN_NPMI
+}
 const GLUED_RATIO: u32 = 20;
 /// A string frequent in more than this many other books is common vocabulary.
 const SPREAD_BOOKS: usize = 2;
@@ -211,7 +217,7 @@ struct Reporter<'a> {
 impl Reporter<'_> {
     fn report(&mut self, stage: Stage, done: usize, total: usize) {
         let (lo, hi) = stage_range(stage);
-        let within = if total == 0 { hi - lo } else { ((hi - lo) as usize * done / total) as u32 };
+        let within = ((hi - lo) as usize * done).checked_div(total).map_or(hi - lo, |w| w as u32);
         let progress = Progress { stage, percent: (lo + within).min(100) as u8 };
         if self.last != Some(progress) {
             self.last = Some(progress);
@@ -482,8 +488,8 @@ pub fn find_candidates(
     // The largest count of any one-character extension on each side.
     let mut max_left: HashMap<&str, u32> = HashMap::default();
     let mut max_right: HashMap<&str, u32> = HashMap::default();
-    for n in MIN_LEN + 1..=MAX_LEN + 1 {
-        for (g, &count) in &counts[n] {
+    for level in &counts[MIN_LEN + 1..=MAX_LEN + 1] {
+        for (g, &count) in level {
             let suffix = &g[HAN_BYTES..];
             let prefix = &g[..g.len() - HAN_BYTES];
             let left = max_left.entry(suffix).or_insert(0);
@@ -512,8 +518,8 @@ pub fn find_candidates(
     // Every filter but accessor variety reads only the string and its count, so they run first
     // and the one pass over the text below looks up just their few survivors.
     let mut seen: HashMap<&str, Tally> = HashMap::default();
-    for n in MIN_LEN..=MAX_LEN {
-        for (&g, &count) in &counts[n] {
+    for level in &counts[MIN_LEN..=MAX_LEN] {
+        for (&g, &count) in level {
             let c = f64::from(count);
             let dominated = f64::from(max_left.get(g).copied().unwrap_or(0)) / c >= DOMINANCE
                 || f64::from(max_right.get(g).copied().unwrap_or(0)) / c >= DOMINANCE;
@@ -521,7 +527,7 @@ pub fn find_candidates(
                 || has_function_word_edge(g)
                 || phrases.contains(g)
                 || coverage.active.contains(g)
-                || !(weakest_npmi(g, count) >= MIN_NPMI)
+                || !npmi_passes(weakest_npmi(g, count))
                 || background.is_common(g)
             {
                 continue;

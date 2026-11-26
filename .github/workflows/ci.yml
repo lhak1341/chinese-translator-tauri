@@ -32,6 +32,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          components: clippy
 
       # src-tauri links GTK/WebKit through Tauri, so it will not build on a bare Linux
       # runner — glib-sys fails at pkg-config before any test runs. wasm-core needs none of
@@ -62,12 +63,10 @@ jobs:
           SKIP_READER_CORPUS_TESTS: '1'
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      # cargo test compiles lib, bins and tests, but never benches — a bench referencing a
-      # changed signature bit-rots silently until someone runs it by hand. Only crates with a
-      # bench target are checked: on a crate without one, --benches compiles the lib and bins
-      # under cfg(test), which cargo test above already did. A bench added later is picked up.
-      - name: Compile benches
-        run: scripts/check-benches.sh
+      # Every target of both crates: lib, bins, tests and benches. Warnings fail it. cargo test
+      # never compiles benches, so this is also what stops a bench bit-rotting on a changed signature.
+      - name: Clippy
+        run: bun run lint:rust
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

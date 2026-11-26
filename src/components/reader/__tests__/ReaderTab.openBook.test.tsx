@@ -128,7 +128,7 @@ const readerMounts = vi.hoisted(() => [] as { fingerprint: string; engine: unkno
 vi.mock('../BookReader', async () => {
   const { useEffect } = await import('react');
   return {
-    default: ({
+    default: function BookReader({
       book,
       record,
       engine,
@@ -140,7 +140,7 @@ vi.mock('../BookReader', async () => {
       engine: unknown;
       onBack: () => void;
       shelf: { switchBook: (fileName: string) => void; reopenWithEncoding: () => void };
-    }) => {
+    }) {
       // Mount-only on purpose: a re-render with a new book must not look like a mount.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       useEffect(() => void readerMounts.push({ fingerprint: book.fingerprint, engine }), []);

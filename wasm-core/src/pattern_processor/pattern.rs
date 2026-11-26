@@ -1,4 +1,4 @@
-/**
+/*!
  * Pattern data structures for semantic pattern matching
  *
  * Mirrors JavaScript SemanticPatternProcessor.js data structures
@@ -59,8 +59,8 @@ impl PatternToken {
     /// Get display value (literal value or variable name)
     pub fn display_value(&self) -> &str {
         match &self.token_type {
-            TokenType::Literal => self.value.as_ref().map(|s| s.as_str()).unwrap_or(""),
-            TokenType::Variable => self.name.as_ref().map(|s| s.as_str()).unwrap_or(""),
+            TokenType::Literal => self.value.as_deref().unwrap_or(""),
+            TokenType::Variable => self.name.as_deref().unwrap_or(""),
         }
     }
 }

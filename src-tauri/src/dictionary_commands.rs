@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
@@ -124,7 +124,7 @@ pub(crate) fn sanitize_io_error(error: std::io::Error, context: &str) -> String 
 /// overwritten by `fs::rename`. Returns the error message to report, not an
 /// `Err`, since callers report a collision as a soft `DictionaryResponse::err`
 /// (and the cascade path additionally needs to roll back before reporting it).
-fn collision_message(new_path: &PathBuf, new_dictionary_id: &str, label: &str) -> Option<String> {
+fn collision_message(new_path: &Path, new_dictionary_id: &str, label: &str) -> Option<String> {
     if new_path.exists() {
         Some(format!("{} dictionary '{}' already exists", label, new_dictionary_id))
     } else {
@@ -334,7 +334,7 @@ pub async fn create_structural_patterns_dictionary(
 /// `dictionary_path/{dictionary_id}.json`. Pure filesystem function — no `AppHandle` —
 /// directly unit-testable against a temp directory.
 fn create_structural_patterns_dictionary_impl(
-    dictionary_path: &PathBuf,
+    dictionary_path: &Path,
     cache: &DictionaryCache,
     dictionary_id: &str,
 ) -> Result<DictionaryResponse, String> {
@@ -367,7 +367,7 @@ fn create_structural_patterns_dictionary_impl(
 /// book is bound to. Rename still edits config in Rust, because that edit is atomic with the
 /// file moves (ADR-060). Pure filesystem function — no `AppHandle`, so it is directly
 /// unit-testable against a temp directory.
-fn create_proper_noun_file(dictionary_path: &PathBuf, dictionary_id: &str) -> Result<(), String> {
+fn create_proper_noun_file(dictionary_path: &Path, dictionary_id: &str) -> Result<(), String> {
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Check if file already exists
@@ -537,7 +537,7 @@ fn validate_dictionary_payload(data: &serde_json::Value) -> Result<(), String> {
 ///
 /// `context` names what is being written ("dictionary file", "config file"); it is the noun in
 /// every error the caller reports, so a failed config save does not claim a dictionary failed.
-pub(crate) fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8], context: &str) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| format!("Invalid {} path", context))?;
@@ -552,6 +552,7 @@ pub(crate) fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Resul
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
     let tmp_path = parent.join(format!("{}.tmp.{}.{}", file_name, std::process::id(), seq));
 
+    #[allow(clippy::disallowed_methods)] // the one direct write: the temp file renamed below
     fs::write(&tmp_path, bytes).map_err(|e| sanitize_io_error(e, context))?;
 
     if let Err(e) = fs::rename(&tmp_path, path) {
@@ -568,7 +569,7 @@ pub(crate) fn write_atomic(path: &PathBuf, bytes: &[u8], context: &str) -> Resul
 /// representation — save_dictionary re-serializes via serde_json; import_dictionaries
 /// writes the imported file's bytes verbatim, preserving its on-disk format.
 fn write_dictionary_bytes(
-    path: &PathBuf,
+    path: &Path,
     bytes: &[u8],
     cache: &DictionaryCache,
     dictionary_id: &str,
@@ -736,7 +737,7 @@ fn quarantine_json_file(
 }
 
 fn save_json_file(
-    path: &PathBuf,
+    path: &Path,
     data: &serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
     // SECURITY: Check nesting depth before serializing. serde_json::to_string_pretty
@@ -984,8 +985,8 @@ pub async fn import_dictionaries(
 /// resolves the dialog-picked source archive before calling this, so it is directly
 /// unit-testable against a temp directory and an in-memory-built ZIP.
 fn import_dictionaries_impl(
-    dictionary_path: &PathBuf,
-    zip_file_path: &PathBuf,
+    dictionary_path: &Path,
+    zip_file_path: &Path,
     cache: &DictionaryCache,
 ) -> Result<DictionaryResponse, String> {
     // Open ZIP file
@@ -1079,7 +1080,7 @@ fn import_dictionaries_impl(
                 // file's on-disk format exactly.
                 let output_path = dictionary_path.join(format!("{}.json", base_name));
                 if let Err(e) =
-                    write_dictionary_bytes(&output_path, contents.as_bytes(), &cache, base_name)
+                    write_dictionary_bytes(&output_path, contents.as_bytes(), cache, base_name)
                 {
                     errors.push(format!("{}: write error: {}", filename, e));
                     continue;
@@ -1151,7 +1152,7 @@ pub async fn load_dictionaries_parallel(
 /// CPU cores, consulting `cache` first. Pure filesystem function — no `AppHandle` — directly
 /// unit-testable against a temp directory.
 fn load_dictionaries_parallel_impl(
-    dictionary_path: &PathBuf,
+    dictionary_path: &Path,
     cache: &DictionaryCache,
     dictionary_ids: &[String],
 ) -> BatchDictionaryResponse {
@@ -1236,8 +1237,8 @@ pub async fn rename_proper_nouns_dictionary(
 /// `patterns-f_*` / `patterns-_*` file if applicable, with rollback on any downstream failure. Pure
 /// filesystem function — no `AppHandle` — directly unit-testable against a temp directory.
 fn rename_proper_nouns_dictionary_impl(
-    dictionary_path: &PathBuf,
-    config_path: &PathBuf,
+    dictionary_path: &Path,
+    config_path: &Path,
     cache: &DictionaryCache,
     old_dictionary_id: &str,
     new_dictionary_id: &str,
@@ -1359,6 +1360,8 @@ fn rename_proper_nouns_dictionary_impl(
 // ============================================================================
 
 #[cfg(test)]
+// Tests write their fixtures straight to a temp dir; a torn fixture fails the test, not a user.
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
 

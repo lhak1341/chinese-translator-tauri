@@ -12,16 +12,16 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 wasm-bindgen = "0.2"
 serde = { version = "1.0", features = ["derive"] }
-serde-wasm-bindgen = "0.6"
 serde_json = "1.0"
-js-sys = "0.3"
 console_error_panic_hook = "0.1"
 regex = "1.11"             # For pattern processing
 unicode-properties = "0.1"    # For Unicode General Category detection
 lazy_static = "1.5"        # For static regex compilation
-web-time = "1.1"           # For WASM-compatible time measurements
 
-[dependencies.web-sys]
+# wasm32 only: web-sys calls into JS through `#[rustc_nounwind]` FFI, so a call that reaches a
+# native `cargo test` aborts the whole test process. Without the crate on native targets, a call
+# not gated by `#[cfg(target_arch = "wasm32")]` fails to compile there instead.
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3"
 features = [
   "console",

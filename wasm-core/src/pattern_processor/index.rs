@@ -1,4 +1,4 @@
-/**
+/*!
  * Pattern indexing for O(1) first-token lookup
  *
  * Indexes patterns by their first token to enable fast pattern matching.
@@ -40,7 +40,7 @@ impl PatternIndex {
 
         self.index
             .entry(key)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(pattern);
     }
 
@@ -67,7 +67,7 @@ impl PatternIndex {
                     .as_ref()
                     .and_then(|v| v.chars().next())
                     .map(|c| c.to_string())
-                    .unwrap_or_else(|| "".to_string())
+                    .unwrap_or_default()
             }
             TokenType::Variable => {
                 // Use special variable key

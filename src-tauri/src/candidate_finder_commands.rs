@@ -83,6 +83,7 @@ const BACKGROUND_SHARE: u32 = 40;
 
 /// The whole run, past IPC: backfill the background sidecars, then analyse `book`. `read_other`
 /// decodes another book for a sidecar that must be built.
+#[allow(clippy::too_many_arguments)] // the run's inputs, each borrowed from `find_candidates`
 fn analyse(
     book: &BookContent,
     fingerprint: &str,
@@ -146,6 +147,7 @@ fn read_other_book(library_root: &Path, other: &BackgroundBook) -> Option<BookCo
 /// as the `background table` stage. The finder never calls the JS trie. Resolves to `null`
 /// when the run was cancelled.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // the IPC payload's fields, as Tauri deserializes them
 pub async fn find_candidates(
     app: AppHandle,
     cache: State<'_, BookCache>,

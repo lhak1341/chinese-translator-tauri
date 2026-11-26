@@ -1,4 +1,4 @@
-/**
+/*!
  * Pattern matching algorithm
  *
  * Core pattern matching logic that mirrors JavaScript SemanticPatternProcessor.testPatternMatch()
@@ -538,10 +538,7 @@ impl<'a> PatternMatcher<'a> {
         }
 
         // Build matched_tokens only on success (clone once instead of incrementally)
-        let matched_tokens: Vec<SemanticToken> = semantic_tokens[match_start..current_position]
-            .iter()
-            .cloned()
-            .collect();
+        let matched_tokens: Vec<SemanticToken> = semantic_tokens[match_start..current_position].to_vec();
 
         // Check for Phase A override
         if self.has_phase_a_protection(&matched_tokens, match_start, current_position) {
@@ -788,7 +785,7 @@ pub fn build_result(template: &str, variables: &HashMap<String, String>) -> Stri
     // Sort variables by name length descending so longer names match before prefixes
     // (e.g., "XY" matches before "X" if both are variable names)
     let mut sorted_vars: Vec<(&String, &String)> = variables.iter().collect();
-    sorted_vars.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+    sorted_vars.sort_by_key(|v| std::cmp::Reverse(v.0.len()));
 
     let mut i = 0;
     while i < template_chars.len() {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   ReadingAnchor,
   computeAnchor,
@@ -324,7 +324,7 @@ describe('ReadingAnchor — jumps', () => {
     // Rows the virtualizer had only estimated get measured once the jump renders, so the
     // settling scroll resolves to a line *before* the one jumped to. Before this module,
     // the anchor shown ignored that scroll but the position written to disk did not.
-    const { anchor, persist, master, scrollEl, advance } = setup({
+    const { anchor, persist, scrollEl, advance } = setup({
       rows: [
         { index: 4199, start: 167_900, size: 60 },
         { index: 4200, start: 167_960, size: 40 },

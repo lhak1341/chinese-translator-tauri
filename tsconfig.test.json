@@ -1,10 +1,10 @@
 {
-  // Type-checks test files against the code they test. Run through scripts/test-type-ratchet.mjs,
-  // which counts errors per test file against .test-type-baseline.json (the count may only fall).
+  // Type-checks test files and hand-written JavaScript. Run through scripts/type-ratchet.mjs, which
+  // counts each distinct error per file against .type-ratchet-baseline.json (counts may only fall).
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // Test .js files are checked too: a fixture or mock that drifted from production is a
-    // type error there just as in .ts. Errors in non-test JS files are not counted.
+    // JavaScript is checked too: a fixture or mock that drifted from production is a type error
+    // there just as in .ts, and so is a JS caller passing what a TS signature rejects.
     "checkJs": true,
     // An untyped callback parameter or an unused import is not drift; the shapes the test
     // passes to production are.

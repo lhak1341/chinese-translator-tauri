@@ -1,0 +1,7 @@
+# Methods this crate must not call directly. Each reason names what to use instead.
+# Cargo does not track this file: after editing it, touch a source file before running clippy,
+# or the cached result passes.
+disallowed-methods = [
+  # Wrapping hash arithmetic can produce i32::MIN, and its abs() overflows in debug builds.
+  { path = "i32::abs", reason = "use wrapping_abs" },
+]

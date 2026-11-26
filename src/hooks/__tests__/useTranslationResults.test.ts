@@ -11,7 +11,7 @@
  * Fields: translatedText · characterOnlyText · semanticArrays ·
  *         characterOnlySemanticArrays · prebuiltSegments
  */
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTranslationResults } from '../useTranslationResults.js';
 
@@ -29,7 +29,7 @@ const MOCK_ARRAYS_CHAR_ONLY = {
 
 const MOCK_SEGS = [{ type: 'semantic', start: 0, end: 3 }];
 
-function useHook() {
+function renderResults() {
   return renderHook(() => useTranslationResults());
 }
 
@@ -37,7 +37,7 @@ function useHook() {
 
 describe('useTranslationResults initial state', () => {
   test('all 5 fields start at their empty/null values', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
     expect(result.current.translatedText).toBe('');
     expect(result.current.characterOnlyText).toBe('');
     expect(result.current.semanticArrays).toBeNull();
@@ -50,7 +50,7 @@ describe('useTranslationResults initial state', () => {
 
 describe('useTranslationResults.reset()', () => {
   test('zeros ALL 5 fields regardless of prior state', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     // Populate all 5 fields first
     act(() => {
@@ -79,7 +79,7 @@ describe('useTranslationResults.reset()', () => {
 
 describe('useTranslationResults.setDualResults()', () => {
   test('populates all 4 text+array fields atomically', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     act(() => {
       result.current.setDualResults(
@@ -99,7 +99,7 @@ describe('useTranslationResults.setDualResults()', () => {
 
 describe('useTranslationResults.setFullResult()', () => {
   test('sets translatedText + semanticArrays + prebuiltSegments, preserves charOnly fields', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     // Pre-populate charOnly fields
     act(() => {
@@ -119,7 +119,7 @@ describe('useTranslationResults.setFullResult()', () => {
   });
 
   test('segs optional — omitting leaves prebuiltSegments unchanged', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
     act(() => {
       result.current.setResultArrays(MOCK_ARRAYS, MOCK_SEGS);
     });
@@ -135,7 +135,7 @@ describe('useTranslationResults.setFullResult()', () => {
 
 describe('useTranslationResults.setResultArrays()', () => {
   test('updates arrays + segs; preserves translatedText and charOnly fields', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     act(() => {
       result.current.setStreamingText('partial');
@@ -162,7 +162,7 @@ describe('useTranslationResults.setResultArrays()', () => {
 
 describe('useTranslationResults.setStreamingText()', () => {
   test('updates only translatedText; arrays and charOnly unchanged', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     act(() => {
       result.current.setResultArrays(MOCK_ARRAYS, MOCK_SEGS);
@@ -187,7 +187,7 @@ describe('useTranslationResults.setStreamingText()', () => {
 
 describe('useTranslationResults.setCharOnlyResult()', () => {
   test('updates only charOnly fields; full-translation fields unchanged', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
 
     act(() => {
       result.current.setFullResult('nói', MOCK_ARRAYS, MOCK_SEGS);
@@ -210,7 +210,7 @@ describe('useTranslationResults.setCharOnlyResult()', () => {
 
 describe('useTranslationResults.setError()', () => {
   test('sets translatedText to error msg; nulls semanticArrays; empties prebuiltSegments', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
     act(() => {
       result.current.setFullResult('nói', MOCK_ARRAYS, MOCK_SEGS);
     });
@@ -225,7 +225,7 @@ describe('useTranslationResults.setError()', () => {
   });
 
   test('clears charOnly fields too (error wipes all output state)', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
     act(() => {
       result.current.setCharOnlyResult('lời', MOCK_ARRAYS_CHAR_ONLY);
     });
@@ -244,7 +244,7 @@ describe('useTranslationResults.setError()', () => {
 
 describe('useTranslationResults.setStatusMessage()', () => {
   test('sets translatedText to message; nulls semanticArrays + charOnlyArrays; empties segs', () => {
-    const { result } = useHook();
+    const { result } = renderResults();
     act(() => {
       result.current.setDualResults(
         { translatedText: 'nói', semanticArrays: MOCK_ARRAYS },

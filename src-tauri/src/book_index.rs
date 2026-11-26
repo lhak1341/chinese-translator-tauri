@@ -169,6 +169,8 @@ pub fn load_background(
 }
 
 #[cfg(test)]
+// Tests write their fixtures straight to a temp dir; a torn fixture fails the test, not a user.
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
     use crate::book_loader::{load_book, LoadOutcome};

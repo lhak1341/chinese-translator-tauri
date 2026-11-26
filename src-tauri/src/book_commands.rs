@@ -579,7 +579,7 @@ pub(crate) mod tests {
         // The guard is on metadata, so assert the boundary logic rather than writing
         // 128 MB to disk: a file under the cap reads, and the message names the cap.
         assert!(read_book_bytes(&path).is_ok());
-        assert!(MAX_BOOK_BYTES / (1024 * 1024) == 128);
+        assert_eq!(MAX_BOOK_BYTES, 128 * 1024 * 1024);
     }
 
     #[test]

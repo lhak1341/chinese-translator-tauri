@@ -90,7 +90,7 @@ describe('usePanelSync', () => {
   });
 
   it('ignores a follower’s echo of the write it was just given', () => {
-    const { master, follower, sync } = setup();
+    const { master, sync } = setup();
 
     master.scrollTop = 350;
     sync.current.onMasterScroll();

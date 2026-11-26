@@ -1,4 +1,4 @@
-/**
+/*!
  * Integration tests for two-phase pattern processing
  *
  * Tests the complete two-phase workflow including:
@@ -1006,6 +1006,7 @@ fn test_longer_pattern_beats_shorter_phase_a() {
 ///   - "这只刍吾" (tokens 0-3, 4 chars, own) — Phase A "这只X", X="刍吾" resolves to
 ///     "character" via variable_cache. Phase B "X的速度" accepts "character"-typed X and its
 ///     trailing literal "的速度" (3 chars) immediately follows → bonus 3 → score 7.
+///
 /// 7 > 5: "这只刍吾" must win the overlap, letting Phase B compose the full 7-char result.
 #[test]
 fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
@@ -1306,6 +1307,7 @@ fn test_composite_bonus_requires_both_sides_of_a_two_sided_pattern() {
 ///   - "肖姓女子" (tokens 0-3, 4 chars) — "肖姓X", X="女子" → "character". "X手中的Y"
 ///     accepts it as X; trailing literal "手中的" (3) plus Y's cache hit "厨师帽子" (4) →
 ///     bonus 7 → score 11.
+///
 /// Counting only the literal run gave "肖姓女子" 4+3=7 < 9, stranding "肖姓".
 #[test]
 fn test_phase_a_trailing_bonus_counts_following_variable() {
@@ -1378,8 +1380,11 @@ fn cache_entry(translation: &str, var_type: &str) -> VariableCacheEntry {
     }
 }
 
+/// A pattern, its template, and its per-variable allowed types.
+type PatternSpec<'a> = (&'a str, &'a str, Option<HashMap<String, Vec<String>>>);
+
 fn run_patterns(
-    patterns: Vec<(&str, &str, Option<HashMap<String, Vec<String>>>)>,
+    patterns: Vec<PatternSpec<'_>>,
     text: &str,
     cache: &HashMap<String, VariableCacheEntry>,
 ) -> Vec<String> {

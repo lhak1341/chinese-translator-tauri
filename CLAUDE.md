@@ -11,9 +11,10 @@ cargo check --manifest-path src-tauri/Cargo.toml  # NOT cd + cargo — zoxide br
 cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check both when touching Rust
 cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
+bun run lint:rust  # clippy over every target of both crates, warnings denied (CI); cargo does not track clippy.toml, so touch a .rs file after editing it or the cached pass stands
 bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag. `bunx vitest --run <path>` for single-file iteration bypasses the freshness gate (it lives in the npm script, not vitest) — fast, but re-run the full command before trusting any result that depends on Rust
 bun run type-check  # 0 errors expected; excludes test files and checks no JavaScript (checkJs: false)
-bun run lint:docs  # markdown allowlist, and every backticked name and path in a live doc must exist (ADRs and deleted-symbols.md exempt)
+bun run lint:docs  # markdown allowlist, and every backticked name and path in a live doc must exist (ADRs and deleted-symbols.md exempt); a span with spaces or operators (`x.y = false`) and a `file.rs:fn()` form are not checked, so those go stale unseen
 bun run type-check:ratchet  # tests and JavaScript, engine included (tsconfig.test.json); any new error fails, counts in .type-ratchet-baseline.json only fall
 ```
 

@@ -19,10 +19,8 @@ pub struct Token {
     #[serde(rename = "type")]
     pub token_type: String,
     pub value: String,
-    // `#[serde(default)]` is required: serde maps JSON `null` → None, but for an *absent* key
-    // it returns an error instead of None unless `default` is set.  A JS caller that omits
-    // `translated` or `translationSource` (rather than setting them to null) would cause
-    // `serde_wasm_bindgen::from_value` to fail, silently killing the entire token batch.
+    // A JS caller may omit `translated` or `translationSource`: `serde_json` reads an absent
+    // `Option` key as None. An absent `token_type` or `value` fails the whole token batch.
     #[serde(default)]
     pub translated: Option<String>,
     #[serde(rename = "translationSource", default)]
@@ -274,6 +272,12 @@ fn create_number_map() -> HashMap<char, u32> {
     m
 }
 
+impl Default for NumberProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NumberProcessor {
     pub fn new() -> NumberProcessor {
         console_error_panic_hook::set_once();
@@ -341,9 +345,9 @@ impl NumberProcessor {
                 tokens[i].translated = Some(number_match.result);
                 tokens[i].translation_source = Some("number_conversion".to_string());
 
-                for j in (i + 1)..=number_match.end_index {
-                    tokens[j].translated = None;
-                    tokens[j].translation_source = Some("number_conversion_consumed".to_string());
+                for token in &mut tokens[(i + 1)..=number_match.end_index] {
+                    token.translated = None;
+                    token.translation_source = Some("number_conversion_consumed".to_string());
                 }
 
                 i = number_match.end_index + 1;

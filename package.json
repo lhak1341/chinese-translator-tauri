@@ -16,6 +16,7 @@
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json,md}\"",
     "lint": "bun run lint:docs && node scripts/lint-ratchet.mjs && bun run lint:css",
     "lint:css": "stylelint 'src/**/*.css'",
+    "lint:rust": "cargo clippy --manifest-path wasm-core/Cargo.toml --all-targets -- -D warnings && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "lint:docs": "node scripts/check-docs-allowlist.mjs && bun scripts/check-doc-claims.ts",
     "type-check:ratchet": "node scripts/type-ratchet.mjs",
     "type-check:ratchet:baseline": "node scripts/type-ratchet.mjs --update",

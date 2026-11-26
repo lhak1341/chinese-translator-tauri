@@ -1,4 +1,4 @@
-/**
+/*!
  * Integration tests for pattern matching algorithm
  *
  * Tests the complete pattern matching workflow including literal matching,

@@ -38,6 +38,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **`sed -i ''` can silently no-op** — ran with no error, changed nothing (confirmed 2026-09-07 on a variable rename across a hook file). Verify with a follow-up `grep`, or just use the Edit tool for renames — it either applies or errors, never silently does neither.
 
+**A source file holding a literal NUL byte is binary to the Edit tool and to `git diff`** — input-sanitizer code and its tests embed one (`DictionaryEntrySanitizer.test.ts`, `configValidation.ts`; `grep -rlP '\x00' src` lists them). Edit refuses the file without writing; edit with `perl -i -pe`, and read the change with `git diff --text`, since plain `git diff` reports only a binary-file size change.
+
 **Before treating a `bun run lint` ratchet failure as caused by your change, verify against a clean checkout** (`git stash -u && bun run lint`) — the `.lint-baseline.json` count can already be exceeded on `main` itself, independent of any edit.
 
 **Ad-hoc scripts that import `src/` modules (benchmarks, importer scans): run them with `bun script.mjs`, not `node`** — src imports use `.js` specifiers for `.ts` files (`../logger.js` is `logger.ts`), so node dies with `ERR_MODULE_NOT_FOUND`. Put the script in the scratchpad, not the repo.

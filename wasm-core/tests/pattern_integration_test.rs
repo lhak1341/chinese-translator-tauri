@@ -1,4 +1,4 @@
-/**
+/*!
  * Integration tests for pattern processor with real patterns.json data
  *
  * Tests the complete workflow of parsing and indexing patterns from
