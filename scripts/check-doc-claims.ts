@@ -131,6 +131,12 @@ const EXTERNAL_PATHS = new Set([
 /** Gitignored directories whose generated files docs may name (resolved on disk). */
 const GENERATED_DIRS = ['src/wasm'];
 
+/**
+ * Gitignored directories a doc may name by themselves. They exist on a dev machine but not in a
+ * fresh CI checkout, so the on-disk fallback in pathExists would pass locally and fail in CI.
+ */
+const IGNORED_DIRS = new Set(['temp', 'public/wasm']);
+
 const git = (args: string[]): string[] =>
   execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0')
@@ -215,7 +221,7 @@ function pathExists(token: string, doc: string): boolean {
       ? [bare, bare.replace(/\.js$/, '.ts'), bare.replace(/\.js$/, '.tsx')]
       : [bare];
   for (const c of candidates) {
-    if (allPaths.has(c)) return true;
+    if (allPaths.has(c) || IGNORED_DIRS.has(c)) return true;
     if (pathList.some((p) => p.endsWith(`/${c}`))) return true;
     if (existsSync(path.join(root, c)) || existsSync(path.join(root, path.dirname(doc), c)))
       return true;
