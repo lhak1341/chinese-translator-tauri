@@ -164,9 +164,42 @@ export function isBlankLine(line: string | undefined): boolean {
 }
 
 /**
- * Where a paragraph ends, for planning. A blank line separates paragraphs, and a line that has
- * not been fetched (`undefined`) also ends one here — unlike `isBlankLine`, where it is not
- * blank — so a chunk is never planned over a prefix of a paragraph whose rest has not landed.
+ * Whether a new paragraph starts at line `index`, for planning: `true`, `false`, or `null`
+ * when a line the answer depends on has not been fetched.
+ *
+ * The book's edges are boundaries. Between two fetched lines there is one when either is blank,
+ * when the line is indented (the `　　` that opens a paragraph in most of these novels), or
+ * when the line before it ends a sentence. Blank lines alone are not enough: some books never
+ * leave one (焚尽八荒 has one in 43,359 lines), so the whole book read as a single paragraph whose
+ * ends were never both fetched, and nothing was ever planned. The answer depends on the two
+ * lines only, so a chunk key stays a pure function of the text.
+ */
+function startsParagraph(
+  index: number,
+  getLine: (index: number) => string | undefined,
+  lineCount: number
+): boolean | null {
+  if (index <= 0 || index >= lineCount) return true;
+  const line = getLine(index);
+  if (line === undefined) return null;
+  // An indent is the line's own word, so it needs no neighbour.
+  if (isBlankLine(line) || /^\s/.test(line)) return true;
+  const previous = getLine(index - 1);
+  if (previous === undefined) return null;
+  return isBlankLine(previous) || endsSentence(previous);
+}
+
+/** Whether a line's last mark, past any closing quotes or brackets, ends a sentence. */
+function endsSentence(line: string): boolean {
+  let end = line.trimEnd().length;
+  while (end > 0 && TRAILING_MARKS.has(line[end - 1])) end -= 1;
+  return end > 0 && SENTENCE_BREAKS.has(line[end - 1]);
+}
+
+/**
+ * Lines a paragraph never includes, for planning: a blank line, or one that has not been
+ * fetched (`undefined`) — unlike `isBlankLine`, where it is not blank — so a chunk is never
+ * planned over a prefix of a paragraph whose rest has not landed.
  */
 function isParagraphBreak(line: string | undefined): boolean {
   return line === undefined || isBlankLine(line);
@@ -226,16 +259,8 @@ export function snapRangeToParagraphs(
   if (clamped.start >= clamped.end) return clamped;
 
   let { start, end } = clamped;
-  while (start > 0 && !isParagraphBreak(getLine(start)) && !isParagraphBreak(getLine(start - 1))) {
-    start -= 1;
-  }
-  while (
-    end < lineCount &&
-    !isParagraphBreak(getLine(end - 1)) &&
-    !isParagraphBreak(getLine(end))
-  ) {
-    end += 1;
-  }
+  while (start > 0 && startsParagraph(start, getLine, lineCount) === false) start -= 1;
+  while (end < lineCount && startsParagraph(end, getLine, lineCount) === false) end += 1;
   return { start, end };
 }
 
@@ -308,12 +333,10 @@ export interface ChunkPlanOptions {
 
 /**
  * Whether a paragraph's own extent is known, rather than merely where the current range
- * happened to stop.
- *
- * A paragraph is complete when each side is a *known* boundary: the edge of the book, or a
- * line that has been fetched and is blank. An unfetched neighbour is not a boundary — the
- * paragraph may continue through it — and planning a chunk over the visible prefix would
- * mint a key that the full paragraph, once fetched, will never match.
+ * happened to stop: a known boundary (`startsParagraph` answering `true`) on each side. An
+ * unfetched neighbour is not a boundary — the paragraph may continue through it — and
+ * planning a chunk over the visible prefix would mint a key that the full paragraph, once
+ * fetched, will never match.
  */
 function isParagraphComplete(
   startLine: number,
@@ -321,9 +344,10 @@ function isParagraphComplete(
   getLine: (index: number) => string | undefined,
   lineCount: number
 ): boolean {
-  const boundaryBefore = startLine === 0 || isBlankLine(getLine(startLine - 1));
-  const boundaryAfter = endLine >= lineCount - 1 || isBlankLine(getLine(endLine + 1));
-  return boundaryBefore && boundaryAfter;
+  return (
+    startsParagraph(startLine, getLine, lineCount) === true &&
+    startsParagraph(endLine + 1, getLine, lineCount) === true
+  );
 }
 
 /** Pack one whole paragraph's lines into chunks, greedily, from its own first line. */
@@ -411,7 +435,10 @@ export function planChunks(
       continue;
     }
     let paragraphEnd = line;
-    while (paragraphEnd + 1 < range.end && !isParagraphBreak(getLine(paragraphEnd + 1))) {
+    while (
+      paragraphEnd + 1 < range.end &&
+      startsParagraph(paragraphEnd + 1, getLine, lineCount) === false
+    ) {
       paragraphEnd += 1;
     }
     if (isParagraphComplete(line, paragraphEnd, getLine, lineCount)) {

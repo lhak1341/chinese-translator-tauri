@@ -343,6 +343,13 @@
   font-size: 0.72rem;
 }
 
+.unavailableActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
 /* ── Reading view ──────────────────────────────────────────────────────────── */
 
 .reader {

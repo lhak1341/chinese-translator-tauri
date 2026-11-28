@@ -7,7 +7,12 @@ import type {
 } from '../../types/ReaderTypes';
 import { logger } from '../logger';
 import { extractErrorMessage } from '../errorHelpers';
-import { bookRecordsFile, loadBookRecords, transformRecords } from './BookRecordsBackend';
+import {
+  bookRecordsFile,
+  forgetBookRecord,
+  loadBookRecords,
+  transformRecords,
+} from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
@@ -242,6 +247,24 @@ export interface ScanShelfDeps {
 export async function pruneBookIndex(): Promise<unknown> {
   const known = Object.keys(bookRecordsFile.state().value ?? {});
   return known.length === 0 ? 0 : window.electronAPI.pruneBookIndex(known);
+}
+
+/**
+ * The shelf's Forget: delete an unavailable book's record (`forgetBookRecord`), then its
+ * index sidecar, which no record owns any more. The prune is best-effort — an orphaned
+ * sidecar is a cache, and the next scan's prune removes it. Forgetting the last record leaves
+ * its sidecar until a record exists again (an empty list prunes nothing, by design).
+ */
+export async function forgetUnavailableBook(fingerprint: string): Promise<boolean> {
+  const forgotten = await forgetBookRecord(fingerprint);
+  if (forgotten) {
+    try {
+      await pruneBookIndex();
+    } catch (cause) {
+      logger.error('Failed to prune the book index after forgetting a book:', cause);
+    }
+  }
+  return forgotten;
 }
 
 const defaultScanShelfDeps: ScanShelfDeps = {

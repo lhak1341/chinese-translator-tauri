@@ -228,6 +228,68 @@ describe('Bookshelf unavailable books', () => {
   });
 });
 
+describe('Bookshelf Forget', () => {
+  const gone: UnavailableBook = { fingerprint: 'fp2', title: 'Gone', lastKnownPath: 'gone.txt' };
+
+  async function seedWithGone(goneAvailable = false) {
+    const fake = installFakeAppFile<BookRecords>(
+      { load: 'loadBookRecords', save: 'saveBookRecords' },
+      {
+        fp1: makeBookRecord({ position: null }),
+        fp2: makeBookRecord({ fingerprint: 'fp2', available: goneAvailable }),
+      }
+    );
+    const prune = vi.fn().mockResolvedValue(1);
+    window.electronAPI.pruneBookIndex = prune;
+    await act(() => loadBookRecords());
+    return { ...fake, prune };
+  }
+
+  test('asks first, then deletes the record, drops the row and prunes its index', async () => {
+    const { disk, prune } = await seedWithGone();
+    renderShelf([gone]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Forget…/ }));
+    // Nothing is written by the first click: it only asks.
+    expect(Object.keys(disk.data)).toEqual(['fp1', 'fp2']);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Forget Gone' }));
+    });
+
+    expect(Object.keys(disk.data)).toEqual(['fp1']);
+    expect(screen.queryByText('Gone')).toBeNull();
+    expect(screen.queryByText('Unavailable')).toBeNull();
+    expect(prune).toHaveBeenCalledWith(['fp1']);
+  });
+
+  test('Cancel keeps the book', async () => {
+    const { save } = await seedWithGone();
+    renderShelf([gone]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Forget…/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByText('Gone')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Forget…/ })).toBeTruthy();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('refuses a book a rescan found again before the click', async () => {
+    // The row is from the last scan; the record says the file is back.
+    const { disk, save, prune } = await seedWithGone(true);
+    renderShelf([gone]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Forget…/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Forget Gone' }));
+    });
+
+    expect(Object.keys(disk.data)).toEqual(['fp1', 'fp2']);
+    expect(save).not.toHaveBeenCalled();
+    expect(prune).not.toHaveBeenCalled();
+  });
+});
+
 describe('Continue reading', () => {
   test('offers the last book with its progress, and opens it on click', async () => {
     await act(() =>

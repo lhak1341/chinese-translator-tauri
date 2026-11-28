@@ -8,12 +8,17 @@ import {
   LayoutGrid,
   List,
   BookOpen,
+  Trash2,
 } from 'lucide-react';
 import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
 import { useBookRecords } from '../../hooks/useBookRecords';
 import { bindingLabel } from '../../utils/reader/FictionDictionarySuggestion';
 import { patternInEffect } from '../../utils/reader/ChapterNavigation';
+import { forgetUnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import type { ShelfBook, ShelfOutcome, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
+import { logger } from '../../utils/logger';
+import toast from '../../utils/toast';
+import { extractErrorMessage } from '../../utils/errorHelpers';
 import styles from '../../styles/Reader.module.css';
 import { SearchFilterHeader } from '../SearchFilterHeader';
 
@@ -148,7 +153,25 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const records = useBookRecords();
   const books: readonly LibraryBook[] =
     outcome && outcome.kind !== 'scanFailed' ? outcome.books : NO_BOOKS;
-  const unavailableBooks = outcome?.kind === 'loaded' ? outcome.unavailableBooks : NO_UNAVAILABLE;
+  const scannedUnavailable = outcome?.kind === 'loaded' ? outcome.unavailableBooks : NO_UNAVAILABLE;
+  // Read against the live records, so a forgotten book leaves the shelf at once, without a
+  // rescan: the scan's list is a snapshot, the records are not.
+  const unavailableBooks = useMemo(
+    () => scannedUnavailable.filter((book) => records[book.fingerprint] !== undefined),
+    [scannedUnavailable, records]
+  );
+  const [confirmingForget, setConfirmingForget] = useState<string | null>(null);
+  const forget = (fingerprint: string): void => {
+    setConfirmingForget(null);
+    void (async () => {
+      try {
+        await forgetUnavailableBook(fingerprint);
+      } catch (cause) {
+        logger.error('Failed to forget a book:', cause);
+        toast.error(`Couldn't forget the book: ${extractErrorMessage(cause)}`);
+      }
+    })();
+  };
   const scanError = outcome?.kind === 'scanFailed' ? outcome.error : null;
   const identityKnown = outcome?.kind !== 'recordsUnknown';
   /** A shelf book's record — `undefined` for one never recorded, or when no identity is
@@ -365,6 +388,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           <div className={styles.unavailableTitle}>Unavailable</div>
           {unavailableBooks.map((book) => {
             const chapterCount = formatChapterCount(records[book.fingerprint]);
+            const isConfirming = confirmingForget === book.fingerprint;
             return (
               <div key={book.fingerprint} className={styles.unavailableRow}>
                 <FileWarning size={16} className={styles.unavailableIcon} />
@@ -378,6 +402,33 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                     {chapterCount && <span>{chapterCount}</span>}
                   </span>
                 </div>
+                {isConfirming ? (
+                  <div className={styles.unavailableActions}>
+                    <span className={styles.unavailableMeta}>Forget its progress and binding?</span>
+                    <button
+                      onClick={() => forget(book.fingerprint)}
+                      className={styles.secondaryButton}
+                      aria-label={`Forget ${book.title}`}
+                    >
+                      Forget
+                    </button>
+                    <button
+                      onClick={() => setConfirmingForget(null)}
+                      className={styles.secondaryButton}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingForget(book.fingerprint)}
+                    className={styles.secondaryButton}
+                    title="Remove this book from the shelf. Its reading position and binding are lost."
+                  >
+                    <Trash2 size={14} />
+                    Forget…
+                  </button>
+                )}
               </div>
             );
           })}

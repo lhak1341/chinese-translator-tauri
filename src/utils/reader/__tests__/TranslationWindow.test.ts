@@ -202,6 +202,15 @@ describe('snapRangeToParagraphs', () => {
     ).toEqual({ start: 3, end: 15 });
   });
 
+  it('widens only to the nearest indented line in a book with no blank lines', () => {
+    const indented = Array.from({ length: 6 }, (_, i) => (i % 2 === 0 ? '　　中文' : '中文'));
+
+    expect(snapRangeToParagraphs({ start: 3, end: 4 }, reader(indented), 6)).toEqual({
+      start: 2,
+      end: 4,
+    });
+  });
+
   it('clips to the book at both ends', () => {
     expect(snapRangeToParagraphs({ start: -20, end: 999 }, reader(lines), lines.length)).toEqual({
       start: 0,
@@ -311,6 +320,46 @@ describe('planChunks', () => {
     const overlap = wide.filter((chunk) => chunk.startLine >= 10);
     expect(overlap.length).toBeGreaterThan(0);
     expect(shifted.map((chunk) => chunk.key)).toEqual(overlap.map((chunk) => chunk.key));
+  });
+
+  it('starts a paragraph at an indented line when the book leaves no blank lines', () => {
+    // One paragraph per line, each opened by an ideographic indent, nothing between them.
+    const lines = Array.from({ length: 6 }, () => '　　' + '字'.repeat(40));
+    const chunks = planChunks({ start: 2, end: 4 }, reader(lines), lines.length);
+
+    expect(chunks.map((c) => [c.startLine, c.endLine])).toEqual([
+      [2, 2],
+      [3, 3],
+    ]);
+  });
+
+  it('starts a paragraph after a line ending a sentence, closing quote and all', () => {
+    const lines = ['他说：“走吧。”', '她没动', '只是笑了笑。', '第二章'];
+    const chunks = planChunks({ start: 0, end: 4 }, reader(lines), lines.length);
+
+    expect(chunks.map((c) => [c.startLine, c.endLine])).toEqual([
+      [0, 0],
+      [1, 2],
+      [3, 3],
+    ]);
+  });
+
+  it('keeps a hard-wrapped paragraph whole: no indent and no sentence end is no boundary', () => {
+    const lines = ['', '他走进屋里，看见桌上', '放着一封信，信封上写', '着他的名字。', ''];
+    const chunks = planChunks({ start: 0, end: lines.length }, reader(lines), lines.length);
+
+    expect(chunks.map((c) => [c.startLine, c.endLine])).toEqual([[1, 3]]);
+  });
+
+  it('plans an indented line beside an unfetched one, but not an unindented one', () => {
+    // An indent is the line's own; whether the line before ended a sentence is unknown here.
+    const unindented: Array<string | undefined> = [undefined, '中文', '　　中文', '　　中'];
+    expect(planChunks({ start: 1, end: 2 }, reader(unindented), 4)).toEqual([]);
+
+    const indented: Array<string | undefined> = [undefined, '　　中文', '　　中文', '　　中'];
+    expect(planChunks({ start: 1, end: 2 }, reader(indented), 4).map((c) => c.startLine)).toEqual([
+      1,
+    ]);
   });
 
   it('gives every chunk a key unique to its exact span', () => {

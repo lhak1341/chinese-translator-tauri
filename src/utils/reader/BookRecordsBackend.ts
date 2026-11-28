@@ -247,6 +247,23 @@ function replaceBoundDictionary(oldId: string, next: string | null): Promise<voi
   });
 }
 
+/**
+ * Forget an unavailable book: delete its record, and with it everything the reader left there
+ * (position, binding, chapter outline, dismissed names). `true` when a record was deleted.
+ * Refused — nothing saved, `false` — when the record is already gone or the book is
+ * available again: a rescan can find the file between the shelf showing the row and the click,
+ * and a book on disk is not the reader's to lose by accident.
+ */
+export function forgetBookRecord(fingerprint: string): Promise<boolean> {
+  return transformRecords((records) => {
+    const existing = records[fingerprint];
+    if (!existing || existing.available) return { records, result: false };
+    const rest: BookRecords = { ...records };
+    delete rest[fingerprint];
+    return { records: rest, result: true };
+  });
+}
+
 /** What `open_book` observes: the file, and its decoded content. */
 export type OpenedBookObservations = Pick<
   BookObservations,
