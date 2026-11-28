@@ -11,6 +11,7 @@ import {
   dismissCandidate,
   dismissCandidates,
   restoreCandidate,
+  setOmissions,
   renameBoundDictionary,
   unbindDictionary,
   recordBookOpened,
@@ -258,6 +259,23 @@ describe('setBookBinding', () => {
   });
 });
 
+describe('setOmissions', () => {
+  test("replaces the book's list and keeps the rest of its record", async () => {
+    const existing = makeBookRecord({ omissions: ['old'], position: { line: 9, fraction: 0 } });
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setOmissions('fp1', ['@黄色小说/class12/1.html']);
+
+    expect(saveFn).toHaveBeenCalledWith({
+      fp1: { ...existing, omissions: ['@黄色小说/class12/1.html'] },
+    });
+  });
+});
+
 describe('dismissCandidate and restoreCandidate', () => {
   function recordsWith(dismissedCandidates: string[]) {
     const existing = makeBookRecord({ dismissedCandidates });
@@ -405,6 +423,7 @@ const ANSWER_SAMPLES = {
   manualChapterPattern: 'volume',
   binding: { fictionDictionary: 'properNouns-f_TapDo' },
   dismissedCandidates: ['滕青山'],
+  omissions: ['@黄色小说/class12/1.html'],
 } as const;
 
 describe('recordBookOpened', () => {

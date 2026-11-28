@@ -2,7 +2,7 @@ import type { BookRecord } from '../../types/ReaderTypes';
 
 /**
  * The fields that are the reader's own answers — where they were, which outline structure
- * they chose, which fiction dictionary the book uses, which candidate names they dismissed.
+ * they chose, which fiction dictionary the book uses, which candidate names they dismissed, which text they hid.
  * Nothing can regenerate these, so no
  * refresh from a scan or an open ever writes them; only their own setters in
  * `BookRecordsBackend.ts` do. Every other field is an observation (see `BookObservations`).
@@ -12,6 +12,7 @@ export const READER_ANSWER_FIELDS = [
   'manualChapterPattern',
   'binding',
   'dismissedCandidates',
+  'omissions',
 ] as const satisfies readonly (keyof BookRecord)[];
 
 export type ReaderAnswerField = (typeof READER_ANSWER_FIELDS)[number];
@@ -37,6 +38,7 @@ export function emptyBookRecord(fingerprint: string): BookRecord {
     manualChapterPattern: null,
     binding: null,
     dismissedCandidates: [],
+    omissions: [],
     title: '',
     lastKnownPath: '',
     lineCount: 0,
@@ -74,6 +76,7 @@ export function refreshBookRecord(
     manualChapterPattern: (existing ?? base).manualChapterPattern,
     binding: (existing ?? base).binding,
     dismissedCandidates: (existing ?? base).dismissedCandidates,
+    omissions: (existing ?? base).omissions,
   };
   const isRedecoded =
     existing !== undefined &&

@@ -18,7 +18,13 @@ function rawRecord(overrides: Record<string, unknown> = {}): Record<string, unkn
 // The field validators are not exported: each repair rule is exercised through the record,
 // as the backend reaches it.
 const field = (
-  key: 'position' | 'binding' | 'manualChapterPattern' | 'chapterOutline' | 'dismissedCandidates',
+  key:
+    | 'position'
+    | 'binding'
+    | 'manualChapterPattern'
+    | 'chapterOutline'
+    | 'dismissedCandidates'
+    | 'omissions',
   value: unknown
 ) => validateBookRecord('fp1', rawRecord({ [key]: value }))?.[key];
 const validateReadingPosition = (v: unknown) => field('position', v);
@@ -26,6 +32,20 @@ const validateBookBinding = (v: unknown) => field('binding', v);
 const validateManualChapterPattern = (v: unknown) => field('manualChapterPattern', v);
 const validateChapterOutline = (v: unknown) => field('chapterOutline', v);
 const validateDismissedCandidates = (v: unknown) => field('dismissedCandidates', v);
+const validateOmissions = (v: unknown) => field('omissions', v);
+
+describe('validateOmissions', () => {
+  test('keeps valid entries in order, trimmed and unique, dropping the rest one by one', () => {
+    expect(
+      validateOmissions(['  @黄色小说/class12/1.html ', 42, '', '八零电子书', '八零电子书'])
+    ).toEqual(['@黄色小说/class12/1.html', '八零电子书']);
+  });
+
+  test('anything but an array is no omissions', () => {
+    expect(validateOmissions('@黄色小说')).toEqual([]);
+    expect(validateOmissions(undefined)).toEqual([]);
+  });
+});
 
 describe('validateReadingPosition', () => {
   test('accepts a well-formed position', () => {
@@ -136,6 +156,7 @@ describe('validateBookRecord', () => {
       available: true,
       chapterOutline: null,
       dismissedCandidates: [],
+      omissions: [],
     });
   });
 
@@ -162,6 +183,7 @@ describe('validateBookRecord', () => {
       available: true,
       chapterOutline: null,
       dismissedCandidates: [],
+      omissions: [],
     });
   });
 

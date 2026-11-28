@@ -56,6 +56,7 @@ const bookRecordsBackend = vi.hoisted(() => {
   return {
     loadBookRecords,
     recordBookOpened: vi.fn(),
+    setOmissions: vi.fn(),
     queueWrite,
     readSettledRecords: vi.fn(() => queueWrite(async () => (await loadBookRecords()).records)),
   };
@@ -125,6 +126,8 @@ vi.mock('../Bookshelf', () => ({
 }));
 /** Every `BookReader` mount, in order: the book it mounted for and the engine it got. */
 const readerMounts = vi.hoisted(() => [] as { fingerprint: string; engine: unknown }[]);
+/** What the stub does as it unmounts — the real reader queues its final position write. */
+const readerUnmount = vi.hoisted(() => ({ run: () => {} }));
 vi.mock('../BookReader', async () => {
   const { useEffect } = await import('react');
   return {
@@ -134,16 +137,21 @@ vi.mock('../BookReader', async () => {
       engine,
       onBack,
       shelf,
+      onOmissionsChange,
     }: {
       book: OpenBook;
-      record: { position: unknown };
+      record: { position: unknown; omissions?: string[] };
       engine: unknown;
       onBack: () => void;
+      onOmissionsChange: (omissions: string[]) => Promise<void>;
       shelf: { switchBook: (fileName: string) => void; reopenWithEncoding: () => void };
     }) {
       // Mount-only on purpose: a re-render with a new book must not look like a mount.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      useEffect(() => void readerMounts.push({ fingerprint: book.fingerprint, engine }), []);
+      useEffect(() => {
+        readerMounts.push({ fingerprint: book.fingerprint, engine });
+        return () => readerUnmount.run();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
       return (
         <div>
           <span>reading:{book.fileName}</span>
@@ -151,6 +159,8 @@ vi.mock('../BookReader', async () => {
           <button onClick={onBack}>back</button>
           <button onClick={() => shelf.switchBook('other.txt')}>switch:other.txt</button>
           <button onClick={shelf.reopenWithEncoding}>reopen-encoding</button>
+          <span>omissions:{JSON.stringify(record.omissions ?? [])}</span>
+          <button onClick={() => void onOmissionsChange(['@x'])}>omit</button>
         </div>
       );
     },
@@ -205,6 +215,7 @@ const openedBook: OpenBook = {
 beforeEach(() => {
   vi.clearAllMocks();
   readerMounts.length = 0;
+  readerUnmount.run = () => {};
   appConfig.loadAppConfig.mockResolvedValue({ reader: { libraryPath: null } });
   tauriAPI.scanLibrary.mockResolvedValue({ libraryPath: '/lib', books: [libraryBook] });
   tauriAPI.indexOpenBook.mockResolvedValue(undefined);
@@ -657,5 +668,53 @@ describe('ReaderTab remembers the last book across launches', () => {
     fireEvent.click(await screen.findByText('open:novel.txt'));
 
     expect(await screen.findByText('reading:novel.txt')).toBeInTheDocument();
+  });
+});
+
+describe('ReaderTab omissions', () => {
+  it('a saved change remounts the reader with the new list, at the position its unmount wrote', async () => {
+    tauriAPI.openBook.mockResolvedValue({ status: 'opened', encoding, book: openedBook });
+    bookRecordsBackend.recordBookOpened.mockResolvedValue({
+      fingerprint: 'fp-1',
+      position: { line: 1, fraction: 0 },
+      binding: null,
+      omissions: [],
+    });
+    let records: Record<string, { fingerprint: string; position: unknown; omissions: string[] }> = {
+      'fp-1': { fingerprint: 'fp-1', position: { line: 1, fraction: 0 }, omissions: [] },
+    };
+    bookRecordsBackend.loadBookRecords.mockImplementation(async () => ({
+      records,
+      droppedCount: 0,
+    }));
+    bookRecordsBackend.setOmissions.mockImplementation((fingerprint: string, omissions: string[]) =>
+      bookRecordsBackend.queueWrite(async () => {
+        records = { ...records, [fingerprint]: { ...records[fingerprint], omissions } };
+      })
+    );
+
+    render(<ReaderTab isActive={true} />);
+    fireEvent.click(await screen.findByText('open:novel.txt'));
+    await screen.findByText('reading:novel.txt');
+    // Where the reader scrolled to since the open: written only as it unmounts.
+    readerUnmount.run = () =>
+      void bookRecordsBackend.queueWrite(async () => {
+        records = {
+          ...records,
+          'fp-1': { ...records['fp-1'], position: { line: 300, fraction: 0.5 } },
+        };
+      });
+
+    fireEvent.click(screen.getByText('omit'));
+
+    await waitFor(() =>
+      expect(screen.getByText('position:{"line":300,"fraction":0.5}')).toBeInTheDocument()
+    );
+    expect(screen.getByText('omissions:["@x"]')).toBeInTheDocument();
+    expect(bookRecordsBackend.setOmissions).toHaveBeenCalledWith('fp-1', ['@x']);
+    expect(readerMounts.map((mount) => mount.fingerprint)).toEqual(['fp-1', 'fp-1']);
+    // The text stays decoded and the binding stays applied: no decode, no re-announce.
+    expect(tauriAPI.openBook).toHaveBeenCalledTimes(1);
+    expect(announceOpenBook).toHaveBeenCalledTimes(1);
   });
 });

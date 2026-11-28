@@ -52,6 +52,22 @@ beforeEach(() => {
   );
 });
 
+describe('BookLinesStore omissions', () => {
+  test("every line it hands out has the book's Omissions removed, and keeps its slot", async () => {
+    readBookLines.mockImplementation(async (_fingerprint: string, start: number) => ({
+      start,
+      lines: ['  @x', '第一@x章', '', 'plain'],
+      lineCount: 4,
+    }));
+    const store = new BookLinesStore({ fingerprint: 'fp-1', lineCount: 4, omissions: ['@x'] });
+
+    store.requestRange(0, 4);
+    await flush();
+
+    expect([0, 1, 2, 3].map(store.getLine)).toEqual(['', '第一章', '', 'plain']);
+  });
+});
+
 describe('BookLinesStore pages', () => {
   it('fetches whole pages covering the requested range, once each', async () => {
     const { store } = makeStore();

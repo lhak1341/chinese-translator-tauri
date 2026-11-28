@@ -10,7 +10,11 @@ import type {
   LibraryBook,
   OpenBook,
 } from '../../types/ReaderTypes';
-import { readSettledRecords, recordBookOpened } from '../../utils/reader/BookRecordsBackend';
+import {
+  readSettledRecords,
+  recordBookOpened,
+  setOmissions,
+} from '../../utils/reader/BookRecordsBackend';
 import { emptyBookRecord } from '../../utils/reader/BookRecord';
 import { useBookBinding } from '../BookBindingContext';
 import type { OpenBookIdentity } from '../BookBindingContext';
@@ -84,6 +88,9 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [open, setOpen] = useState<OpenState | null>(null);
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
+  /** Set between an Omissions save and the record re-read that follows it: the reader is
+   * unmounted meanwhile, so its final position write is queued before the re-read. */
+  const [isReloadingBook, setIsReloadingBook] = useState(false);
   /** Fingerprint of the book opened most recently, this session or a past one — what the
    * shelf's "Continue reading" card offers. */
   const [lastBook, setLastBook] = useState<string | null>(null);
@@ -262,6 +269,49 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     [books, openBook]
   );
 
+  /** Save the open book's Omissions, then reload it with them: unmount the reader (which
+   * queues its position write), read the record settled, and mount it again. The decoded
+   * text and the binding are untouched, so nothing is re-announced. A failed save rejects
+   * and leaves the book as it was. */
+  const changeOmissions = useCallback(
+    async (omissions: string[]): Promise<void> => {
+      if (!open) return;
+      await setOmissions(open.book.fingerprint, omissions);
+      setOpen((previous) =>
+        previous ? { ...previous, record: { ...previous.record, omissions } } : previous
+      );
+      setIsReloadingBook(true);
+    },
+    [open]
+  );
+
+  const reloadFingerprint = isReloadingBook ? (open?.book.fingerprint ?? null) : null;
+  useEffect(() => {
+    if (!isReloadingBook) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const records = await readSettledRecords();
+        const record = reloadFingerprint ? records[reloadFingerprint] : undefined;
+        if (!cancelled && record) {
+          setOpen((previous) =>
+            previous && previous.book.fingerprint === record.fingerprint
+              ? { ...previous, record }
+              : previous
+          );
+        }
+      } catch (cause) {
+        // The saved Omissions are already in `open`; only the position may be a write old.
+        logger.error('Failed to re-read the book record after changing its omissions:', cause);
+      } finally {
+        if (!cancelled) setIsReloadingBook(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReloadingBook, reloadFingerprint]);
+
   const backToShelf = useCallback((): void => {
     // The book stays decoded so coming back is instant, but it stops holding the fiction
     // slice of the active dictionaries — reopening it announces it again.
@@ -318,6 +368,10 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     );
   }
 
+  if (isReading && open && isReloadingBook) {
+    return <div className={styles.container} />;
+  }
+
   if (isReading && open) {
     return (
       <div className={styles.container}>
@@ -334,6 +388,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           engine={readerEngine}
           shelf={shelf}
           onBack={backToShelf}
+          onOmissionsChange={changeOmissions}
         />
       </div>
     );

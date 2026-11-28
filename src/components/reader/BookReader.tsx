@@ -20,6 +20,8 @@ import { BindingButton, BindingNotices, BookBindingDialog } from './ReaderBindin
 import CandidateFinderPanel from './CandidateFinderPanel';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
+import OmissionsDialog from './OmissionsDialog';
+import LineJumpField from './LineJumpField';
 import type { ShelfNavigation } from '../../utils/reader/PaletteCommands';
 import {
   NO_SLIDE_OVER,
@@ -51,6 +53,10 @@ interface BookReaderProps {
    * `useReaderCommands` whole (`ShelfNavigation`). */
   shelf: ShelfNavigation;
   onBack: () => void;
+  /** Save this book's Omissions and reload it with them — `ReaderTab` remounts this
+   * component, so no line or translation made from the old text survives. Rejects when
+   * the save failed. */
+  onOmissionsChange: (omissions: string[]) => Promise<void>;
 }
 
 /**
@@ -73,11 +79,16 @@ const BookReader: React.FC<BookReaderProps> = ({
   engine,
   shelf,
   onBack,
+  onOmissionsChange,
 }) => {
   const { getLine, linesVersion, requestRange, error } = useBookLines(
     book.fingerprint,
-    book.lineCount
+    book.lineCount,
+    record.omissions
   );
+  /** The Omissions dialog's seed while it is open, else `null`. */
+  const [omissionsSeed, setOmissionsSeed] = useState<string | null>(null);
+  const closeOmissions = useCallback((): void => setOmissionsSeed(null), []);
   const finder = useCandidateFinder(book.fingerprint);
   const { cancel: cancelFinder } = finder;
   /** The outline or the Candidate finder, never both (`SlideOver.ts`). Leaving the finder
@@ -210,6 +221,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     openOutline: openOutlineForSearch,
     pageBy,
     openBindingDialog: openDialog,
+    openOmissions: setOmissionsSeed,
   });
 
   const syncFollowers = panels.translation.onScroll;
@@ -302,7 +314,7 @@ const BookReader: React.FC<BookReaderProps> = ({
                 style={{ width: `${readingProgressPercent}%` }}
               />
             </span>
-            Line {(anchorLine + 1).toLocaleString()} of {book.lineCount.toLocaleString()}
+            <LineJumpField line={anchorLine} lineCount={book.lineCount} onJump={scrollToLine} />
           </span>
         </div>
       </div>
@@ -380,6 +392,16 @@ const BookReader: React.FC<BookReaderProps> = ({
           onRun={finder.run}
           onCancel={finder.cancel}
           onClose={() => requestSlideOver({ kind: 'close', panel: 'finder' })}
+        />
+      )}
+
+      {omissionsSeed !== null && (
+        <OmissionsDialog
+          bookTitle={book.title}
+          omissions={record.omissions}
+          seed={omissionsSeed}
+          onSave={onOmissionsChange}
+          onClose={closeOmissions}
         />
       )}
 

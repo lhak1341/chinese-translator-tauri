@@ -1,5 +1,6 @@
 import { extractErrorMessage } from '../errorHelpers';
 import { logger } from '../logger';
+import { compileOmissions } from './Omissions';
 
 /**
  * Lines fetched per IPC round trip. Large enough that a fast scroll does not issue a
@@ -20,6 +21,10 @@ export const PAGE_KEEP_RADIUS = 8;
 export interface BookLinesInputs {
   fingerprint: string;
   lineCount: number;
+  /** The book's Omissions, hidden from every line as its page lands (`Omissions.ts`).
+   * Read once: a changed list remounts the reader, so no cached line or translation made
+   * from the old text survives. */
+  omissions?: readonly string[];
 }
 
 export interface BookLinesSnapshot {
@@ -47,7 +52,8 @@ export interface BookLinesSnapshot {
  * The whole document never enters the frontend: pages are fetched around the viewport,
  * held in a plain `Map`, and dropped once the reader is far enough away. Line numbers are
  * the file's own, blank lines included — the backend deliberately does not compact them,
- * so index N here is line N there.
+ * so index N here is line N there. A book's Omissions are already gone from every line
+ * this hands out; a line they emptied is `''`, a blank line.
  *
  * One book per instance: `BookReader` is keyed by fingerprint (ADR-050), so the inputs are
  * read once, at construction. The store starts open; `close()` drops every result still in
@@ -57,6 +63,7 @@ export interface BookLinesSnapshot {
 export class BookLinesStore {
   private readonly fingerprint: string;
   private readonly lineCount: number;
+  private readonly omit: (line: string) => string;
 
   private readonly pages = new Map<number, string[]>();
   private readonly inFlight = new Set<number>();
@@ -70,9 +77,10 @@ export class BookLinesStore {
   private snapshot: BookLinesSnapshot = { linesVersion: 0, error: null };
   private readonly listeners = new Set<() => void>();
 
-  constructor({ fingerprint, lineCount }: BookLinesInputs) {
+  constructor({ fingerprint, lineCount, omissions = [] }: BookLinesInputs) {
     this.fingerprint = fingerprint;
     this.lineCount = lineCount;
+    this.omit = compileOmissions(omissions);
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -134,7 +142,7 @@ export class BookLinesStore {
     try {
       const result = await window.electronAPI.readBookLines(this.fingerprint, start, end);
       if (this.closed || !this.inWindow(page)) return;
-      this.pages.set(page, result.lines);
+      this.pages.set(page, result.lines.map(this.omit));
       this.failed.delete(page);
       this.publish(true);
     } catch (cause) {

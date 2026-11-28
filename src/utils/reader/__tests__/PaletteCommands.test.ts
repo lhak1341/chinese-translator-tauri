@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { matchHotkey } from '../../ui/HotkeyDispatchTable';
 import { buildPaletteCommands, filterPaletteCommands } from '../PaletteCommands';
 import type { ReaderActions } from '../ReaderActions';
+import type { QuickAddSource } from '../../highlighting/SelectionMapping';
 
 function actions(overrides: Partial<ReaderActions> = {}): ReaderActions {
   return {
@@ -32,6 +33,7 @@ function build(overrides: Partial<Parameters<typeof buildPaletteCommands>[0]> = 
     onRefused: vi.fn(),
     onSwitchBook: vi.fn(),
     onReopenWithEncoding: vi.fn(),
+    onEditOmissions: vi.fn(),
     ...overrides,
   });
 }
@@ -43,6 +45,17 @@ const books = [
 ];
 
 describe('buildPaletteCommands', () => {
+  it("the Omitted text row opens the dialog seeded with the palette's source", () => {
+    const onEditOmissions = vi.fn();
+    const row = (source: QuickAddSource) =>
+      build({ books: [], source, onEditOmissions }).find((c) => c.id === 'edit-omissions');
+
+    row({ kind: 'source', text: '@黄色小说/class12/1.html' })?.run();
+    row({ kind: 'refused', reason: 'Selection spans more than one line' })?.run();
+
+    expect(onEditOmissions.mock.calls).toEqual([['@黄色小说/class12/1.html'], ['']]);
+  });
+
   it('offers every action the ticket names', () => {
     const commands = build();
     const ids = commands.map((command) => command.id);
@@ -180,8 +193,8 @@ describe('filterPaletteCommands', () => {
 
   it('matches on the group name, so a group is browsable by typing it', () => {
     const matched = filterPaletteCommands(commands, 'books');
-    // The two switch rows plus reopening the open book.
-    expect(matched.length).toBe(3);
+    // The two switch rows, reopening the open book and its Omitted text.
+    expect(matched.length).toBe(4);
     expect(matched.every((command) => command.group === 'Books')).toBe(true);
   });
 });

@@ -9,6 +9,7 @@ import type {
 } from '../../types/ReaderTypes';
 import { CHAPTER_PATTERN_IDS } from '../../types/ReaderTypes';
 import { emptyBookRecord } from './BookRecord';
+import { normalizeOmissions } from './Omissions';
 
 function isFiniteNonNegative(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0;
@@ -101,6 +102,14 @@ function validateDismissedCandidates(raw: unknown): string[] {
   return [...new Set(names)].sort();
 }
 
+/** Validates persisted `omissions` element by element: a non-string is dropped, the rest
+ * normalized as the dialog saves them. A reader's answer, so one bad element never costs
+ * the others. */
+function validateOmissions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return normalizeOmissions(raw.filter((text): text is string => typeof text === 'string'));
+}
+
 /** Validates a persisted reading position. Returns `null` (meaning "not started") for
  * anything malformed — a corrupt position is not worth dropping the whole record over,
  * since the record's other fields (and the book itself) are still perfectly good. */
@@ -123,7 +132,7 @@ function validateReadingPosition(raw: unknown): ReadingPosition | null {
  * scan or open observes it again. For a reader's answer it is a real loss, but a smaller
  * one than losing the record's existence: `position` falls back to "not started",
  * `binding` to "never answered" (re-offering the dialog), `manualChapterPattern` to
- * "trust election", `dismissedCandidates` to its valid elements — each a repair the reader can
+ * "trust election", `dismissedCandidates` and `omissions` to their valid elements — each a repair the reader can
  * see and correct.
  */
 export function validateBookRecord(fingerprint: string, raw: unknown): BookRecord | null {
@@ -138,6 +147,7 @@ export function validateBookRecord(fingerprint: string, raw: unknown): BookRecor
     manualChapterPattern: validateManualChapterPattern(r.manualChapterPattern),
     binding: validateBookBinding(r.binding),
     dismissedCandidates: validateDismissedCandidates(r.dismissedCandidates),
+    omissions: validateOmissions(r.omissions),
     title: typeof r.title === 'string' ? r.title : empty.title,
     lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : empty.lastKnownPath,
     lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : empty.lineCount,

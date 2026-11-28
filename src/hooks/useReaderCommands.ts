@@ -20,6 +20,8 @@ export interface UseReaderCommandsOptions {
   openOutline: () => void;
   pageBy: (direction: 1 | -1) => void;
   openBindingDialog: () => void;
+  /** Open the book's Omissions dialog, seeded with the palette's source text. */
+  openOmissions: (seed: string) => void;
 }
 
 export interface ReaderCommands {
@@ -45,6 +47,7 @@ export function useReaderCommands({
   openOutline,
   pageBy,
   openBindingDialog,
+  openOmissions,
 }: UseReaderCommandsOptions): ReaderCommands {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   /** What the palette's Add rows start from, resolved as the palette opens — the same
@@ -115,8 +118,9 @@ export function useReaderCommands({
         onRefused: (reason) => toast.error(reason),
         onSwitchBook: shelf.switchBook,
         onReopenWithEncoding: shelf.reopenWithEncoding,
+        onEditOmissions: openOmissions,
       }),
-    [actions, shelf, currentFileName, paletteSource]
+    [actions, shelf, currentFileName, paletteSource, openOmissions]
   );
 
   return {

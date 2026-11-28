@@ -795,6 +795,14 @@ _Avoid_: authoritative/cached (for the two kinds of field; `chapterOutline` is n
 
 **`src/utils/reader/BookRecordsBackend.ts`** owns `books.json`'s read-modify-write: `transformRecords(fn)` is the only write — queued behind every write before it (the books App File's `transform`; see "App file"), handed the freshest records, saving what `fn` returns unless it returned them unchanged — so a scan's reconciliation write and a debounced position flush (see "Reading Anchor" below) can never race and drop one side's changes. The lock and the save live inside the App File, so no caller can save out of order; a read that must see queued writes uses `readSettledRecords()`, and `loadBookRecords()` is the unqueued snapshot. Its in-memory cache is observable (`bookRecordsFile`, read through `useAppFile`: `useBookRecords`, the finder's dismissals; the index prune, `pruneBookIndex`, reads its `state()`): the shelf reads each book's progress off it live rather than from a copy taken at scan time, so Back from reading shows where the reader got to without a rescan.
 
+### Omission
+
+A piece of text the reader told one book to hide: a source site's branding injected into the novel (`@黄色小说/class12/1.html` 434 times in 焚尽八荒, alone on a line, at a line's end and inside a word). One exact, case-sensitive string; a book's Omissions are one of the reader's answers on its record (`omissions`), set from the Reader palette's "Omitted text…" (`OmissionsDialog.tsx`, one per line, seeded with the palette's source text).
+
+Hidden as the book's lines enter the frontend (`BookLinesStore`, through `compileOmissions` in `src/utils/reader/Omissions.ts`), so the Original, Character-only and Translation panels read the same text and highlighting needs no mapping. The file is never changed and line numbers stay the file's own: a line that held only omitted text and whitespace reads as a blank line, it is not removed. A changed list remounts the reader (`ReaderTab`'s `changeOmissions`): the cached translations are keyed by line range, which must stay a pure function of the text. What Rust reads from the file itself (the Candidate finder, its context lines, chapter election) still sees omitted text.
+
+_Avoid_: filter (taken by the dictionary and rule filters), scrub, junk.
+
 ### Reading Anchor
 
 Where the reader is in the book: the topmost line touching the viewport, plus how far scrolled into it (a 0..1 fraction). It is the one answer to "where is the reader", and everything else follows from it: the persisted reading position is the anchor written to disk, the line shown in the chapter strip is the anchor's line, and the translation window is centred on it. A jump, a restore on open, a re-anchor after a dictionary reload and a relayout after an Appearance change all set the anchor or restore it. None of them keeps its own copy.

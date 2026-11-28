@@ -92,6 +92,7 @@ function setup(fictionDictionary: string | null) {
     openOutline: vi.fn(),
     pageBy: vi.fn(),
     openBindingDialog: vi.fn(),
+    openOmissions: vi.fn(),
   };
   const result = { current: null as unknown as ReturnType<typeof useReaderCommands> };
   function Reader() {

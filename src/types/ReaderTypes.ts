@@ -176,6 +176,9 @@ export interface BookRecord {
   /** Candidate finder names the reader dismissed for this book: sorted, unique, each 2-8
    * code points. Never written by a scan, an open or a re-run. */
   dismissedCandidates: string[];
+  /** Text hidden from this book's three panels — see `Omissions.ts`. Trimmed, non-empty,
+   * unique, in the reader's order. Never written by a scan or an open. */
+  omissions: string[];
 
   // ── Observations ──
   title: string;

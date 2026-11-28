@@ -68,6 +68,8 @@ export interface BuildPaletteCommandsInput {
   onSwitchBook: (fileName: string) => void;
   /** Show the encoding choice for the open book, to reopen it decoded differently. */
   onReopenWithEncoding: () => void;
+  /** Open this book's Omissions, seeded with `source`'s text (a refusal seeds nothing). */
+  onEditOmissions: (seed: string) => void;
 }
 
 /** The palette's action rows, in display order. */
@@ -170,6 +172,7 @@ export function buildPaletteCommands({
   onRefused,
   onSwitchBook,
   onReopenWithEncoding,
+  onEditOmissions,
 }: BuildPaletteCommandsInput): PaletteCommand[] {
   const commands: PaletteCommand[] = ACTION_ROWS.map((row) => ({
     ...row,
@@ -196,6 +199,16 @@ export function buildPaletteCommands({
     group: 'Books',
     keywords: ['encoding', 'charset', 'mojibake', 'gbk', 'utf-8', 'big5'],
     run: onReopenWithEncoding,
+  });
+
+  // Seeded from the same source an Add row reads, so a selected stretch of branding lands
+  // in the box; a refusal (a selection across lines) only means nothing is seeded.
+  commands.push({
+    id: 'edit-omissions',
+    label: 'Omitted text…',
+    group: 'Books',
+    keywords: ['hide', 'omit', 'remove', 'junk', 'watermark', 'branding', 'source'],
+    run: () => onEditOmissions(source.kind === 'source' ? source.text : ''),
   });
 
   for (const book of books) {

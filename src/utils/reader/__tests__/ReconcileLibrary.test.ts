@@ -57,6 +57,7 @@ const ANSWER_SAMPLES = {
   manualChapterPattern: 'volume',
   binding: { fictionDictionary: 'properNouns-f_TapDo' },
   dismissedCandidates: ['滕青山'],
+  omissions: ['@黄色小说/class12/1.html'],
 } as const;
 
 describe('planReconciliation — resolve', () => {

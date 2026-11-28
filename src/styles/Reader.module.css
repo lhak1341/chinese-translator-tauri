@@ -459,6 +459,47 @@
   white-space: nowrap;
 }
 
+/* "Line X of Y" (`LineJumpField.tsx`): a quiet button that turns into a number box. Both
+   states share font and padding so the strip does not shift when it switches. */
+.lineJumpButton {
+  font: inherit;
+  color: inherit;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  cursor: text;
+}
+
+.lineJumpButton:hover {
+  background-color: var(--lk-surface-hover);
+}
+
+.lineJumpButton:active {
+  transform: none;
+}
+
+.lineJumpEditing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+}
+
+.lineJumpInput {
+  font: inherit;
+  text-align: right;
+  padding: 0.05rem 0.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.lineJumpInput[aria-invalid='true'] {
+  border-color: var(--lk-danger);
+}
+
 /* Stands in for the scrollbar thumb `.readerScroll` hides — a thumb sized for 75,000
    lines is a sliver a pixel or two tall, no more informative than this bar and a lot
    harder to see. */
@@ -1362,6 +1403,34 @@
   border: 1px solid var(--border-color);
   background: var(--background-color);
   color: var(--text-color);
+}
+
+/* Omitted text dialog (`OmissionsDialog.tsx`), inside the kit's DialogPopup. */
+.omissionsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.omissionsInput {
+  width: 100%;
+  min-height: 9rem;
+  resize: vertical;
+  font-family: var(--chinese-text-font, var(--lk-font-chinese));
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.omissionsFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .bindingTable {

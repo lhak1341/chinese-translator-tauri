@@ -43,6 +43,7 @@ function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
     openOutline: vi.fn(),
     pageBy: vi.fn(),
     openBindingDialog: vi.fn(),
+    openOmissions: vi.fn(),
     ...overrides,
   };
   return { options, view: renderHook(() => useReaderCommands(options)) };

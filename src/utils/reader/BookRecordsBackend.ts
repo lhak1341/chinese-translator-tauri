@@ -172,6 +172,14 @@ export function setBookBinding(fingerprint: string, binding: BookBinding): Promi
 }
 
 /**
+ * Persist the text this book hides (`Omissions.ts`), replacing the list. Written at once,
+ * like the binding: the reader just pressed Save and the book is about to reload with it.
+ */
+export function setOmissions(fingerprint: string, omissions: readonly string[]): Promise<void> {
+  return patchBookRecord('setOmissions', fingerprint, { omissions: [...omissions] });
+}
+
+/**
  * One write per dismiss or restore of a Candidate finder name. The list stays sorted and
  * unique, as `validateBookRecord` would repair it; a name already in (or already out of) the
  * list changes nothing, so nothing is saved.

@@ -24,10 +24,15 @@ export interface BookLineWindow {
  * owns the pages, the in-flight set, eviction and the failed-page rule.
  *
  * One book per instance: `BookReader` is keyed by fingerprint (ADR-050), so the store is
- * made once and its inputs are read once, at mount.
+ * made once and its inputs are read once, at mount — the Omissions too: `ReaderTab`
+ * remounts the reader when they change.
  */
-export function useBookLines(fingerprint: string, lineCount: number): BookLineWindow {
-  const [store] = useState(() => new BookLinesStore({ fingerprint, lineCount }));
+export function useBookLines(
+  fingerprint: string,
+  lineCount: number,
+  omissions: readonly string[] = []
+): BookLineWindow {
+  const [store] = useState(() => new BookLinesStore({ fingerprint, lineCount, omissions }));
   const { linesVersion, error } = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   useEffect(() => {
